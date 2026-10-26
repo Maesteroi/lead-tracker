@@ -26,17 +26,38 @@ function showAdsScript() {
   var p = PropertiesService.getScriptProperties();
   ensureAdsCols_();
   var code = ADS_SCRIPT_SOURCE.replace("'PASTE_WEBAPP_URL'", "'" + adsWebappUrl_(p) + "'").replace("'PASTE_ADS_KEY'", "'" + adsKey_(p) + "'");
+  var rows = adsSitesStatus_(p).map(function (x) {
+    return '<tr><td>' + escHtml_(x.name) + '</td><td>' + (x.cid ? '✅ ' + escHtml_(x.cid) : '<span class="w">⏳ لسه</span>') +
+      '</td><td>' + escHtml_(x.campaigns || '—') + '</td><td>' + escHtml_(x.last || '—') + '</td></tr>';
+  }).join('');
   var html = '<!DOCTYPE html><html dir="rtl"><head><base target="_top"><meta charset="utf-8"><style>' +
-    'body{font-family:Arial,sans-serif;margin:0;padding:12px;color:#202124}ol{margin:6px 0 10px;padding-inline-start:20px;line-height:1.7;font-size:14px}' +
-    'textarea{width:100%;height:330px;direction:ltr;font:12px/1.4 monospace;box-sizing:border-box}' +
-    'button{background:#1a73e8;color:#fff;border:0;border-radius:6px;padding:10px 22px;font-size:15px;cursor:pointer}#ok{color:#188038;margin-inline-start:10px;font-size:14px}</style></head><body>' +
-    '<ol><li>دوس <b>نسخ الكود</b>.</li><li>في أي حساب جوجل أدز: الأدوات ← الإجراءات المجمّعة ← النصوص البرمجية ← <b>+</b> ← الزق الكود زي ما هو.</li>' +
-    '<li><b>تشغيل</b>. الحساب والحملات بيتكتبوا في دفتر «🌐 المواقع» لوحدهم.</li><li>من قايمة النصوص البرمجية: <b>التكرار ← يوميًا</b> الساعة 3 الفجر.</li></ol>' +
-    '<button onclick="cp()">نسخ الكود</button><span id="ok"></span><textarea id="c" readonly>' + escHtml_(code) + '</textarea>' +
+    'body{font-family:Arial,sans-serif;margin:0;padding:14px;color:#202124;font-size:14px}' +
+    'table{border-collapse:collapse;width:100%;margin:8px 0 14px}th,td{border-bottom:1px solid #e0e0e0;padding:7px 6px;text-align:right}th{background:#f1f3f4;font-weight:bold}.w{color:#b06000}' +
+    'button{background:#1a73e8;color:#fff;border:0;border-radius:6px;padding:11px 26px;font-size:15px;cursor:pointer}#ok{color:#188038;margin-inline-start:10px}' +
+    '#c{position:absolute;left:-9999px;top:0;width:10px;height:10px}ol{margin:12px 0 0;padding-inline-start:20px;line-height:1.8;color:#5f6368}</style></head><body>' +
+    '<button onclick="cp()">📋 نسخ الكود</button><span id="ok"></span>' +
+    '<table><tr><th>الموقع</th><th>حساب جوجل أدز</th><th>الحملات</th><th>آخر يوم اتسجل</th></tr>' + rows + '</table>' +
+    '<div>⏳ = لسه: الزق الكود في حساب جوجل أدز بتاع الموقع ده ودوس <b>تشغيل</b>، والسطر هيتملى لوحده.</div>' +
+    '<ol><li>في حساب جوجل أدز: الأدوات ← الإجراءات المجمّعة ← النصوص البرمجية ← <b>+</b> ← لزق ← <b>تشغيل</b>.</li>' +
+    '<li>التكرار ← <b>يوميًا</b> الساعة 3 الفجر.</li></ol>' +
+    '<textarea id="c" readonly>' + escHtml_(code) + '</textarea>' +
     '<script>function cp(){var t=document.getElementById("c");t.focus();t.select();var d=false;try{d=document.execCommand("copy");}catch(e){}' +
     'if(!d&&navigator.clipboard){navigator.clipboard.writeText(t.value).then(function(){ok(true);});return;}ok(d);}' +
-    'function ok(d){document.getElementById("ok").textContent=d?"✓ اتنسخ":"اضغط Ctrl+C (الكود متحدد)";}</script></body></html>';
-  SpreadsheetApp.getUi().showModalDialog(HtmlService.createHtmlOutput(html).setWidth(760).setHeight(560), 'كود جوجل أدز — نفس الكود لكل الحسابات');
+    'function ok(d){document.getElementById("ok").textContent=d?"✓ اتنسخ — الزقه في حساب جوجل أدز":"النسخ اترفض من المتصفح، جرّب تاني";}</script></body></html>';
+  SpreadsheetApp.getUi().showModalDialog(HtmlService.createHtmlOutput(html).setWidth(720).setHeight(520), 'Lead Tracker — جوجل أدز');
+}
+
+// المواقع اللي في الدفتر وحالة جوجل أدز لكل واحد
+function adsSitesStatus_(p) {
+  var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(TAB_SITES);
+  if (!sh || sh.getLastRow() < 2) return [];
+  var hdr = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
+  var iC = hdr.indexOf(ADS_COL_CID), iP = hdr.indexOf(ADS_COL_CAMPAIGNS);
+  return sh.getRange(2, 1, sh.getLastRow() - 1, hdr.length).getDisplayValues().filter(function (r) { return r[0]; }).map(function (r) {
+    var cid = iC >= 0 ? String(r[iC] || '') : '', last = '';
+    if (cid) { try { var d = adsHaveDays_(String(r[0]), p).sort(); last = d[d.length - 1] || ''; } catch (e) { last = '؟'; } }
+    return { name: String(r[1] || r[0]), cid: cid, campaigns: iP >= 0 ? String(r[iP] || '') : '', last: last };
+  });
 }
 function escHtml_(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
 
@@ -54,10 +75,8 @@ function adsKey_(p) {
 }
 
 function adsWebappUrl_(p) {
-  var u = p.getProperty('WEBAPP_URL');
-  if (u) return u;
-  try { var s = ScriptApp.getService().getUrl(); if (s && /\/exec$/.test(s)) return s; } catch (e) {}
-  return ADS_DEFAULT_WEBAPP;
+  // الرابط اللي البلجن والسكريبت شغالين عليه فعلاً. getService ممكن يرجّع رابط نشر تاني (اتشاف 26 أكتوبر)
+  return p.getProperty('WEBAPP_URL') || ADS_DEFAULT_WEBAPP;
 }
 
 function handleAds_(data, props) {

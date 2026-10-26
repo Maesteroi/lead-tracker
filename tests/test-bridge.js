@@ -42,7 +42,7 @@ function runAds({preview,cid,key}){
 globalThis.ADS_CAMPS=[];let r=runAds({preview:true,key:'whatever'});t('no ADS_KEY on server → rejected',/key/.test(r.err));
 // 1 key + web app URL (default /exec when service gives /dev)
 G.setupAdsKey();t('key stored + logged',!!store.ADS_KEY&&gs_log.some(l=>l.includes(store.ADS_KEY)));
-t('web app url = /exec default',/\/exec$/.test(G.adsWebappUrl_(gctx.PropertiesService.getScriptProperties())));
+t('web app url = known deployment',/AKfycbyNrN/.test(G.adsWebappUrl_(gctx.PropertiesService.getScriptProperties())));
 t('sites tab got the 2 columns',sites.d[0].includes('حساب جوجل أدز')&&sites.d[0].includes('حملات جوجل'));
 // 2 account with no matching site
 globalThis.ADS_CAMPS=[{id:'555',name:'متجر تاني',urls:['https://other-shop.com/x']}];
@@ -84,4 +84,5 @@ G.showAdsScript();const code=LAST_HTML.split('<textarea id="c" readonly>')[1].sp
 const pp=gctx.PropertiesService.getScriptProperties();
 t('dialog code == collector (url/key filled)',code===ads.replace("PASTE_WEBAPP_URL",G.adsWebappUrl_(pp)).replace("PASTE_ADS_KEY",store.ADS_KEY));
 let jsok=true;try{new Function(code)}catch(e){jsok=false}t('dialog code is valid JS',jsok);
+t('dialog lists sites with status',/الانجاز السريع/.test(LAST_HTML)&&/✅ 922-447-5682/.test(LAST_HTML)&&/⏳ لسه/.test(LAST_HTML));
 console.log(`\n${ok} passed, ${bad} failed`);process.exit(bad?1:0);
