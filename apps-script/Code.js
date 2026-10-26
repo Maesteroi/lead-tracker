@@ -1,5 +1,9 @@
 /**
- * Lead Tracker Pro — Apps Script v3.4.3 (plugin 2.8.3)
+ * Lead Tracker Pro — Apps Script v3.7.0 (plugin 2.8.3)
+ * v3.7.0: سكريبت جوجل أدز بيسجّل نفسه لوحده (رقم الحساب والحملات من رابط الإعلان) · قايمة «نسخ كود جوجل أدز»
+ * v3.6.0: سكريبت جوجل أدز واحد لكل الحسابات — الإعدادات في دفتر المواقع (ads-bridge.js)
+ * v3.5.1: مفيش حدث بيضيع — الانتظار على القفل 28 ثانية بدل 10، واللي مالحقش بيتحفظ في طابور ويتكتب بعدين (وتنبيه تليجرام بتاعه بيتبعت فوراً) · «زائر راجع» بيتحسب برّه القفل · تحديث شيت المواقع مرة في الدقيقة
+ * v3.5.0: فجوة النقرات (click-gap.js) — سجل الموقع بيحفظ استهداف البلجن (target_geo) عشان التحليل يعرف «برّه الاستهداف»
  * v3.4.4: فحص الشبكة الحقيقي لزوار الإعلانات بـ ipapi.is (VPN · داتا سنتر · بروكسي · Tor · جوال) في عمود «نوع الشبكة» نفسه · الاحتياطي التخمين من اسم الشركة (+ LIGHT NODE) · تنبيه تليجرام لو الفحص وقف
  * v3.4.3: بصمات الزيارات القصيرة (fp_update) بتتكتب في صف الزيارة · علامة «برّه الاستهداف» لزوار الإعلانات · «زائر راجع» أوضح وثقته أقل على الـIP المشترك (موبايل/VPN)
  * v3.4.2: عمود «Thumbmark ID» (ThumbmarkJS API) + بيدخل في «زائر راجع»
@@ -474,6 +478,10 @@ function doPost(e) {
     }
   }
   
+  // v3.6.0: سكريبت جوجل أدز الموحّد (ads-bridge.js)
+  if (data && (data.action === 'ads_config' || data.action === 'ads_sync' || data.action === 'ads_clicks')) {
+    try { return handleAds_(data, props); } catch (err) { console.error('ads: ' + err); return json_({ ok: false, error: 'server', detail: String(err).slice(0, 200) }); }
+  }
   if (data && data.event === 'pair') {
     try { return handlePair_(data, props); } catch (err) { console.error('pair error: ' + err); return json_({ ok: false, error: 'server' }); }
   }
@@ -490,11 +498,16 @@ function doPost(e) {
 }
 
 function handleNormalEvent_(data, props, rec) {
+  // v3.5.0: استهداف الموقع من البلجن بيتحفظ مع سجل الموقع (لتحليل نقرات جوجل)
+  if (data.target_geo && data.site_id && rec && !rec.legacy && rec.tg !== String(data.target_geo)) {
+    try { rec.tg = String(data.target_geo); saveSiteRec_(data.site_id, rec, props); } catch (e) { console.error('tg: ' + e); }
+  }
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var book = bookFor_(ss, rec);
   var siteId = data.site_id || 'unknown';
   var siteName = data.site || 'غير محدد';
   var isUpdate = !!UPDATE_EVENTS[data.event];
+  if (!data._q) {
   if ((!isUpdate || data.event === 'fp_update') && (data.event === 'page_view' || data.event === 'click' || data.event === 'fp_update' || EC_EVENTS[data.event]) && data.ip && (!data.country || !data.isp)) {
     enrich_(data);
   }
@@ -506,14 +519,47 @@ function handleNormalEvent_(data, props, rec) {
   // v3.4: تحذير البلجن (طلب تجريبي · طلب يدوي · مصدر غير معروف…) + تحذير الشيت — مايتمسحوش
   data.warning = [data.warning, detectWarning_(data)].filter(function (x) { return x && String(x).trim(); }).join(' · ');
   if (data.is_test) data.warning = '🧪 وضع التجربة — الحدث الأصلي: ' + (EVENT_AR[data.event] || data.event) + (data.warning ? ' · ' + data.warning : '');
+  }
 
-  var isNewSite = false;
+  // v3.5.1: «زائر راجع» قراءة بس — بيتحسب قبل القفل عشان القفل مايطولش
+  if (data.event === 'page_view' && !data.is_test && data.returning === undefined) {
+    try { var rs = findSiteSheet_(book, siteId); if (rs) data.returning = returningInfo_(rs, data); } catch (e) { console.error('returning: ' + e); }
+  }
+
+  var isNewSite = false, gotLock = false, waited = Date.now();
   var lock = LockService.getScriptLock();
   try {
-    lock.waitLock(10000);
-    isNewSite = touchSite_(ss, siteId, siteName, data.home_url, book);
-    var sheet = getOrCreateSiteSheet_(book, siteId, siteName);
-    ensureSummaryOnce_(book, sheet, siteId, book !== ss);
+    // v3.5.1: كان 10 ثواني، والأحداث اللي ورا بعض (زيارة ← ضغطة ← واتساب) كانت بتضيع (درس 26 أكتوبر)
+    gotLock = lock.tryLock(28000);
+    if (!gotLock) throw new Error('LOCK_BUSY');
+    waited = Date.now() - waited;
+    isNewSite = writeEvent_(data, ss, book, siteId, siteName, isUpdate);
+    if (data.event === 'fp_update') return out_('ok');   // مابيعملش صف جديد ولا تنبيه
+    // v3.5.1: لو القفل جه بسرعة، نكتب حدث واحد من الطابور
+    if (!data._q && waited < 3000) { try { drainQueue_(1); } catch (e) { console.error('drain: ' + e); } }
+  } catch (err) {
+    try { lock.releaseLock(); } catch (e) {}
+    if (data._q) throw err;   // جاي من الطابور: يفضل في الطابور
+    // v3.5.1: الحدث مايضيعش — يتحفظ في الطابور، والتنبيه يتبعت دلوقتي
+    var queued = false;
+    try { queued = queueEvent_(data, props); } catch (e) { console.error('queue: ' + e); }
+    if (!gotLock) console.warn('lock busy → queued=' + queued + ' ' + data.event + ' ' + (data.match_code || ''));
+    else { console.error('sheet write: ' + err); adminAlertOnce_(props, 'write', '⚠️ كتابة الشيت فشلت (' + esc_(data.site || '') + '): ' + esc_(String(err).slice(0, 200)) + (queued ? ' — الحدث اتحفظ في الطابور' : ' — والحدث ضاع')); }
+    if (!queued) adminAlertOnce_(props, 'lost', '⛔ حدث ضاع ومااتحفظش (' + esc_(data.site || '') + ' · ' + esc_(EVENT_AR[data.event] || data.event) + (data.match_code ? ' #' + esc_(data.match_code) : '') + ')');
+    if (data.event !== 'fp_update' && !data._tg) notifyFor_(data, props, false);
+    return out_(queued ? 'queued' : 'busy');
+  }
+  finally { try { lock.releaseLock(); } catch (e) {} }
+  if (data._tg) return out_('ok');   // التنبيه اتبعت وقت ما الحدث دخل الطابور
+  notifyFor_(data, props, isNewSite);
+  return out_('ok');
+}
+
+// v3.5.1: كتابة الحدث في الشيت (لازم القفل يكون معانا)
+function writeEvent_(data, ss, book, siteId, siteName, isUpdate) {
+  var isNewSite = touchSite_(ss, siteId, siteName, data.home_url, book);
+  var sheet = getOrCreateSiteSheet_(book, siteId, siteName);
+  ensureSummaryOnce_(book, sheet, siteId, book !== ss);
 
     var updated = false;
     if (isUpdate) updated = applyUpdate_(sheet, siteId, data);
@@ -524,20 +570,21 @@ function handleNormalEvent_(data, props, rec) {
         writeExtras_(sheet, updated, { fp2: data.fp2, fp3: data.fp3, fp4: data.fp4, returning: data.returning });
       } catch (e) { console.error('fp_update: ' + e); }
     }
-    if (data.event === 'fp_update') return out_('ok');   // مابيعملش صف جديد ولا تنبيه
+    if (data.event === 'fp_update') return isNewSite;
 
     if (!updated) {
       // v3.4: زائر راجع (بصمة + IP) — قبل ما الصف الجديد يتكتب
-      if (data.event === 'page_view' && !data.is_test) { try { data.returning = returningInfo_(sheet, data); } catch (e) { console.error('returning: ' + e); } }
+      if (data.event === 'page_view' && !data.is_test && data.returning === undefined) { try { data.returning = returningInfo_(sheet, data); } catch (e) { console.error('returning: ' + e); } }
       sheet.appendRow(buildRow_(data, siteName));
       var newRow = sheet.getLastRow();
       try { writeExtras_(sheet, newRow, data); } catch (e) { console.error('extras: ' + e); }
       try { fixUrlColumns_(sheet, newRow, data); } catch (e) { console.error('fixUrl: ' + e); }
       if (data.event === 'page_view') rememberVisitRow_(siteId, data, newRow);
     }
-  } catch (err) { console.error('sheet write: ' + err); return out_('busy'); }
-  finally { try { lock.releaseLock(); } catch (e) {} }
+  return isNewSite;
+}
 
+function notifyFor_(data, props, isNewSite) {
   // الأحداث اللي بتستحق إرسال
   var shouldNotify = isNewSite ||
                      data.event === 'page_view' ||
@@ -556,7 +603,66 @@ function handleNormalEvent_(data, props, rec) {
       console.error('TG error: ' + e);
     }
   }
-  return out_('ok');
+  data._tg = 1;
+}
+
+// ═══════════════════════════════════════════════════════════
+// v3.5.1 — طابور الأحداث اللي مالحقتش القفل (Script Properties: Q_<وقت>_<عشوائي>)
+// ═══════════════════════════════════════════════════════════
+function queueEvent_(data, props) {
+  var j = JSON.stringify(data);
+  if (j.length > 8500) {   // حد Script Properties للقيمة الواحدة ~9KB
+    var slim = JSON.parse(j); ['ua', 'items_list', 'journey', 'gpu', 'referrer'].forEach(function (k) { if (slim[k]) slim[k] = String(slim[k]).slice(0, 200); });
+    j = JSON.stringify(slim);
+    if (j.length > 8500) return false;
+  }
+  props.setProperty('Q_' + Date.now() + '_' + Math.floor(Math.random() * 1e6), j);
+  return true;
+}
+
+function drainQueue_(max) {
+  var props = PropertiesService.getScriptProperties();
+  var keys = props.getKeys().filter(function (k) { return k.indexOf('Q_') === 0; }).sort();
+  var done = 0;
+  for (var i = 0; i < keys.length && done < max; i++) {
+    var raw = props.getProperty(keys[i]);
+    props.deleteProperty(keys[i]);
+    if (!raw) continue;
+    var d; try { d = JSON.parse(raw); } catch (e) { continue; }
+    d._q = 1; d._tg = 1;
+    var rec = authorize_(d, props);
+    if (!rec) continue;
+    try {
+      var ss = SpreadsheetApp.getActiveSpreadsheet();
+      writeEvent_(d, ss, bookFor_(ss, rec), d.site_id || 'unknown', d.site || 'غير محدد', !!UPDATE_EVENTS[d.event]);
+      done++;
+    }
+    catch (e) { props.setProperty(keys[i], raw); console.error('drain ' + keys[i] + ': ' + e); break; }
+  }
+  var left = keys.length - done;
+  if (left > 20) adminAlertOnce_(props, 'queue', '⚠️ طابور الأحداث فيه ' + left + ' حدث مستني يتكتب في الشيت. الشيت بطيء أو مقفول.');
+  return done;
+}
+
+// يدوي أو من المشغّلات: يكتب كل اللي في الطابور
+function drainQueue() { Logger.log('اتكتب من الطابور: ' + drainLoop_(500)); }
+
+function drainLoop_(count) {
+  var n = 0;
+  for (var i = 0; i < count; i++) {
+    var lock = LockService.getScriptLock();
+    if (!lock.tryLock(28000)) break;
+    try { var k = drainQueue_(1); n += k; if (!k) break; } finally { lock.releaseLock(); }
+  }
+  return n;
+}
+
+// تنبيه لمحمود مرة واحدة في الساعة لكل نوع
+function adminAlertOnce_(props, kind, text) {
+  var cache = CacheService.getScriptCache();
+  if (cache.get('aa_' + kind)) return;
+  try { cache.put('aa_' + kind, '1', 3600); } catch (e) {}
+  try { sendTelegramText_(props, text); } catch (e) { console.error('admin alert: ' + e); }
 }
 
 function clickAlertAllowed_(d, props) {
@@ -676,10 +782,13 @@ function touchSite_(ss, siteId, siteName, homeUrl, book) {
     }
   }
   if (row) {
+    // v3.5.1: «آخر حدث» و«عدد الأحداث» بيتكتبوا مرة في الدقيقة (العدد بيتجمع في الكاش)
+    var pk = 'stp_' + siteId, pend = parseInt(cache.get(pk) || '0', 10) + 1;
+    if (cache.get('stw_' + siteId)) { try { cache.put(pk, String(pend), 21600); } catch (e) {} return false; }
     var r = sh.getRange(row, 5, 1, 2);
     var v = r.getValues()[0];
-    r.setValues([[new Date(), (Number(v[1]) || 0) + 1]]);
-    try { cache.put(ck, String(row), 21600); } catch (e) {}
+    r.setValues([[new Date(), (Number(v[1]) || 0) + pend]]);
+    try { cache.put(ck, String(row), 21600); cache.put(pk, '0', 21600); cache.put('stw_' + siteId, '1', 60); } catch (e) {}
     return false;
   }
   sh.appendRow([siteId, siteName, homeUrl || '', new Date(), new Date(), 1, '🟢 نشط', book === ss ? '' : book.getUrl()]);
@@ -1785,6 +1894,8 @@ function onOpen() {
     .addItem('🔧 إصلاح كل الروابط (مرة واحدة)', 'fixAllUrlColumns')
     .addItem('🔄 تحديث كل الـ headers', 'forceUpdateAllHeaders')
     .addSeparator()
+    .addItem('📋 نسخ كود جوجل أدز (نفس الكود لكل الحسابات)', 'showAdsScript')
+    .addSeparator()
     .addItem('وقف موقع', 'menuDisableSite')
     .addItem('تشغيل موقع موقوف', 'menuEnableSite')
     .addToUi();
@@ -1891,6 +2002,7 @@ function readSiteRows_(sh, tz, sinceKey) {
 }
 
 function refreshDashboard() {
+  try { drainLoop_(30); } catch (e) { console.error('drain: ' + e); }   // v3.5.1
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var props = PropertiesService.getScriptProperties();
   var tz = props.getProperty('TIMEZONE') || 'Africa/Cairo';
