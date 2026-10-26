@@ -18,18 +18,16 @@ var GAP_MIN_ARRIVAL = 85;   // بوابة جودة البيانات §٥: زيا
 
 function analyzeClickGap() {
   var props = PropertiesService.getScriptProperties();
-  var all = props.getProperties();
   var sites = [], noAccess = [];
-  // المواقع اللي عندها «نقرات جوجل» بس — والشيت اللي الحساب ده مش قادر يفتحه بيتسجل في السجل ويتساب
-  Object.keys(all).forEach(function (key) {
-    if (key.indexOf('SITE_') !== 0) return;
-    var rc; try { rc = JSON.parse(all[key]); } catch (e) { return; }
+  // v3.6.0: المواقع اللي ليها «حساب جوجل أدز» في دفتر المواقع بس — مش بنفتح ملفات باقي المواقع
+  adsSites_().forEach(function (st) {
+    var rc = siteRec_(st.id, props);
     if (!rc || !rc.ss || rc.st !== 'on') return;
     try {
       var b = SpreadsheetApp.openById(rc.ss);
       if (!b.getSheetByName(GAP_TAB)) return;
-      sites.push({ id: key.slice(5), rec: rc, book: b });
-    } catch (e) { noAccess.push(rc.n || key.slice(5)); }
+      sites.push({ id: st.id, rec: rc, book: b });
+    } catch (e) { noAccess.push(rc.n || st.name); }
   });
   if (noAccess.length) console.warn('مش قادر أفتح شيت: ' + noAccess.join('، ') + ' (الحساب اللي مشغّل التحليل مالوش صلاحية)');
   // درس 25 أكتوبر: أي عمود جديد يتعمل في كل الشيتات مرة واحدة وبنفس الترتيب

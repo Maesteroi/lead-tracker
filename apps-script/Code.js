@@ -1,5 +1,6 @@
 /**
- * Lead Tracker Pro — Apps Script v3.5.1 (plugin 2.8.3)
+ * Lead Tracker Pro — Apps Script v3.6.0 (plugin 2.8.3)
+ * v3.6.0: سكريبت جوجل أدز واحد لكل الحسابات — الإعدادات في دفتر المواقع (ads-bridge.js)
  * v3.5.1: مفيش حدث بيضيع — الانتظار على القفل 28 ثانية بدل 10، واللي مالحقش بيتحفظ في طابور ويتكتب بعدين (وتنبيه تليجرام بتاعه بيتبعت فوراً) · «زائر راجع» بيتحسب برّه القفل · تحديث شيت المواقع مرة في الدقيقة
  * v3.5.0: فجوة النقرات (click-gap.js) — سجل الموقع بيحفظ استهداف البلجن (target_geo) عشان التحليل يعرف «برّه الاستهداف»
  * v3.4.4: فحص الشبكة الحقيقي لزوار الإعلانات بـ ipapi.is (VPN · داتا سنتر · بروكسي · Tor · جوال) في عمود «نوع الشبكة» نفسه · الاحتياطي التخمين من اسم الشركة (+ LIGHT NODE) · تنبيه تليجرام لو الفحص وقف
@@ -476,6 +477,10 @@ function doPost(e) {
     }
   }
   
+  // v3.6.0: سكريبت جوجل أدز الموحّد (ads-bridge.js)
+  if (data && (data.action === 'ads_config' || data.action === 'ads_clicks')) {
+    try { return handleAds_(data, props); } catch (err) { console.error('ads: ' + err); return json_({ ok: false, error: 'server', detail: String(err).slice(0, 200) }); }
+  }
   if (data && data.event === 'pair') {
     try { return handlePair_(data, props); } catch (err) { console.error('pair error: ' + err); return json_({ ok: false, error: 'server' }); }
   }
