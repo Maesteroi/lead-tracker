@@ -1,21 +1,19 @@
 /**
- * Lead Tracker — سكريبت جوجل أدز: جمع الضغطات (v2.0 — نسخة واحدة لكل الحسابات)
+ * Lead Tracker — سكريبت جوجل أدز: جمع الضغطات (v3.0 — نفس الكود لكل الحسابات، وبيسجّل نفسه)
  *
- * نفس الكود بالظبط في كل حساب إعلانات، من غير أي تعديل.
- * بيعرف رقم الحساب اللي هو فيه، ويسأل كود الشيت (Lead Tracker): «أنا حساب كذا، إيه حملاتي؟»
- * كود الشيت بيدوّر في دفتر «🌐 المواقع» (خانتي «حساب جوجل أدز» و«حملات جوجل»)،
- * والسكريبت بيبعتله ضغطات كل يوم، وهو اللي بيكتبها في ملف الموقع الصح:
+ * انسخه من الشيت الرئيسي: قايمة Lead Tracker ← «نسخ كود جوجل أدز». والزقه في أي حساب زي ما هو.
+ * أول ما يشتغل بيبعت رقم الحساب وحملاته والرابط اللي كل إعلان بيودّي عليه،
+ * وكود الشيت بيعرف الموقع من الرابط ويكتب الحساب والحملات في دفتر «🌐 المواقع» لوحده.
+ * بعدها كل يوم بيبعت ضغطات امبارح، وكود الشيت بيكتبها في ملف الموقع:
  *   «نقرات جوجل»       — صف لكل ضغطة (gclid · الكلمة · الجهاز · مكان التواجد …)
  *   «ملخص جوجل اليومي» — صف لكل حملة في اليوم (ضغطات · وهمية حسب جوجل · ظهور · تكلفة)
  *
  * بيقرا بس من الحساب، ومابيغيرش أي حاجة في الحملات.
- * وضع المعاينة (Preview): بيسأل عن الإعدادات ويطبع النتيجة، ومابيبعتش ضغطات.
+ * وضع المعاينة (Preview): بيسجّل الحساب في الدفتر ويطبع النتيجة، ومابيبعتش ضغطات.
  */
 
 var CONFIG = {
-  // رابط كود الشيت (Web App) — نفس الرابط في كل الحسابات
   WEBAPP_URL: 'PASTE_WEBAPP_URL',
-  // المفتاح من setupAdsKey في Apps Script — نفس المفتاح في كل الحسابات
   ADS_KEY: 'PASTE_ADS_KEY',
   // أول تشغيل: يجيب كام يوم لورا (لحد 89). بعد كده الأيام الناقصة بس + امبارح
   BACKFILL_DAYS: 7
@@ -29,69 +27,67 @@ var AR = {
 };
 
 function main() {
-  if (CONFIG.WEBAPP_URL.indexOf('PASTE_') === 0 || CONFIG.ADS_KEY.indexOf('PASTE_') === 0) throw new Error('حط WEBAPP_URL وADS_KEY في أول السكريبت');
+  if (CONFIG.WEBAPP_URL.indexOf('PASTE_') === 0 || CONFIG.ADS_KEY.indexOf('PASTE_') === 0) throw new Error('الكود ناقص الرابط أو المفتاح — انسخه من الشيت: قايمة Lead Tracker ← «نسخ كود جوجل أدز»');
   var preview = AdsApp.getExecutionInfo().isPreview();
   var acc = AdsApp.currentAccount(), tz = acc.getTimeZone(), cid = acc.getCustomerId();
   Logger.log('الحساب: ' + acc.getName() + ' (' + cid + ') · المنطقة الزمنية: ' + tz + (preview ? ' · ⚠️ وضع المعاينة: مش هيبعت ضغطات' : ''));
 
-  var cfg = post_({ action: 'ads_config', cid: cid });
-  if (!cfg.ok) {
-    if (cfg.error === 'no_site') { listCampaigns_(); throw new Error('الحساب ' + cid + ' مش متسجل في دفتر «🌐 المواقع» (خانة «حساب جوجل أدز»). حملات الحساب فوق في السجل'); }
-    throw new Error('كود الشيت رفض: ' + JSON.stringify(cfg));
+  var camps = campaignsWithHosts_();
+  var cfg = post_({ action: 'ads_sync', cid: cid, account: acc.getName(), campaigns: camps });
+  if (!cfg.ok) throw new Error('كود الشيت رفض: ' + JSON.stringify(cfg));
+  (cfg.unmatched || []).forEach(function (u) { Logger.log('⚪ حملة مالهاش موقع في الدفتر: ' + u.id + ' — ' + u.name + ' ← ' + (u.hosts || []).join('، ')); });
+  if (!(cfg.sites || []).length) {
+    throw new Error('مفيش ولا حملة إعلاناتها بتودّي على موقع في دفتر «🌐 المواقع». الروابط اللي في الحساب: ' +
+      uniq_([].concat.apply([], camps.map(function (c) { return c.hosts; }))).join('، '));
   }
-  Logger.log('الموقع: ' + cfg.site);
-  var ids = checkCampaigns_(cfg.campaigns || []);
 
-  var have = {}; (cfg.have || []).forEach(function (d) { have[d] = 1; });
-  var days = [], n = Math.min(Math.max(parseInt(CONFIG.BACKFILL_DAYS, 10) || 1, 1), 89);
-  for (var i = n; i >= 1; i--) {
-    var d = Utilities.formatDate(new Date(Date.now() - i * 864e5), tz, 'yyyy-MM-dd');
-    if (!have[d]) days.push(d);
-  }
-  Logger.log('الأيام اللي هتتسحب: ' + (days.join(' · ') || 'ولا يوم (كله متسجل)'));
-
-  var total = 0;
-  days.forEach(function (day) {
-    var rows = clicksOf_(day, ids), daily = dailyOf_(day, ids);
-    total += rows.length;
-    var sum = daily.reduce(function (a, r) { return a + r[2]; }, 0), inv = daily.reduce(function (a, r) { return a + r[3]; }, 0);
-    Logger.log(day + ': ' + rows.length + ' ضغطة في القايمة · لوحة جوجل: ' + sum + ' ضغطة (+ ' + inv + ' وهمية شالها جوجل)');
-    if (preview) {
-      rows.slice(0, 5).forEach(function (r) { Logger.log('   ' + r.slice(0, 8).join(' | ') + ' | ' + r[11] + ' | ' + r[14] + ' (' + r[15] + ')'); });
-      return;
-    }
-    var res = post_({ action: 'ads_clicks', cid: cid, day: day, clicks: rows, daily: daily });
-    if (!res.ok) throw new Error(day + ': كود الشيت ماكتبش — ' + JSON.stringify(res));
-    Logger.log('   ✓ ' + (res.skipped ? 'اليوم ده كان متسجل' : 'اتكتب في ملف ' + res.site + ': ' + res.clicks + ' ضغطة'));
+  var total = 0, n = Math.min(Math.max(parseInt(CONFIG.BACKFILL_DAYS, 10) || 1, 1), 89);
+  cfg.sites.forEach(function (site) {
+    var ids = (site.campaigns || []).map(String);
+    Logger.log('الموقع: ' + site.name + ' · الحملات: ' + ids.map(function (i) { return i + ' (' + (nameOf_(camps, i) || '؟') + ')'; }).join(' · '));
+    if (!ids.length) return;
+    var have = {}; (site.have || []).forEach(function (d) { have[d] = 1; });
+    var days = [];
+    for (var i = n; i >= 1; i--) { var d = Utilities.formatDate(new Date(Date.now() - i * 864e5), tz, 'yyyy-MM-dd'); if (!have[d]) days.push(d); }
+    Logger.log('   الأيام اللي هتتسحب: ' + (days.join(' · ') || 'ولا يوم (كله متسجل)'));
+    days.forEach(function (day) {
+      var rows = clicksOf_(day, ids), daily = dailyOf_(day, ids);
+      total += rows.length;
+      var sum = daily.reduce(function (a, r) { return a + r[2]; }, 0), inv = daily.reduce(function (a, r) { return a + r[3]; }, 0);
+      Logger.log('   ' + day + ': ' + rows.length + ' ضغطة في القايمة · لوحة جوجل: ' + sum + ' ضغطة (+ ' + inv + ' وهمية شالها جوجل)');
+      if (preview) return;
+      var res = post_({ action: 'ads_clicks', cid: cid, site_id: site.site_id, day: day, clicks: rows, daily: daily });
+      if (!res.ok) throw new Error(site.name + ' ' + day + ': كود الشيت ماكتبش — ' + JSON.stringify(res));
+      Logger.log('      ✓ ' + (res.skipped ? 'اليوم ده كان متسجل' : 'اتكتب في ملف ' + res.site + ': ' + res.clicks + ' ضغطة'));
+    });
   });
-  Logger.log('✅ خلص: ' + total + ' ضغطة' + (preview ? ' (معاينة — مااتبعتش حاجة)' : ''));
+  Logger.log('✅ خلص: ' + total + ' ضغطة' + (preview ? ' (معاينة — مااتبعتش ضغطات)' : ''));
 }
+
+// كل حملة (مش محذوفة) + الدومينات اللي إعلاناتها بتودّي عليها
+function campaignsWithHosts_() {
+  var map = {};
+  function add(c, urls) {
+    if (!c || !c.id) return;
+    var m = map[c.id] || (map[c.id] = { id: String(c.id), name: c.name || '', status: c.status || '', hosts: [] });
+    (urls || []).forEach(function (u) { var h = String(u || '').toLowerCase().replace(/^https?:\/\//, '').split(/[\/?#:]/)[0].replace(/^www\./, ''); if (h && m.hosts.indexOf(h) < 0) m.hosts.push(h); });
+  }
+  var it = AdsApp.search("SELECT campaign.id, campaign.name, campaign.status, ad_group_ad.ad.final_urls FROM ad_group_ad WHERE campaign.status != 'REMOVED' AND ad_group_ad.status != 'REMOVED'");
+  while (it.hasNext()) { var r = it.next(); add(r.campaign, ((r.adGroupAd || {}).ad || {}).finalUrls); }
+  try {
+    var it2 = AdsApp.search("SELECT campaign.id, campaign.name, campaign.status, asset_group.final_urls FROM asset_group WHERE campaign.status != 'REMOVED'");
+    while (it2.hasNext()) { var r2 = it2.next(); add(r2.campaign, (r2.assetGroup || {}).finalUrls); }
+  } catch (e) { Logger.log('⚠️ حملات الأداء الأقصى (PMax) ماتقريتش: ' + e); }
+  return Object.keys(map).map(function (k) { return map[k]; });
+}
+function nameOf_(camps, id) { for (var i = 0; i < camps.length; i++) if (camps[i].id === String(id)) return camps[i].name; return ''; }
+function uniq_(a) { var o = {}; a.forEach(function (x) { if (x) o[x] = 1; }); return Object.keys(o); }
 
 function post_(body) {
   body.key = CONFIG.ADS_KEY;
   var r = UrlFetchApp.fetch(CONFIG.WEBAPP_URL, { method: 'post', contentType: 'application/json', payload: JSON.stringify(body), muteHttpExceptions: true, followRedirects: true });
   var t = r.getContentText();
   try { return JSON.parse(t); } catch (e) { return { ok: false, error: 'http ' + r.getResponseCode(), body: String(t).slice(0, 200) }; }
-}
-
-function listCampaigns_() {
-  var it = AdsApp.search('SELECT campaign.id, campaign.name, campaign.status, metrics.clicks FROM campaign WHERE segments.date DURING LAST_30_DAYS'), all = [];
-  while (it.hasNext()) { var r = it.next(), c = r.campaign || {}; all.push(c.id + ' — ' + c.name + ' (' + c.status + ' · ' + ((r.metrics || {}).clicks || 0) + ' ضغطة في 30 يوم)'); }
-  Logger.log('حملات الحساب (آخر 30 يوم):\n' + (all.length ? all.join('\n') : '(مفيش حملات عليها بيانات)'));
-}
-
-// الحملات اللي في الدفتر لازم تكون موجودة في الحساب
-function checkCampaigns_(list) {
-  var ids = list.map(function (x) { return String(x).replace(/\D/g, ''); }).filter(String);
-  var found = {}, it = AdsApp.search('SELECT campaign.id, campaign.name FROM campaign');
-  while (it.hasNext()) { var c = it.next().campaign || {}; if (ids.indexOf(String(c.id)) >= 0) found[c.id] = c.name; }
-  var miss = ids.filter(function (i) { return !found[i]; });
-  if (!ids.length || miss.length) {
-    listCampaigns_();
-    throw new Error(!ids.length ? 'خانة «حملات جوجل» فاضية في دفتر المواقع (القايمة فوق في السجل)' : 'الحملات دي مش في الحساب ده: ' + miss.join('، '));
-  }
-  Logger.log('الحملات: ' + ids.map(function (i) { return i + ' (' + found[i] + ')'; }).join(' · '));
-  return ids;
 }
 
 function clicksOf_(day, ids) {

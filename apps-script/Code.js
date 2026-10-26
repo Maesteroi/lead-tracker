@@ -1,5 +1,6 @@
 /**
- * Lead Tracker Pro — Apps Script v3.6.0 (plugin 2.8.3)
+ * Lead Tracker Pro — Apps Script v3.7.0 (plugin 2.8.3)
+ * v3.7.0: سكريبت جوجل أدز بيسجّل نفسه لوحده (رقم الحساب والحملات من رابط الإعلان) · قايمة «نسخ كود جوجل أدز»
  * v3.6.0: سكريبت جوجل أدز واحد لكل الحسابات — الإعدادات في دفتر المواقع (ads-bridge.js)
  * v3.5.1: مفيش حدث بيضيع — الانتظار على القفل 28 ثانية بدل 10، واللي مالحقش بيتحفظ في طابور ويتكتب بعدين (وتنبيه تليجرام بتاعه بيتبعت فوراً) · «زائر راجع» بيتحسب برّه القفل · تحديث شيت المواقع مرة في الدقيقة
  * v3.5.0: فجوة النقرات (click-gap.js) — سجل الموقع بيحفظ استهداف البلجن (target_geo) عشان التحليل يعرف «برّه الاستهداف»
@@ -478,7 +479,7 @@ function doPost(e) {
   }
   
   // v3.6.0: سكريبت جوجل أدز الموحّد (ads-bridge.js)
-  if (data && (data.action === 'ads_config' || data.action === 'ads_clicks')) {
+  if (data && (data.action === 'ads_config' || data.action === 'ads_sync' || data.action === 'ads_clicks')) {
     try { return handleAds_(data, props); } catch (err) { console.error('ads: ' + err); return json_({ ok: false, error: 'server', detail: String(err).slice(0, 200) }); }
   }
   if (data && data.event === 'pair') {
@@ -1892,6 +1893,8 @@ function onOpen() {
     .addItem('📖 تجهيز «ملخص الزوار» لكل المواقع', 'setupSummaries')
     .addItem('🔧 إصلاح كل الروابط (مرة واحدة)', 'fixAllUrlColumns')
     .addItem('🔄 تحديث كل الـ headers', 'forceUpdateAllHeaders')
+    .addSeparator()
+    .addItem('📋 نسخ كود جوجل أدز (نفس الكود لكل الحسابات)', 'showAdsScript')
     .addSeparator()
     .addItem('وقف موقع', 'menuDisableSite')
     .addItem('تشغيل موقع موقوف', 'menuEnableSite')
