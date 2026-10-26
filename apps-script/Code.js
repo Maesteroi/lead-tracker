@@ -1,5 +1,6 @@
 /**
- * Lead Tracker Pro — Apps Script v3.4.3 (plugin 2.8.3)
+ * Lead Tracker Pro — Apps Script v3.5.0 (plugin 2.8.3)
+ * v3.5.0: فجوة النقرات (click-gap.js) — سجل الموقع بيحفظ استهداف البلجن (target_geo) عشان التحليل يعرف «برّه الاستهداف»
  * v3.4.4: فحص الشبكة الحقيقي لزوار الإعلانات بـ ipapi.is (VPN · داتا سنتر · بروكسي · Tor · جوال) في عمود «نوع الشبكة» نفسه · الاحتياطي التخمين من اسم الشركة (+ LIGHT NODE) · تنبيه تليجرام لو الفحص وقف
  * v3.4.3: بصمات الزيارات القصيرة (fp_update) بتتكتب في صف الزيارة · علامة «برّه الاستهداف» لزوار الإعلانات · «زائر راجع» أوضح وثقته أقل على الـIP المشترك (موبايل/VPN)
  * v3.4.2: عمود «Thumbmark ID» (ThumbmarkJS API) + بيدخل في «زائر راجع»
@@ -490,6 +491,10 @@ function doPost(e) {
 }
 
 function handleNormalEvent_(data, props, rec) {
+  // v3.5.0: استهداف الموقع من البلجن بيتحفظ مع سجل الموقع (لتحليل نقرات جوجل)
+  if (data.target_geo && data.site_id && rec && !rec.legacy && rec.tg !== String(data.target_geo)) {
+    try { rec.tg = String(data.target_geo); saveSiteRec_(data.site_id, rec, props); } catch (e) { console.error('tg: ' + e); }
+  }
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var book = bookFor_(ss, rec);
   var siteId = data.site_id || 'unknown';
