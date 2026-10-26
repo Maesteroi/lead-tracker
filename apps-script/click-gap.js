@@ -19,34 +19,48 @@ var GAP_MIN_ARRIVAL = 85;   // بوابة جودة البيانات §٥: زيا
 function analyzeClickGap() {
   var props = PropertiesService.getScriptProperties();
   var all = props.getProperties();
-  var reports = [];
-  // درس 25 أكتوبر: أي عمود جديد يتعمل في كل الشيتات مرة واحدة وبنفس الترتيب
+  var sites = [], noAccess = [];
+  // المواقع اللي عندها «نقرات جوجل» بس — والشيت اللي الحساب ده مش قادر يفتحه بيتسجل في السجل ويتساب
   Object.keys(all).forEach(function (key) {
     if (key.indexOf('SITE_') !== 0) return;
+    var rc; try { rc = JSON.parse(all[key]); } catch (e) { return; }
+    if (!rc || !rc.ss || rc.st !== 'on') return;
     try {
-      var rc = JSON.parse(all[key]);
-      if (!rc || !rc.ss || rc.st !== 'on') return;
       var b = SpreadsheetApp.openById(rc.ss);
       if (!b.getSheetByName(GAP_TAB)) return;
-      var lg = findSiteSheet_(b, key.slice(5));
-      if (lg) extraCol_(lg, 'مدينة جوجل');
-    } catch (e) { console.error('gap col: ' + e); }
+      sites.push({ id: key.slice(5), rec: rc, book: b });
+    } catch (e) { noAccess.push(rc.n || key.slice(5)); }
   });
-  Object.keys(all).forEach(function (key) {
-    if (key.indexOf('SITE_') !== 0) return;
-    var siteId = key.slice(5), rec;
-    try { rec = JSON.parse(all[key]); } catch (e) { return; }
-    if (!rec || !rec.ss || rec.st !== 'on') return;
-    try {
-      var r = gapForSite_(siteId, rec);
-      if (r) reports.push(r);
-    } catch (e) {
-      console.error('gap ' + siteId + ': ' + e);
-      reports.push('⚠️ <b>' + esc_(rec.n || siteId) + '</b>: تحليل النقرات فشل — ' + esc_(String(e).slice(0, 150)));
+  if (noAccess.length) console.warn('مش قادر أفتح شيت: ' + noAccess.join('، ') + ' (الحساب اللي مشغّل التحليل مالوش صلاحية)');
+  // درس 25 أكتوبر: أي عمود جديد يتعمل في كل الشيتات مرة واحدة وبنفس الترتيب
+  sites.forEach(function (x) {
+    try { var lg = findSiteSheet_(x.book, x.id); if (lg) extraCol_(lg, 'مدينة جوجل'); SpreadsheetApp.flush(); }
+    catch (e) { console.error('gap col ' + (x.rec.n || x.id) + ': ' + (e && e.stack || e)); }
+  });
+  var sent = 0;
+  sites.forEach(function (x) {
+    var msg;
+    try { msg = gapForSite_(x.id, x.rec); SpreadsheetApp.flush(); }
+    catch (e) {
+      console.error('gap ' + (x.rec.n || x.id) + ': ' + (e && e.stack || e));
+      msg = '⚠️ <b>' + esc_(x.rec.n || x.id) + '</b>: تحليل النقرات فشل — ' + esc_(String(e).slice(0, 150));
     }
+    if (!msg) return;
+    sendChunks_(props, msg);
+    sent++;
+    Logger.log(msg);
   });
-  if (reports.length) sendTelegramText_(props, reports.join('\n\n— — —\n\n'));
-  Logger.log(reports.length ? reports.join('\n\n') : 'مفيش أيام جديدة في «' + GAP_TAB + '» لأي موقع');
+  if (!sent) Logger.log('مفيش أيام جديدة في «' + GAP_TAB + '» لأي موقع');
+}
+
+// تليجرام حده 4096 حرف للرسالة: نقسم على الأيام
+function sendChunks_(props, text) {
+  var parts = String(text).split('\n\n'), buf = '';
+  parts.forEach(function (p) {
+    if (buf && (buf + '\n\n' + p).length > 3800) { sendTelegramText_(props, buf); buf = ''; }
+    buf = buf ? buf + '\n\n' + p : p;
+  });
+  if (buf) sendTelegramText_(props, buf.slice(0, 4000));
 }
 
 function setupClickGapTrigger() {
