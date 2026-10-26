@@ -13,14 +13,14 @@ main.sheets.push(sites);
 store['SITE_g6wMwHVa5spe']=JSON.stringify({n:'الانجاز السريع',ss:'INJAZ',st:'on',k:'s',tg:'SA'});store['SITE_wyzm54HerK5y']=JSON.stringify({n:'روضة',ss:'RAWDA',st:'on',k:'s'});const rawda=new Book();
 const gctx={PropertiesService:{getScriptProperties:()=>({getProperty:k=>store[k]===undefined?null:store[k],setProperty:(k,v)=>{store[k]=v},deleteProperty:k=>{delete store[k]},getKeys:()=>Object.keys(store),getProperties:()=>Object.assign({},store)})},
  CacheService:{getScriptCache:()=>({get:k=>cache[k]===undefined?null:cache[k],put:(k,v)=>{cache[k]=v}})},
- SpreadsheetApp:{getActiveSpreadsheet:()=>main,openById:(id)=>{if(id==='INJAZ')return injaz;if(id==='RAWDA')return rawda;throw new Error('no access')},flush(){}},
+ SpreadsheetApp:{getUi:()=>({showModalDialog(){}}),getActiveSpreadsheet:()=>main,openById:(id)=>{if(id==='INJAZ')return injaz;if(id==='RAWDA')return rawda;throw new Error('no access')},flush(){}},
  LockService:{getScriptLock:()=>({tryLock:()=>true,waitLock(){},releaseLock(){}})},
  UrlFetchApp:{fetch:(u,o)=>{if(/telegram/.test(u))tg.push(JSON.parse(o.payload).text);return{getResponseCode:()=>200,getContentText:()=>'{}'}}},
  Utilities:{getUuid:()=>'abcd-1234-efgh-5678',formatDate:()=>'x'},
  ContentService:{createTextOutput:(s)=>({s,setMimeType(){return this},getContent(){return this.s}}),MimeType:{TEXT:1,JSON:2}},
- Logger:{log:(m)=>gs_log.push(String(m))},console:{error:(e)=>console.log('  [gs err]',e),warn(){},log(){}},ScriptApp:{getService:()=>({getUrl:()=>'https://script.google.com/x/dev'})},HtmlService:{createTemplateFromFile:(f)=>({evaluate(){return{setWidth(){return this},setHeight(){return this}}}})}};
+ Logger:{log:(m)=>gs_log.push(String(m))},console:{error:(e)=>console.log('  [gs err]',e),warn(){},log(){}},ScriptApp:{getService:()=>({getUrl:()=>'https://script.google.com/x/dev'})},HtmlService:{createHtmlOutput:(h)=>{globalThis.LAST_HTML=h;return{setWidth(){return this},setHeight(){return this}}}}};
 const gs_log=[];
-const G=new Function(...Object.keys(gctx),gs+';return {doPost,setupAdsKey,analyzeClickGap,adsKey_,adsWebappUrl_};')(...Object.values(gctx));
+const G=new Function(...Object.keys(gctx),gs+';return {doPost,setupAdsKey,analyzeClickGap,adsKey_,adsWebappUrl_,showAdsScript};')(...Object.values(gctx));
 // ── Ads side, posting straight into doPost
 function runAds({preview,cid,key}){
  const logs=[],queries=[];
@@ -79,9 +79,9 @@ injaz.sheets.push(new Sheet('الانجاز السريع (g6wMwH)',[['التار
 let opened=[];const o=gctx.SpreadsheetApp.openById;gctx.SpreadsheetApp.openById=(id)=>{opened.push(id);return o(id)};
 G.analyzeClickGap();t('analysis opens only configured sites',!opened.includes('NOPE')&&opened.includes('INJAZ'));
 t('analysis made the daily report tab',!!injaz.getSheetByName('تقرير النقرات اليومي'));
-// 9 copy-dialog template = collector with url/key, valid JS
-const tpl=fs.readFileSync(R+'apps-script/ads-script.html','utf8');const code=tpl.split('<textarea id="c" readonly>')[1].split('</textarea>')[0]
- .replace("<?= url ?>","U").replace("<?= key ?>","K").replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&amp;/g,'&');
-t('template code == collector (url/key filled)',code===ads.replace("PASTE_WEBAPP_URL","U").replace("PASTE_ADS_KEY","K"));
-let jsok=true;try{new Function(code)}catch(e){jsok=false}t('template code is valid JS',jsok);
+// 9 copy dialog: code == collector with this server's url + key, valid JS
+G.showAdsScript();const code=LAST_HTML.split('<textarea id="c" readonly>')[1].split('</textarea>')[0].replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&amp;/g,'&');
+const pp=gctx.PropertiesService.getScriptProperties();
+t('dialog code == collector (url/key filled)',code===ads.replace("PASTE_WEBAPP_URL",G.adsWebappUrl_(pp)).replace("PASTE_ADS_KEY",store.ADS_KEY));
+let jsok=true;try{new Function(code)}catch(e){jsok=false}t('dialog code is valid JS',jsok);
 console.log(`\n${ok} passed, ${bad} failed`);process.exit(bad?1:0);

@@ -13,5 +13,5 @@
 3. من قايمة النصوص البرمجية: **التكرار** ← **يوميًا** ← الساعة 3 الفجر.
 
 ## للمطوّر
-- `apps-script/ads-script.html` بيتولّد من `click-collector.js`: `python3 tools/build-ads-template.py` بعد أي تعديل.
+- الكود اللي بيظهر في «نسخ كود جوجل أدز» متخزن جوه `apps-script/ads-bridge.js` (`ADS_SCRIPT_SOURCE`): `python3 tools/build-ads-template.py` بعد أي تعديل في `click-collector.js`.
 - الاختبارات: `node tests/test-bridge.js` (ومعاها test-gap وtest-queue وtest-netcheck).
