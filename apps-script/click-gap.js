@@ -1,5 +1,5 @@
 /**
- * click-gap.js — v3.5.0: فجوة النقرات والاشتباه لكل كلمة (تحليل يومي)
+ * click-gap.js — v3.5.2: + تبويب «تقرير النقرات اليومي» في ملف كل موقع · v3.5.0: فجوة النقرات والاشتباه لكل كلمة (تحليل يومي)
  *
  * سكريبت جوجل أدز (google-ads-script/click-collector.js) بيكتب ضغطات كل يوم في تبويب «نقرات جوجل»
  * جوه ملف شيت الموقع. الكود ده:
@@ -77,32 +77,33 @@ function gapForSite_(siteId, rec) {
   var log = findSiteSheet_(book, siteId);
   if (!log) return null;
 
-  // ── ضغطات جوجل اللي لسه ماتحللتش (عمود «وصل للموقع؟» فاضي)
+  // ── ضغطات جوجل؛ الجديدة = عمود «وصل للموقع؟» فاضي
   var gh = gsh.getRange(1, 1, 1, gsh.getLastColumn()).getValues()[0];
-  var G = idx_(gh, ['التاريخ', 'gclid', 'الحملة', 'الكلمة', 'نوع المطابقة', 'الجهاز', 'مدينة التواجد', 'دولة التواجد', 'أدق مكان (التواجد)', 'وصل للموقع؟']);
+  var G = idx_(gh, ['التاريخ', 'gclid', 'الحملة', 'الكلمة', 'نوع المطابقة', 'الجهاز', 'مدينة التواجد', 'منطقة التواجد', 'دولة التواجد', 'أدق مكان (التواجد)', 'وصل للموقع؟']);
   if (G['gclid'] < 0 || G['وصل للموقع؟'] < 0) return null;
   var gv = gsh.getRange(2, 1, gsh.getLastRow() - 1, gh.length).getDisplayValues();
-  var todo = [];
-  gv.forEach(function (r, i) { if (!r[G['وصل للموقع؟']]) todo.push(i); });
-  if (!todo.length) return null;
+  var isNew = gv.map(function (r) { return !r[G['وصل للموقع؟']]; });
 
   // ── زيارات الموقع بالـ gclid (عمود عمود — أسرع)
   var V = visitsByGclid_(log);
 
-  // ── المطابقة
-  var cityCol = 0, marks = [], days = {};
+  // ── المطابقة: كل الأيام بتتحسب (لتبويب التقرير اليومي)، والجديد بس بيتعلّم وبيتبعت
+  var cityCol = 0, days = {}, newDays = {};
   var target = parseTarget_(rec.tg);
-  todo.forEach(function (i) {
-    var r = gv[i], gclid = r[G['gclid']], day = r[G['التاريخ']];
+  var colVals = gv.map(function (r) { return [r[G['وصل للموقع؟']]]; });
+  gv.forEach(function (r, i) {
+    var gclid = r[G['gclid']], day = r[G['التاريخ']];
+    if (!day) return;
     var v = gclid ? V[gclid] : null;
-    marks.push({ row: i + 2, val: v ? 'نعم' : 'لا' });
-    var D = days[day] || (days[day] = { day: day, clicks: 0, noGclid: 0, arrived: 0, sus: 0, vpn: 0, quick: 0, noMsg: 0, contacted: 0, done: 0, outT: 0, outCities: {}, cities: {}, kw: {} });
+    if (isNew[i]) { colVals[i][0] = v ? 'نعم' : 'لا'; newDays[day] = 1; }
+    var D = days[day] || (days[day] = { day: day, clicks: 0, noGclid: 0, arrived: 0, sus: 0, vpn: 0, quick: 0, noMsg: 0, contacted: 0, done: 0, maybe: 0, outT: 0, outCities: {}, cities: {}, kw: {} });
     D.clicks++;
     if (!gclid) D.noGclid++;
-    var city = r[G['مدينة التواجد']] || r[G['أدق مكان (التواجد)']] || '';
+    // المدينة، ولو مش موجودة المنطقة/المحافظة، ولو مش موجودة أدق مكان
+    var city = r[G['مدينة التواجد']] || (G['منطقة التواجد'] >= 0 ? r[G['منطقة التواجد']] : '') || r[G['أدق مكان (التواجد)']] || '';
     if (city) D.cities[city] = (D.cities[city] || 0) + 1;
-    var out = target && isOutside_(target, city, r[G['دولة التواجد']]);
-    if (out) { D.outT++; D.outCities[city || r[G['دولة التواجد']]] = 1; }
+    var out = target && isOutside_(target, r[G['مدينة التواجد']] || city, r[G['دولة التواجد']]);
+    if (out) { D.outT++; var cn = r[G['دولة التواجد']], oc = city + (cn && city !== cn && !inCountry_(target, cn) ? ' (' + cn + ')' : ''); D.outCities[oc] = (D.outCities[oc] || 0) + 1; }
     var kwName = r[G['الكلمة']] ? r[G['الكلمة']] + (r[G['نوع المطابقة']] ? ' (' + r[G['نوع المطابقة']] + ')' : '') : '(من غير كلمة — ' + r[G['الحملة']] + ')';
     var K = D.kw[kwName] || (D.kw[kwName] = { clicks: 0, arrived: 0, sus: 0, contacted: 0, done: 0 });
     K.clicks++;
@@ -115,19 +116,46 @@ function gapForSite_(siteId, rec) {
     if (s.noMsg) D.noMsg++;
     if (v.contacted) { D.contacted++; K.contacted++; }
     if (v.done) { D.done++; K.done++; }
-    if (city && v.row) {
+    if (v.maybe) D.maybe++;
+    if (isNew[i] && city && v.row) {
       if (!cityCol) cityCol = extraCol_(log, 'مدينة جوجل');
       log.getRange(v.row, cityCol).setValue(city + (out ? ' — برّه الاستهداف' : ''));
     }
   });
-  var col = G['وصل للموقع؟'] + 1;
-  var colVals = gv.map(function (r) { return [r[G['وصل للموقع؟']]]; });
-  marks.forEach(function (m) { colVals[m.row - 2][0] = m.val; });
-  gsh.getRange(2, col, colVals.length, 1).setValues(colVals);
+  gsh.getRange(2, G['وصل للموقع؟'] + 1, colVals.length, 1).setValues(colVals);
 
-  // ── وهمية حسب جوجل من «ملخص جوجل اليومي»
   var inv = invalidByDay_(book);
-  return Object.keys(days).sort().map(function (d) { return dayReport_(rec.n || siteId, days[d], inv[d], target); }).join('\n\n');
+  try { writeDailyTab_(book, days, inv, target); } catch (e) { console.error('daily tab: ' + e); }
+  var nd = Object.keys(newDays).sort();
+  if (!nd.length) return null;
+  return nd.map(function (d) { return dayReport_(rec.n || siteId, days[d], inv[d], target); }).join('\n\n');
+}
+
+// v3.5.2: «تقرير النقرات اليومي» جوه ملف الموقع — بيتكتب من الأول كل مرة من كل الأيام
+var DAILY_REPORT_TAB = 'تقرير النقرات اليومي';
+var DAILY_REPORT_HEAD = ['التاريخ', 'ضغطات (القايمة)', 'ضغطات (لوحة جوجل)', 'وهمية شالها جوجل', 'من غير gclid', 'وصلت للموقع', 'نسبة الوصول %', 'الفجوة', 'جودة البيانات',
+  'مشبوهة', 'VPN/سيرفر', 'أقل من 3 ثواني من غير تفاعل', 'ماوصلش رسالة', 'تواصلوا', 'عميل محتمل', 'تم', 'برّه الاستهداف', 'أماكن برّه الاستهداف', 'أعلى المدن', 'أعلى كلمة'];
+function writeDailyTab_(book, days, inv, target) {
+  var keys = Object.keys(days).sort();
+  if (!keys.length) return;
+  var sh = book.getSheetByName(DAILY_REPORT_TAB);
+  if (!sh) {
+    sh = book.insertSheet(DAILY_REPORT_TAB);
+    sh.setRightToLeft(true);
+    sh.setFrozenRows(1);
+  }
+  var top = function (o, n) { return Object.keys(o).sort(function (a, b) { return o[b] - o[a]; }).slice(0, n).map(function (k) { return k + ' ' + o[k]; }).join(' · '); };
+  var rows = keys.map(function (d) {
+    var D = days[d], I = inv[d] || {}, base = D.clicks - D.noGclid, pct = base ? Math.round(D.arrived * 100 / base) : 0;
+    var kw = {}; Object.keys(D.kw).forEach(function (k) { kw[k] = D.kw[k].clicks; });
+    return [d, D.clicks, I.clicks === undefined ? '' : I.clicks, I.invalid === undefined ? '' : I.invalid, D.noGclid, D.arrived, pct, base - D.arrived,
+      pct >= GAP_MIN_ARRIVAL ? '✅' : '⚠️ تحت الحد', D.sus, D.vpn, D.quick, D.noMsg, D.contacted, D.maybe, D.done,
+      target ? D.outT : '', target ? top(D.outCities, 5) : '', top(D.cities, 5), top(kw, 1)];
+  });
+  sh.clearContents();
+  sh.getRange(1, 1, 1, DAILY_REPORT_HEAD.length).setValues([DAILY_REPORT_HEAD]).setFontWeight('bold').setBackground('#1a73e8').setFontColor('#ffffff');
+  sh.getRange(2, 1, rows.length, DAILY_REPORT_HEAD.length).setValues(rows);
+  sh.getRange(2, 1, rows.length, 1).setNumberFormat('@');
 }
 
 function visitsByGclid_(log) {
@@ -143,7 +171,7 @@ function visitsByGclid_(log) {
   for (var k = 0; k < n; k++) {
     var g = String(C.g[k][0] || '').trim();
     if (!g) continue;
-    var v = out[g] || (out[g] = { row: 0, net: '', secs: 0, inter: 0, warn: '', contacted: false, done: false, noMsg: false });
+    var v = out[g] || (out[g] = { row: 0, net: '', secs: 0, inter: 0, warn: '', contacted: false, done: false, maybe: false, noMsg: false });
     var ev = C.ev ? String(C.ev[k][0]) : '';
     if (!v.row && ev.indexOf('زيارة') >= 0) {
       v.row = start + k;
@@ -155,6 +183,7 @@ function visitsByGclid_(log) {
     if (ev.indexOf('نقرة') >= 0 && C.ct && String(C.ct[k][0]).trim()) v.contacted = true;
     var dn = C.done ? String(C.done[k][0]) : '';
     if (dn === 'تم') v.done = true;
+    if (dn === 'عميل محتمل') v.maybe = true;
     if (dn.indexOf('ماوصلش') >= 0) v.noMsg = true;
   }
   return out;
@@ -175,6 +204,11 @@ function parseTarget_(tg) {
   var cs = String(p[0] || '').split(',').map(function (x) { return x.trim().toUpperCase(); }).filter(String);
   var cities = String(p[1] || '').split(/[,،]/).map(function (x) { x = x.trim(); return GEO_CITY_AR[x] || x.toLowerCase(); }).filter(String);
   return (cs.length || cities.length) ? { countries: cs, cities: cities } : null;
+}
+
+function inCountry_(t, country) {
+  var c = String(country || '').toLowerCase();
+  return !t.countries.length || t.countries.some(function (k) { return (GEO_COUNTRY[k] || []).indexOf(c) >= 0 || k.toLowerCase() === c; });
 }
 
 function isOutside_(t, city, country) {
@@ -208,8 +242,8 @@ function dayReport_(name, D, inv, target) {
   L.push('وصلت للموقع: <b>' + D.arrived + '</b> (' + arr + '%) · الفجوة: <b>' + (D.clicks - D.noGclid - D.arrived) + '</b>' + (D.noGclid ? ' · من غير gclid: ' + D.noGclid : ''));
   if (arr < GAP_MIN_ARRIVAL) L.push('⚠️ تحت حد الجودة (' + GAP_MIN_ARRIVAL + '%) — الأرقام دي للمراجعة، مش للاستنتاج. ممكن بوتات، أو التتبع بيفوّت زيارات');
   L.push('مشبوهة من اللي وصلوا: <b>' + D.sus + '</b> (VPN/سيرفر ' + D.vpn + ' · أقل من 3 ثواني من غير تفاعل ' + D.quick + ' · ماوصلش رسالة ' + D.noMsg + ')');
-  L.push('تواصلوا: ' + D.contacted + ' · «تم»: ' + D.done);
-  if (target) L.push('برّه الاستهداف حسب جوجل: <b>' + D.outT + '</b>' + (D.outT ? ' (' + esc_(Object.keys(D.outCities).slice(0, 5).join('، ')) + ')' : ''));
+  L.push('تواصلوا: ' + D.contacted + ' · «عميل محتمل»: ' + D.maybe + ' · «تم»: ' + D.done);
+  if (target) L.push('برّه الاستهداف حسب جوجل: <b>' + D.outT + '</b>' + (D.outT ? ' (' + esc_(Object.keys(D.outCities).sort(function (a, b) { return D.outCities[b] - D.outCities[a]; }).slice(0, 5).map(function (k) { return k + ' ' + D.outCities[k]; }).join('، ')) + ')' : ''));
   var cities = Object.keys(D.cities).sort(function (a, b) { return D.cities[b] - D.cities[a]; }).slice(0, 5);
   if (cities.length) L.push('المدن (جوجل): ' + esc_(cities.map(function (c) { return c + ' ' + D.cities[c]; }).join(' · ')));
   var kws = Object.keys(D.kw).sort(function (a, b) { return D.kw[b].clicks - D.kw[a].clicks; }).slice(0, 5);
