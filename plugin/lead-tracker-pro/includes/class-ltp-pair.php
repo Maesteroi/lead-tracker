@@ -1,0 +1,233 @@
+<?php
+if (!defined('ABSPATH')) exit;
+
+/**
+ * الربط الأوتوماتيك (2.3.0)
+ * العميل يرفع البلجن ويفعّله وبس. البلجن يكلّم الاستقبال لوحده:
+ *   1) البلجن ← الاستقبال: «أنا موقع كذا» + رقم مؤقت (n) محفوظ عندنا بس
+ *   2) الاستقبال ← نفس الموقع (pair-confirm): يبعت المفتاح ومعاه نفس الرقم
+ *      ⇒ لو حد ادّعى إنه موقع تاني، الموقع الحقيقي مش هيلاقي الرقم عنده فيرفض
+ *   3) البلجن يحفظ المفتاح. لو التأكيد ماوصلش (حماية على الموقع): «مستني تأكيد» عند محمود
+ * لو مااتربطش: بيحاول تاني لوحده كل ساعة.
+ */
+class LTP_Pair {
+
+    private static $instance = null;
+    const NONCE_TTL = 900; // 15 دقيقة
+
+    public static function instance() {
+        if (self::$instance === null) self::$instance = new self();
+        return self::$instance;
+    }
+
+    private function __construct() {
+        add_action('rest_api_init', [$this, 'routes']);
+        add_action('admin_init', [$this, 'maybe_pair_now']);
+        add_action('ltp_autopair', [$this, 'cron_pair']);
+        add_action('ltp_autopair_now', [$this, 'cron_pair']);
+        add_action('admin_post_ltp_pair_now', [$this, 'pair_now_button']);
+        add_action('admin_notices', [$this, 'notice']);
+    }
+
+    public static function is_paired() {
+        return LTP_Core::webhook_ready() && LTP_Core::get('webhook_secret') !== '';
+    }
+
+    // بيتنده من التفعيل ومن التحديث: نحاول دلوقتي، ونجدول محاولة كل ساعة لحد ما يتربط
+    public static function on_activate() {
+        if (self::is_paired()) return;
+        update_option('ltp_pair_due', 1, false);
+        if (!wp_next_scheduled('ltp_autopair')) {
+            wp_schedule_event(time() + 60, 'hourly', 'ltp_autopair');
+        }
+    }
+
+    // 2.3.1: التحديث فوق نسخة قديمة مابيشغّلش «التفعيل» في ووردبريس ⇒ بنكتشف تغيّر الإصدار بنفسنا
+    // (بيشتغل مع أي زيارة للموقع، مش لازم حد يفتح لوحة التحكم)
+    public static function maybe_upgrade() {
+        $old = (string) get_option('ltp_version', '');
+        if ($old === LTP_VERSION) return;
+        update_option('ltp_version', LTP_VERSION);
+        // 2.3.2: قرار محمود — كل الزيارات بتتسجل بالتفصيل على كل المواقع
+        if ($old === '' || version_compare($old, '2.3.2', '<')) update_option('ltp_track_all', 1);
+        self::on_activate();
+    }
+
+    // محاولة في الخلفية: بتتجدول دلوقتي وتشتغل في طلب منفصل (مابتأخّرش الصفحة ولا الزائر)
+    public static function kick() {
+        if (self::is_paired() || get_transient('ltp_pair_lock') || get_transient('ltp_pair_kick')) return;
+        set_transient('ltp_pair_kick', 1, 300);
+        if (!wp_next_scheduled('ltp_autopair_now')) wp_schedule_single_event(time(), 'ltp_autopair_now');
+        if (function_exists('spawn_cron')) spawn_cron();
+    }
+
+    public static function on_deactivate() {
+        wp_clear_scheduled_hook('ltp_autopair');
+    }
+
+    // ─── المسار اللي الاستقبال بيأكد عليه ───
+    public function routes() {
+        register_rest_route('lt/v1', '/pair-confirm', [
+            'methods'             => 'POST',
+            'callback'            => [$this, 'confirm'],
+            'permission_callback' => '__return_true',
+        ]);
+    }
+
+    public function confirm($r) {
+        $p = $r->get_json_params();
+        if (!is_array($p)) $p = [];
+        $n      = (string) ($p['n'] ?? '');
+        $stored = get_option('ltp_pair_nonce', []);
+        $fresh  = is_array($stored) && !empty($stored['n']) && (time() - (int) ($stored['t'] ?? 0)) < self::NONCE_TTL;
+
+        if (!$fresh || $n === '' || !hash_equals((string) $stored['n'], $n)) {
+            return new WP_REST_Response(['ok' => false], 403);
+        }
+        $secret = preg_replace('/[^A-Za-z0-9]/', '', (string) ($p['secret'] ?? ''));
+        if (strlen($secret) < 32) return new WP_REST_Response(['ok' => false], 400);
+
+        self::store($secret, $p);
+        delete_option('ltp_pair_nonce');
+        return new WP_REST_Response(['ok' => true, 'site_id' => LTP_Core::get('site_id')], 200);
+    }
+
+    private static function store($secret, $p) {
+        LTP_Core::set('webhook_secret', $secret);
+        $sid = preg_replace('/[^A-Za-z0-9_-]/', '', (string) ($p['site_id'] ?? ''));
+        if ($sid !== '') LTP_Core::set('site_id', $sid);               // نفس الموقع اتركّب تاني ← يكمّل على بياناته القديمة
+        $label = sanitize_text_field((string) ($p['label'] ?? ''));
+        if ($label !== '' && get_option('ltp_site_label', '') === '') LTP_Core::set('site_label', $label);
+        LTP_Core::set('paired_at', current_time('mysql'));
+        LTP_Core::set('pair_state', 'paired');
+        delete_option('ltp_pair_due');
+        wp_clear_scheduled_hook('ltp_autopair');
+    }
+
+    // ─── المحاولة ───
+    public static function attempt($from_admin = false) {
+        if (self::is_paired()) return 'paired';
+        $hub = (string) LTP_Core::get('webhook_url');
+        if (!LTP_Core::webhook_ready($hub)) { LTP_Core::set('pair_state', 'no_hub'); return 'no_hub'; }
+
+        $site_id = (string) LTP_Core::get('site_id');
+        if ($site_id === '') {
+            $site_id = wp_generate_password(12, false, false);
+            LTP_Core::set('site_id', $site_id);
+        }
+
+        $n = wp_generate_password(40, false, false);
+        update_option('ltp_pair_nonce', ['n' => $n, 't' => time()], false);
+        LTP_Core::set('pair_tried_at', current_time('mysql'));
+
+        // كلاود فلير بيتعرف من طلب المدير نفسه (في المحاولة اللي بتحصل لوحدها كل ساعة مفيش هيدرز)
+        if ($from_admin && !empty($_SERVER['HTTP_CF_RAY']) && !empty($_SERVER['HTTP_CF_CONNECTING_IP'])) {
+            LTP_Core::set('behind_cloudflare', 1);
+        }
+
+        // بلوكنج + بيتبع التحويل: جوجل بيرد بتحويل 302، و ووردبريس بيكمّله كـGET ويجيب الرد
+        $res = wp_remote_post($hub, [
+            'timeout'     => 30,
+            'blocking'    => true,
+            'redirection' => 5,
+            'headers'     => ['Content-Type' => 'application/json'],
+            'body'        => wp_json_encode([
+                'event'      => 'pair',
+                'n'          => $n,
+                'site_id'    => $site_id,
+                'home_url'   => home_url('/'),
+                'confirm_url'=> rest_url('lt/v1/pair-confirm'),
+                'site'       => get_bloginfo('name'),
+                'version'    => LTP_VERSION,
+            ]),
+        ]);
+
+        // التأكيد ممكن يكون وصل وحفظ المفتاح أثناء الطلب ده
+        wp_cache_delete('ltp_webhook_secret', 'options');
+        wp_cache_delete('alloptions', 'options');
+        if (self::is_paired()) return 'paired';
+
+        if (is_wp_error($res)) { LTP_Core::set('pair_state', 'network'); return 'network'; }
+        $j = json_decode(wp_remote_retrieve_body($res), true);
+        if (!is_array($j)) { LTP_Core::set('pair_state', 'bad_reply'); return 'bad_reply'; }
+
+        // الحالة المستنية تأكيد محمود: بعد ما يوافق، الاستقبال بيرجّع المفتاح هنا مباشرة
+        if (!empty($j['ok']) && !empty($j['secret'])) {
+            $secret = preg_replace('/[^A-Za-z0-9]/', '', (string) $j['secret']);
+            if (strlen($secret) >= 32) { self::store($secret, $j); return 'paired'; }
+        }
+        $state = preg_replace('/[^a-z_]/', '', (string) ($j['status'] ?? $j['error'] ?? 'server'));
+        LTP_Core::set('pair_state', $state ?: 'server');
+        if ($state === 'disabled') wp_clear_scheduled_hook('ltp_autopair');
+        return $state;
+    }
+
+    // أي صفحة في لوحة التحكم: نعرف كلاود فلير من طلب المدير، والمحاولة نفسها في الخلفية (2.3.2: مابتأخّرش الصفحة)
+    public function maybe_pair_now() {
+        if (wp_doing_ajax() || wp_doing_cron() || self::is_paired()) return;
+        if (!current_user_can('activate_plugins')) return;
+        if (!empty($_SERVER['HTTP_CF_RAY']) && !empty($_SERVER['HTTP_CF_CONNECTING_IP'])) LTP_Core::set('behind_cloudflare', 1);
+        self::kick();
+    }
+
+    public function cron_pair() {
+        if (self::is_paired()) { wp_clear_scheduled_hook('ltp_autopair'); return; }
+        if (get_transient('ltp_pair_lock')) return;
+        set_transient('ltp_pair_lock', 1, 600);
+        self::attempt(false);
+    }
+
+    public function pair_now_button() {
+        if (!current_user_can('manage_options')) wp_die('ممنوع');
+        check_admin_referer('ltp_pair_now', '_ltp_pair_nonce');
+        delete_transient('ltp_pair_lock');
+        $s = self::attempt(true);
+        wp_safe_redirect(admin_url('admin.php?page=lead-tracker-settings&pairtry=' . rawurlencode($s)));
+        exit;
+    }
+
+    public static function state_text($s) {
+        $map = [
+            'paired'    => '✅ مربوط',
+            'pending'   => '⏳ اتسجّل، ومستني تأكيد من مقدّم الخدمة (حماية على الموقع منعت التأكيد الأوتوماتيك).',
+            'disabled'  => '⛔ الموقع ده موقوف من مقدّم الخدمة.',
+            'no_hub'    => '❌ عنوان الاستقبال مش موجود في البلجن — نزّل البلجن من المصدر الأصلي.',
+            'network'   => '🔄 مقدرناش نوصل للاستقبال — هنحاول تاني لوحدنا كل ساعة.',
+            'bad_reply' => '🔄 الرد من الاستقبال مش مفهوم — هنحاول تاني لوحدنا كل ساعة.',
+            'busy'      => '🔄 محاولات كتير في نفس الوقت — هنحاول تاني لوحدنا كل ساعة.',
+        ];
+        return $map[$s] ?? '🔄 بيتربط أوتوماتيك — هنحاول تاني لوحدنا كل ساعة.';
+    }
+
+    public function notice() {
+        if (!current_user_can('manage_options') || self::is_paired()) return;
+        $screen = function_exists('get_current_screen') ? get_current_screen() : null;
+        if ($screen && strpos((string) $screen->id, 'lead-tracker') !== false) return;
+        $s = (string) LTP_Core::get('pair_state', '');
+        if ($s === '') return; // لسه ماحاولش (أول ثواني بعد التفعيل)
+        echo '<div class="notice notice-info"><p><strong>Lead Tracker Pro:</strong> ' . esc_html(self::state_text($s)) . '</p></div>';
+    }
+
+    // كارت الحالة في صفحة الإعدادات (مفيش حاجة تتكتب)
+    public static function box() {
+        $paired = self::is_paired();
+        $s = $paired ? 'paired' : (string) LTP_Core::get('pair_state', '');
+        ?>
+        <div class="ltp-card" style="border-right:4px solid <?php echo $paired ? '#00a32a' : '#dba617'; ?>;">
+            <h3>🔗 الربط</h3>
+            <p><?php echo esc_html(self::state_text($s)); ?>
+                <?php if ($paired && LTP_Core::get('paired_at') !== '') echo ' · من ' . esc_html(LTP_Core::get('paired_at')); ?>
+            </p>
+            <?php if (!$paired): ?>
+                <?php $t = LTP_Core::get('pair_tried_at'); if ($t !== '') echo '<p class="description">آخر محاولة: ' . esc_html($t) . '</p>'; ?>
+                <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+                    <input type="hidden" name="action" value="ltp_pair_now">
+                    <?php wp_nonce_field('ltp_pair_now', '_ltp_pair_nonce'); ?>
+                    <button type="submit" class="button">🔄 حاول دلوقتي</button>
+                    <span class="description">(اختياري — البلجن بيحاول لوحده)</span>
+                </form>
+            <?php endif; ?>
+        </div>
+        <?php
+    }
+}

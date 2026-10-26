@@ -1,0 +1,12 @@
+{
+  "webhook_url": "https://script.google.com/macros/s/AKfycbyNrNlpyK-aG-YfOf4Mdx50o5r-VZyZO8_dlN1SnOK88u4e2DuyNzE_HXlf76-AYZ8k/exec",
+  "webhook_secret": "",
+  "site_label": "",
+  "wa_greeting": "هلا، أبي أستفسر عن: ",
+  "match_code": true,
+  "consent_enabled": false,
+  "exclude_admin": true,
+  "behind_cloudflare": false,
+  "track_all": true,
+  "server_host": ""
+}
