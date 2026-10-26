@@ -1,5 +1,5 @@
 /**
- * Lead Tracker — سكريبت جوجل أدز: جمع الضغطات (v1.0)
+ * Lead Tracker — سكريبت جوجل أدز: جمع الضغطات (v1.1)
  *
  * بيتركّب جوه كل حساب إعلانات لوحده (من غير MCC).
  * شغلته «يجمع بس»: كل يوم يسحب ضغطات امبارح من جوجل ويكتبها في شيت الموقع.
@@ -16,6 +16,9 @@
 var CONFIG = {
   // رابط ملف الشيت بتاع الموقع (ملف «Lead Tracker — اسم الموقع»)
   SHEET_URL: 'PASTE_SHEET_URL_HERE',
+  // أرقام حملات الموقع ده بس (Campaign ID). فاضية = السكريبت يطبع حملات الحساب ويقف من غير ما يكتب
+  // الرقم موجود في رابط زيارة الإعلان: gad_campaignid=… أو في جوجل أدز (عمود Campaign ID)
+  CAMPAIGN_IDS: [],
   // أول تشغيل: يجيب كام يوم لورا (لحد 90). بعد كده بيجيب الأيام الناقصة بس + امبارح
   BACKFILL_DAYS: 7,
   TAB_CLICKS: 'نقرات جوجل',
@@ -51,13 +54,14 @@ function main() {
     shDaily = tab_(book, CONFIG.TAB_DAILY, HEAD_DAILY);
   }
 
+  var ids = checkCampaigns_();
   var days = daysToFetch_(shClicks, tz);
   Logger.log('الأيام اللي هتتسحب: ' + days.join(' · '));
 
   var total = 0;
   days.forEach(function (day) {
-    var rows = clicksOf_(day);
-    var daily = dailyOf_(day);
+    var rows = clicksOf_(day, ids);
+    var daily = dailyOf_(day, ids);
     total += rows.length;
     var sum = daily.reduce(function (a, r) { return a + r[2]; }, 0);
     var inv = daily.reduce(function (a, r) { return a + r[3]; }, 0);
@@ -87,13 +91,27 @@ function daysToFetch_(sh, tz) {
   return out;
 }
 
-function clicksOf_(day) {
+// يتأكد إن أرقام الحملات موجودة في الحساب، ولو مش موجودة يطبع حملات الحساب ويقف
+function checkCampaigns_() {
+  var ids = (CONFIG.CAMPAIGN_IDS || []).map(function (x) { return String(x).replace(/\D/g, ''); }).filter(String);
+  var all = [], found = {}, it = AdsApp.search('SELECT campaign.id, campaign.name, campaign.status, metrics.clicks FROM campaign WHERE segments.date DURING LAST_30_DAYS');
+  while (it.hasNext()) { var r = it.next(), c = r.campaign || {}; all.push(c.id + ' — ' + c.name + ' (' + c.status + ' · ' + ((r.metrics || {}).clicks || 0) + ' ضغطة في 30 يوم)'); if (ids.indexOf(String(c.id)) >= 0) found[c.id] = c.name; }
+  var miss = ids.filter(function (i) { return !found[i]; });
+  if (!ids.length || miss.length) {
+    Logger.log('حملات الحساب (آخر 30 يوم):\n' + (all.length ? all.join('\n') : '(مفيش حملات عليها بيانات)'));
+    throw new Error(!ids.length ? 'حط أرقام حملات الموقع في CONFIG.CAMPAIGN_IDS (القايمة فوق في السجل)' : 'الحملات دي مش في الحساب ده: ' + miss.join('، ') + ' — يمكن الحساب غلط');
+  }
+  Logger.log('الحملات: ' + ids.map(function (i) { return i + ' (' + found[i] + ')'; }).join(' · '));
+  return ids;
+}
+
+function clicksOf_(day, ids) {
   var q = 'SELECT click_view.gclid, campaign.name, ad_group.name, ' +
     'click_view.keyword_info.text, click_view.keyword_info.match_type, ' +
     'segments.device, segments.ad_network_type, segments.click_type, segments.slot, click_view.page_number, ' +
     'click_view.location_of_presence.city, click_view.location_of_presence.region, click_view.location_of_presence.country, click_view.location_of_presence.most_specific, ' +
     'click_view.area_of_interest.city, click_view.area_of_interest.country, metrics.clicks ' +
-    'FROM click_view WHERE segments.date = \'' + day + '\'';
+    'FROM click_view WHERE segments.date = \'' + day + '\' AND campaign.id IN (' + ids.join(',') + ')';
   var raw = [], ids = {};
   var it = AdsApp.search(q);
   while (it.hasNext()) {
@@ -115,9 +133,9 @@ function clicksOf_(day) {
   });
 }
 
-function dailyOf_(day) {
+function dailyOf_(day, ids) {
   var q = 'SELECT campaign.name, metrics.clicks, metrics.invalid_clicks, metrics.impressions, metrics.cost_micros, customer.currency_code ' +
-    'FROM campaign WHERE segments.date = \'' + day + '\' AND metrics.impressions > 0';
+    'FROM campaign WHERE segments.date = \'' + day + '\' AND campaign.id IN (' + ids.join(',') + ') AND metrics.impressions > 0';
   var out = [], it = AdsApp.search(q);
   while (it.hasNext()) {
     var r = it.next(), m = r.metrics || {};
