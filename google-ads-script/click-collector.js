@@ -1,5 +1,5 @@
 /**
- * Lead Tracker — سكريبت جوجل أدز: جمع الضغطات (v1.1)
+ * Lead Tracker — سكريبت جوجل أدز: جمع الضغطات (v1.1.1)
  *
  * بيتركّب جوه كل حساب إعلانات لوحده (من غير MCC).
  * شغلته «يجمع بس»: كل يوم يسحب ضغطات امبارح من جوجل ويكتبها في شيت الموقع.
@@ -106,7 +106,7 @@ function checkCampaigns_() {
 }
 
 function clicksOf_(day, ids) {
-  var q = 'SELECT click_view.gclid, campaign.name, ad_group.name, ' +
+  var q = 'SELECT click_view.gclid, campaign.id, campaign.name, ad_group.name, ' +
     'click_view.keyword_info.text, click_view.keyword_info.match_type, ' +
     'segments.device, segments.ad_network_type, segments.click_type, segments.slot, click_view.page_number, ' +
     'click_view.location_of_presence.city, click_view.location_of_presence.region, click_view.location_of_presence.country, click_view.location_of_presence.most_specific, ' +
@@ -134,7 +134,7 @@ function clicksOf_(day, ids) {
 }
 
 function dailyOf_(day, ids) {
-  var q = 'SELECT campaign.name, metrics.clicks, metrics.invalid_clicks, metrics.impressions, metrics.cost_micros, customer.currency_code ' +
+  var q = 'SELECT campaign.id, campaign.name, metrics.clicks, metrics.invalid_clicks, metrics.impressions, metrics.cost_micros, customer.currency_code ' +
     'FROM campaign WHERE segments.date = \'' + day + '\' AND campaign.id IN (' + ids.join(',') + ') AND metrics.impressions > 0';
   var out = [], it = AdsApp.search(q);
   while (it.hasNext()) {
