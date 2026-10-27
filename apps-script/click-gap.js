@@ -1,5 +1,6 @@
 /**
- * click-gap.js — v3.5.2: + تبويب «تقرير النقرات اليومي» في ملف كل موقع · v3.5.0: فجوة النقرات والاشتباه لكل كلمة (تحليل يومي)
+ * click-gap.js — v3.8.0: نسبة الوصول على ضغطات الموقع بس (الاتصال والخرايط في سطر لوحدهم) + تنبيه لو ضغطات امبارح ماوصلتش
+ *   v3.5.2: + تبويب «تقرير النقرات اليومي» في ملف كل موقع · v3.5.0: فجوة النقرات والاشتباه لكل كلمة (تحليل يومي)
  *
  * سكريبت جوجل أدز (google-ads-script/click-collector.js) بيكتب ضغطات كل يوم في تبويب «نقرات جوجل»
  * جوه ملف شيت الموقع. الكود ده:
@@ -14,17 +15,29 @@
 
 var GAP_TAB = 'نقرات جوجل';
 var GAP_DAILY_TAB = 'ملخص جوجل اليومي';
-var GAP_MIN_ARRIVAL = 85;   // بوابة جودة البيانات §٥: زيارات الإعلان المسجّلة ÷ ضغطات جوجل ≥ 85%
+var GAP_MIN_ARRIVAL = 85;   // بوابة جودة البيانات §٥: زيارات الإعلان المسجّلة ÷ ضغطات الموقع ≥ 85%
+
+// v3.8.0: ضغطات مابتفتحش الموقع أصلاً (segments.click_type) — مابتدخلش في نسبة الوصول
+// أي نوع مش في القايمة دي بيتحسب ضغطة للموقع (لو طلع نوع جديد مابيوصلش، هيبان في الفجوة)
+var GAP_CALL_TYPES = { CALLS: 1, MOBILE_CALL_TRACKING: 1, CALL_TRACKING: 1, LOCATION_FORMAT_CALL: 1 };
+var GAP_MAP_TYPES = { GET_DIRECTIONS: 1, LOCATION_EXPANSION: 1, LOCATION_FORMAT_DIRECTIONS: 1, LOCATION_FORMAT_MAP: 1,
+  LOCATION_FORMAT_STORE_INFO: 1, LOCATION_FORMAT_TEXT: 1, LOCATION_FORMAT_IMAGE: 1 };
+function clickKind_(t) { t = String(t || '').trim().toUpperCase(); return GAP_CALL_TYPES[t] ? 'call' : GAP_MAP_TYPES[t] ? 'map' : 'site'; }
+var GAP_KIND_LABEL = { call: 'اتصال من الإعلان', map: 'خرايط (مش للموقع)' };
 
 function analyzeClickGap() {
   var props = PropertiesService.getScriptProperties();
-  var sites = [], noAccess = [];
+  var sites = [], noAccess = [], missing = [];
+  var tz = props.getProperty('TIMEZONE') || 'Africa/Cairo';
+  var yday = Utilities.formatDate(new Date(Date.now() - 864e5), tz, 'yyyy-MM-dd');
   // v3.6.0: المواقع اللي ليها «حساب جوجل أدز» في دفتر المواقع بس — مش بنفتح ملفات باقي المواقع
   adsSites_().forEach(function (st) {
     var rc = siteRec_(st.id, props);
     if (!rc || !rc.ss || rc.st !== 'on') return;
     try {
       var b = SpreadsheetApp.openById(rc.ss);
+      // v3.8.0: سكريبت جوجل أدز بيكتب صف لكل يوم في «ملخص جوجل اليومي» حتى لو مفيش ضغطات — غيابه = السكريبت ماشتغلش أو فشل
+      if (!invalidByDay_(b)[yday]) missing.push({ name: rc.n || st.name, cid: String(st.cid || '').replace(/^(\d{3})(\d{3})(\d{4})$/, '$1-$2-$3') });
       if (!b.getSheetByName(GAP_TAB)) return;
       sites.push({ id: st.id, rec: rc, book: b });
     } catch (e) { noAccess.push(rc.n || st.name); }
@@ -49,6 +62,14 @@ function analyzeClickGap() {
     Logger.log(msg);
   });
   if (!sent) Logger.log('مفيش أيام جديدة في «' + GAP_TAB + '» لأي موقع');
+  if (missing.length) {
+    var txt = '⚠️ <b>ضغطات جوجل بتاعة امبارح (' + yday + ') ماوصلتش</b>\n' +
+      missing.map(function (m) { return '• ' + esc_(m.name) + ' — حساب ' + esc_(m.cid || '؟'); }).join('\n') +
+      '\nسكريبت جوجل أدز في الحساب ماشتغلش أو فشل: افتح الحساب ← الأدوات ← النصوص البرمجية ← آخر تشغيل.' +
+      '\nلو مكتوب فيه checkCampaigns_ أو «الموقع: undefined» = الكود قديم: انسخ الجديد من قايمة 🔗 Lead Tracker ← 📋 نسخ كود جوجل أدز.';
+    adminAlertOnce_(props, 'ads_miss_' + yday, txt);
+    Logger.log(txt);
+  }
 }
 
 // تليجرام حده 4096 حرف للرسالة: نقسم على الأيام
@@ -77,7 +98,7 @@ function gapForSite_(siteId, rec) {
 
   // ── ضغطات جوجل؛ الجديدة = عمود «وصل للموقع؟» فاضي
   var gh = gsh.getRange(1, 1, 1, gsh.getLastColumn()).getValues()[0];
-  var G = idx_(gh, ['التاريخ', 'gclid', 'الحملة', 'الكلمة', 'نوع المطابقة', 'الجهاز', 'مدينة التواجد', 'منطقة التواجد', 'دولة التواجد', 'أدق مكان (التواجد)', 'وصل للموقع؟']);
+  var G = idx_(gh, ['التاريخ', 'gclid', 'الحملة', 'الكلمة', 'نوع المطابقة', 'الجهاز', 'نوع الضغطة', 'مدينة التواجد', 'منطقة التواجد', 'دولة التواجد', 'أدق مكان (التواجد)', 'وصل للموقع؟']);
   if (G['gclid'] < 0 || G['وصل للموقع؟'] < 0) return null;
   var gv = gsh.getRange(2, 1, gsh.getLastRow() - 1, gh.length).getDisplayValues();
   var isNew = gv.map(function (r) { return !r[G['وصل للموقع؟']]; });
@@ -93,10 +114,14 @@ function gapForSite_(siteId, rec) {
     var gclid = r[G['gclid']], day = r[G['التاريخ']];
     if (!day) return;
     var v = gclid ? V[gclid] : null;
-    if (isNew[i]) { colVals[i][0] = v ? 'نعم' : 'لا'; newDays[day] = 1; }
-    var D = days[day] || (days[day] = { day: day, clicks: 0, noGclid: 0, arrived: 0, sus: 0, vpn: 0, quick: 0, noMsg: 0, contacted: 0, done: 0, maybe: 0, outT: 0, outCities: {}, cities: {}, kw: {} });
+    var kind = G['نوع الضغطة'] >= 0 ? clickKind_(r[G['نوع الضغطة']]) : 'site';
+    var mark = v ? 'نعم' : (GAP_KIND_LABEL[kind] || 'لا');
+    // الجديد بيتعلّم، والقديم اللي اتكتب «لا» قبل v3.8.0 بيتصحح لنوعه
+    if (isNew[i]) { colVals[i][0] = mark; newDays[day] = 1; }
+    else if (colVals[i][0] === 'لا' && mark !== 'لا') colVals[i][0] = mark;
+    var D = days[day] || (days[day] = { day: day, clicks: 0, site: 0, calls: 0, maps: 0, noGclid: 0, arrived: 0, sus: 0, vpn: 0, quick: 0, noMsg: 0, contacted: 0, done: 0, maybe: 0, outT: 0, outCities: {}, cities: {}, kw: {} });
     D.clicks++;
-    if (!gclid) D.noGclid++;
+    if (kind === 'call') D.calls++; else if (kind === 'map') D.maps++; else { D.site++; if (!gclid) D.noGclid++; }
     // المدينة، ولو مش موجودة المنطقة/المحافظة، ولو مش موجودة أدق مكان
     var city = r[G['مدينة التواجد']] || (G['منطقة التواجد'] >= 0 ? r[G['منطقة التواجد']] : '') || r[G['أدق مكان (التواجد)']] || '';
     if (city) D.cities[city] = (D.cities[city] || 0) + 1;
@@ -105,6 +130,7 @@ function gapForSite_(siteId, rec) {
     var kwName = r[G['الكلمة']] ? r[G['الكلمة']] + (r[G['نوع المطابقة']] ? ' (' + r[G['نوع المطابقة']] + ')' : '') : '(من غير كلمة — ' + r[G['الحملة']] + ')';
     var K = D.kw[kwName] || (D.kw[kwName] = { clicks: 0, arrived: 0, sus: 0, contacted: 0, done: 0 });
     K.clicks++;
+    if (kind === 'call') K.contacted++;   // الاتصال من الإعلان = تواصل
     if (!v) return;
     D.arrived++; K.arrived++;
     var s = suspicion_(v);
@@ -131,7 +157,8 @@ function gapForSite_(siteId, rec) {
 
 // v3.5.2: «تقرير النقرات اليومي» جوه ملف الموقع — بيتكتب من الأول كل مرة من كل الأيام
 var DAILY_REPORT_TAB = 'تقرير النقرات اليومي';
-var DAILY_REPORT_HEAD = ['التاريخ', 'ضغطات (القايمة)', 'ضغطات (لوحة جوجل)', 'وهمية شالها جوجل', 'من غير gclid', 'وصلت للموقع', 'نسبة الوصول %', 'الفجوة', 'جودة البيانات',
+var DAILY_REPORT_HEAD = ['التاريخ', 'ضغطات (القايمة)', 'ضغطات (لوحة جوجل)', 'وهمية شالها جوجل', 'اتصال من الإعلان', 'خرايط (مش للموقع)', 'ضغطات للموقع',
+  'من غير gclid', 'وصلت للموقع', 'نسبة الوصول %', 'الفجوة', 'جودة البيانات',
   'مشبوهة', 'VPN/سيرفر', 'أقل من 3 ثواني من غير تفاعل', 'ماوصلش رسالة', 'تواصلوا', 'عميل محتمل', 'تم', 'برّه الاستهداف', 'أماكن برّه الاستهداف', 'أعلى المدن', 'أعلى كلمة'];
 function writeDailyTab_(book, days, inv, target) {
   var keys = Object.keys(days).sort();
@@ -144,9 +171,9 @@ function writeDailyTab_(book, days, inv, target) {
   }
   var top = function (o, n) { return Object.keys(o).sort(function (a, b) { return o[b] - o[a]; }).slice(0, n).map(function (k) { return k + ' ' + o[k]; }).join(' · '); };
   var rows = keys.map(function (d) {
-    var D = days[d], I = inv[d] || {}, base = D.clicks - D.noGclid, pct = base ? Math.round(D.arrived * 100 / base) : 0;
+    var D = days[d], I = inv[d] || {}, base = D.site - D.noGclid, pct = base ? Math.round(D.arrived * 100 / base) : 0;
     var kw = {}; Object.keys(D.kw).forEach(function (k) { kw[k] = D.kw[k].clicks; });
-    return [d, D.clicks, I.clicks === undefined ? '' : I.clicks, I.invalid === undefined ? '' : I.invalid, D.noGclid, D.arrived, pct, base - D.arrived,
+    return [d, D.clicks, I.clicks === undefined ? '' : I.clicks, I.invalid === undefined ? '' : I.invalid, D.calls, D.maps, D.site, D.noGclid, D.arrived, pct, Math.max(base - D.arrived, 0),
       pct >= GAP_MIN_ARRIVAL ? '✅' : '⚠️ تحت الحد', D.sus, D.vpn, D.quick, D.noMsg, D.contacted, D.maybe, D.done,
       target ? D.outT : '', target ? top(D.outCities, 5) : '', top(D.cities, 5), top(kw, 1)];
   });
@@ -234,13 +261,14 @@ function invalidByDay_(book) {
 
 function dayReport_(name, D, inv, target) {
   var pct = function (a, b) { return b ? Math.round(a * 100 / b) : 0; };
-  var arr = pct(D.arrived, D.clicks - D.noGclid);
+  var base = D.site - D.noGclid, arr = pct(D.arrived, base);
   var L = ['📊 <b>' + esc_(name) + '</b> — نقرات ' + D.day];
   L.push('ضغطات جوجل: <b>' + D.clicks + '</b>' + (inv ? ' (لوحة جوجل: ' + inv.clicks + ' · وهمية شالها جوجل: ' + inv.invalid + ')' : ''));
-  L.push('وصلت للموقع: <b>' + D.arrived + '</b> (' + arr + '%) · الفجوة: <b>' + (D.clicks - D.noGclid - D.arrived) + '</b>' + (D.noGclid ? ' · من غير gclid: ' + D.noGclid : ''));
+  if (D.calls || D.maps) L.push('مابتفتحش الموقع: اتصال من الإعلان <b>' + D.calls + '</b> · خرايط (اتجاهات/عنوان) <b>' + D.maps + '</b> ← ضغطات للموقع: <b>' + D.site + '</b>');
+  L.push('وصلت للموقع: <b>' + D.arrived + '</b> من ' + base + ' (' + arr + '%) · الفجوة: <b>' + Math.max(base - D.arrived, 0) + '</b>' + (D.noGclid ? ' · من غير gclid: ' + D.noGclid : ''));
   if (arr < GAP_MIN_ARRIVAL) L.push('⚠️ تحت حد الجودة (' + GAP_MIN_ARRIVAL + '%) — الأرقام دي للمراجعة، مش للاستنتاج. ممكن بوتات، أو التتبع بيفوّت زيارات');
   L.push('مشبوهة من اللي وصلوا: <b>' + D.sus + '</b> (VPN/سيرفر ' + D.vpn + ' · أقل من 3 ثواني من غير تفاعل ' + D.quick + ' · ماوصلش رسالة ' + D.noMsg + ')');
-  L.push('تواصلوا: ' + D.contacted + ' · «عميل محتمل»: ' + D.maybe + ' · «تم»: ' + D.done);
+  L.push('تواصلوا من الموقع: ' + D.contacted + (D.calls ? ' · اتصال من الإعلان: ' + D.calls : '') + ' · «عميل محتمل»: ' + D.maybe + ' · «تم»: ' + D.done);
   if (target) L.push('برّه الاستهداف حسب جوجل: <b>' + D.outT + '</b>' + (D.outT ? ' (' + esc_(Object.keys(D.outCities).sort(function (a, b) { return D.outCities[b] - D.outCities[a]; }).slice(0, 5).map(function (k) { return k + ' ' + D.outCities[k]; }).join('، ')) + ')' : ''));
   var cities = Object.keys(D.cities).sort(function (a, b) { return D.cities[b] - D.cities[a]; }).slice(0, 5);
   if (cities.length) L.push('المدن (جوجل): ' + esc_(cities.map(function (c) { return c + ' ' + D.cities[c]; }).join(' · ')));
