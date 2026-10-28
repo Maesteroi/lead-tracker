@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Maestro LT</string>
+    <string name="a11y_label">Maestro LT — قراية محادثات الواتساب</string>
+    <string name="a11y_desc">بيقرا محادثات الواتساب مع الزباين الجداد (الأرقام اللي مش متسجلة عندك) لما تفتحها، علشان نعرف الزبون جه منين وكان جاد ولا لأ، وسرعة ردك. مابيقراش أي تطبيق تاني، ومابيقراش الجروبات ولا جهات الاتصال المتسجلة، ومابيبعتش أي رسالة.</string>
+</resources>
