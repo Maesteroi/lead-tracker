@@ -557,6 +557,7 @@ class LTP_WooCommerce {
 
     private static function post($p, $blocking = true) {
         $p['secret'] = LTP_Core::get('webhook_secret');   // المفتاح بيتضاف وقت الإرسال بس (مابيتخزنش في قايمة الإعادة)
+        LTP_Core::mirror($p);   // 2.9.0: نسخة للسيرفر (التكرار بيتشال هناك)
         $r = wp_remote_post(LTP_Core::get('webhook_url'), [
             'blocking'    => $blocking,
             'timeout'     => $blocking ? 10 : 3,

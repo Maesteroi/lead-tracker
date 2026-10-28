@@ -62,6 +62,21 @@ class LTP_Core {
     // 2. config.json
     // 3. الـ default
     // ═══════════════════════════════════════════════════════
+    // 2.9.0 (م.١أ): نسخة من كل حدث للسيرفر الجديد، جنب الشيت (تشغيل موازي). مقفول لحد ما السيرفر يشتغل.
+    const SERVER_URL = 'https://api.maestrolt.com/v1/events';
+    public static function mirror(array $payload) {
+        if (!self::get('server_mirror')) return;
+        $url = trim((string) self::get('server_url', self::SERVER_URL));
+        if (strpos($url, 'https://') !== 0) return;
+        wp_remote_post($url, [
+            'blocking'    => false,
+            'timeout'     => 3,
+            'redirection' => 0,
+            'headers'     => ['Content-Type' => 'application/json'],
+            'body'        => wp_json_encode($payload, JSON_UNESCAPED_UNICODE),
+        ]);
+    }
+
     public static function get($key, $default = '') {
         // 1. جرّب الـ database
         $db_val = get_option('ltp_' . $key, null);

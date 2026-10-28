@@ -257,6 +257,7 @@ class LTP_Rest {
                 'headers'     => ['Content-Type' => 'application/json'],
                 'body'        => wp_json_encode($payload),
             ]);
+            LTP_Core::mirror($payload);   // 2.9.0: نسخة للسيرفر (لو متفعّل)
         }
 
         return $ok;
