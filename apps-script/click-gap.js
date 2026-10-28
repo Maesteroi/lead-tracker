@@ -181,7 +181,7 @@ function visitsByGclid_(log) {
     if (ev.indexOf('نقرة') >= 0 && C.ct && String(C.ct[k][0]).trim()) v.contacted = true;
     var dn = C.done ? String(C.done[k][0]) : '';
     if (dn === 'تم') v.done = true;
-    if (dn === 'عميل محتمل') v.maybe = true;
+    if (dn === 'عميل محتمل' || dn === 'بيفكر') v.maybe = true;   // v3.8.0: «بيفكر» من أزرار تليجرام
     if (dn.indexOf('ماوصلش') >= 0) v.noMsg = true;
   }
   return out;
