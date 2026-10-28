@@ -1,5 +1,6 @@
 /**
- * Lead Tracker Pro — Apps Script v3.7.0 (plugin 2.8.3)
+ * Lead Tracker Pro — Apps Script v3.8.0 (plugin 2.8.3)
+ * v3.8.0: أزرار النتيجة على تنبيه تليجرام (تم · بيفكر · لغى · مش جاد · ماوصلش رسالة) ← عمود «التنفيذ» (outcome-buttons.js)
  * v3.7.0: سكريبت جوجل أدز بيسجّل نفسه لوحده (رقم الحساب والحملات من رابط الإعلان) · قايمة «نسخ كود جوجل أدز»
  * v3.6.0: سكريبت جوجل أدز واحد لكل الحسابات — الإعدادات في دفتر المواقع (ads-bridge.js)
  * v3.5.1: مفيش حدث بيضيع — الانتظار على القفل 28 ثانية بدل 10، واللي مالحقش بيتحفظ في طابور ويتكتب بعدين (وتنبيه تليجرام بتاعه بيتبعت فوراً) · «زائر راجع» بيتحسب برّه القفل · تحديث شيت المواقع مرة في الدقيقة
@@ -457,6 +458,12 @@ function doPost(e) {
   var data;
   try { data = JSON.parse(e.postData.contents); } catch (err) { return out_('bad json'); }
   
+  // v3.8.0: ضغطة على زرار نتيجة في تليجرام
+  if (data && data.update_id && data.callback_query) {
+    try { return handleTelegramCallback_(data); }
+    catch (err) { console.error('Telegram callback: ' + err); return ContentService.createTextOutput('OK'); }
+  }
+
   // ✅ [جديد] فحص لو دي رسالة جاية من تليجرام (Webhook)
   if (data && data.update_id && data.message) {
     try {
@@ -1032,18 +1039,15 @@ function buildSessionText_(d, session, role) {
 }
 
 // ─── الإرسال الأساسي (يرجّع message_id) ───
-function sendTelegramFull_(token, chat, text) {
+function sendTelegramFull_(token, chat, text, markup) {
   try {
+    var body = { chat_id: chat, text: text, parse_mode: 'HTML', disable_web_page_preview: true };
+    if (markup) body.reply_markup = markup;   // v3.8.0: أزرار النتيجة
     var res = UrlFetchApp.fetch('https://api.telegram.org/bot' + token + '/sendMessage', {
       method: 'post',
       contentType: 'application/json',
       muteHttpExceptions: true,
-      payload: JSON.stringify({
-        chat_id: chat,
-        text: text,
-        parse_mode: 'HTML',
-        disable_web_page_preview: true
-      })
+      payload: JSON.stringify(body)
     });
     var code = res.getResponseCode();
     if (code === 200) {
@@ -1061,20 +1065,16 @@ function sendTelegramFull_(token, chat, text) {
 }
 
 // ─── تعديل رسالة موجودة ───
-function editTelegram_(token, chat, msgId, text) {
+function editTelegram_(token, chat, msgId, text, markup) {
   if (!msgId) return false;
   try {
+    var body = { chat_id: chat, message_id: msgId, text: text, parse_mode: 'HTML', disable_web_page_preview: true };
+    if (markup) body.reply_markup = markup;   // v3.8.0: من غيرها التعديل بيشيل الأزرار
     var res = UrlFetchApp.fetch('https://api.telegram.org/bot' + token + '/editMessageText', {
       method: 'post',
       contentType: 'application/json',
       muteHttpExceptions: true,
-      payload: JSON.stringify({
-        chat_id: chat,
-        message_id: msgId,
-        text: text,
-        parse_mode: 'HTML',
-        disable_web_page_preview: true
-      })
+      payload: JSON.stringify(body)
     });
     var code = res.getResponseCode();
     if (code === 200) return true;
@@ -1160,6 +1160,7 @@ function sendTelegram_(d, props, isNewSite) {
       browser: d.browser || '',
       seconds: Number(d.seconds) || 0,
       customer: (d.event === 'purchase') ? extractCustomer_(d) : null,
+      oc: contactCode_(d),
       msgs: {}
     };
 
@@ -1189,6 +1190,7 @@ function sendTelegram_(d, props, isNewSite) {
   if (d.country && !session.country) session.country = d.country;
   if (d.city && !session.city) session.city = d.city;
   if (d.event === 'purchase') session.customer = extractCustomer_(d);
+  if (contactCode_(d)) session.oc = contactCode_(d);   // v3.8.0: آخر ضغطة تواصل بكود = اللي الأزرار بتسجّل عليها
   session.seconds = Math.max(Number(session.seconds) || 0, Number(d.seconds) || 0);
 
   // جلسات اتبدأت قبل التحديث (msg_id واحد) → رسالة الأدمن
@@ -1200,6 +1202,13 @@ function sendTelegram_(d, props, isNewSite) {
 
   broadcastSession_(token, targets, d, session, cache);
   try { cache.put(key, JSON.stringify(session), 1800); } catch (e) {}
+}
+
+// v3.8.0: كود ضغطة الواتساب أو الاتصال (اللي الأزرار بتسجّل عليه)
+function contactCode_(d) {
+  var ct = d.ct || d.click_type;
+  if (d.event === 'click' && (ct === 'wa' || ct === 'call') && d.match_code) return String(d.match_code).replace(/^#/, '');
+  return '';
 }
 
 // هل الجلسة اتبعتلها أي رسالة؟ (بيدعم الشكل القديم msg_id والجديد msgs)
@@ -1214,12 +1223,13 @@ function sessionHasMsg_(s) {
 // يبعت/يعدّل رسالة الجلسة لكل شات (رقم الرسالة محفوظ لكل شات لوحده)
 function broadcastSession_(token, targets, d, session, cache) {
   session.msgs = session.msgs || {};
+  var kb = (session.oc && !d.is_test && typeof outcomeKeyboard_ === 'function') ? outcomeKeyboard_(String(d.site_id || ''), session.oc) : null;   // v3.8.0 (outcome-buttons.js)
   targets.forEach(function (t) {
     var text = buildSessionText_(d, session, t.role);
     var mid = session.msgs[t.chat];
-    var ok = mid ? editTelegram_(token, t.chat, mid, text) : false;
+    var ok = mid ? editTelegram_(token, t.chat, mid, text, kb) : false;
     if (ok) return;
-    var newId = sendTelegramFull_(token, t.chat, text);
+    var newId = sendTelegramFull_(token, t.chat, text, kb);
     if (newId) {
       session.msgs[t.chat] = newId;
     } else if (t.role === 'owner') {

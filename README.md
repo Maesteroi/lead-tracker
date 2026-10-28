@@ -4,7 +4,7 @@
 
 | الفولدر | إيه | النسخة |
 |---|---|---|
-| `apps-script/` | مشروع Apps Script (كود الشيت) — 15 ملف | v3.7.0 |
+| `apps-script/` | مشروع Apps Script (كود الشيت) — 17 ملف | v3.9.0 |
 | `plugin/lead-tracker-pro/` | بلجن ووردبريس | 2.9.0 |
 | `server/` | **السيرفر الجديد** (Cloudflare Workers + Supabase): استقبال البلجن وتطبيق الموبايل، والمطابقة، والتحليل — التركيب في `server/README.md` | 1.0.0 |
 | `google-ads-script/` | سكريبت جوجل أدز: نفس الكود في كل حساب، وبيسجّل نفسه | v3.0 |
@@ -21,6 +21,7 @@
 | `click-gap.js` | التحليل اليومي (8 الصبح): فجوة النقرات، والاشتباه لكل كلمة، ومدينة جوجل، و«تقرير النقرات اليومي»، وتقرير تليجرام |
 | `upload-conversions.js` · `phase4-*.js` · `oauth.js` | الرفع القديم للتحويلات بالـAPI (`uploadServicesConversions` شغال 4 العصر) — **مستني مراجعة** |
 | `telegram-webhook.js` | بوت تليجرام (الربط والفصل) |
+| `outcome-buttons.js` | أزرار النتيجة على تنبيه تليجرام (تم · بيفكر · لغى · مش جاد · ماوصلش رسالة) ← عمود «التنفيذ» |
 | `server-sync.js` | الشيت ↔ السيرفر: مزامنة المواقع، وكود ربط الموبايل، وموافقات العميل، والمقارنة اليومية |
 
 ## الإعدادات (Script Properties — مش في الكود)
@@ -33,7 +34,7 @@
 
 ## الاختبارات
 ```
-node tests/test-bridge.js && node tests/test-gap.js && node tests/test-queue.js && node tests/test-server-sync.js && node tests/test-netcheck.js x
+node tests/test-bridge.js && node tests/test-gap.js && node tests/test-queue.js && node tests/test-outcome.js && node tests/test-server-sync.js && node tests/test-netcheck.js x
 cd server && npm test
 ```
 اختبارات بمحاكي للشيتات وجوجل أدز وتليجرام. ودي مش بديل عن الاختبار الحي، فأي نسخة لازم تتجرب على بيانات حقيقية قبل ما تتعتبر شغالة.
