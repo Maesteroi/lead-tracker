@@ -1896,6 +1896,10 @@ function onOpen() {
     .addSeparator()
     .addItem('📋 نسخ كود جوجل أدز (نفس الكود لكل الحسابات)', 'showAdsScript')
     .addSeparator()
+    .addItem('🖥️ مزامنة المواقع مع السيرفر', 'syncSitesToServer')
+    .addItem('📱 كود ربط موبايل', 'menuPhonePairCode')
+    .addItem('✍️ موافقات عميل (الواتساب والمكالمات)', 'menuClientConsents')
+    .addSeparator()
     .addItem('وقف موقع', 'menuDisableSite')
     .addItem('تشغيل موقع موقوف', 'menuEnableSite')
     .addToUi();

@@ -5,7 +5,8 @@
 | الفولدر | إيه | النسخة |
 |---|---|---|
 | `apps-script/` | مشروع Apps Script (كود الشيت) — 15 ملف | v3.7.0 |
-| `plugin/lead-tracker-pro/` | بلجن ووردبريس | 2.8.3 |
+| `plugin/lead-tracker-pro/` | بلجن ووردبريس | 2.9.0 |
+| `server/` | **السيرفر الجديد** (Cloudflare Workers + Supabase): استقبال البلجن وتطبيق الموبايل، والمطابقة، والتحليل — التركيب في `server/README.md` | 1.0.0 |
 | `google-ads-script/` | سكريبت جوجل أدز: نفس الكود في كل حساب، وبيسجّل نفسه | v3.0 |
 | `templates/` | قوالب (صفحة سياسة الخصوصية وشروط التواصل) | — |
 | `kb/` | قاعدة المعرفة (بتتبني تدريجياً): `04-channels/google-ads/` · `06-execution/roadmap.md` | — |
@@ -20,9 +21,10 @@
 | `click-gap.js` | التحليل اليومي (8 الصبح): فجوة النقرات، والاشتباه لكل كلمة، ومدينة جوجل، و«تقرير النقرات اليومي»، وتقرير تليجرام |
 | `upload-conversions.js` · `phase4-*.js` · `oauth.js` | الرفع القديم للتحويلات بالـAPI (`uploadServicesConversions` شغال 4 العصر) — **مستني مراجعة** |
 | `telegram-webhook.js` | بوت تليجرام (الربط والفصل) |
+| `server-sync.js` | الشيت ↔ السيرفر: مزامنة المواقع، وكود ربط الموبايل، وموافقات العميل، والمقارنة اليومية |
 
 ## الإعدادات (Script Properties — مش في الكود)
-`TG_TOKEN` · `TG_CHAT_ID` · `TIMEZONE` · `IPAPI_KEY` · `ADS_KEY` · `WEBAPP_URL` (اختياري) · `SITE_<id>` (سجل كل موقع).
+`TG_TOKEN` · `TG_CHAT_ID` · `TIMEZONE` · `IPAPI_KEY` · `ADS_KEY` · `WEBAPP_URL` (اختياري) · `SITE_<id>` (سجل كل موقع) · `SERVER_URL` · `SERVER_ADMIN_TOKEN`.
 **مفيش أي مفتاح أو توكن في المستودع.**
 
 ## الشيتات
@@ -31,7 +33,8 @@
 
 ## الاختبارات
 ```
-node tests/test-bridge.js && node tests/test-gap.js && node tests/test-queue.js && node tests/test-netcheck.js x
+node tests/test-bridge.js && node tests/test-gap.js && node tests/test-queue.js && node tests/test-server-sync.js && node tests/test-netcheck.js x
+cd server && npm test
 ```
 اختبارات بمحاكي للشيتات وجوجل أدز وتليجرام. ودي مش بديل عن الاختبار الحي، فأي نسخة لازم تتجرب على بيانات حقيقية قبل ما تتعتبر شغالة.
 

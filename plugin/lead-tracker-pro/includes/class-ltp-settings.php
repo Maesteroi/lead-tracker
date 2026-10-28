@@ -256,6 +256,15 @@ class LTP_Settings {
                                 <p class="description">يظهر في إشعارات Telegram + اسم الجدول في Google Sheet</p>
                             </td>
                         </tr>
+                        <tr>
+                            <th><label for="server_mirror">السيرفر الجديد (Maestro LT)</label></th>
+                            <td>
+                                <label><input type="checkbox" name="server_mirror" id="server_mirror" value="1" <?php checked((bool) LTP_Core::get('server_mirror')); ?>>
+                                    ابعت نسخة من كل حدث للسيرفر كمان (الشيت فاضل شغال زي ما هو)</label>
+                                <p><input type="url" name="server_url" class="large-text" value="<?php echo esc_attr(LTP_Core::get('server_url', LTP_Core::SERVER_URL)); ?>"></p>
+                                <p class="description">فعّله بس لما السيرفر يبقى شغال. الإرسال في الخلفية ومابيأخّرش الزائر.</p>
+                            </td>
+                        </tr>
                     </table>
                 </details>
 
@@ -444,6 +453,9 @@ class LTP_Settings {
         LTP_Core::set('behind_cloudflare', isset($_POST['behind_cloudflare']) ? 1 : 0);
         LTP_Core::set('consent_enabled', isset($_POST['consent_enabled']) ? 1 : 0);
         LTP_Core::set('track_all',       isset($_POST['track_all']) ? 1 : 0);
+        LTP_Core::set('server_mirror',   isset($_POST['server_mirror']) ? 1 : 0);
+        $su = esc_url_raw(trim(wp_unslash($_POST['server_url'] ?? '')));
+        LTP_Core::set('server_url', strpos($su, 'https://') === 0 ? $su : LTP_Core::SERVER_URL);
 
         wp_safe_redirect(admin_url('admin.php?page=lead-tracker-settings&saved=1' . ($bad_url ? '&badurl=1' : '')));
         exit;
@@ -457,7 +469,7 @@ class LTP_Settings {
             'webhook_url', 'webhook_secret', 'site_label',
             'wa_greeting', 'match_code', 'exclude_admin',
             'behind_cloudflare', 'consent_enabled', 'track_all', 'server_host',
-            'wa_only', 'click_rules',
+            'wa_only', 'click_rules', 'server_mirror', 'server_url',
             'paired_at', 'pair_state'
         ];
 
