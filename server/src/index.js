@@ -1,0 +1,53 @@
+// Maestro LT — سيرفر الاستقبال (Cloudflare Worker) · م.١ نسخة 1
+// البلجن (تشغيل موازي مع الشيت) · تطبيق الموبايل (المكالمات والواتساب والتسجيلات) · الإدارة من الشيت.
+import { Db } from './db.js';
+import { json } from './util.js';
+import { handleEvent } from './events.js';
+import { isAdmin, syncSites, newPairCode, setConsents, compareDay } from './admin.js';
+import { pairDevice, authDevice, heartbeat, postCalls, postMessages, putRecording } from './device.js';
+import { runScheduled } from './cron.js';
+
+export const VERSION = '1.0.0';
+
+export async function route(req, env, fetchImpl) {
+  const url = new URL(req.url);
+  const p = url.pathname.replace(/\/+$/, '') || '/';
+  const m = req.method;
+  if (m === 'GET' && (p === '/' || p === '/health')) return json({ ok: true, service: 'maestro-api', version: VERSION });
+
+  const db = new Db(env, fetchImpl);
+  try {
+    if (m === 'POST' && p === '/v1/events') return await handleEvent(req, env, db);
+    if (m === 'POST' && p === '/v1/device/pair') return await pairDevice(req, env, db);
+
+    if (p.startsWith('/v1/admin/')) {
+      if (!isAdmin(req, env)) return json({ ok: false, error: 'forbidden' }, 403);
+      if (m === 'POST' && p === '/v1/admin/sites') return await syncSites(req, env, db);
+      if (m === 'POST' && p === '/v1/admin/pair-codes') return await newPairCode(req, env, db);
+      if (m === 'POST' && p === '/v1/admin/consents') return await setConsents(req, env, db);
+      if (m === 'GET' && p === '/v1/admin/compare') return await compareDay(req, env, db, url);
+      return json({ ok: false, error: 'not found' }, 404);
+    }
+
+    if (p.startsWith('/v1/device/')) {
+      const ctx = await authDevice(req, db);
+      if (!ctx) return json({ ok: false, error: 'forbidden' }, 403);
+      if (m === 'POST' && p === '/v1/device/heartbeat') return await heartbeat(req, env, db, ctx);
+      if (m === 'POST' && p === '/v1/device/calls') return await postCalls(req, env, db, ctx);
+      if (m === 'POST' && p === '/v1/device/messages') return await postMessages(req, env, db, ctx);
+      if (m === 'PUT' && p === '/v1/device/recordings') return await putRecording(req, env, db, ctx, url);
+      return json({ ok: false, error: 'not found' }, 404);
+    }
+    return json({ ok: false, error: 'not found' }, 404);
+  } catch (e) {
+    console.error(m + ' ' + p + ': ' + (e && e.stack || e));
+    return json({ ok: false, error: 'server' }, 500);
+  }
+}
+
+export default {
+  fetch: (req, env) => route(req, env),
+  scheduled: async (event, env, ctx) => {
+    ctx.waitUntil(runScheduled(env, new Db(env)).then((r) => console.log('cron ' + JSON.stringify(r))).catch((e) => console.error('cron: ' + e)));
+  },
+};
