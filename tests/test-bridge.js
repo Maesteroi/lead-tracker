@@ -1,6 +1,6 @@
 const fs=require('fs');const {Book,Sheet}=require('./mock.js');
 const R=require('path').join(__dirname,'..')+'/';
-const gs=['apps-script/Code.js','apps-script/click-gap.js','apps-script/ads-bridge.js'].map(f=>fs.readFileSync(R+f,'utf8')).join('\n');
+const gs=['apps-script/Code.js','apps-script/click-gap.js','apps-script/ads-bridge.js','apps-script/visitor-score.js'].map(f=>fs.readFileSync(R+f,'utf8')).join('\n');
 const ads=fs.readFileSync(R+'google-ads-script/click-collector.js','utf8');
 let ok=0,bad=0;const t=(n,c)=>{c?ok++:bad++;console.log((c?'✓ ':'✗ ')+n)};
 // ── Apps Script side

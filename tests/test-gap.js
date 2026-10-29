@@ -1,10 +1,10 @@
 const fs=require('fs');const {Book,Sheet}=require('./mock.js');
-const code=['Code.js','click-gap.js','ads-bridge.js'].map(f=>fs.readFileSync(require('path').join(__dirname,'..')+'/apps-script/'+f,'utf8')).join('\n');
+const code=['Code.js','click-gap.js','ads-bridge.js','visitor-score.js'].map(f=>fs.readFileSync(require('path').join(__dirname,'..')+'/apps-script/'+f,'utf8')).join('\n');
 let ok=0,bad=0;const t=(n,c)=>{c?ok++:bad++;console.log((c?'✓ ':'✗ ')+n)};
 function setup(tg,opt){opt=opt||{};
  const store={TG_TOKEN:'tok',TG_CHAT_ID:'chat'};const cache={};const tg_msgs=[];
  const HL=new Function(code+';return HEADERS_LOG')();
- const hdr=HL.concat(['التنفيذ','بصمة 2']);
+ const hdr=HL.concat(['التنفيذ','بصمة 2','بصمة Pro']);
  const H=n=>hdr.indexOf(n);
  const mk=(o)=>{const r=new Array(hdr.length).fill('');Object.entries(o).forEach(([k,v])=>r[H(k)]=v);return r};
  const log=new Sheet('روضة (abc123)',[hdr,
@@ -12,7 +12,7 @@ function setup(tg,opt){opt=opt||{};
   mk({'الحدث':'🎯 نقرة','gclid':'G1','نوع النقرة':'واتساب','التنفيذ':'تم'}),
   mk({'الحدث':'👁️ زيارة صفحة','gclid':'G2','ثواني في الصفحة':1,'تفاعلات':0,'نوع الشبكة':'🏠 شبكة ثابتة'}),
   mk({'الحدث':'👁️ زيارة صفحة','gclid':'G3','ثواني في الصفحة':20,'تفاعلات':3,'نوع الشبكة':'🔒 VPN','التنفيذ':'ماوصلش رسالة','IP':'5.6.7.8'}),
-  mk({'الحدث':'👁️ زيارة صفحة','gclid':'','ثواني في الصفحة':9})]);
+  mk({'الحدث':'👁️ زيارة صفحة','gclid':'','ثواني في الصفحة':9})].concat((opt.visits||[]).map(mk)));
  const GH=['التاريخ','gclid','الحملة','المجموعة','الكلمة','نوع المطابقة','الجهاز','الشبكة','نوع الضغطة','مكان الإعلان','صفحة النتائج','مدينة التواجد','منطقة التواجد','دولة التواجد','أدق مكان (التواجد)','نوع أدق مكان','مدينة الاهتمام','دولة الاهتمام','ضغطات','وصل للموقع؟'];
  const g=(gc,kw,city,ct)=>{const r=new Array(GH.length).fill('');r[0]='2026-10-25';r[1]=gc;r[2]='C1';r[4]=kw;r[5]=kw?'مطابقة عبارة':'';r[8]=ct||'URL_CLICKS';r[11]=city;r[13]='Saudi Arabia';return r};
  const gsh=new Sheet('نقرات جوجل',[GH,g('G1','مكيفات الرياض','Riyadh'),g('G2','مكيفات الرياض','Jeddah'),g('G3','صيانة مكيف','Riyadh'),g('G4','صيانة مكيف','Riyadh'),g('','', 'Riyadh')].concat((opt.extra||[]).map(x=>g(...x))));
@@ -33,7 +33,7 @@ let s=setup('SA|الرياض');s.api.analyzeClickGap();
 const col=s.gsh.d.slice(1).map(r=>r[19]);
 t('marks: نعم/نعم/نعم/لا/لا',JSON.stringify(col)===JSON.stringify(['نعم','نعم','نعم','لا','لا']));
 const cc=s.log.d[0].indexOf('مدينة جوجل');
-console.log('cc',cc,'hdrlen',s.hdr.length,'row0len',s.log.d[0].length);t('«مدينة جوجل» column created at end',cc===s.log.d[0].length-1 && s.log.d[0].filter(x=>x==='مدينة جوجل').length===1);
+console.log('cc',cc,'hdrlen',s.hdr.length,'row0len',s.log.d[0].length);t('«مدينة جوجل» + درجة الزائر columns created once, in order',cc===s.log.d[0].length-3 && s.log.d[0][cc+1]==='درجة الزائر' && s.log.d[0][cc+2]==='أسباب الدرجة' && s.log.d[0].filter(x=>x==='مدينة جوجل').length===1);
 t('G1 visit row gets Riyadh',s.log.d[1][cc]==='Riyadh');
 t('G2 gets Jeddah — برّه الاستهداف',s.log.d[3][cc]==='Jeddah — برّه الاستهداف');
 const m=s.tg_msgs[0]||'';console.log('\n'+m+'\n');
@@ -82,4 +82,25 @@ s=setup('SA|الرياض');s.api.analyzeClickGap();const at=s.main.getSheetByNam
 t('vpn visit queued IP exclusion (معتمد, site campaigns)',at&&at.d.length===2&&at.d[1][4]==='استبعاد IP'&&at.d[1][6]==='5.6.7.8'&&at.d[1][8]==='معتمد'&&at.d[1][5]==='1');
 t('report mentions blocked',/اتضاف لاستبعاد IP \(VPN\/سيرفر\): <b>1<\/b>/.test(s.tg_msgs[0]||''));
 s.api.analyzeClickGap();t('rerun: not queued twice',at.d.length===2);
+// v3.11.0: درجة الزائر
+s=setup('SA|الرياض');s.api.analyzeClickGap();
+const SC=s.log.d[0].indexOf('درجة الزائر'),SW=s.log.d[0].indexOf('أسباب الدرجة');
+t('score G1 (تواصل + تم + قعد) = 100 عالي',s.log.d[1][SC]===100&&/^عالي/.test(s.log.d[1][SW]));
+t('score G2 (ثانية + برّه الاستهداف) = 0 منخفض',s.log.d[3][SC]===0&&/منخفض/.test(s.log.d[3][SW])&&/برّه الاستهداف/.test(s.log.d[3][SW]));
+t('score G3 (VPN + ماوصلش رسالة) low',s.log.d[4][SC]<40&&/VPN/.test(s.log.d[4][SW]));
+t('calibration line in report',/متوسط درجة الزائر/.test(s.tg_msgs[0]||'')&&/تم 100 \(1\)/.test(s.tg_msgs[0]||''));
+// نفس الجهاز ضغط 3 مرات من غير تواصل
+const V=(g,ip)=>({'الحدث':'👁️ زيارة صفحة','gclid':g,'ثواني في الصفحة':5,'تفاعلات':1,'نوع الشبكة':'🏠 شبكة ثابتة','IP':ip,'بصمة Pro':'devABCDEF123'});
+s=setup('SA|الرياض',{visits:[V('R1','9.1.1.1'),V('R2','9.1.1.2'),V('R3','9.1.1.2')],extra:[['R1','مكيف','Riyadh'],['R2','مكيف','Riyadh'],['R3','مكيف','Riyadh']]});
+s.api.analyzeClickGap();const m3=s.tg_msgs[0]||'';
+t('repeat device reported',/أجهزة ضغطت الإعلان 3 مرات/.test(m3)&&/جهاز …DEF123: 3 ضغطات · 2 IP/.test(m3));
+const SC2=s.log.d[0].indexOf('درجة الزائر');const rr=s.log.d.findIndex(r=>r[s.hdr.indexOf('gclid')]==='R3');
+t('repeat device score penalised',s.log.d[rr][SC2]<=25&&/نفس الجهاز 3 ضغطات/.test(s.log.d[rr][SC2+1]));
+const at2=s.main.getSheetByName('⚙️ أوامر جوجل أدز');const sug=at2?at2.d.filter(r=>r[8]==='مقترح'&&r[4]==='استبعاد IP'):[];
+t('fixed-network IPs suggested (مقترح), not auto',sug.length===2&&sug.every(r=>/نفس الجهاز/.test(r[7])));
+// موبايل: مفيش اقتراح استبعاد
+const VM=(g)=>Object.assign(V(g,'2.2.2.2'),{'نوع الشبكة':'📶 شبكة جوال'});
+s=setup('SA|الرياض',{visits:[VM('M1'),VM('M2'),VM('M3')],extra:[['M1','مكيف','Riyadh'],['M2','مكيف','Riyadh'],['M3','مكيف','Riyadh']]});
+s.api.analyzeClickGap();const at3=s.main.getSheetByName('⚙️ أوامر جوجل أدز');
+t('mobile repeat device: reported but no IP suggestion',/أجهزة ضغطت الإعلان/.test(s.tg_msgs[0]||'')&&!(at3&&at3.d.some(r=>r[6]==='2.2.2.2')));
 console.log(`\n${ok} passed, ${bad} failed`);process.exit(bad?1:0);

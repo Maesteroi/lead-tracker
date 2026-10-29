@@ -1,5 +1,6 @@
 /**
- * click-gap.js — v3.10.0: ضغطة إعلان من VPN/سيرفر ← أمر «استبعاد IP» معتمد أوتوماتيك (سكريبت جوجل أدز بينفذه)
+ * click-gap.js — v3.11.0: + «درجة الزائر» والأجهزة اللي ضغطت كذا مرة (visitor-score.js)
+ *   v3.10.0: ضغطة إعلان من VPN/سيرفر ← أمر «استبعاد IP» معتمد أوتوماتيك (سكريبت جوجل أدز بينفذه)
  *   v3.9.1: نسبة الوصول على ضغطات الموقع بس (الاتصال والخرايط في سطر لوحدهم) + تنبيه لو ضغطات امبارح ماوصلتش
  *   v3.5.2: + تبويب «تقرير النقرات اليومي» في ملف كل موقع · v3.5.0: فجوة النقرات والاشتباه لكل كلمة (تحليل يومي)
  *
@@ -46,7 +47,7 @@ function analyzeClickGap() {
   if (noAccess.length) console.warn('مش قادر أفتح شيت: ' + noAccess.join('، ') + ' (الحساب اللي مشغّل التحليل مالوش صلاحية)');
   // درس 25 أكتوبر: أي عمود جديد يتعمل في كل الشيتات مرة واحدة وبنفس الترتيب
   sites.forEach(function (x) {
-    try { var lg = findSiteSheet_(x.book, x.id); if (lg) extraCol_(lg, 'مدينة جوجل'); SpreadsheetApp.flush(); }
+    try { var lg = findSiteSheet_(x.book, x.id); if (lg) { extraCol_(lg, 'مدينة جوجل'); extraCol_(lg, SCORE_COL); extraCol_(lg, SCORE_WHY_COL); } SpreadsheetApp.flush(); }
     catch (e) { console.error('gap col ' + (x.rec.n || x.id) + ': ' + (e && e.stack || e)); }
   });
   var sent = 0;
@@ -109,7 +110,7 @@ function gapForSite_(siteId, rec, st) {
   var V = visitsByGclid_(log);
 
   // ── المطابقة: كل الأيام بتتحسب (لتبويب التقرير اليومي)، والجديد بس بيتعلّم وبيتبعت
-  var cityCol = 0, days = {}, newDays = {}, blocked = {};
+  var cityCol = 0, days = {}, newDays = {}, blocked = {}, info = {};
   var target = parseTarget_(rec.tg);
   var colVals = gv.map(function (r) { return [r[G['وصل للموقع؟']]]; });
   gv.forEach(function (r, i) {
@@ -128,6 +129,7 @@ function gapForSite_(siteId, rec, st) {
     var city = r[G['مدينة التواجد']] || (G['منطقة التواجد'] >= 0 ? r[G['منطقة التواجد']] : '') || r[G['أدق مكان (التواجد)']] || '';
     if (city) D.cities[city] = (D.cities[city] || 0) + 1;
     var out = target && isOutside_(target, r[G['مدينة التواجد']] || city, r[G['دولة التواجد']]);
+    if (gclid) info[gclid] = { day: day, out: !!out, city: city };
     if (out) { D.outT++; var cn = r[G['دولة التواجد']], oc = city + (cn && city !== cn && !inCountry_(target, cn) ? ' (' + cn + ')' : ''); D.outCities[oc] = (D.outCities[oc] || 0) + 1; }
     var kwName = r[G['الكلمة']] ? r[G['الكلمة']] + (r[G['نوع المطابقة']] ? ' (' + r[G['نوع المطابقة']] + ')' : '') : '(من غير كلمة — ' + r[G['الحملة']] + ')';
     var K = D.kw[kwName] || (D.kw[kwName] = { clicks: 0, arrived: 0, sus: 0, contacted: 0, done: 0 });
@@ -159,9 +161,11 @@ function gapForSite_(siteId, rec, st) {
 
   var inv = invalidByDay_(book);
   try { writeDailyTab_(book, days, inv, target); } catch (e) { console.error('daily tab: ' + e); }
+  var extra = null;
+  try { extra = scoreSite_(log, V, info, st, rec, siteId); } catch (e) { console.error('score: ' + (e && e.stack || e)); }
   var nd = Object.keys(newDays).sort();
   if (!nd.length) return null;
-  return nd.map(function (d) { return dayReport_(rec.n || siteId, days[d], inv[d], target); }).join('\n\n');
+  return nd.map(function (d) { return dayReport_(rec.n || siteId, days[d], inv[d], target); }).join('\n\n') + (extra ? '\n\n' + extra : '');
 }
 
 // v3.5.2: «تقرير النقرات اليومي» جوه ملف الموقع — بيتكتب من الأول كل مرة من كل الأيام
@@ -197,26 +201,32 @@ function visitsByGclid_(log) {
   var out = {};
   if (last < 2) return out;
   var hdr = log.getRange(1, 1, 1, log.getLastColumn()).getValues()[0];
-  var I = idx_(hdr, ['gclid', 'الحدث', 'نوع النقرة', 'نوع الشبكة', 'ثواني في الصفحة', 'تفاعلات', 'تحذير', 'التنفيذ', 'IP']);
+  var I = idx_(hdr, ['gclid', 'الحدث', 'نوع النقرة', 'نوع الشبكة', 'ثواني في الصفحة', 'تفاعلات', 'تحذير', 'التنفيذ', 'IP', 'بصمة Pro', 'Thumbmark ID', 'بصمة 2', 'معرّف الزائر', 'متصفح آلي']);
   if (I['gclid'] < 0) return out;
   var start = Math.max(2, last - 20000 + 1), n = last - start + 1;
   function col(name) { return I[name] < 0 ? null : log.getRange(start, I[name] + 1, n, 1).getValues(); }
-  var C = { g: col('gclid'), ev: col('الحدث'), ct: col('نوع النقرة'), net: col('نوع الشبكة'), sec: col('ثواني في الصفحة'), it: col('تفاعلات'), w: col('تحذير'), done: col('التنفيذ'), ip: col('IP') };
+  var C = { g: col('gclid'), ev: col('الحدث'), ct: col('نوع النقرة'), net: col('نوع الشبكة'), sec: col('ثواني في الصفحة'), it: col('تفاعلات'), w: col('تحذير'), done: col('التنفيذ'), ip: col('IP'), fp3: col('بصمة Pro'), fp4: col('Thumbmark ID'), fp2: col('بصمة 2'), vid: col('معرّف الزائر'), bot: col('متصفح آلي') };
   for (var k = 0; k < n; k++) {
     var g = String(C.g[k][0] || '').trim();
     if (!g) continue;
-    var v = out[g] || (out[g] = { row: 0, net: '', ip: '', secs: 0, inter: 0, warn: '', contacted: false, done: false, maybe: false, noMsg: false });
+    var v = out[g] || (out[g] = { row: 0, net: '', ip: '', dev: '', bot: false, outcome: '', secs: 0, inter: 0, warn: '', contacted: false, done: false, maybe: false, noMsg: false });
     var ev = C.ev ? String(C.ev[k][0]) : '';
     if (!v.row && ev.indexOf('زيارة') >= 0) {
       v.row = start + k;
       v.net = C.net ? String(C.net[k][0]) : '';
       v.warn = C.w ? String(C.w[k][0]) : '';
       v.ip = C.ip ? String(C.ip[k][0] || '').trim() : '';
+      // v3.11.0: الجهاز = أقوى بصمة موجودة (Fingerprint Pro ← Thumbmark ← بصمة 2 ← معرّف الزائر)
+      var cand = [['P', C.fp3], ['T', C.fp4], ['F', C.fp2], ['V', C.vid]];
+      for (var q = 0; q < cand.length && !v.dev; q++) { var val = cand[q][1] ? String(cand[q][1][k][0] || '').trim() : ''; if (val) v.dev = cand[q][0] + ':' + val; }
+      var bt = C.bot ? String(C.bot[k][0] || '').trim() : '';
+      v.bot = bt === 'نعم' || /^(yes|true|1)$/i.test(bt);
     }
     v.secs = Math.max(v.secs, C.sec ? Number(C.sec[k][0]) || 0 : 0);
     v.inter = Math.max(v.inter, C.it ? Number(C.it[k][0]) || 0 : 0);
     if (ev.indexOf('نقرة') >= 0 && C.ct && String(C.ct[k][0]).trim()) v.contacted = true;
     var dn = C.done ? String(C.done[k][0]) : '';
+    if (dn) v.outcome = dn;
     if (dn === 'تم') v.done = true;
     if (dn === 'عميل محتمل' || dn === 'بيفكر') v.maybe = true;   // v3.8.0: «بيفكر» من أزرار تليجرام
     if (dn.indexOf('ماوصلش') >= 0) v.noMsg = true;
