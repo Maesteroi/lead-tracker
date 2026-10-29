@@ -487,7 +487,7 @@ function doPost(e) {
   }
   
   // v3.6.0: سكريبت جوجل أدز الموحّد (ads-bridge.js)
-  if (data && (data.action === 'ads_config' || data.action === 'ads_sync' || data.action === 'ads_clicks')) {
+  if (data && (data.action === 'ads_config' || data.action === 'ads_sync' || data.action === 'ads_clicks' || data.action === 'ads_actions_done')) {
     try { return handleAds_(data, props); } catch (err) { console.error('ads: ' + err); return json_({ ok: false, error: 'server', detail: String(err).slice(0, 200) }); }
   }
   if (data && data.event === 'pair') {

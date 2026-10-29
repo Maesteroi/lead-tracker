@@ -11,7 +11,7 @@ function setup(tg,opt){opt=opt||{};
   mk({'الحدث':'👁️ زيارة صفحة','gclid':'G1','ثواني في الصفحة':40,'تفاعلات':5,'نوع الشبكة':'📶 شبكة جوال'}),
   mk({'الحدث':'🎯 نقرة','gclid':'G1','نوع النقرة':'واتساب','التنفيذ':'تم'}),
   mk({'الحدث':'👁️ زيارة صفحة','gclid':'G2','ثواني في الصفحة':1,'تفاعلات':0,'نوع الشبكة':'🏠 شبكة ثابتة'}),
-  mk({'الحدث':'👁️ زيارة صفحة','gclid':'G3','ثواني في الصفحة':20,'تفاعلات':3,'نوع الشبكة':'🔒 VPN','التنفيذ':'ماوصلش رسالة'}),
+  mk({'الحدث':'👁️ زيارة صفحة','gclid':'G3','ثواني في الصفحة':20,'تفاعلات':3,'نوع الشبكة':'🔒 VPN','التنفيذ':'ماوصلش رسالة','IP':'5.6.7.8'}),
   mk({'الحدث':'👁️ زيارة صفحة','gclid':'','ثواني في الصفحة':9})]);
  const GH=['التاريخ','gclid','الحملة','المجموعة','الكلمة','نوع المطابقة','الجهاز','الشبكة','نوع الضغطة','مكان الإعلان','صفحة النتائج','مدينة التواجد','منطقة التواجد','دولة التواجد','أدق مكان (التواجد)','نوع أدق مكان','مدينة الاهتمام','دولة الاهتمام','ضغطات','وصل للموقع؟'];
  const g=(gc,kw,city,ct)=>{const r=new Array(GH.length).fill('');r[0]='2026-10-25';r[1]=gc;r[2]='C1';r[4]=kw;r[5]=kw?'مطابقة عبارة':'';r[8]=ct||'URL_CLICKS';r[11]=city;r[13]='Saudi Arabia';return r};
@@ -27,7 +27,7 @@ function setup(tg,opt){opt=opt||{};
   UrlFetchApp:{fetch:(u,o)=>{tg_msgs.push(JSON.parse(o.payload).text);return{getResponseCode:()=>200,getContentText:()=>'{}'}}},
   ScriptApp:{},Utilities:{formatDate:()=>opt.yday||'2026-10-25'},ContentService:{},LockService:{},Logger:{log(){}},console:{error:(e)=>{throw new Error(e)},warn(){},log(){}}};
  const f=new Function(...Object.keys(ctx),code+';return {analyzeClickGap,handleNormalEvent_:typeof handleNormalEvent_!=="undefined"?handleNormalEvent_:null};');
- return {api:f(...Object.values(ctx)),log,gsh,tg_msgs,hdr,store,book};
+ return {api:f(...Object.values(ctx)),log,gsh,tg_msgs,hdr,store,book,main};
 }
 let s=setup('SA|الرياض');s.api.analyzeClickGap();
 const col=s.gsh.d.slice(1).map(r=>r[19]);
@@ -77,4 +77,9 @@ t('missing day: alert names site + account',/2026-10-26/.test(miss)&&/روضة �
 t('missing day: report still sent',s.tg_msgs.length===2);
 s.tg_msgs.length=0;s.api.analyzeClickGap();t('missing day: alert once',!s.tg_msgs.some(x=>/ماوصلتش/.test(x)));
 s=setup('SA|الرياض');s.api.analyzeClickGap();t('day present: no missing alert',!s.tg_msgs.some(x=>/ماوصلتش/.test(x)));
+// v3.10.0: VPN ← أمر استبعاد IP معتمد
+s=setup('SA|الرياض');s.api.analyzeClickGap();const at=s.main.getSheetByName('⚙️ أوامر جوجل أدز');
+t('vpn visit queued IP exclusion (معتمد, site campaigns)',at&&at.d.length===2&&at.d[1][4]==='استبعاد IP'&&at.d[1][6]==='5.6.7.8'&&at.d[1][8]==='معتمد'&&at.d[1][5]==='1');
+t('report mentions blocked',/اتضاف لاستبعاد IP \(VPN\/سيرفر\): <b>1<\/b>/.test(s.tg_msgs[0]||''));
+s.api.analyzeClickGap();t('rerun: not queued twice',at.d.length===2);
 console.log(`\n${ok} passed, ${bad} failed`);process.exit(bad?1:0);

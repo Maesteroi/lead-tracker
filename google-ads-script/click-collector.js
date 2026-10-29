@@ -1,5 +1,5 @@
 /**
- * Lead Tracker — سكريبت جوجل أدز: جمع الضغطات (v3.0 — نفس الكود لكل الحسابات، وبيسجّل نفسه)
+ * Lead Tracker — سكريبت جوجل أدز: جمع الضغطات + تنفيذ الأوامر المعتمدة (v4.0 — نفس الكود لكل الحسابات، وبيسجّل نفسه)
  *
  * انسخه من الشيت الرئيسي: قايمة Lead Tracker ← «نسخ كود جوجل أدز». والزقه في أي حساب زي ما هو.
  * أول ما يشتغل بيبعت رقم الحساب وحملاته والرابط اللي كل إعلان بيودّي عليه،
@@ -8,8 +8,10 @@
  *   «نقرات جوجل»       — صف لكل ضغطة (gclid · الكلمة · الجهاز · مكان التواجد …)
  *   «ملخص جوجل اليومي» — صف لكل حملة في اليوم (ضغطات · وهمية حسب جوجل · ظهور · تكلفة)
  *
- * بيقرا بس من الحساب، ومابيغيرش أي حاجة في الحملات.
- * وضع المعاينة (Preview): بيسجّل الحساب في الدفتر ويطبع النتيجة، ومابيبعتش ضغطات.
+ * v4.0: بينفّذ بس الأوامر اللي حالتها «معتمد» في تبويب «⚙️ أوامر جوجل أدز» في الشيت الرئيسي:
+ *   التواجد بس (إعداد الموقع الجغرافي) · استبعاد IP · كلمة مستبعدة. وبيرجّع النتيجة لكل أمر.
+ *   مابيغيرش ميزانية ولا مزايدة ولا يوقف حملة.
+ * وضع المعاينة (Preview): بيسجّل الحساب في الدفتر ويطبع الأوامر اللي كان هينفذها، ومابيبعتش ضغطات ولا بينفذ.
  */
 
 var CONFIG = {
@@ -41,6 +43,9 @@ function main() {
       uniq_([].concat.apply([], camps.map(function (c) { return c.hosts; }))).join('، '));
   }
 
+  // v4.0: الأوامر المعتمدة الأول (لو فشلت، الضغطات بتتسحب عادي)
+  try { runActions_(cfg, cid, preview); } catch (e) { Logger.log('⚠️ الأوامر ماتنفذتش: ' + e); }
+
   var total = 0, n = Math.min(Math.max(parseInt(CONFIG.BACKFILL_DAYS, 10) || 1, 1), 89);
   cfg.sites.forEach(function (site) {
     var ids = (site.campaigns || []).map(String);
@@ -62,6 +67,43 @@ function main() {
     });
   });
   Logger.log('✅ خلص: ' + total + ' ضغطة' + (preview ? ' (معاينة — مااتبعتش ضغطات)' : ''));
+}
+
+// ── v4.0: تنفيذ الأوامر المعتمدة
+function runActions_(cfg, cid, preview) {
+  var acts = cfg.actions || [];
+  if (!acts.length) { Logger.log('⚙️ مفيش أوامر معتمدة'); return; }
+  var siteCamps = uniq_([].concat.apply([], (cfg.sites || []).map(function (s) { return (s.campaigns || []).map(String); })));
+  var cust = String(cid).replace(/\D/g, ''), results = [];
+  acts.forEach(function (a) {
+    var ids = (a.campaigns || []).map(String).filter(String);
+    if (!ids.length) ids = siteCamps;   // «كل حملات الموقع»
+    var ok = !!ids.length, msgs = ids.length ? [] : ['مفيش حملات'];
+    ids.forEach(function (id) {
+      var op = opFor_(a, 'customers/' + cust + '/campaigns/' + id);
+      if (!op) { ok = false; msgs.push('نوع مش معروف: ' + a.type); return; }
+      if (preview) { msgs.push(id + ': معاينة'); return; }
+      try {
+        var r = AdsApp.mutate(op);
+        if (r.isSuccessful()) { msgs.push(id + ': ✓'); return; }
+        var em = (r.getErrorMessages() || []).join(' | ');
+        if (/DUPLICATE|ALREADY_EXISTS|already exists/i.test(em)) { msgs.push(id + ': موجود من قبل'); return; }
+        ok = false; msgs.push(id + ': ' + em);
+      } catch (e) { ok = false; msgs.push(id + ': ' + e); }
+    });
+    Logger.log('⚙️ #' + a.id + ' ' + a.type + (a.value ? ' ' + a.value : '') + ' ← ' + msgs.join(' · '));
+    results.push({ id: a.id, ok: ok, msg: msgs.join(' · ').slice(0, 450) });
+  });
+  if (preview) return;
+  var res = post_({ action: 'ads_actions_done', cid: cid, results: results });
+  if (!res.ok) Logger.log('⚠️ نتيجة الأوامر ماوصلتش الشيت: ' + JSON.stringify(res));
+}
+
+function opFor_(a, camp) {
+  if (a.type === 'التواجد بس') return { campaignOperation: { update: { resourceName: camp, geoTargetTypeSetting: { positiveGeoTargetType: 'PRESENCE' } }, updateMask: 'geo_target_type_setting.positive_geo_target_type' } };
+  if (a.type === 'استبعاد IP' && /^[0-9a-fA-F:.]{3,45}$/.test(String(a.value || ''))) return { campaignCriterionOperation: { create: { campaign: camp, negative: true, ipBlock: { ipAddress: String(a.value) } } } };
+  if (a.type === 'كلمة مستبعدة' && String(a.value || '').trim()) return { campaignCriterionOperation: { create: { campaign: camp, negative: true, keyword: { text: String(a.value).trim().slice(0, 80), matchType: 'PHRASE' } } } };
+  return null;
 }
 
 // كل حملة (مش محذوفة) + الدومينات اللي إعلاناتها بتودّي عليها

@@ -1,5 +1,6 @@
 /**
- * click-gap.js — v3.9.1: نسبة الوصول على ضغطات الموقع بس (الاتصال والخرايط في سطر لوحدهم) + تنبيه لو ضغطات امبارح ماوصلتش
+ * click-gap.js — v3.10.0: ضغطة إعلان من VPN/سيرفر ← أمر «استبعاد IP» معتمد أوتوماتيك (سكريبت جوجل أدز بينفذه)
+ *   v3.9.1: نسبة الوصول على ضغطات الموقع بس (الاتصال والخرايط في سطر لوحدهم) + تنبيه لو ضغطات امبارح ماوصلتش
  *   v3.5.2: + تبويب «تقرير النقرات اليومي» في ملف كل موقع · v3.5.0: فجوة النقرات والاشتباه لكل كلمة (تحليل يومي)
  *
  * سكريبت جوجل أدز (google-ads-script/click-collector.js) بيكتب ضغطات كل يوم في تبويب «نقرات جوجل»
@@ -39,7 +40,7 @@ function analyzeClickGap() {
       // v3.8.0: سكريبت جوجل أدز بيكتب صف لكل يوم في «ملخص جوجل اليومي» حتى لو مفيش ضغطات — غيابه = السكريبت ماشتغلش أو فشل
       if (!invalidByDay_(b)[yday]) missing.push({ name: rc.n || st.name, cid: String(st.cid || '').replace(/^(\d{3})(\d{3})(\d{4})$/, '$1-$2-$3') });
       if (!b.getSheetByName(GAP_TAB)) return;
-      sites.push({ id: st.id, rec: rc, book: b });
+      sites.push({ id: st.id, rec: rc, book: b, cid: st.cid, campaigns: st.campaigns });
     } catch (e) { noAccess.push(rc.n || st.name); }
   });
   if (noAccess.length) console.warn('مش قادر أفتح شيت: ' + noAccess.join('، ') + ' (الحساب اللي مشغّل التحليل مالوش صلاحية)');
@@ -51,7 +52,7 @@ function analyzeClickGap() {
   var sent = 0;
   sites.forEach(function (x) {
     var msg;
-    try { msg = gapForSite_(x.id, x.rec); SpreadsheetApp.flush(); }
+    try { msg = gapForSite_(x.id, x.rec, x); SpreadsheetApp.flush(); }
     catch (e) {
       console.error('gap ' + (x.rec.n || x.id) + ': ' + (e && e.stack || e));
       msg = '⚠️ <b>' + esc_(x.rec.n || x.id) + '</b>: تحليل النقرات فشل — ' + esc_(String(e).slice(0, 150));
@@ -89,7 +90,8 @@ function setupClickGapTrigger() {
   Logger.log('✅ تحليل النقرات هيشتغل كل يوم الساعة 8 الصبح');
 }
 
-function gapForSite_(siteId, rec) {
+function gapForSite_(siteId, rec, st) {
+  st = st || {};
   var book = SpreadsheetApp.openById(rec.ss);
   var gsh = book.getSheetByName(GAP_TAB);
   if (!gsh || gsh.getLastRow() < 2) return null;
@@ -107,7 +109,7 @@ function gapForSite_(siteId, rec) {
   var V = visitsByGclid_(log);
 
   // ── المطابقة: كل الأيام بتتحسب (لتبويب التقرير اليومي)، والجديد بس بيتعلّم وبيتبعت
-  var cityCol = 0, days = {}, newDays = {};
+  var cityCol = 0, days = {}, newDays = {}, blocked = {};
   var target = parseTarget_(rec.tg);
   var colVals = gv.map(function (r) { return [r[G['وصل للموقع؟']]]; });
   gv.forEach(function (r, i) {
@@ -136,6 +138,13 @@ function gapForSite_(siteId, rec) {
     var s = suspicion_(v);
     if (s.any) { D.sus++; K.sus++; }
     if (s.vpn) D.vpn++;
+    // v3.10.0: VPN/سيرفر = استبعاد IP بثقة من غير موافقة (القاعدة 2). شبكات الموبايل عمرها ما بتتحظر هنا
+    if (s.vpn && isNew[i] && v.ip && st.cid && !blocked[v.ip]) {
+      blocked[v.ip] = 1;
+      try {
+        if (adsQueueAction_(st.cid, rec.n || siteId, 'استبعاد IP', st.campaigns || [], v.ip, 'ضغطة إعلان ' + day + ' من ' + (v.net || 'VPN/سيرفر'), 'معتمد')) D.blocked = (D.blocked || 0) + 1;
+      } catch (e) { console.error('queue ip: ' + e); }
+    }
     if (s.quick) D.quick++;
     if (s.noMsg) D.noMsg++;
     if (v.contacted) { D.contacted++; K.contacted++; }
@@ -188,20 +197,21 @@ function visitsByGclid_(log) {
   var out = {};
   if (last < 2) return out;
   var hdr = log.getRange(1, 1, 1, log.getLastColumn()).getValues()[0];
-  var I = idx_(hdr, ['gclid', 'الحدث', 'نوع النقرة', 'نوع الشبكة', 'ثواني في الصفحة', 'تفاعلات', 'تحذير', 'التنفيذ']);
+  var I = idx_(hdr, ['gclid', 'الحدث', 'نوع النقرة', 'نوع الشبكة', 'ثواني في الصفحة', 'تفاعلات', 'تحذير', 'التنفيذ', 'IP']);
   if (I['gclid'] < 0) return out;
   var start = Math.max(2, last - 20000 + 1), n = last - start + 1;
   function col(name) { return I[name] < 0 ? null : log.getRange(start, I[name] + 1, n, 1).getValues(); }
-  var C = { g: col('gclid'), ev: col('الحدث'), ct: col('نوع النقرة'), net: col('نوع الشبكة'), sec: col('ثواني في الصفحة'), it: col('تفاعلات'), w: col('تحذير'), done: col('التنفيذ') };
+  var C = { g: col('gclid'), ev: col('الحدث'), ct: col('نوع النقرة'), net: col('نوع الشبكة'), sec: col('ثواني في الصفحة'), it: col('تفاعلات'), w: col('تحذير'), done: col('التنفيذ'), ip: col('IP') };
   for (var k = 0; k < n; k++) {
     var g = String(C.g[k][0] || '').trim();
     if (!g) continue;
-    var v = out[g] || (out[g] = { row: 0, net: '', secs: 0, inter: 0, warn: '', contacted: false, done: false, maybe: false, noMsg: false });
+    var v = out[g] || (out[g] = { row: 0, net: '', ip: '', secs: 0, inter: 0, warn: '', contacted: false, done: false, maybe: false, noMsg: false });
     var ev = C.ev ? String(C.ev[k][0]) : '';
     if (!v.row && ev.indexOf('زيارة') >= 0) {
       v.row = start + k;
       v.net = C.net ? String(C.net[k][0]) : '';
       v.warn = C.w ? String(C.w[k][0]) : '';
+      v.ip = C.ip ? String(C.ip[k][0] || '').trim() : '';
     }
     v.secs = Math.max(v.secs, C.sec ? Number(C.sec[k][0]) || 0 : 0);
     v.inter = Math.max(v.inter, C.it ? Number(C.it[k][0]) || 0 : 0);
@@ -267,6 +277,7 @@ function dayReport_(name, D, inv, target) {
   if (D.calls || D.maps) L.push('مابتفتحش الموقع: اتصال من الإعلان <b>' + D.calls + '</b> · خرايط (اتجاهات/عنوان) <b>' + D.maps + '</b> ← ضغطات للموقع: <b>' + D.site + '</b>');
   L.push('وصلت للموقع: <b>' + D.arrived + '</b> من ' + base + ' (' + arr + '%) · الفجوة: <b>' + Math.max(base - D.arrived, 0) + '</b>' + (D.noGclid ? ' · من غير gclid: ' + D.noGclid : ''));
   if (arr < GAP_MIN_ARRIVAL) L.push('⚠️ تحت حد الجودة (' + GAP_MIN_ARRIVAL + '%) — الأرقام دي للمراجعة، مش للاستنتاج. ممكن بوتات، أو التتبع بيفوّت زيارات');
+  if (D.blocked) L.push('🚫 اتضاف لاستبعاد IP (VPN/سيرفر): <b>' + D.blocked + '</b> — هيتنفذ في تشغيل سكريبت جوجل أدز الجاي');
   L.push('مشبوهة من اللي وصلوا: <b>' + D.sus + '</b> (VPN/سيرفر ' + D.vpn + ' · أقل من 3 ثواني من غير تفاعل ' + D.quick + ' · ماوصلش رسالة ' + D.noMsg + ')');
   L.push('تواصلوا من الموقع: ' + D.contacted + (D.calls ? ' · اتصال من الإعلان: ' + D.calls : '') + ' · «عميل محتمل»: ' + D.maybe + ' · «تم»: ' + D.done);
   if (target) L.push('برّه الاستهداف حسب جوجل: <b>' + D.outT + '</b>' + (D.outT ? ' (' + esc_(Object.keys(D.outCities).sort(function (a, b) { return D.outCities[b] - D.outCities[a]; }).slice(0, 5).map(function (k) { return k + ' ' + D.outCities[k]; }).join('، ')) + ')' : ''));
