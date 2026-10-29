@@ -20,11 +20,12 @@ const gctx={PropertiesService:{getScriptProperties:()=>({getProperty:k=>store[k]
  ContentService:{createTextOutput:(s)=>({s,setMimeType(){return this},getContent(){return this.s}}),MimeType:{TEXT:1,JSON:2}},
  Logger:{log:(m)=>gs_log.push(String(m))},console:{error:(e)=>console.log('  [gs err]',e),warn(){},log(){}},ScriptApp:{getService:()=>({getUrl:()=>'https://script.google.com/x/dev'})},HtmlService:{createHtmlOutput:(h)=>{globalThis.LAST_HTML=h;return{setWidth(){return this},setHeight(){return this}}}}};
 const gs_log=[];
-const G=new Function(...Object.keys(gctx),gs+';return {doPost,setupAdsKey,analyzeClickGap,adsKey_,adsWebappUrl_,showAdsScript};')(...Object.values(gctx));
+const G=new Function(...Object.keys(gctx),gs+';return {doPost,setupAdsKey,analyzeClickGap,adsKey_,adsWebappUrl_,showAdsScript,queuePresenceForAllAccounts,adsQueueAction_};')(...Object.values(gctx));
 // ── Ads side, posting straight into doPost
+globalThis.MUT=[];
 function runAds({preview,cid,key}){
  const logs=[],queries=[];
- const AdsApp={getExecutionInfo:()=>({isPreview:()=>preview}),currentAccount:()=>({getTimeZone:()=>'UTC',getName:()=>'ابو خالد',getCustomerId:()=>cid||'922-447-5682'}),
+ const AdsApp={mutate:(op)=>{MUT.push(op);const dup=JSON.stringify(op).includes('9.9.9.9');return{isSuccessful:()=>!dup,getErrorMessages:()=>dup?['CRITERION_ALREADY_EXISTS']:[]}},getExecutionInfo:()=>({isPreview:()=>preview}),currentAccount:()=>({getTimeZone:()=>'UTC',getName:()=>'ابو خالد',getCustomerId:()=>cid||'922-447-5682'}),
   search:(q)=>{queries.push(q);if(/WHERE[^]*campaign\.id/.test(q)&&!/SELECT[^]*campaign\.id[^]*FROM/.test(q))throw new Error('EXPECTED_REFERENCED_FIELD_IN_SELECT_CLAUSE');let rows=[];
    if(/FROM click_view/.test(q)){const d=q.match(/'(\d{4}-\d\d-\d\d)'/)[1];rows=[{clickView:{gclid:'G-'+d,keywordInfo:{text:'تصريح زواج',matchType:'BROAD'},locationOfPresence:{city:'geoTargetConstants/1',country:'geoTargetConstants/2',mostSpecific:'geoTargetConstants/3'}},segments:{device:'MOBILE',adNetworkType:'SEARCH',clickType:'URL_CLICKS'},campaign:{id:'24389980462',name:'انجاز'},adGroup:{name:'AG'},metrics:{clicks:'1'}}]}
    else if(/FROM campaign WHERE segments.date = /.test(q)){rows=[{campaign:{id:'24389980462',name:'انجاز'},metrics:{clicks:'1',invalidClicks:'0',impressions:'9',costMicros:'1000000'},customer:{currencyCode:'USD'}}]}
@@ -85,4 +86,23 @@ const pp=gctx.PropertiesService.getScriptProperties();
 t('dialog code == collector (url/key filled)',code===ads.replace("PASTE_WEBAPP_URL",G.adsWebappUrl_(pp)).replace("PASTE_ADS_KEY",store.ADS_KEY));
 let jsok=true;try{new Function(code)}catch(e){jsok=false}t('dialog code is valid JS',jsok);
 t('dialog lists sites with status',/الانجاز السريع/.test(LAST_HTML)&&/✅ 922-447-5682/.test(LAST_HTML)&&/⏳ لسه/.test(LAST_HTML));
+// 10 v4.0: أوامر جوجل أدز
+const actTab=()=>main.getSheetByName('⚙️ أوامر جوجل أدز');
+sites.d[2][iC]='';G.queuePresenceForAllAccounts();
+t('presence queued as معتمد for Injaz',actTab()&&actTab().d.length===2&&actTab().d[1][2]==='922-447-5682'&&actTab().d[1][4]==='التواجد بس'&&actTab().d[1][8]==='معتمد');
+G.queuePresenceForAllAccounts();t('no duplicate presence',actTab().d.length===2);
+G.adsQueueAction_('9224475682','الانجاز','استبعاد IP',['24389980462'],'9.9.9.9','VPN','معتمد');
+G.adsQueueAction_('9224475682','الانجاز','كلمة مستبعدة',['24389980462'],'مجاني','اختبار','مقترح');
+G.adsQueueAction_('9224475682','الانجاز','زود الميزانية',[],'100','x','معتمد');
+t('unknown type rejected · مقترح kept',actTab().d.length===4&&actTab().d[3][8]==='مقترح');
+MUT.length=0;r=runAds({preview:true});
+t('preview: nothing mutated, still معتمد',MUT.length===0&&actTab().d[1][8]==='معتمد'&&r.logs.some(l=>/معاينة/.test(l)));
+tg.length=0;r=runAds({preview:false});
+const pres=MUT.find(o=>o.campaignOperation);const ipop=MUT.find(o=>o.campaignCriterionOperation);
+t('presence op: PRESENCE + mask',pres&&pres.campaignOperation.update.geoTargetTypeSetting.positiveGeoTargetType==='PRESENCE'&&pres.campaignOperation.update.resourceName==='customers/9224475682/campaigns/24389980462'&&pres.campaignOperation.updateMask==='geo_target_type_setting.positive_geo_target_type');
+t('ip op: negative ipBlock',ipop&&ipop.campaignCriterionOperation.create.negative===true&&ipop.campaignCriterionOperation.create.ipBlock.ipAddress==='9.9.9.9');
+t('مقترح not executed',!MUT.some(o=>JSON.stringify(o).includes('مجاني')));
+t('rows marked اتنفذ ✅ (duplicate counts as done)',actTab().d[1][8]==='اتنفذ ✅'&&actTab().d[2][8]==='اتنفذ ✅'&&/موجود من قبل/.test(actTab().d[2][9]));
+t('telegram summary sent',tg.some(x=>/أوامر جوجل أدز/.test(x)&&/التواجد بس/.test(x)));
+MUT.length=0;r=runAds({preview:false});t('rerun: done actions not repeated',MUT.length===0);
 console.log(`\n${ok} passed, ${bad} failed`);process.exit(bad?1:0);
