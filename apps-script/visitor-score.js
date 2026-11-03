@@ -1,5 +1,6 @@
 /**
- * visitor-score.js — v3.11.0: «درجة الزائر» (0–100، تقديرية) + الأجهزة اللي ضغطت الإعلان أكتر من مرة
+ * visitor-score.js — v3.11.1: سطر «مقترح» بيظهر بس لو IP اتضاف فعلاً، وجنب كل جهاز (موبايل / اتضاف)
+ * v3.11.0: «درجة الزائر» (0–100، تقديرية) + الأجهزة اللي ضغطت الإعلان أكتر من مرة
  *
  * قرار محمود 29 أكتوبر: درجة مؤقتة لحد التطبيق، من الإشارات اللي عندنا، وأوزانها بتتظبط من نتايج «التنفيذ».
  * بتتحسب كل صبح جوه analyzeClickGap لزيارات الإعلان (اللي ليها gclid) في آخر SCORE_WINDOW_DAYS يوم،
@@ -103,18 +104,22 @@ function scoreSite_(log, V, info, st, rec, siteId) {
   var L = [];
   if (sus.length) {
     L.push('🔁 <b>أجهزة ضغطت الإعلان ' + REPEAT_STRONG + ' مرات أو أكتر في ' + REPEAT_WINDOW_DAYS + ' أيام ومحدش منها تواصل: ' + sus.length + '</b>');
+    var queued = 0;
     sus.slice(0, 5).forEach(function (x) {
-      var ips = Object.keys(x.ips);
-      L.push('• جهاز …' + esc_(x.key.slice(-6)) + ': ' + Object.keys(x.g).length + ' ضغطات · ' + ips.length + ' IP' + (Object.keys(x.cities).length ? ' · ' + esc_(Object.keys(x.cities).slice(0, 3).join('، ')) : ''));
+      var ips = Object.keys(x.ips), q = 0, mob = 0;
       // استبعاد IP «مقترح» (مستني موافقتك في تبويب الأوامر) — الشبكة الثابتة بس، الموبايل لأ (القاعدة 2 + §٧)
       ips.forEach(function (ip) {
         var net = x.ips[ip];
-        if (!st || !st.cid || /جوال|موبايل|mobile/i.test(net)) return;
-        try { adsQueueAction_(st.cid, rec.n || siteId, 'استبعاد IP', st.campaigns || [], ip, 'نفس الجهاز ضغط الإعلان ' + Object.keys(x.g).length + ' مرات من غير تواصل (' + (net || 'شبكة؟') + ')', 'مقترح'); }
+        if (/جوال|موبايل|mobile/i.test(net)) { mob++; return; }
+        if (!st || !st.cid) return;
+        try { if (adsQueueAction_(st.cid, rec.n || siteId, 'استبعاد IP', st.campaigns || [], ip, 'نفس الجهاز ضغط الإعلان ' + Object.keys(x.g).length + ' مرات من غير تواصل (' + (net || 'شبكة؟') + ')', 'مقترح')) q++; }
         catch (e) { console.error('queue repeat ip: ' + e); }
       });
+      queued += q;
+      var note = q ? ' ← ' + q + ' IP اتضاف «مقترح»' : (mob === ips.length && mob ? ' ← موبايل (مابيتحظرش)' : '');
+      L.push('• جهاز …' + esc_(x.key.slice(-6)) + ': ' + Object.keys(x.g).length + ' ضغطات · ' + ips.length + ' IP' + (Object.keys(x.cities).length ? ' · ' + esc_(Object.keys(x.cities).slice(0, 3).join('، ')) : '') + note);
     });
-    L.push('اللي على شبكة ثابتة اتضاف «مقترح» في «⚙️ أوامر جوجل أدز» — غيّره لـ«معتمد» لو موافق.');
+    if (queued) L.push('الـIP المقترح في الشيت الرئيسي ← تبويب «⚙️ أوامر جوجل أدز» ← عمود «الحالة»: غيّره لـ«معتمد» لو موافق.');
   }
   var ob = Object.keys(byOutcome || {});
   if (ob.length) L.push('📈 متوسط درجة الزائر (تقديرية، ' + SCORE_WINDOW_DAYS + ' يوم): ' + ob.map(function (k) { return esc_(k) + ' ' + Math.round(byOutcome[k].sum / byOutcome[k].n) + ' (' + byOutcome[k].n + ')'; }).join(' · '));
