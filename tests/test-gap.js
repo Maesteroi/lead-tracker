@@ -97,10 +97,12 @@ t('repeat device reported',/أجهزة ضغطت الإعلان 3 مرات/.test(
 const SC2=s.log.d[0].indexOf('درجة الزائر');const rr=s.log.d.findIndex(r=>r[s.hdr.indexOf('gclid')]==='R3');
 t('repeat device score penalised',s.log.d[rr][SC2]<=25&&/نفس الجهاز 3 ضغطات/.test(s.log.d[rr][SC2+1]));
 const at2=s.main.getSheetByName('⚙️ أوامر جوجل أدز');const sug=at2?at2.d.filter(r=>r[8]==='مقترح'&&r[4]==='استبعاد IP'):[];
+t('fixed: per-device note + where line',/2 IP اتضاف «مقترح»/.test(m3)&&/تبويب «⚙️ أوامر جوجل أدز» ← عمود «الحالة»/.test(m3));
 t('fixed-network IPs suggested (مقترح), not auto',sug.length===2&&sug.every(r=>/نفس الجهاز/.test(r[7])));
 // موبايل: مفيش اقتراح استبعاد
 const VM=(g)=>Object.assign(V(g,'2.2.2.2'),{'نوع الشبكة':'📶 شبكة جوال'});
 s=setup('SA|الرياض',{visits:[VM('M1'),VM('M2'),VM('M3')],extra:[['M1','مكيف','Riyadh'],['M2','مكيف','Riyadh'],['M3','مكيف','Riyadh']]});
 s.api.analyzeClickGap();const at3=s.main.getSheetByName('⚙️ أوامر جوجل أدز');
 t('mobile repeat device: reported but no IP suggestion',/أجهزة ضغطت الإعلان/.test(s.tg_msgs[0]||'')&&!(at3&&at3.d.some(r=>r[6]==='2.2.2.2')));
+t('mobile: says موبايل, no «مقترح» line',/موبايل \(مابيتحظرش\)/.test(s.tg_msgs[0]||'')&&!/غيّره لـ«معتمد»/.test(s.tg_msgs[0]||''));
 console.log(`\n${ok} passed, ${bad} failed`);process.exit(bad?1:0);
