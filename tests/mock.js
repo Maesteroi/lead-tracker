@@ -11,6 +11,7 @@ class Sheet{constructor(name,d){this.name=name;this.d=d||[];this.writes=0;this.i
  getLastRow(){let n=this.d.length;while(n>0&&!(this.d[n-1]||[]).some(v=>v!==''&&v!==undefined))n--;return n}
  getLastColumn(){return Math.max(0,...this.d.map(r=>{let n=r.length;while(n>0&&(r[n-1]===''||r[n-1]===undefined))n--;return n}))}
  getMaxColumns(){return 500}getMaxRows(){return 1000}insertColumnsAfter(){}
+ getDataRange(){return new Range(this,1,1,Math.max(1,this.getLastRow()),Math.max(1,this.getLastColumn()))}
  getRange(a,b,c,d){if(typeof a==='string')return new Range(this,1,1,1,1);return new Range(this,a,b,c,d)}
  appendRow(r){this.d.splice(this.getLastRow(),0,r.slice())}
  clearContents(){this.d=[]}
