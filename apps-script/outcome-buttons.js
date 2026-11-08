@@ -38,6 +38,7 @@ function handleTelegramCallback_(update) {
   var token = (props.getProperty('TG_TOKEN') || '').trim();
   try {
     var parts = String(cq.data || '').split('|');
+    if (parts[0] === 'a' && parts.length === 3 && typeof handleAdsActionCallback_ === 'function') return handleAdsActionCallback_(cq, props, token);   // v3.12.0 (ads-approve-tg.js)
     if (parts[0] !== 'o' || parts.length !== 4) return tgOk_();
     var siteId = parts[1], code = parts[2], i = Number(parts[3]);
     var chatId = String(((cq.message || {}).chat || {}).id || '');

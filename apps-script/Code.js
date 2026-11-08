@@ -1906,6 +1906,8 @@ function onOpen() {
     .addItem('🔄 تحديث كل الـ headers', 'forceUpdateAllHeaders')
     .addSeparator()
     .addItem('📋 نسخ كود جوجل أدز (نفس الكود لكل الحسابات)', 'showAdsScript')
+    .addItem('🛠️ ابعتلي القرارات المستنية على تليجرام', 'sendPendingActionsTG')
+    .addItem('🔎 اسحب بيانات جوجل أدز (عبارات البحث وصحة الحملات)', 'pullAdsIntel')
     .addSeparator()
     .addItem('🖥️ مزامنة المواقع مع السيرفر', 'syncSitesToServer')
     .addItem('📱 كود ربط موبايل', 'menuPhonePairCode')
