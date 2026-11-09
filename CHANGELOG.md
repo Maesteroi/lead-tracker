@@ -1,5 +1,11 @@
 # سجل التغييرات
 
+## 2026-11-09 — م.١ (S01): السيرفر على Cloudflare + دومين api.maestrolt.com
+- `server/wrangler.toml`: تفعيل `routes` لـ`api.maestrolt.com` (custom domain، ودومين maestrolt.com أصلاً على Cloudflare).
+- `SUPABASE_URL` اتثبّت في `[vars]` (مش سر). السبب: النشر من الريبو بيمسح أي متغير نصي اتحط من اللوحة وغير موجود في الملف. الأسرار (`SUPABASE_SERVICE_KEY` و`ADMIN_TOKEN`) بتفضل في لوحة Cloudflare بس.
+- اتعمل بإيد محمود: مشروع Supabase `maestro` (منظمة `maestro ld`) + تشغيل `0001_init.sql` (12 جدول) + Worker `maestro-api` على `maestro-api.seo-lab.workers.dev` (Root directory = `server`). `/health` ✓.
+- اختبارات السيرفر 21/21 ✓. **الدومين مااتجربش حي لسه** لحد ما الدمج والنشر.
+
 ## 2026-11-08 — Apps Script v3.12.0: قرارات جوجل أدز بأزرار على تليجرام + سحب جوجل أدز من الـAPI
 - **السبب:** محمود: «تقارير الإصلاح تيجي لي أنا بس، وجنب كل قرار زر نفذ · أجل · غير موافق»، و«اشتغل زي ما البرنامج هيشتغل»: البيانات من الـAPI مش من الشيت بس.
 - `apps-script/ads-approve-tg.js` (جديد): `sendPendingActionsTG()` بيبعت لمحمود بس (TG_CHAT_ID) كل أوامر «⚙️ أوامر جوجل أدز» اللي حالتها «مقترح» أو «مؤجل»، رسالة لكل موقع (لحد 25 قرار)، وجنب كل قرار: ✅ نفّذ ← «معتمد» · ⏸️ أجّل ← «مؤجل» (بيرجع تاني يوم) · ❌ لأ ← «ملغي». أي شات تاني بيترفض. اللي اتحسم مابيتغيرش تاني. `setupPendingActionsTrigger()` = كل يوم 9 الصبح.

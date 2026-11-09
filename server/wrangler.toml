@@ -4,10 +4,10 @@ main = "src/index.js"
 compatibility_date = "2026-09-01"
 workers_dev = true
 
-# الدومين: بعد ما maestrolt.com يتنقل لـCloudflare (الخطوات في README)، شيل علامة # من السطرين دول
-# routes = [
-#   { pattern = "api.maestrolt.com", custom_domain = true }
-# ]
+# الدومين: maestrolt.com على Cloudflare، فالدومين الفرعي بيتربط بالـWorker من هنا
+routes = [
+  { pattern = "api.maestrolt.com", custom_domain = true }
+]
 
 # التحليل والتنضيف كل 5 دقايق
 [triggers]
@@ -15,8 +15,9 @@ crons = ["*/5 * * * *"]
 
 [vars]
 RECORDINGS_BUCKET = "recordings"
-# SUPABASE_URL بيتحط هنا أو كسر (مش سر): wrangler secret put SUPABASE_URL
+# مش سر. لازم يفضل هنا، وإلا أي نشر من الريبو بيمسح المتغيرات اللي اتحطت من اللوحة
+SUPABASE_URL = "https://cimvozxvnrdryarjzpoq.supabase.co"
 
 # الأسرار (مش هنا أبداً) — بتتحط من لوحة Cloudflare: Worker ← Settings ← Variables and Secrets:
-#   SUPABASE_URL · SUPABASE_SERVICE_KEY · ADMIN_TOKEN
+#   SUPABASE_SERVICE_KEY · ADMIN_TOKEN  (SUPABASE_URL فوق في [vars] لأنه مش سر)
 #   (لما نختار مزوّد الذكاء الاصطناعي) AI_BASE_URL · AI_API_KEY · AI_MODEL_CLASSIFY · AI_MODEL_TRANSCRIBE
