@@ -1,5 +1,12 @@
 # سجل التغييرات
 
+## 2026-11-09 — أمان: شيل مفتاح التوقيع المكتوب جوه الكود (م.١)
+- **المشكلة:** `oauth.js` كان بيستخدم قيمة ثابتة لمفتاح HMAC لو `HMAC_SECRET` مش متظبط، وقيمة ثابتة تانية كانت بتتكتب في تبويب `_Config` من `phase4-setup.js`. أي حد يقرا الريبو يعرفها. وكمان الكود كان بيقرا `HMAC_SECRET` من `_Config` بينما الـsetup بيكتبه باسم `SECRET`، فالقيمة الثابتة هي اللي كانت شغالة فعلاً.
+- `handleSaveToken_`: المفتاح من Script Properties (`HMAC_SECRET`) الأول، وبعده `_Config`، **ومفيش قيمة افتراضية**. لو مش متظبط الطلب بيتقفل (`server_not_configured`) ويتسجل `hmac_secret_missing`.
+- `phase4-setup.js`: مابيكتبش قيمة افتراضية للمفتاح تاني.
+- اختبار جديد `tests/test-oauth-hmac.js` (6) · باقي الاختبارات ✓.
+- **لازم قبل نشر نسخة Apps Script دي:** تغيير المفتاح لقيمة عشوائية جديدة في Worker `maestrolt-auth` (`HMAC_SECRET`) وفي Script Properties (`HMAC_SECRET`) بنفس القيمة. والقيمة القديمة تتعامل كأنها اتسرّبت (فضلت في تاريخ git).
+
 ## 2026-11-09 — م.١ (S01): السيرفر على Cloudflare + دومين api.maestrolt.com
 - `server/wrangler.toml`: تفعيل `routes` لـ`api.maestrolt.com` (custom domain، ودومين maestrolt.com أصلاً على Cloudflare).
 - `SUPABASE_URL` اتثبّت في `[vars]` (مش سر). السبب: النشر من الريبو بيمسح أي متغير نصي اتحط من اللوحة وغير موجود في الملف. الأسرار (`SUPABASE_SERVICE_KEY` و`ADMIN_TOKEN`) بتفضل في لوحة Cloudflare بس.
