@@ -489,7 +489,14 @@ function handleSaveToken_(data, props) {
   }
   
   // 2. تحقق من التوقيع HMAC
-  var hmacSecret = getConfigValue_('HMAC_SECRET') || 'Yassin.2015';
+  // مفيش قيمة افتراضية أبداً. المفتاح من Script Properties الأول (الأفضل)، وبعده تبويب _Config للقديم.
+  // لو مش متظبط في الاتنين الطلب بيتقفل.
+  var hmacSecret = String(PropertiesService.getScriptProperties().getProperty('HMAC_SECRET') || getConfigValue_('HMAC_SECRET') || '').trim();
+  if (!hmacSecret) {
+    Logger.log('❌ save_token: HMAC_SECRET مش متظبط (Script Properties أو _Config)');
+    logAction_('save_token_from_render', siteId, '', '', 'فشل', 'hmac_secret_missing');
+    return json_({ ok: false, error: 'server_not_configured' });
+  }
   var expected = computeHmac_(siteId + ':' + refreshToken, hmacSecret);
   
   if (signature !== expected) {
