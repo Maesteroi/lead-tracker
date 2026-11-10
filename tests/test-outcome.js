@@ -62,4 +62,16 @@ t('bad callback data rejected',calls.some(c=>c.m==='answerCallbackQuery'&&/مش 
 // 8 زيارة من غير ضغطة: مفيش أزرار
 calls.length=0;api.handleNormalEvent_(ev({event:'page_view',session_id:'S9'}),props,rec);
 t('no buttons on a visit without contact',calls.filter(c=>/sendMessage|editMessageText/.test(c.m)).every(c=>!c.p.reply_markup));
+// 9 ضغطة اتصال: بكود (بلجن 2.11.1) ← أزرار، وبغير كود (البلجن القديم) ← مفيش أزرار (ده كان سبب «الأزرار بتظهر للواتساب بس»)
+calls.length=0;api.handleNormalEvent_(ev({event:'click',ct:'call',match_code:'QP74',target_num:'966554912921',session_id:'S10'}),props,rec);
+const kbCall=(calls.filter(c=>/sendMessage|editMessageText/.test(c.m)&&c.p.reply_markup)[0]||{p:{}}).p.reply_markup;
+t('call click WITH a code carries outcome buttons for that code',!!kbCall&&kbCall.inline_keyboard.flat().length===5&&kbCall.inline_keyboard[0][0].callback_data==='o|abc123xyz|QP74|0');
+calls.length=0;api.handleNormalEvent_(ev({event:'click',ct:'call',target_num:'966554912921',session_id:'S11'}),props,rec);
+t('call click WITHOUT a code has no buttons (old plugin)',calls.filter(c=>/sendMessage|editMessageText/.test(c.m)).every(c=>!c.p.reply_markup));
+// 10 جلسة فيها واتساب ثم اتصال: الأزرار بتسجّل على آخر ضغطة (الاتصال)
+calls.length=0;
+api.handleNormalEvent_(ev({event:'click',ct:'wa',match_code:'WA11',target_num:'966500000000',session_id:'S12'}),props,rec);
+api.handleNormalEvent_(ev({event:'click',ct:'call',match_code:'CL22',target_num:'966554912921',session_id:'S12'}),props,rec);
+const last=calls.filter(c=>/sendMessage|editMessageText/.test(c.m)&&c.p.reply_markup).pop();
+t('wa then call in one session: buttons point to the latest contact (the call)',!!last&&last.p.reply_markup.inline_keyboard[0][0].callback_data==='o|abc123xyz|CL22|0');
 console.log(`\n${ok} passed, ${bad} failed`);process.exit(bad?1:0);
