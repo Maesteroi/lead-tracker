@@ -36,6 +36,8 @@ jobs:
       - name: خدمة الربط (auth) — الاختبارات
         working-directory: auth
         run: node --test test/*.test.js
+      - name: البلجن — اختبار الربط بكود (PHP)
+        run: php tests/test-plugin-pair.php
       - name: البلجن — فحص كتابة PHP
         run: |
           fail=0
