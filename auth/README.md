@@ -16,7 +16,7 @@ Cloudflare Worker على **auth.maestrolt.com**: العميل يفتح رابط 
 - الصيغة: `…/connect?site_id=<الموقع>&exp=<وقت الانتهاء بالثواني>&sig=<التوقيع>`، والتوقيع `HMAC-SHA256(LINK_SECRET, "connect:" + site_id + ":" + exp)`.
 - اللينك صالح لحد `exp`، و`exp` مايزيدش عن **15 دقيقة** من دلوقتي (ودقيقتين فرق ساعة).
 - من غير `LINK_SECRET` الخدمة مابتبدأش أي ربط. أي لينك من غير توقيع، أو متعدّل، أو منتهي، أو لمدة أطول = مرفوض ومابيوصلش لجوجل.
-- اللينك بيطلع من الشيت: قايمة **🔗 Lead Tracker ← 🔗 لينك ربط جوجل أدز لموقع** (`menuAdsConnectLink` في `apps-script/oauth.js`).
+- اللينك بيطلع من الشيت: قايمة **🔗 ربط جوجل أدز ← لينك ربط لموقع**: بتختار الموقع من نافذة، واللينك بيظهر وجنبه أيقونة 📋 نسخ، وعدّاد الـ15 دقيقة (`apps-script/connect-menu.js`، والتوقيع في `adsConnectLink_` في `oauth.js`).
 - المسار القديم في الشيت (`/exec?action=connect` و`code+state`) وصفحة الاختبار (`?page=test`) اتقفلوا في نفس التعديل.
 
 ## مصدر الملف والنشر
@@ -30,7 +30,8 @@ Cloudflare Worker على **auth.maestrolt.com**: العميل يفتح رابط 
 3. **Apps Script** ← **Project Settings ← Script Properties ← Add script property** ← `LINK_SECRET` بنفس القيمة ← **Save**.
 4. **Apps Script:** بدّل محتوى ملف «oauth» بـ`apps-script/oauth.js` من `main` ← (اختياري للقايمة) بدّل «Code» بـ`apps-script/Code.js` ← **Deploy ← Manage deployments ← ✏️ ← Version: New version ← Deploy**.
 5. **Cloudflare** ← Worker `maestrolt-auth` ← **Edit code** ← امسح الموجود والصق `auth/worker.js` من `main` ← **Deploy**.
-6. **تجربة:** من الشيت **🔗 Lead Tracker ← 🔗 لينك ربط جوجل أدز لموقع** ← افتح اللينك ← لازم تظهر شاشة جوجل. وافتح `https://auth.maestrolt.com/connect?site_id=أي-حاجة` ← لازم يطلع «لينك غير صالح».
+5.5. **القايمة (مرة واحدة):** Apps Script ← **+** جنب Files ← **Script** ← سمّيه `connect-menu` ← الصق `apps-script/connect-menu.js` ← **Save** ← من القايمة المنسدلة فوق اختار **setupConnectMenu** ← **▶ Run** ← وافق على الصلاحيات ← حدّث الشيت (F5). هتلاقي قايمة جديدة جنب «Lead Tracker» اسمها **🔗 ربط جوجل أدز**. (بدّل «oauth» بالنسخة الجديدة برضه: النسخة القديمة منها فيها دالة بنفس الاسم.)
+6. **تجربة:** من الشيت **🔗 ربط جوجل أدز ← لينك ربط لموقع** ← اضغط اسم الموقع ← اضغط 📋 ← افتح اللينك ← لازم تظهر شاشة جوجل. وافتح `https://auth.maestrolt.com/connect?site_id=أي-حاجة` ← لازم يطلع «لينك غير صالح».
 7. **بعدين (بعد ما حالة التوثيق تتأكد، G-06):** امسح رابط الشيت (`…/exec`) من **Authorized redirect URIs** في Google Cloud. مايتعملش قبلها علشان مانفتحش توثيق جديد بالغلط.
 
 ## الاختبارات

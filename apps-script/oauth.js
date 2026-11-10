@@ -2,7 +2,7 @@
  * oauth.gs — ربط حساب Google Ads (v3.14.0)
  *
  * الربط كله بيتم من خدمة الربط على auth.maestrolt.com (الكود في auth/worker.js):
- * 1. إحنا بنطلّع لينك ربط موقّع وصالح 15 دقيقة (adsConnectLink_ / menuAdsConnectLink).
+ * 1. إحنا بنطلّع لينك ربط موقّع وصالح 15 دقيقة (adsConnectLink_، والقايمة والنافذة في connect-menu.js).
  * 2. العميل يفتحه ← خدمة الربط تتأكد من التوقيع والمدة ← شاشة موافقة جوجل.
  * 3. خدمة الربط بتبعت التوكن هنا (doPost ← action=save_token) بتوقيع HMAC_SECRET.
  * 4. handleSaveToken_ بيتأكد من التوقيع ويحفظ في _Tokens.
@@ -99,25 +99,7 @@ function adsConnectLink_(siteId, nowMs) {
   return base + '/connect?site_id=' + encodeURIComponent(siteId) + '&exp=' + exp + '&sig=' + sig;
 }
 
-// من القايمة أو من المحرر: اختار الموقع ← يطلع اللينك (ابعته للعميل في خلال 15 دقيقة)
-function menuAdsConnectLink() {
-  var ui = SpreadsheetApp.getUi();
-  var all = PropertiesService.getScriptProperties().getProperties(), sites = [];
-  Object.keys(all).forEach(function (k) {
-    if (k.indexOf('SITE_') !== 0) return;
-    var rec; try { rec = JSON.parse(all[k]); } catch (e) { return; }
-    if (rec && rec.k) sites.push({ id: k.slice(5), name: rec.n || k.slice(5) });
-  });
-  if (!sites.length) { ui.alert('مفيش مواقع مربوطة.'); return; }
-  var list = sites.map(function (s, i) { return (i + 1) + '. ' + s.name; }).join('\n');
-  var r = ui.prompt('🔗 لينك ربط جوجل أدز', 'لأنهي موقع؟ اكتب الرقم:\n' + list, ui.ButtonSet.OK_CANCEL);
-  if (r.getSelectedButton() !== ui.Button.OK) return;
-  var s = sites[Number(r.getResponseText().trim()) - 1];
-  if (!s) { ui.alert('رقم غلط.'); return; }
-  var link;
-  try { link = adsConnectLink_(s.id); } catch (e) { ui.alert('❌ ' + (e && e.message || e)); return; }
-  ui.alert('لينك ربط «' + s.name + '» (صالح 15 دقيقة، ومايتبعتش غير لصاحب حساب الإعلانات):\n\n' + link);
-}
+// (القايمة والنافذة بتاعة اللينك في connect-menu.js)
 
 // ═══════════════════════════════════════════════════════════
 // 4. saveToken_ — تخزين Refresh Token
