@@ -57,3 +57,15 @@
 cd server && npm test
 ```
 أي تعديل على فرع + اختبارات + طلب دمج. الدمج في `main` بموافقة محمود، وبعدها Cloudflare بينشر لوحده.
+كل طلب دمج بيتفحص لوحده على GitHub (`.github/workflows/tests.yml`)، ومايتدمجش وهو أحمر.
+
+## نسخة التجربة (staging)
+Worker منفصل `maestro-api-staging` (`[env.staging]` في `wrangler.toml`): من غير دومين، ومن غير مهام دورية، ومن غير قاعدة الحي. أي تعديل على السيرفر يتجرب عليه الأول.
+
+**التفعيل (مرة واحدة · 👤 محمود):**
+1. Supabase ← **New project** باسم `maestro-staging` ← **SQL Editor** ← الصق `supabase/migrations/0001_init.sql` ← **Run**.
+2. Cloudflare ← **Workers & Pages ← Create ← Import a repository** ← `Maesteroi/lead-tracker` ← **Root directory**: `server` · **Deploy command**: `npx wrangler deploy --env staging` ← **Deploy**.
+3. Worker `maestro-api-staging` ← **Settings ← Variables and Secrets**: `SUPABASE_URL` و`SUPABASE_SERVICE_KEY` بتوع مشروع `maestro-staging` (مش الحي) · `ADMIN_TOKEN` كلمة سر جديدة مختلفة عن الحي.
+4. افتح `https://maestro-api-staging.<اسمك>.workers.dev/health` ← لازم يطلع `"ok":true`.
+
+تحذير wrangler «vars.SUPABASE_URL exists at the top level, but not on env.staging.vars» مقصود: نسخة التجربة ماتعرفش عنوان قاعدة الحي.
