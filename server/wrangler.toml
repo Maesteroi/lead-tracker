@@ -21,3 +21,21 @@ SUPABASE_URL = "https://cimvozxvnrdryarjzpoq.supabase.co"
 # الأسرار (مش هنا أبداً) — بتتحط من لوحة Cloudflare: Worker ← Settings ← Variables and Secrets:
 #   SUPABASE_SERVICE_KEY · ADMIN_TOKEN  (SUPABASE_URL فوق في [vars] لأنه مش سر)
 #   (لما نختار مزوّد الذكاء الاصطناعي) AI_BASE_URL · AI_API_KEY · AI_MODEL_CLASSIFY · AI_MODEL_TRANSCRIBE
+
+# ───────── نسخة التجربة (staging) ─────────
+# Worker منفصل اسمه maestro-api-staging على رابط workers.dev بس. أي تعديل يتجرب عليه قبل الحي.
+#   النشر:  npx wrangler deploy --env staging
+# مفصول عن الحي بالكامل: من غير دومين api.maestrolt.com، ومن غير مهام دورية،
+# ومن غير SUPABASE_URL هنا عن قصد (يتحط كسر على نسخة التجربة لمشروع Supabase تاني، مش قاعدة الحي).
+# من غير الأسرار دي كل حاجة غير /health بترد خطأ، فمستحيل تكتب في قاعدة الحي بالغلط.
+[env.staging]
+name = "maestro-api-staging"
+workers_dev = true
+routes = []
+
+[env.staging.triggers]
+crons = []
+
+[env.staging.vars]
+RECORDINGS_BUCKET = "recordings"
+

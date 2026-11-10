@@ -1,0 +1,42 @@
+# الفحص الآلي قبل أي دمج: اختبارات الشيت (المحاكي) · اختبارات السيرفر · فحص كود Apps Script · فحص كتابة البلجن.
+# مابيلمسش أي حاجة حية ومابيحتاجش أي مفتاح.
+name: tests
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Apps Script — كتابة سليمة ومفيش دوال متكررة
+        run: node tools/check-apps-script.js
+      - name: Apps Script — اختبارات المحاكي
+        run: |
+          fail=0
+          for t in tests/test-*.js; do
+            echo "::group::$t"
+            node "$t" || fail=1
+            echo "::endgroup::"
+          done
+          exit $fail
+      - name: السيرفر — الاختبارات
+        working-directory: server
+        run: node --test test/*.test.js
+      - name: البلجن — فحص كتابة PHP
+        run: |
+          fail=0
+          while IFS= read -r -d '' f; do
+            php -l "$f" > /dev/null || fail=1
+          done < <(find plugin -name '*.php' -print0)
+          exit $fail
