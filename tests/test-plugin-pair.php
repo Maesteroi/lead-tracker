@@ -1,15 +1,15 @@
 <?php
-// البلجن 2.10.0 — الربط بكود من لوحة Maestro: pair-confirm (وضع السيرفر) و LTP_Pair::pair_with_code.
+// البلجن 2.11.0 — الربط بكود من لوحة Maestro (pair-confirm وضع السيرفر · pair_with_code) وزرار «اربط بـ Maestro LT» (connect_url).
 // بيحمّل كلاسات البلجن الحقيقية (LTP_Core و LTP_Pair) فوق دوال ووردبريس المحاكية، من غير ووردبريس ولا إنترنت.
 // التشغيل: php tests/test-plugin-pair.php
 error_reporting(E_ALL);
 define('ABSPATH', __DIR__ . '/');
-define('LTP_VERSION', '2.10.0');
+define('LTP_VERSION', '2.11.0');
 define('LTP_PATH', sys_get_temp_dir() . '/ltp-test-empty/');       // من غير config.json: مفيش هب قديم جوه الاختبار
 @mkdir(LTP_PATH);
 @unlink(LTP_PATH . 'config.json');
 
-$GLOBALS['opts'] = []; $GLOBALS['http'] = []; $GLOBALS['http_handler'] = null; $GLOBALS['filters'] = [];
+$GLOBALS['opts'] = []; $GLOBALS['http'] = []; $GLOBALS['http_handler'] = null; $GLOBALS['filters'] = []; $GLOBALS['transients'] = [];
 function add_action(...$a) {}
 function wp_clear_scheduled_hook(...$a) {}
 function get_option($k, $d = false) { return array_key_exists($k, $GLOBALS['opts']) ? $GLOBALS['opts'][$k] : $d; }
@@ -21,6 +21,11 @@ function has_filter($tag) { return isset($GLOBALS['filters'][$tag]); }
 function wp_json_encode($v, $f = 0) { return json_encode($v, $f); }
 function wp_generate_password($len = 12, $s = true, $e = false) { return substr(bin2hex(random_bytes($len)), 0, $len); }
 function wp_cache_delete(...$a) {}
+function admin_url($p = '') { return 'https://rawda.site/wp-admin/' . ltrim($p, '/'); }
+function get_bloginfo($k) { return 'روضة الصالحين & <b>'; }
+function wp_nonce_url($u, $a) { return $u . '&_wpnonce=abc123'; }
+function set_transient($k, $v, $t) { $GLOBALS['transients'][$k] = $v; return true; }
+function get_transient($k) { return $GLOBALS['transients'][$k] ?? false; }
 function rest_url($p = '') { return 'https://rawda.site/wp-json/' . ltrim($p, '/'); }
 function current_time($t) { return '2026-11-10 12:00:00'; }
 function sanitize_text_field($s) { return trim(strip_tags((string) $s)); }
@@ -38,7 +43,7 @@ require __DIR__ . '/../plugin/lead-tracker-pro/includes/class-ltp-pair.php';
 
 $ok = 0; $bad = 0;
 function t($name, $cond) { global $ok, $bad; if ($cond) { $ok++; echo "✓ $name\n"; } else { $bad++; echo "✗ $name\n"; } }
-function reset_state() { $GLOBALS['opts'] = []; $GLOBALS['http'] = []; $GLOBALS['http_handler'] = null; $GLOBALS['filters'] = []; }
+function reset_state() { $GLOBALS['transients'] = []; $GLOBALS['opts'] = []; $GLOBALS['http'] = []; $GLOBALS['http_handler'] = null; $GLOBALS['filters'] = []; }
 function opt($k) { return get_option('ltp_' . $k, null); }
 
 $pair = LTP_Pair::instance();
@@ -94,7 +99,7 @@ $h = $GLOBALS['http'][0];
 $sent = json_decode($h['args']['body'], true);
 t('code pairing succeeds when the server confirms through the site', $s === 'paired' && LTP_Pair::is_paired() && opt('pair_state') === 'paired');
 t('request goes to the server pair endpoint, blocking, no redirects', $h['url'] === 'https://api.maestrolt.com/v1/plugin/pair' && $h['args']['blocking'] === true && $h['args']['redirection'] === 0);
-t('code is sent clean and upper-case, with the number and this site\'s confirm address', $sent['code'] === 'K7M2QX9P' && $sent['confirm_url'] === 'https://rawda.site/wp-json/lt/v1/pair-confirm' && strlen($sent['nonce']) === 40 && $sent['plugin_version'] === '2.10.0');
+t('code is sent clean and upper-case, with the number and this site\'s confirm address', $sent['code'] === 'K7M2QX9P' && $sent['confirm_url'] === 'https://rawda.site/wp-json/lt/v1/pair-confirm' && strlen($sent['nonce']) === 40 && $sent['plugin_version'] === '2.11.0');
 t('nothing secret is sent to the server, and no key came back in the reply', !isset($sent['secret']) && !isset($sent['key']) && strpos($h['args']['body'], 'ltk') === false);
 
 foreach ([['', 'bad_code'], ['ABC', 'bad_code'], ['K7M2QX9PX', 'bad_code']] as [$in, $want]) {
@@ -120,6 +125,39 @@ t('an insecure (http) server override is ignored', strpos($GLOBALS['http'][0]['u
 reset_state(); $GLOBALS['filters']['ltp_server_origin'] = function ($o) { return 'https://staging.maestrolt.com/'; }; $server_says(200, ['ok' => true], true);
 $pair->confirm(new FakeReq(['n' => 'x', 'secret' => $KEY, 'server' => 'https://api.maestrolt.com']));
 t('a staging override is only for the filter and the confirm must then come from it', LTP_Pair::server_origin() === 'https://staging.maestrolt.com');
+
+
+// ── زرار «اربط بـ Maestro LT» (2.11.0) ──
+reset_state();
+$url = LTP_Pair::connect_url();
+$parts = explode('#', $url, 2);
+parse_str($parts[1] ?? '', $f);
+$stored = get_option('ltp_pair_nonce', []);
+t('connect URL opens the dashboard connect page, with the data after # (never in the query)', $parts[0] === 'https://app.maestrolt.com/connect' && strpos($parts[0], '?') === false && count($parts) === 2);
+t('the fragment carries this site\'s confirm address, a fresh 40-char number, the wp-admin return page, the name and the version', ($f['c'] ?? '') === 'https://rawda.site/wp-json/lt/v1/pair-confirm' && strlen($f['n'] ?? '') === 40 && ($f['r'] ?? '') === 'https://rawda.site/wp-admin/admin.php?page=lead-tracker-settings&connected=1' && ($f['s'] ?? '') === 'روضة الصالحين & <b>' && ($f['v'] ?? '') === '2.11.0');
+t('the number in the link is exactly the one the site keeps for the confirm', is_array($stored) && ($stored['n'] ?? '') === ($f['n'] ?? 'x') && abs((int) $stored['t'] - time()) < 5);
+t('no key or secret anywhere in the link', stripos($url, 'secret') === false && stripos($url, 'ltk') === false);
+t('the old background pairing is paused while the customer connects (no number overwrite)', get_transient('ltp_pair_lock') !== false);
+$n1 = $f['n']; LTP_Pair::connect_url(); parse_str(explode('#', LTP_Pair::connect_url(), 2)[1], $f2);
+t('every click makes a new number', $f2['n'] !== $n1);
+t('the return page is on the same host as the confirm address (the server will only redirect there)', parse_url($f['r'], PHP_URL_HOST) === parse_url($f['c'], PHP_URL_HOST));
+
+// الدورة كاملة: الرابط ← السيرفر يأكد بنفس الرقم ← البلجن مربوط على السيرفر الجديد
+reset_state();
+parse_str(explode('#', LTP_Pair::connect_url(), 2)[1], $f);
+$r = $pair->confirm(new FakeReq(['n' => $f['n'], 'secret' => $KEY, 'site_id' => 'AbC123xyzQ9k', 'server' => 'https://api.maestrolt.com']));
+t('the confirm from the server with the number from the link pairs the plugin', $r->status === 200 && LTP_Pair::is_paired() && opt('webhook_url') === 'https://api.maestrolt.com/v1/events');
+reset_state(); LTP_Pair::connect_url();
+$r = $pair->confirm(new FakeReq(['n' => 'someone-who-never-saw-the-link-000000001', 'secret' => $KEY, 'site_id' => 'x', 'server' => 'https://api.maestrolt.com']));
+t('someone who did not get the number cannot pair the site', $r->status === 403 && !LTP_Pair::is_paired());
+
+reset_state(); $GLOBALS['filters']['ltp_app_origin'] = function ($o) { return 'http://insecure.example'; };
+t('an insecure (http) dashboard override is ignored', strpos(LTP_Pair::connect_url(), 'https://app.maestrolt.com/connect#') === 0);
+reset_state(); $GLOBALS['filters']['ltp_app_origin'] = function ($o) { return 'https://staging-app.maestrolt.com/'; };
+t('a staging dashboard override works over https', strpos(LTP_Pair::connect_url(), 'https://staging-app.maestrolt.com/connect#') === 0);
+reset_state();
+t('the connect link is a nonce-protected admin-post link', strpos(LTP_Pair::connect_link(), 'admin-post.php?action=ltp_connect') !== false && strpos(LTP_Pair::connect_link(), '_wpnonce=') !== false);
+t('the «no_hub» message now points to the button', strpos(LTP_Pair::state_text('no_hub'), 'اربط بـ Maestro LT') !== false);
 
 // ── الرسائل ──
 foreach (['code', 'bad_code', 'domain_mismatch', 'site_unreachable', 'no_hub'] as $st) t("message for «{$st}» is specific", strlen(LTP_Pair::state_text($st)) > 30 && strpos(LTP_Pair::state_text($st), 'بيتربط أوتوماتيك') === false);
