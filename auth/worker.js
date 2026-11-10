@@ -7,12 +7,17 @@
 //   APPS_SCRIPT_URL       (secret)
 //   REDIRECT_URI          (variable) default https://auth.maestrolt.com/callback
 //   SCOPES                (variable, optional) default adwords only
-//   LINK_SECRET           (secret, optional) when set, /connect needs &sig=HMAC("connect:"+site_id)
+//   LINK_SECRET           (secret)  REQUIRED. /connect only accepts links signed by our side:
+//                         &exp=<unix seconds>&sig=HMAC(LINK_SECRET, "connect:" + site_id + ":" + exp)
+//                         The link is valid until exp, and exp may be at most 15 minutes ahead (G-01).
+//                         Links are generated in Apps Script (adsConnectLink_ in oauth.js).
 
 const enc = new TextEncoder();
 const dec = new TextDecoder();
 const COOKIE = 'lt_oauth';
 const STATE_TTL_MS = 10 * 60 * 1000;
+const LINK_TTL_S = 15 * 60;   // longest life of a connect link
+const LINK_SKEW_S = 2 * 60;   // clock difference tolerated between the link generator and this Worker
 
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const toHex = (buf) => [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('');
@@ -94,11 +99,21 @@ async function connect(url, env) {
   if (!siteId) return page('❌ خطأ', '<p>مفيش site_id</p>', 400);
   if (!/^[A-Za-z0-9_-]{4,64}$/.test(siteId)) return page('❌ خطأ', '<p>site_id غير صالح</p>', 400);
 
-  if (env.LINK_SECRET) {
-    const sig = url.searchParams.get('sig') || '';
-    const expected = await hmacHex(env.LINK_SECRET, 'connect:' + siteId);
-    if (!safeEqual(sig, expected)) return page('❌ لينك غير صالح', '<p>اطلب لينك ربط جديد من فريقنا.</p>', 403);
+  // Signed, short-lived link only. No LINK_SECRET = no linking at all (fail closed).
+  const linkSecret = String(env.LINK_SECRET || '').trim();
+  if (!linkSecret) {
+    console.error('missing config: LINK_SECRET');
+    return page('❌ خطأ', '<p>الخدمة غير مكتملة الإعداد.</p>', 500);
   }
+  const exp = (url.searchParams.get('exp') || '').trim();
+  const sig = (url.searchParams.get('sig') || '').trim();
+  const expected = await hmacHex(linkSecret, 'connect:' + siteId + ':' + exp);
+  if (!/^\d{9,11}$/.test(exp) || !safeEqual(sig, expected)) {
+    return page('❌ لينك غير صالح', '<p>اطلب لينك ربط جديد من فريقنا.</p>', 403);
+  }
+  const nowS = Math.floor(Date.now() / 1000);
+  if (Number(exp) < nowS) return page('⌛ اللينك انتهى', '<p>لينك الربط صالح لمدة 15 دقيقة بس. اطلب لينك جديد من فريقنا.</p>', 403);
+  if (Number(exp) > nowS + LINK_TTL_S + LINK_SKEW_S) return page('❌ لينك غير صالح', '<p>اطلب لينك ربط جديد من فريقنا.</p>', 403);
 
   const nonce = randomHex(16);
   const payload = b64uEncode(JSON.stringify({ s: siteId, n: nonce, t: Date.now() }));

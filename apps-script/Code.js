@@ -1908,6 +1908,7 @@ function onOpen() {
     .addItem('📋 نسخ كود جوجل أدز (نفس الكود لكل الحسابات)', 'showAdsScript')
     .addItem('🛠️ ابعتلي القرارات المستنية على تليجرام', 'sendPendingActionsTG')
     .addItem('🔎 اسحب بيانات جوجل أدز (عبارات البحث وصحة الحملات)', 'pullAdsIntel')
+    .addItem('🔗 لينك ربط جوجل أدز لموقع (صالح 15 دقيقة)', 'menuAdsConnectLink')
     .addSeparator()
     .addItem('🖥️ مزامنة المواقع مع السيرفر', 'syncSitesToServer')
     .addItem('📱 كود ربط موبايل', 'menuPhonePairCode')
