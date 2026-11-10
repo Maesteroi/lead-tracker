@@ -2,7 +2,7 @@
 const fs=require('fs');const crypto=require('crypto');
 const code=['oauth.js','connect-menu.js'].map(f=>fs.readFileSync(require('path').join(__dirname,'..')+'/apps-script/'+f,'utf8')).join('\n;\n');
 let ok=0,bad=0;const t=(n,c)=>{c?ok++:bad++;console.log((c?'✓ ':'✗ ')+n)};
-const props={SITE_abc123xyz:JSON.stringify({n:'روضة',k:'k1'}),SITE_shadow9:JSON.stringify({n:'شادو',k:'k2'}),SITE_pending1:JSON.stringify({n:'لسه'})};
+const props={SITE_abc123xyz:JSON.stringify({n:'روضة',k:'k1',st:'on'}),SITE_shadow9:JSON.stringify({n:'شادو',k:'k2',st:'on'}),SITE_pending1:JSON.stringify({n:'لسه'}),SITE_stopped7:JSON.stringify({n:'موقوف',k:'k4',st:'off'}),SITE_nostate8:JSON.stringify({n:'من غير حالة',k:'k5'})};
 const fetches=[];const saved=[];const alerts=[];const dialogs=[];const triggers=[];const menus=[];let answer='1';
 const ctx={
   PropertiesService:{getScriptProperties:()=>({getProperty:k=>props[k]===undefined?null:props[k],getProperties:()=>Object.assign({},props)})},
@@ -58,10 +58,11 @@ delete props.AUTH_URL;
 
 // ── القايمة والنافذة (connect-menu.js) ──
 let r2=api.connectMenuSites_();
-t('sites list: only linked sites (pending one skipped), sorted by name',r2.length===2&&r2.map(x=>x.name).join()==='روضة,شادو');
+t('sites list: only linked AND running sites (pending, stopped and no-state skipped), sorted by name',r2.length===2&&r2.map(x=>x.name).join()==='روضة,شادو');
+t('the dialog shows the last 4 characters of the id next to each name, to tell similar names apart',/<small>…xyz<\/small>|<small>…3xyz<\/small>/.test(api.connectMenuHtml_(r2))&&/<small>…dow9<\/small>/.test(api.connectMenuHtml_(r2)));
 dialogs.length=0;api.menuAdsConnectLink();
 const d=dialogs[0];
-t('menu opens a dialog (not the old number prompt) listing each site as a button',d&&/data-id="abc123xyz"/.test(d.html)&&/data-id="shadow9"/.test(d.html)&&!/pending1/.test(d.html));
+t('menu opens a dialog (not the old number prompt) listing each running site as a button',d&&/data-id="abc123xyz"/.test(d.html)&&/data-id="shadow9"/.test(d.html)&&!/pending1|stopped7|nostate8/.test(d.html));
 t('the dialog has a copy button next to a read-only link field',/id="c"[^>]*>📋/.test(d.html)&&/id="l" readonly/.test(d.html));
 t('no link is built until a site is chosen (nothing sensitive in the page)',d.html.indexOf('sig=')<0&&d.html.indexOf('link-secret')<0);
 // السكريبت اللي جوه النافذة: كتابة سليمة، ويشتغل لما نضغط
@@ -89,7 +90,7 @@ t('connectMenuLinkFor returns the link and its expiry in ms',/^https:\/\/auth\.m
 err='';try{api.connectMenuLinkFor('nosuchsite')}catch(e){err=e.message}
 t('connectMenuLinkFor refuses an unknown site',/مش مسجل/.test(err));
 // أسماء فيها رموز HTML ماتنفذش
-props.SITE_evil9999=JSON.stringify({n:'<img src=x onerror=alert(1)>&"\'',k:'k3'});
+props.SITE_evil9999=JSON.stringify({n:'<img src=x onerror=alert(1)>&"\'',k:'k3',st:'on'});
 const html2=api.connectMenuHtml_(api.connectMenuSites_());
 t('site names with HTML characters are escaped',html2.indexOf('<img src=x')<0&&html2.indexOf('&lt;img src=x')>0);
 delete props.SITE_evil9999;
