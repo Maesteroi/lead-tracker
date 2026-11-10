@@ -28,14 +28,14 @@ function setupConnectMenu() {
   return !has;
 }
 
-// ── المواقع اللي ينفع تتربط ──
+// ── المواقع اللي ينفع تتربط: مربوطة ومش موقوفة (نفس شرط مزامنة السيرفر: st = on) ──
 function connectMenuSites_() {
   var all = PropertiesService.getScriptProperties().getProperties(), out = [];
   Object.keys(all).forEach(function (k) {
     if (k.indexOf('SITE_') !== 0) return;
     var rec; try { rec = JSON.parse(all[k]); } catch (e) { return; }
     var id = k.slice(5);
-    if (rec && rec.k && /^[A-Za-z0-9_-]{4,64}$/.test(id)) out.push({ id: id, name: String(rec.n || id) });
+    if (rec && rec.k && rec.st === 'on' && /^[A-Za-z0-9_-]{4,64}$/.test(id)) out.push({ id: id, name: String(rec.n || id) });
   });
   out.sort(function (a, b) { return a.name < b.name ? -1 : a.name > b.name ? 1 : 0; });
   return out;
@@ -61,13 +61,14 @@ function connectMenuEsc_(s) { return String(s).replace(/[&<>"']/g, function (c) 
 
 function connectMenuHtml_(sites) {
   var buttons = sites.map(function (s) {
-    return '<button class="site" data-id="' + connectMenuEsc_(s.id) + '" data-name="' + connectMenuEsc_(s.name) + '">' + connectMenuEsc_(s.name) + '</button>';
+    return '<button class="site" data-id="' + connectMenuEsc_(s.id) + '" data-name="' + connectMenuEsc_(s.name) + '">' + connectMenuEsc_(s.name) + ' <small>…' + connectMenuEsc_(s.id.slice(-4)) + '</small></button>';
   }).join('');
   return '<!DOCTYPE html><html dir="rtl"><head><meta charset="UTF-8"><style>' +
     'body{font-family:Arial,Tahoma,sans-serif;margin:0;padding:18px;color:#14232b;line-height:1.7}' +
     'h3{margin:0 0 6px;font-size:16px}p{margin:4px 0 12px;font-size:13px;color:#4d5f66}' +
     'button{font-family:inherit;cursor:pointer}' +
     'button.site{display:block;width:100%;text-align:right;margin:6px 0;padding:11px 14px;border:1px solid #c9d1d6;border-radius:8px;background:#fff;font-size:15px}' +
+    'button.site small{color:#8a979d;font-size:11px;font-family:monospace;margin-right:6px}' +
     'button.site:hover{background:#eef3ff;border-color:#2438b5}' +
     '.row{display:flex;gap:8px;direction:ltr;margin:10px 0}' +
     '#l{flex:1;min-width:0;padding:10px;border:1px solid #c9d1d6;border-radius:8px;font-size:12px;font-family:monospace}' +
