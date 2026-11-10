@@ -8,6 +8,9 @@
 //  6. الوصول بـAuthorization: Bearer، ومفيش developer-token. login-customer-id لو الحساب تحت حساب مدير.
 //  7. كل طلب SearchStream = عملية واحدة (calls.length).
 
+import { createRequire } from 'node:module';
+const require = createRequire(import.meta.url);
+
 const CV_SEGMENTS = new Set(['segments.date', 'segments.device', 'segments.ad_network_type', 'segments.ad_sub_network_type', 'segments.click_type', 'segments.slot', 'segments.month_of_year']);
 const RESOURCES = new Set(['customer', 'campaign', 'search_term_view', 'click_view', 'ad_group_ad', 'geo_target_constant']);
 
@@ -80,6 +83,24 @@ export function fakeGoogle(opts) {
     return resp(200, results.length > 1 ? [{ results: results.slice(0, half) }, { results: results.slice(half) }] : [{ results }]);
   }
 
+  // ── الدخول بحساب جوجل (مشروع منفصل): الكود بيتصدر بـissueCode، والبدل بيتحقق من PKCE والسر ورابط الرجوع ──
+  g.signin = { clientId: 'signin-id.apps.googleusercontent.com', clientSecret: 'signin-secret', codes: {}, tokenCalls: 0 };
+  g.issueCode = (profile, params) => { const code = 'code-' + Math.random().toString(36).slice(2); g.signin.codes[code] = { profile, params, used: false }; return code; };
+  const b64u = (o) => Buffer.from(typeof o === 'string' ? o : JSON.stringify(o)).toString('base64url');
+  function signinToken(b) {
+    g.signin.tokenCalls++;
+    if (b.get('client_id') !== g.signin.clientId || b.get('client_secret') !== g.signin.clientSecret) return resp(401, { error: 'invalid_client' });
+    const e = g.signin.codes[b.get('code')];
+    if (!e || e.used) return resp(400, { error: 'invalid_grant' });
+    e.used = true;
+    if (b.get('redirect_uri') !== e.params.redirect_uri) return resp(400, { error: 'redirect_uri_mismatch' });
+    const challenge = require('node:crypto').createHash('sha256').update(String(b.get('code_verifier'))).digest('base64url');
+    if (challenge !== e.params.code_challenge) return resp(400, { error: 'invalid_grant', error_description: 'PKCE failed' });
+    const now = Math.floor(Date.now() / 1000);
+    const claims = Object.assign({ iss: 'https://accounts.google.com', aud: g.signin.clientId, iat: now, exp: now + 3600, nonce: e.params.nonce }, e.profile);
+    return resp(200, { access_token: 'at-signin', token_type: 'Bearer', expires_in: 3599, id_token: b64u({ alg: 'RS256' }) + '.' + b64u(claims) + '.sig' });
+  }
+
   g.fetch = async (url, init) => {
     init = init || {};
     const u = new URL(url);
@@ -87,6 +108,7 @@ export function fakeGoogle(opts) {
     if (u.hostname === 'oauth2.googleapis.com') {
       g.oauthCalls++;
       const b = new URLSearchParams(init.body);
+      if (b.get('grant_type') === 'authorization_code') return signinToken(b);
       if (b.get('client_id') !== g.clientId || b.get('client_secret') !== g.clientSecret) return resp(401, { error: 'invalid_client' });
       const access = g.tokens[b.get('refresh_token')];
       if (!access) return resp(400, { error: 'invalid_grant', error_description: 'Token has been expired or revoked.' });
