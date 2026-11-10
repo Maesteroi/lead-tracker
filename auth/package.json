@@ -1,0 +1,7 @@
+{
+  "name": "maestrolt-auth",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Maestro LT — خدمة ربط حساب جوجل أدز (Cloudflare Worker على auth.maestrolt.com)"
+}

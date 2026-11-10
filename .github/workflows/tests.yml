@@ -33,6 +33,9 @@ jobs:
       - name: السيرفر — الاختبارات
         working-directory: server
         run: node --test test/*.test.js
+      - name: خدمة الربط (auth) — الاختبارات
+        working-directory: auth
+        run: node --test test/*.test.js
       - name: البلجن — فحص كتابة PHP
         run: |
           fail=0

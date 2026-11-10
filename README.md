@@ -7,6 +7,7 @@
 | `apps-script/` | مشروع Apps Script (كود الشيت) — 17 ملف | v3.9.0 |
 | `plugin/lead-tracker-pro/` | بلجن ووردبريس | 2.9.0 |
 | `server/` | **السيرفر الجديد** (Cloudflare Workers + Supabase): استقبال البلجن وتطبيق الموبايل، والمطابقة، والتحليل — التركيب في `server/README.md` | 1.0.0 |
+| `auth/` | **خدمة ربط جوجل أدز** (Cloudflare Worker على auth.maestrolt.com). النشر يدوي من Cloudflare (`auth/README.md`) | 1.0.0 |
 | `google-ads-script/` | سكريبت جوجل أدز: نفس الكود في كل حساب، وبيسجّل نفسه | v3.0 |
 | `android/` | **تطبيق الموبايل** (ط١.٤): المكالمات وتسجيلها، والواتساب كامل من الطرفين — بيتبني على GitHub لوحده (`android/README.md`) | 1.0.0 |
 | `templates/` | قوالب (صفحة سياسة الخصوصية وشروط التواصل) | — |
