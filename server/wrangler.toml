@@ -18,9 +18,15 @@ RECORDINGS_BUCKET = "recordings"
 # مش سر. لازم يفضل هنا، وإلا أي نشر من الريبو بيمسح المتغيرات اللي اتحطت من اللوحة
 SUPABASE_URL = "https://cimvozxvnrdryarjzpoq.supabase.co"
 
+# سحب جوجل أدز (S02) مقفول لحد ما السطر ده يتفك (بعد بوابة S01 وبموافقة محمود) والأسرار تحت تتحط.
+# لازم يتكتب هنا مش من اللوحة، وإلا أي نشر من الريبو بيمسحه.
+# ADS_PULL_ENABLED = "1"
+
 # الأسرار (مش هنا أبداً) — بتتحط من لوحة Cloudflare: Worker ← Settings ← Variables and Secrets:
 #   SUPABASE_SERVICE_KEY · ADMIN_TOKEN  (SUPABASE_URL فوق في [vars] لأنه مش سر)
 #   (لما نختار مزوّد الذكاء الاصطناعي) AI_BASE_URL · AI_API_KEY · AI_MODEL_CLASSIFY · AI_MODEL_TRANSCRIBE
+#   (جوجل أدز S02) TOKEN_ENC_KEY (32 بايت base64، لتشفير توكنات الربط) · GOOGLE_CLIENT_ID · GOOGLE_CLIENT_SECRET (نفس الـOAuth client اللي عليه Basic)
+#                  TG_TOKEN · TG_CHAT_ID (تنبيهات محمود على بوت Lead Tracker)
 
 # ───────── نسخة التجربة (staging) ─────────
 # Worker منفصل اسمه maestro-api-staging على رابط workers.dev بس. أي تعديل يتجرب عليه قبل الحي.

@@ -1,6 +1,7 @@
 // المهام الدورية (كل 5 دقايق): تحليل المحادثات · تحويل المكالمات لنص وتحليلها · مسح النصوص والصوت في ميعادها.
 import { eq } from './db.js';
 import { aiEnabled, classify, transcribe, buildTranscript, PROMPT_VERSION } from './ai.js';
+import { adsTick } from './ads.js';
 
 const H = 3600 * 1000;
 const ago = (ms) => new Date(Date.now() - ms).toISOString();
@@ -83,10 +84,16 @@ async function logAi(db, clientId, task, model, usage, ok) {
   } catch (e) { console.error('ai log: ' + e); }
 }
 
-export async function runScheduled(env, db) {
+export async function runScheduled(env, db, opts) {
   const out = {};
-  out.conversations = await analyzeConversations(env, db, 20);
-  out.recordings = await processRecordings(env, db, 5);
-  if (new Date().getUTCMinutes() < 5) out.retention = await retention(env, db);   // مرة في الساعة
+  let failed = null;
+  try {
+    out.conversations = await analyzeConversations(env, db, 20);
+    out.recordings = await processRecordings(env, db, 5);
+    if (new Date().getUTCMinutes() < 5) out.retention = await retention(env, db);   // مرة في الساعة
+  } catch (e) { failed = e; }
+  // سحب جوجل أدز مستقل: عطل في اللي فوق مايوقفوش، وعطله مايوقفش اللي فوق. مقفول لحد ما ADS_PULL_ENABLED = "1"
+  out.ads = await adsTick(env, db, opts);
+  if (failed) throw failed;
   return out;
 }
