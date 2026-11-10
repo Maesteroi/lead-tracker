@@ -1,5 +1,5 @@
 /**
- * ads-pull.js — v3.12.0
+ * ads-pull.js — v3.13.0
  * بيسحب من Google Ads API لكل موقع مربوط (تبويب _Tokens) — قراية بس، مابيغيّرش أي حاجة في الحساب:
  *   «_SearchTerms» — عبارات البحث الحقيقية آخر 30 يوم (العبارة · الكلمة · المطابقة · ضغطات · تكلفة · تحويلات)
  *   «_AdsHealth»   — صحة كل حملة: الحالة · حالة العرض وأسبابها · الميزانية · أداء امبارح · الإعلانات المرفوضة والمحدودة
@@ -9,6 +9,8 @@
  * إصدار الـAPI: ADS_PULL_VERSION في _Config (الافتراضي v24؛ آخر إصدار وقت الكتابة v26).
  * التشغيل: من قايمة Lead Tracker، أو كل يوم بعد setupAdsIntelTrigger.
  */
+
+var ADS_PULL_OPS_ = 0;   // عدد طلبات الـAPI في السحبة دي (كل طلب = عملية من الـ15,000 اليومية)
 
 var ADS_ST_TAB = '_SearchTerms';
 var ADS_ST_HEAD = ['site_id', 'الموقع', 'العملة', 'الحملة', 'المجموعة', 'الكلمة', 'نوع المطابقة', 'عبارة البحث', 'ضغطات', 'ظهور', 'التكلفة', 'تحويلات', 'آخر سحب'];
@@ -23,6 +25,7 @@ function pullAdsIntel() {
   var now = Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd HH:mm');
   var sites = adsIntelSites_(ss);
   var stRows = [], hRows = [], alerts = [], errors = [];
+  ADS_PULL_OPS_ = 0;
 
   sites.forEach(function (s) {
     try {
@@ -76,6 +79,7 @@ function pullAdsIntel() {
   adsWriteTab_(ss, ADS_HEALTH_TAB, ADS_HEALTH_HEAD, hRows);
 
   var lines = ['🔎 <b>سحب جوجل أدز</b> · ' + esc_(now), sites.length + ' موقع · ' + stRows.length + ' عبارة بحث · ' + hRows.length + ' حملة'];
+  lines.push('عمليات الـAPI: ' + ADS_PULL_OPS_ + adsReportUsage_(ADS_PULL_OPS_, errors.length === 0));
   if (alerts.length) lines = lines.concat([''], alerts.map(esc_));
   if (errors.length) lines = lines.concat(['', '⚠️ <b>ماتسحبش</b>'], errors.map(function (x) { return '• ' + esc_(x); }));
   try { sendTelegramText_(props, lines.join('\n')); } catch (e) { console.error('pull tg: ' + e); }
@@ -120,6 +124,7 @@ function adsApi_(s) {
   if (s.login) headers['login-customer-id'] = s.login;
   return {
     query: function (q) {
+      ADS_PULL_OPS_++;
       var res = UrlFetchApp.fetch('https://googleads.googleapis.com/' + ver + '/customers/' + s.cid + '/googleAds:searchStream', {
         method: 'post', contentType: 'application/json', headers: headers, muteHttpExceptions: true, payload: JSON.stringify({ query: q })
       });
@@ -134,6 +139,21 @@ function adsApi_(s) {
       return rows;
     }
   };
+}
+
+// بيبلّغ السيرفر بعدد العمليات علشان العداد اليومي يغطي الشيت والسيرفر مع بعض (نفس مشروع Cloud = نفس الحد).
+// لو السيرفر مش متظبط أو لسه مافيهوش النقطة دي (404) بيعدّي ساكت. أي فشل تاني بيتكتب في رسالة السحب.
+function adsReportUsage_(ops, ok) {
+  if (typeof serverCall_ !== 'function') return '';
+  try {
+    var j = serverCall_('post', '/v1/admin/ads/usage', { source: 'apps_script', operations: ops, ok: ok });
+    var t = (j.operations_24h || {}).total;
+    return t == null ? '' : ' · آخر 24 ساعة: ' + t + ' من 15,000';
+  } catch (e) {
+    var m = String(e && e.message || e);
+    if (/SERVER_URL/.test(m) || / 404/.test(m)) return '';
+    return ' · ⚠️ العداد على السيرفر مااتحدّثش';
+  }
 }
 
 function adsMoney_(micros) { return Math.round((Number(micros) || 0) / 1e4) / 100; }

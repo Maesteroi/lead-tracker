@@ -1,7 +1,7 @@
 // محاكي صغير لـSupabase (PostgREST + Storage) للاختبارات، من غير إنترنت.
-// بيدعم بس اللي السيرفر بيستخدمه: eq · neq · gt · gte · lt · lte · is · not.is · like · order · limit · on_conflict.
+// بيدعم بس اللي السيرفر بيستخدمه: eq · neq · gt · gte · lt · lte · is · not.is · like · in · order (nullsfirst) · limit · on_conflict.
 
-const SERIAL = new Set(['raw_events', 'contact_clicks', 'messages', 'outcomes', 'ai_calls']);
+const SERIAL = new Set(['raw_events', 'contact_clicks', 'messages', 'outcomes', 'ai_calls', 'ads_clicks', 'ads_search_terms', 'ads_campaign_daily', 'ads_account_health', 'ads_pull_runs']);
 const DEFAULTS = {
   clients: () => ({ status: 'on', timezone: 'Asia/Riyadh', country_code: '966', thresholds: { serious_call_s: 120, weak_call_s: 30, wa_match_min: 10, call_match_s: 90 }, consents: {}, ai_budget_month: 10 }),
   devices: () => ({ status: 'on', health: {} }),
@@ -10,6 +10,7 @@ const DEFAULTS = {
   calls: () => ({ match_method: 'none', match_confidence: 'none', callback_after_s: null }),
   recordings: () => ({ status: 'pending' }),
   pair_codes: () => ({ used_at: null }),
+  ads_credentials: () => ({ status: 'on', login_customer_id: null, campaign_ids: null, currency: null, timezone: null, backfill_from: null, last_pull_at: null, last_ok_day: null, last_error: null }),
 };
 const UNIQUE = {
   clients: [['id']], devices: [['token_hash']], pair_codes: [['code']],
@@ -33,6 +34,7 @@ export function fakeSupabase() {
     if (op === 'neq') return v == null || String(v) !== val;
     if (op === 'is') return val === 'null' ? v == null : String(v) === val;
     if (op === 'not') { const [op2, ...r2] = rest; return !test(row, col, op2 + '.' + r2.join('.')); }
+    if (op === 'in') return v != null && val.replace(/^\(|\)$/g, '').split(',').includes(String(v));
     if (op === 'like') { const re = new RegExp('^' + val.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*') + '$'); return v != null && re.test(String(v)); }
     if (v == null) return false;
     const c = cmp(v, val);
@@ -52,7 +54,12 @@ export function fakeSupabase() {
   const pick = (row, select) => select === '*' ? Object.assign({}, row) : Object.fromEntries(select.split(',').map((c) => [c, row[c] === undefined ? null : row[c]]));
   function rows(p) {
     let r = table(p.name).filter((row) => p.filters.every(([c, e]) => test(row, c, e)));
-    if (p.order) { const [c, d] = p.order.split('.'); r = r.slice().sort((a, b) => (d === 'desc' ? -1 : 1) * cmp(a[c], b[c])); }
+    if (p.order) {
+      const [c, d, nulls] = p.order.split('.');
+      r = r.slice().sort((a, b) => (a[c] == null || b[c] == null)
+        ? (a[c] == null ? (b[c] == null ? 0 : (nulls === 'nullsfirst' ? -1 : 1)) : (nulls === 'nullsfirst' ? 1 : -1))
+        : (d === 'desc' ? -1 : 1) * cmp(a[c], b[c]));
+    }
     if (p.limit) r = r.slice(0, p.limit);
     return r;
   }

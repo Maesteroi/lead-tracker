@@ -6,6 +6,7 @@ import { handleEvent } from './events.js';
 import { isAdmin, syncSites, newPairCode, setConsents, compareDay } from './admin.js';
 import { pairDevice, authDevice, heartbeat, postCalls, postMessages, putRecording } from './device.js';
 import { runScheduled } from './cron.js';
+import { saveCredentials, setBackfill, adsStatus, reportUsage, adsTick } from './ads.js';
 
 export const VERSION = '1.0.0';
 
@@ -26,6 +27,12 @@ export async function route(req, env, fetchImpl) {
       if (m === 'POST' && p === '/v1/admin/pair-codes') return await newPairCode(req, env, db);
       if (m === 'POST' && p === '/v1/admin/consents') return await setConsents(req, env, db);
       if (m === 'GET' && p === '/v1/admin/compare') return await compareDay(req, env, db, url);
+      // جوجل أدز (S02): التوكن بيتخزن مشفّر · خط الأساس · الحالة · عداد العمليات · سحبة يدوية للتجربة
+      if (m === 'POST' && p === '/v1/admin/ads/credentials') return await saveCredentials(req, env, db);
+      if (m === 'POST' && p === '/v1/admin/ads/backfill') return await setBackfill(req, env, db);
+      if (m === 'GET' && p === '/v1/admin/ads/status') return await adsStatus(req, env, db);
+      if (m === 'POST' && p === '/v1/admin/ads/usage') return await reportUsage(req, env, db);
+      if (m === 'POST' && p === '/v1/admin/ads/tick') return json(Object.assign({ ok: true }, { tick: await adsTick(env, db, { fetchImpl }) }));
       return json({ ok: false, error: 'not found' }, 404);
     }
 

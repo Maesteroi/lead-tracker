@@ -24,6 +24,8 @@
 | `telegram-webhook.js` | بوت تليجرام (الربط والفصل) |
 | `outcome-buttons.js` | أزرار النتيجة على تنبيه تليجرام (تم · بيفكر · لغى · مش جاد · ماوصلش رسالة) ← عمود «التنفيذ» |
 | `server-sync.js` | الشيت ↔ السيرفر: مزامنة المواقع، وكود ربط الموبايل، وموافقات العميل، والمقارنة اليومية |
+| `ads-pull.js` | سحب جوجل أدز بالـAPI للشيت (`_SearchTerms` · `_AdsHealth`) + عداد العمليات |
+| `ads-migrate.js` | `migrateTokensToServer()`: نقل ربط جوجل أدز من `_Tokens` للسيرفر (بيتخزن هناك مشفّر) |
 
 ## الإعدادات (Script Properties — مش في الكود)
 `TG_TOKEN` · `TG_CHAT_ID` · `TIMEZONE` · `IPAPI_KEY` · `ADS_KEY` · `WEBAPP_URL` (اختياري) · `SITE_<id>` (سجل كل موقع) · `SERVER_URL` · `SERVER_ADMIN_TOKEN`.
