@@ -350,6 +350,9 @@ class LTP_Pair {
             <?php elseif (isset($_GET['connected'])): ?>
                 <p style="color:#00a32a;"><strong>✅ الموقع اتربط بحسابك على Maestro LT.</strong></p>
             <?php endif; ?>
+            <?php $o = LTP_Core::out_status(); if ($paired && ($o['failed_first'] || $o['queued'] || $o['rejected'] || $o['dropped'])): ?>
+                <p class="description">📡 إرسال السيرفر: فشل أول مرة <?php echo (int) $o['failed_first']; ?> · اتصلّح بإعادة المحاولة <?php echo (int) $o['recovered']; ?> · في الطابور <?php echo (int) $o['queued']; ?> · اتسقط <?php echo (int) $o['dropped']; ?> · اترفض <?php echo (int) $o['rejected']; ?><?php if ($o['last_error'] !== '') echo ' · آخر خطأ: ' . esc_html($o['last_error']) . ' (' . esc_html($o['last_error_at']) . ' UTC)'; ?></p>
+            <?php endif; ?>
             <?php // 2.10.0: الربط بكود من لوحة Maestro LT (بديل لو الزرار ماينفعش) ?>
             <details><summary><?php echo $paired ? 'ربط بكود جديد من لوحة Maestro LT' : 'عندي كود ربط بدل الزرار'; ?></summary>
             <?php if ($paired): ?><p class="description">⚠️ لو الموقع كان مربوط بالشيت، الربط بكود هيخلّي الأحداث تروح للسيرفر الجديد بس.</p><?php endif; ?>

@@ -8,6 +8,7 @@ if (!defined('WP_UNINSTALL_PLUGIN')) exit;
 
 // حذف كل الإعدادات
 $options = [
+    'ltp_out_q', 'ltp_out_stats',
     'ltp_installed_at', 'ltp_version', 'ltp_site_id',
     'ltp_events', 'ltp_flush_rewrite',
     'ltp_webhook_url', 'ltp_webhook_secret', 'ltp_site_label',
@@ -20,6 +21,7 @@ foreach ($options as $opt) {
     delete_option($opt);
 }
 wp_clear_scheduled_hook('ltp_autopair');
+wp_clear_scheduled_hook('ltp_out_retry');
 
 // حذف كل Transients (Rate limit + dedup)
 global $wpdb;
