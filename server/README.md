@@ -10,6 +10,7 @@
 | `POST /v1/device/heartbeat · calls · messages` · `PUT /v1/device/recordings` | تطبيق الموبايل | توكن الجهاز (هاش بس) |
 | `/v1/admin/*` | الشيت (قايمة Lead Tracker) | `ADMIN_TOKEN` |
 | `/v1/admin/ads/*` | الشيت ومحمود (جوجل أدز S02) | `ADMIN_TOKEN` |
+| `/v1/auth/google/*` · `/v1/me` · `/v1/sites*` | اللوحة (S03): الدخول بجوجل · الجلسة · المواقع | كوكي جلسة + CSRF + عنوان اللوحة بس |
 | `GET /health` | أي حد | — |
 
 **كل 5 دقايق:** تحليل المحادثات (بعد ساعة، و24، و72 ساعة) · تحويل تسجيلات المكالمات لنص وتحليلها، **والصوت بيتمسح بعدها** · مسح النصوص بعد 30 يوم.
@@ -44,10 +45,21 @@
 
 **خطة Cloudflare:** المجاني حدّه 10 مللي ثانية معالجة و50 طلب فرعي لكل نبضة (التوثيق الرسمي، 10 نوفمبر 2026). السحب معمول صغير، لكن يوم فيه مئات الضغطات ممكن يعدّي الـ10 مللي ثانية ← لو ظهر `exceededCpu` في اللوجات يبقى Workers Paid (5$ في الشهر) لازم قبل النزول.
 
+## الدخول والحسابات والمواقع (S03) — مقفول لحد ما الأسرار الثلاثة تتحط
+**الدخول بحساب جوجل** من مشروع Google Cloud منفصل (`maestro-lt-sign-in`، صلاحيات `openid email profile` بس، مفيش علاقة بتطبيق الإعلانات). المسار: `GET /v1/auth/google/start` (PKCE S256 + state + nonce في كوكي موقّع صالح 10 دقايق) ← جوجل ← `GET /v1/auth/google/callback` ← جلسة 30 يوم.
+- **أول دخول:** مستخدم + حساب بتجربة مجانية + صلاحية owner. **الهوية = معرّف جوجل (sub) مش الإيميل.**
+- **الجلسة:** الكوكي `lt_session` (HttpOnly · Secure · SameSite=Lax · على `.maestrolt.com`)، والقاعدة بتخزّن هاش التوكن بس. أي طلب بيغيّر حاجة محتاج `X-CSRF-Token` + `Origin` = عنوان اللوحة.
+- **المواقع:** `POST /v1/sites` (owner/admin) بيولّد Site ID ومفتاح `ltk_…` **بيتعرض مرة واحدة** وبيتخزن هاشه بس · `GET /v1/sites` · `POST /v1/sites/<id>/rotate-key` · `GET /v1/sites/<id>/install-status`.
+- **عزل العملاء:** موقع مش بتاع حسابك = **404** (مش 403)، وصلاحية العضو ممكن تتحدد بمواقع معينة.
+- **الإعدادات (Cloudflare ← Variables and Secrets، كلهم Secret):** `GOOGLE_SIGNIN_CLIENT_ID` · `GOOGLE_SIGNIN_CLIENT_SECRET` · `SESSION_SECRET` (32 حرف أو أكتر). اختياري: `APP_ORIGIN` · `AUTH_REDIRECT_URI` · `COOKIE_DOMAIN` · `TRIAL_DAYS` (14) · `MAX_SITES_TRIAL` (3).
+- **فحص الإعدادات من غير ما نشوف أي قيمة:** `GET /v1/admin/auth/status` (بمفتاح الإدارة) بيرجّع أسماء الناقص بس.
+- **التشغيل:** تشغيل `0003_accounts.sql` في Supabase ← النشر. من غير الأسرار الثلاثة الدخول بيرجّع 503 ومايعملش حاجة.
+
 ## الملفات
 - `src/index.js` المسارات · `events.js` البلجن · `device.js` التطبيق · `admin.js` الإدارة · `matching.js` المطابقة · `ai.js` الذكاء الاصطناعي · `cron.js` المهام الدورية · `db.js` Supabase · `util.js`
+- الدخول والمواقع: `auth.js` · `sites.js` · `app.js`
 - جوجل أدز: `ads.js` السحب والتنبيهات والعداد · `gads.js` الاتصال بالـAPI والاستعلامات · `crypto.js` تشفير التوكنات · `telegram.js`
-- `supabase/migrations/0001_init.sql` الجداول · `0002_ads.sql` جداول جوجل أدز
+- `supabase/migrations/0001_init.sql` الجداول · `0002_ads.sql` جداول جوجل أدز · `0003_accounts.sql` الحسابات والجلسات
 - `test/` اختبارات بمحاكي لـSupabase (`fake-supabase.js`) ولجوجل أدز بقواعده الرسمية (`fake-google.js`): `npm test`
 
 ## التركيب (مرة واحدة · 👤 محمود)

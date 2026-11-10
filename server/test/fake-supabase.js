@@ -1,19 +1,25 @@
 // محاكي صغير لـSupabase (PostgREST + Storage) للاختبارات، من غير إنترنت.
 // بيدعم بس اللي السيرفر بيستخدمه: eq · neq · gt · gte · lt · lte · is · not.is · like · in · order (nullsfirst) · limit · on_conflict.
 
-const SERIAL = new Set(['raw_events', 'contact_clicks', 'messages', 'outcomes', 'ai_calls', 'ads_clicks', 'ads_search_terms', 'ads_campaign_daily', 'ads_account_health', 'ads_pull_runs']);
+const SERIAL = new Set(['raw_events', 'contact_clicks', 'messages', 'outcomes', 'ai_calls', 'ads_clicks', 'ads_search_terms', 'ads_campaign_daily', 'ads_account_health', 'ads_pull_runs', 'auth_events']);
 const DEFAULTS = {
-  clients: () => ({ status: 'on', timezone: 'Asia/Riyadh', country_code: '966', thresholds: { serious_call_s: 120, weak_call_s: 30, wa_match_min: 10, call_match_s: 90 }, consents: {}, ai_budget_month: 10 }),
+  clients: () => ({ org_id: null, domains: [], created_at: new Date().toISOString(), status: 'on', timezone: 'Asia/Riyadh', country_code: '966', thresholds: { serious_call_s: 120, weak_call_s: 30, wa_match_min: 10, call_match_s: 90 }, consents: {}, ai_budget_month: 10 }),
   devices: () => ({ status: 'on', health: {} }),
   persons: () => ({ stage: 'new', known_to_client: false, first_click_id: null }),
   conversations: () => ({ analysis_round: 0, match_method: 'none', match_confidence: 'none', first_reply_s: null, channel: 'wa' }),
   calls: () => ({ match_method: 'none', match_confidence: 'none', callback_after_s: null }),
   recordings: () => ({ status: 'pending' }),
   pair_codes: () => ({ used_at: null }),
+  raw_events: () => ({ received_at: new Date().toISOString() }),
+  users: () => ({ name: null, locale: null, last_login_at: null }),
+  organizations: () => ({ type: 'business', status: 'trial', trial_ends_at: null }),
+  memberships: () => ({ site_ids: null }),
+  sessions: () => ({ last_seen_at: null }),
   ads_credentials: () => ({ status: 'on', login_customer_id: null, campaign_ids: null, currency: null, timezone: null, backfill_from: null, last_pull_at: null, last_ok_day: null, last_error: null }),
 };
 const UNIQUE = {
   clients: [['id']], devices: [['token_hash']], pair_codes: [['code']],
+  users: [['google_sub']], memberships: [['user_id', 'org_id']], sessions: [['token_hash']],
   raw_events: [['client_id', 'dedupe_key']], contact_clicks: [['client_id', 'match_code', 'type']],
   persons: [['client_id', 'phone_e164']], messages: [['conversation_id', 'dedupe_key']],
   calls: [['device_id', 'started_at', 'phone_e164', 'NND']],
@@ -74,7 +80,7 @@ export function fakeSupabase() {
     }
     return null;
   }
-  const resp = (status, body) => new Response(body == null ? '' : JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
+  const resp = (status, body) => new Response(status === 204 ? null : (body == null ? '' : JSON.stringify(body)), { status, headers: { 'Content-Type': 'application/json' } });
 
   async function fetchImpl(url, opts) {
     opts = opts || {};
@@ -106,6 +112,10 @@ export function fakeSupabase() {
         table(p.name).push(row); out.push(row);
       }
       return resp(201, prefer.includes('return=minimal') ? null : out);
+    }
+    if (method === 'DELETE') {
+      const gone = rows(p); t[p.name] = table(p.name).filter((x) => !gone.includes(x));
+      return resp(204, null);
     }
     if (method === 'PATCH') {
       const patch = JSON.parse(opts.body);

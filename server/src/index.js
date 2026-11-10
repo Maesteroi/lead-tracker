@@ -7,6 +7,7 @@ import { isAdmin, syncSites, newPairCode, setConsents, compareDay } from './admi
 import { pairDevice, authDevice, heartbeat, postCalls, postMessages, putRecording } from './device.js';
 import { runScheduled } from './cron.js';
 import { saveCredentials, setBackfill, adsStatus, reportUsage, adsTick } from './ads.js';
+import { handleApp, isAppPath, authStatus } from './app.js';
 
 export const VERSION = '1.0.0';
 
@@ -21,6 +22,9 @@ export async function route(req, env, fetchImpl) {
     if (m === 'POST' && p === '/v1/events') return await handleEvent(req, env, db);
     if (m === 'POST' && p === '/v1/device/pair') return await pairDevice(req, env, db);
 
+    // اللوحة: الدخول بجوجل · الجلسة · المواقع (S03)
+    if (isAppPath(p)) return await handleApp(req, env, db, url, p, fetchImpl);
+
     if (p.startsWith('/v1/admin/')) {
       if (!isAdmin(req, env)) return json({ ok: false, error: 'forbidden' }, 403);
       if (m === 'POST' && p === '/v1/admin/sites') return await syncSites(req, env, db);
@@ -31,6 +35,7 @@ export async function route(req, env, fetchImpl) {
       if (m === 'POST' && p === '/v1/admin/ads/credentials') return await saveCredentials(req, env, db);
       if (m === 'POST' && p === '/v1/admin/ads/backfill') return await setBackfill(req, env, db);
       if (m === 'GET' && p === '/v1/admin/ads/status') return await adsStatus(req, env, db);
+      if (m === 'GET' && p === '/v1/admin/auth/status') return await authStatus(req, env, db);
       if (m === 'POST' && p === '/v1/admin/ads/usage') return await reportUsage(req, env, db);
       if (m === 'POST' && p === '/v1/admin/ads/tick') return json(Object.assign({ ok: true }, { tick: await adsTick(env, db, { fetchImpl }) }));
       return json({ ok: false, error: 'not found' }, 404);
