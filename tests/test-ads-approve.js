@@ -67,15 +67,16 @@ const sites=main.getSheetByName('🌐 المواقع')||main.insertSheet('🌐 �
 apiReply=(q,u)=>{
  if(/\/customers\/111\//.test(u))return{code:403,body:[{error:{message:'The caller does not have permission'}}]};
  if(/search_term_view/.test(q))return[{campaign:{name:'شادو'},adGroup:{name:'م1'},segments:{keyword:{info:{text:'تصميم داخلي',matchType:'PHRASE'}}},searchTermView:{searchTerm:'تصميم داخلي pdf'},metrics:{clicks:'2',impressions:'30',costMicros:'19000000',conversions:0}}];
+ if(/currency_code/.test(q))return[{customer:{currencyCode:'SAR'}}];
  if(/primary_status/.test(q))return[{campaign:{id:'24426812630',name:'شادو',status:'ENABLED',primaryStatus:'LIMITED',primaryStatusReasons:['BUDGET_CONSTRAINED']},campaignBudget:{amountMicros:'100000000'}}];
  if(/DURING YESTERDAY/.test(q))return[];
  if(/ad_group_ad/.test(q))return[{campaign:{id:'24426812630'},adGroupAd:{policySummary:{approvalStatus:'DISAPPROVED'}}},{campaign:{id:'24426812630'},adGroupAd:{policySummary:{approvalStatus:'APPROVED'}}}];
  return[];};
 calls.length=0;const res=api.pullAdsIntel();
 const st=main.getSheetByName('_SearchTerms'),hh=main.getSheetByName('_AdsHealth');
-t('search terms written',st.d.length===2&&st.d[1][6]==='تصميم داخلي pdf'&&st.d[1][5]==='عبارة'&&st.d[1][9]===19);
-t('campaign filter applied',calls.filter(c=>/googleads/.test(c.u)&&/6456258009/.test(c.u)).every(c=>/campaign\.id IN \(24426812630\)/.test(c.p.query)));
-t('health row: zero impressions + 1 disapproved',hh.d.length===2&&hh.d[1][8]===0&&hh.d[1][11]===1&&hh.d[1][7]===100);
+t('search terms written',st.d.length===2&&st.d[1][2]==='SAR'&&st.d[1][7]==='تصميم داخلي pdf'&&st.d[1][6]==='عبارة'&&st.d[1][10]===19);
+t('campaign filter applied',calls.filter(c=>/googleads/.test(c.u)&&/6456258009/.test(c.u)&&!/currency_code/.test(c.p.query)).every(c=>/campaign\.id IN \(24426812630\)/.test(c.p.query)));
+t('health row: zero impressions + 1 disapproved',hh.d.length===2&&hh.d[1][2]==='SAR'&&hh.d[1][9]===0&&hh.d[1][12]===1&&hh.d[1][8]===100);
 const tg=calls.filter(c=>c.m==='sendMessage').map(c=>c.p.text).join('\n');
 t('alert: did not show yesterday',/ماظهرتش امبارح/.test(tg)&&/BUDGET_CONSTRAINED/.test(tg));
 t('alert: disapproved ads',/1 إعلان مرفوض/.test(tg));

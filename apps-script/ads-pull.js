@@ -11,9 +11,9 @@
  */
 
 var ADS_ST_TAB = '_SearchTerms';
-var ADS_ST_HEAD = ['site_id', 'الموقع', 'الحملة', 'المجموعة', 'الكلمة', 'نوع المطابقة', 'عبارة البحث', 'ضغطات', 'ظهور', 'التكلفة', 'تحويلات', 'آخر سحب'];
+var ADS_ST_HEAD = ['site_id', 'الموقع', 'العملة', 'الحملة', 'المجموعة', 'الكلمة', 'نوع المطابقة', 'عبارة البحث', 'ضغطات', 'ظهور', 'التكلفة', 'تحويلات', 'آخر سحب'];
 var ADS_HEALTH_TAB = '_AdsHealth';
-var ADS_HEALTH_HEAD = ['site_id', 'الموقع', 'رقم الحملة', 'الحملة', 'الحالة', 'حالة العرض', 'الأسباب', 'الميزانية اليومية', 'ظهور امبارح', 'ضغطات امبارح', 'تكلفة امبارح', 'إعلانات مرفوضة', 'إعلانات محدودة', 'آخر سحب'];
+var ADS_HEALTH_HEAD = ['site_id', 'الموقع', 'العملة', 'رقم الحملة', 'الحملة', 'الحالة', 'حالة العرض', 'الأسباب', 'الميزانية اليومية', 'ظهور امبارح', 'ضغطات امبارح', 'تكلفة امبارح', 'إعلانات مرفوضة', 'إعلانات محدودة', 'آخر سحب'];
 var ADS_MATCH_AR = { EXACT: 'تامة', PHRASE: 'عبارة', BROAD: 'واسعة' };
 
 function pullAdsIntel() {
@@ -28,13 +28,15 @@ function pullAdsIntel() {
     try {
       var api = adsApi_(s);
       if (!api) { errors.push(s.name + ': مفيش توكن صالح (محتاج إعادة ربط)'); return; }
+      var cur = '';
+      try { cur = (((api.query('SELECT customer.currency_code FROM customer')[0] || {}).customer) || {}).currencyCode || ''; } catch (e) {}
       var only = s.campaigns.length ? ' AND campaign.id IN (' + s.campaigns.join(',') + ')' : '';
 
       api.query('SELECT campaign.name, ad_group.name, segments.keyword.info.text, segments.keyword.info.match_type, search_term_view.search_term, ' +
         'metrics.clicks, metrics.impressions, metrics.cost_micros, metrics.conversions FROM search_term_view ' +
         'WHERE segments.date DURING LAST_30_DAYS AND metrics.impressions > 0' + only).forEach(function (r) {
         var m = r.metrics || {}, kw = ((r.segments || {}).keyword || {}).info || {};
-        stRows.push([s.id, s.name, (r.campaign || {}).name || '', (r.adGroup || {}).name || '', kw.text || '', ADS_MATCH_AR[kw.matchType] || kw.matchType || '',
+        stRows.push([s.id, s.name, cur, (r.campaign || {}).name || '', (r.adGroup || {}).name || '', kw.text || '', ADS_MATCH_AR[kw.matchType] || kw.matchType || '',
           (r.searchTermView || {}).searchTerm || '', Number(m.clicks) || 0, Number(m.impressions) || 0, adsMoney_(m.costMicros), Number(m.conversions) || 0, now]);
       });
 
@@ -61,7 +63,7 @@ function pullAdsIntel() {
 
       order.forEach(function (id) {
         var c = camps[id];
-        hRows.push([s.id, s.name, String(id), c.name, c.status, c.primary, c.reasons, c.budget, c.impr, c.clicks, Math.round(c.cost * 100) / 100, c.disapproved, c.limited, now]);
+        hRows.push([s.id, s.name, cur, String(id), c.name, c.status, c.primary, c.reasons, c.budget, c.impr, c.clicks, Math.round(c.cost * 100) / 100, c.disapproved, c.limited, now]);
         if (c.status === 'ENABLED' && c.impr === 0) alerts.push('🚨 ' + s.name + ' — «' + c.name + '» ماظهرتش امبارح خالص' + (c.reasons ? ' (' + c.reasons + ')' : '') + ' ← شوف الفوترة والسياسات');
         if (c.status === 'ENABLED' && c.disapproved) alerts.push('⛔ ' + s.name + ' — «' + c.name + '»: ' + c.disapproved + ' إعلان مرفوض');
       });
@@ -87,16 +89,21 @@ function adsIntelSites_(ss) {
   if (!tk || tk.getLastRow() < 2) return [];
   var d = tk.getDataRange().getValues(), h = d[0].map(function (x) { return String(x).trim(); });
   var iId = h.indexOf('site_id'), iName = h.indexOf('site_name'), iRt = h.indexOf('refresh_token'), iCid = h.indexOf('customer_id'), iLogin = h.indexOf('login_customer_id');
-  var camps = {};
+  var camps = {}, cids = {};
   var sh = ss.getSheetByName('🌐 المواقع');
   if (sh && sh.getLastRow() > 1) {
     var sd = sh.getDataRange().getValues(), sh0 = sd[0].map(function (x) { return String(x).trim(); });
-    var cId = sh0.indexOf('Site ID'), cCamp = sh0.indexOf('حملات جوجل');
-    sd.slice(1).forEach(function (r) { if (cId >= 0 && cCamp >= 0) camps[String(r[cId]).trim()] = String(r[cCamp] || '').split(/[^0-9]+/).filter(String); });
+    var cId = sh0.indexOf('Site ID'), cCamp = sh0.indexOf('حملات جوجل'), cAcc = sh0.indexOf('حساب جوجل أدز');
+    sd.slice(1).forEach(function (r) {
+      var sid = String(cId >= 0 ? r[cId] || '' : '').trim();
+      if (!sid) return;
+      if (cCamp >= 0) camps[sid] = String(r[cCamp] || '').split(/[^0-9]+/).filter(String);
+      if (cAcc >= 0) cids[sid] = String(r[cAcc] || '').replace(/\D/g, '');
+    });
   }
   var out = [];
   d.slice(1).forEach(function (r) {
-    var id = String(r[iId] || '').trim(), rt = String(r[iRt] || '').trim(), cid = String(r[iCid] || '').replace(/\D/g, '');
+    var id = String(r[iId] || '').trim(), rt = String(r[iRt] || '').trim(), cid = String(iCid >= 0 ? r[iCid] || '' : '').replace(/\D/g, '') || cids[id] || '';
     if (!id || !rt || !cid) return;
     out.push({ id: id, name: String(r[iName] || id).trim(), refresh: rt, cid: cid, login: iLogin >= 0 ? String(r[iLogin] || '').replace(/\D/g, '') : '', campaigns: camps[id] || [] });
   });
