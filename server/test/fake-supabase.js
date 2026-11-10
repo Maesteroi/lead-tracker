@@ -10,6 +10,7 @@ const DEFAULTS = {
   calls: () => ({ match_method: 'none', match_confidence: 'none', callback_after_s: null }),
   recordings: () => ({ status: 'pending' }),
   pair_codes: () => ({ used_at: null }),
+  auth_events: () => ({ at: new Date().toISOString() }),
   raw_events: () => ({ received_at: new Date().toISOString() }),
   site_pair_codes: () => ({ used_at: null, attempts: 0 }),
   users: () => ({ name: null, locale: null, last_login_at: null }),
@@ -41,6 +42,7 @@ export function fakeSupabase() {
     if (op === 'neq') return v == null || String(v) !== val;
     if (op === 'is') return val === 'null' ? v == null : String(v) === val;
     if (op === 'not') { const [op2, ...r2] = rest; return !test(row, col, op2 + '.' + r2.join('.')); }
+    if (op === 'cs') return Array.isArray(v) && val.replace(/^\{|\}$/g, '').split(',').every((x) => v.map(String).includes(x));
     if (op === 'in') return v != null && val.replace(/^\(|\)$/g, '').split(',').includes(String(v));
     if (op === 'like') { const re = new RegExp('^' + val.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*') + '$'); return v != null && re.test(String(v)); }
     if (v == null) return false;

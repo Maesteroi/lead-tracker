@@ -15,12 +15,19 @@ if (!defined('ABSPATH')) exit;
  *   2) البلجن ← السيرفر: «الكود ده + الرقم المؤقت (n) + عنوان التأكيد بتاع موقعي»
  *   3) السيرفر يتأكد من الكود ومن إن العنوان تابع لدومين الموقع المسجّل، وبعدين يبعت المفتاح للموقع نفسه (pair-confirm)
  *      مع نفس الرقم المؤقت. المفتاح مابيرجعش في رد الطلب أبداً.
+ *
+ * 2.11.0 (S03): زرار «اربط بـ Maestro LT» (3 ضغطات، من غير نسخ ولصق):
+ *   1) العميل يضغط الزرار ← البلجن يحفظ رقم مؤقت (n) ويفتح app.maestrolt.com/connect (البيانات في الجزء بعد # فمابتوصلش لأي سيرفر ولا لوج)
+ *   2) العميل يسجّل دخول بجوجل (لو مش داخل) ويضغط «نعم، اربط» على كارت فيه دومين الموقع
+ *   3) السيرفر يبعت المفتاح للموقع نفسه (pair-confirm) بنفس الرقم، ويرجّع العميل للوحة ووردبريس
+ *   الدومين بييجي من عنوان التأكيد نفسه، فلازم الموقع نفسه يرد بالرقم علشان يتربط.
  */
 class LTP_Pair {
 
     private static $instance = null;
     const NONCE_TTL = 900; // 15 دقيقة
     const SERVER_ORIGIN = 'https://api.maestrolt.com';
+    const APP_ORIGIN = 'https://app.maestrolt.com';
 
     public static function instance() {
         if (self::$instance === null) self::$instance = new self();
@@ -34,6 +41,7 @@ class LTP_Pair {
         add_action('ltp_autopair_now', [$this, 'cron_pair']);
         add_action('admin_post_ltp_pair_now', [$this, 'pair_now_button']);
         add_action('admin_post_ltp_pair_code', [$this, 'pair_code_button']);
+        add_action('admin_post_ltp_connect', [$this, 'connect_button']);
         add_action('admin_notices', [$this, 'notice']);
     }
 
@@ -111,6 +119,39 @@ class LTP_Pair {
     public static function server_origin() {
         $o = rtrim((string) apply_filters('ltp_server_origin', self::SERVER_ORIGIN), '/');
         return strpos($o, 'https://') === 0 ? $o : self::SERVER_ORIGIN;
+    }
+
+    // عنوان اللوحة (بيتغيّر بفلتر للتجربة بس، وبيتقبل https بس)
+    public static function app_origin() {
+        $o = rtrim((string) apply_filters('ltp_app_origin', self::APP_ORIGIN), '/');
+        return strpos($o, 'https://') === 0 ? $o : self::APP_ORIGIN;
+    }
+
+    // رابط زرار الربط: بيحفظ الرقم المؤقت ويبني عنوان اللوحة. البيانات في الجزء بعد # (مابتتبعتش في أي طلب).
+    public static function connect_url() {
+        $n = wp_generate_password(40, false, false);
+        update_option('ltp_pair_nonce', ['n' => $n, 't' => time()], false);
+        LTP_Core::set('pair_tried_at', current_time('mysql'));
+        set_transient('ltp_pair_lock', 1, self::NONCE_TTL);   // مايتجرّبش ربط الشيت القديم في الخلفية أثناء ما العميل بيربط (كان هيبدّل الرقم)
+        $frag = http_build_query([
+            'c' => rest_url('lt/v1/pair-confirm'),
+            'n' => $n,
+            'r' => admin_url('admin.php?page=lead-tracker-settings&connected=1'),
+            's' => (string) get_bloginfo('name'),
+            'v' => LTP_VERSION,
+        ], '', '&', PHP_QUERY_RFC3986);
+        return self::app_origin() . '/connect#' . $frag;
+    }
+
+    public function connect_button() {
+        if (!current_user_can('manage_options')) wp_die('ممنوع');
+        check_admin_referer('ltp_connect');
+        wp_redirect(self::connect_url());     // خارجي بالقصد: لوحة Maestro LT
+        exit;
+    }
+
+    public static function connect_link() {
+        return wp_nonce_url(admin_url('admin-post.php?action=ltp_connect'), 'ltp_connect');
     }
 
     private static function store($secret, $p, $server_mode = false) {
@@ -269,8 +310,8 @@ class LTP_Pair {
             'paired'    => '✅ مربوط',
             'pending'   => '⏳ اتسجّل، ومستني تأكيد من مقدّم الخدمة (حماية على الموقع منعت التأكيد الأوتوماتيك).',
             'disabled'  => '⛔ الموقع ده موقوف من مقدّم الخدمة.',
-            'no_hub'    => '⚪ اكتب كود الربط من لوحة Maestro LT في الحقل اللي تحت.',
-            'code'      => '❌ الكود غلط أو انتهى أو اتستعمل. اطلب كود جديد من لوحة Maestro LT (بيتجدد ويصلح 15 دقيقة).',
+            'no_hub'    => '⚪ لسه مش مربوط. اضغط «اربط بـ Maestro LT» (أو اكتب كود الربط لو معاك كود).',
+            'code'      => '❌ الكود غلط أو انتهى أو اتستعمل. اطلب كود جديد من لوحة Maestro LT (بيتجدد ويصلح 15 دقيقة)، أو اضغط «اربط بـ Maestro LT».',
             'bad_code'  => '❌ الكود مكتوب غلط: لازم 8 حروف وأرقام (زي K7M2-QX9P).',
             'domain_mismatch' => '❌ دومين الموقع ده مش نفس الدومين المسجّل في لوحة Maestro LT لموقعك.',
             'site_unreachable' => '❌ سيرفر Maestro مقدرش يوصل لموقعك علشان يأكد الربط. غالباً بلجن أمان أو جدار حماية بيقفل REST API (المسار /wp-json/lt/v1/pair-confirm). اسمح بيه وحاول تاني بنفس الكود (لسه صالح).',
@@ -286,8 +327,10 @@ class LTP_Pair {
         $screen = function_exists('get_current_screen') ? get_current_screen() : null;
         if ($screen && strpos((string) $screen->id, 'lead-tracker') !== false) return;
         $s = (string) LTP_Core::get('pair_state', '');
-        if ($s === '') return; // لسه ماحاولش (أول ثواني بعد التفعيل)
-        echo '<div class="notice notice-info"><p><strong>Lead Tracker Pro:</strong> ' . esc_html(self::state_text($s)) . '</p></div>';
+        // 2.11.0: بعد التفعيل دايماً بنعرض الزرار (3 ضغطات للربط)، ومعاه سبب آخر فشل لو فيه
+        echo '<div class="notice notice-info"><p><strong>Lead Tracker Pro:</strong> '
+            . ($s !== '' && $s !== 'no_hub' ? esc_html(self::state_text($s)) . ' ' : 'فاضل خطوة واحدة: اربط الموقع بحسابك على Maestro LT. ')
+            . '<a class="button button-primary" href="' . esc_url(self::connect_link()) . '">اربط بـ Maestro LT</a></p></div>';
     }
 
     // كارت الحالة في صفحة الإعدادات (مفيش حاجة تتكتب)
@@ -300,17 +343,25 @@ class LTP_Pair {
             <p><?php echo esc_html(self::state_text($s)); ?>
                 <?php if ($paired && LTP_Core::get('paired_at') !== '') echo ' · من ' . esc_html(LTP_Core::get('paired_at')); ?>
             </p>
-            <?php // 2.10.0: الربط بكود من لوحة Maestro LT ?>
-            <?php if ($paired): ?><details><summary>ربط بكود جديد من لوحة Maestro LT</summary><p class="description">⚠️ لو الموقع كان مربوط بالشيت، الربط بكود هيخلّي الأحداث تروح للسيرفر الجديد بس.</p><?php endif; ?>
+            <?php if (!$paired): ?>
+                <?php // 2.11.0: الطريق الأساسي: زرار واحد ?>
+                <p style="margin:14px 0;"><a class="button button-primary button-hero" href="<?php echo esc_url(self::connect_link()); ?>">🔗 اربط بـ Maestro LT</a></p>
+                <p class="description">هتسجّل دخول بجوجل (لو مش داخل) وتضغط «نعم، اربط». مفيش نسخ ولصق.</p>
+            <?php elseif (isset($_GET['connected'])): ?>
+                <p style="color:#00a32a;"><strong>✅ الموقع اتربط بحسابك على Maestro LT.</strong></p>
+            <?php endif; ?>
+            <?php // 2.10.0: الربط بكود من لوحة Maestro LT (بديل لو الزرار ماينفعش) ?>
+            <details><summary><?php echo $paired ? 'ربط بكود جديد من لوحة Maestro LT' : 'عندي كود ربط بدل الزرار'; ?></summary>
+            <?php if ($paired): ?><p class="description">⚠️ لو الموقع كان مربوط بالشيت، الربط بكود هيخلّي الأحداث تروح للسيرفر الجديد بس.</p><?php endif; ?>
             <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="margin:10px 0;">
                 <input type="hidden" name="action" value="ltp_pair_code">
                 <?php wp_nonce_field('ltp_pair_code', '_ltp_pc_nonce'); ?>
                 <label for="ltp_pair_code"><strong>كود الربط من لوحة Maestro LT</strong></label><br>
                 <input type="text" name="pair_code" id="ltp_pair_code" class="regular-text" dir="ltr" maxlength="9" placeholder="K7M2-QX9P" autocomplete="off" style="font-family:monospace;letter-spacing:2px;">
-                <button type="submit" class="button button-primary">اربط</button>
+                <button type="submit" class="button">اربط</button>
                 <p class="description">الكود صالح 15 دقيقة ومرة واحدة. من اللوحة: مواقعي ← الموقع ← «كود الربط».</p>
             </form>
-            <?php if ($paired): ?></details><?php endif; ?>
+            </details>
             <?php if (!$paired): ?>
                 <?php $t = LTP_Core::get('pair_tried_at'); if ($t !== '') echo '<p class="description">آخر محاولة: ' . esc_html($t) . '</p>'; ?>
                 <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">

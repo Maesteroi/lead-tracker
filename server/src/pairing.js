@@ -42,6 +42,27 @@ export function validConfirmUrl(raw, domains) {
   return viaPath || viaQuery ? u.toString() : null;
 }
 
+// تسليم مفتاح جديد للموقع نفسه (مشترك بين الكود القصير وزرار الربط).
+// بيغيّر الهاش، وبيبعت المفتاح لعنوان التأكيد مع الـnonce اللي الموقع حافظه. لو الموقع ماأكدش: بيرجّع الهاش القديم.
+// المفتاح مابيطلعش من هنا غير في الطلب ده للموقع. بيرجّع { ok }.
+export async function deliverKey(db, site, confirm, nonce, serverOrigin, fetchImpl) {
+  const key = 'ltk' + randomToken(24);
+  await db.update('clients?id=' + eq(site.id), { key_hash: await sha256(key) });
+  let ok = false;
+  try {
+    const f = fetchImpl || ((...a) => fetch(...a));
+    const ctl = new AbortController(); const timer = setTimeout(() => ctl.abort(), CONFIRM_TIMEOUT_MS);
+    try {
+      const res = await f(confirm, { method: 'POST', redirect: 'manual', signal: ctl.signal, headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ n: nonce, secret: key, site_id: site.id, server: serverOrigin }) });   // نفس شكل تأكيد البلجن الموجود (n + secret + site_id)
+      const j = res.status === 200 ? await res.json().catch(() => ({})) : {};
+      ok = res.status === 200 && j.ok === true;
+    } finally { clearTimeout(timer); }
+  } catch (e) { ok = false; }
+  if (!ok) await db.update('clients?id=' + eq(site.id), { key_hash: site.key_hash });
+  return { ok };
+}
+
 // ── البلجن: طلب الربط ──
 export async function pluginPair(req, env, db, fetchImpl) {
   const b = await req.json().catch(() => ({}));
@@ -68,25 +89,12 @@ export async function pluginPair(req, env, db, fetchImpl) {
   if (!claimed || !claimed.length) return json({ ok: false, error: 'code' }, 404);
 
   // مفتاح جديد، ونبعته للموقع نفسه. لو ماوصلش، نرجّع المفتاح القديم والكود يفضل شغال.
-  const key = 'ltk' + randomToken(24);
-  await db.update('clients?id=' + eq(site.id), { key_hash: await sha256(key) });
-  const revert = async (reason) => {
-    await db.update('clients?id=' + eq(site.id), { key_hash: site.key_hash });
+  const sent = await deliverKey(db, site, confirm, nonce, new URL(req.url).origin, fetchImpl);
+  if (!sent.ok) {
     await db.update('site_pair_codes?id=' + eq(row.id), { used_at: null, attempts: row.attempts + 1 });
-    await audit(db, null, 'pair_failed', false, reason + ':' + site.id);
-  };
-  let ok = false;
-  try {
-    const f = fetchImpl || ((...a) => fetch(...a));
-    const ctl = new AbortController(); const timer = setTimeout(() => ctl.abort(), CONFIRM_TIMEOUT_MS);
-    try {
-      const res = await f(confirm, { method: 'POST', redirect: 'manual', signal: ctl.signal, headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ n: nonce, secret: key, site_id: site.id, server: new URL(req.url).origin }) });   // نفس شكل تأكيد البلجن الموجود (n + secret + site_id)
-      const j = res.status === 200 ? await res.json().catch(() => ({})) : {};
-      ok = res.status === 200 && j.ok === true;
-    } finally { clearTimeout(timer); }
-  } catch (e) { ok = false; }
-  if (!ok) { await revert('confirm_failed'); return json({ ok: false, error: 'site_unreachable' }, 502); }
+    await audit(db, null, 'pair_failed', false, 'confirm_failed:' + site.id);
+    return json({ ok: false, error: 'site_unreachable' }, 502);
+  }
 
   await db.update('clients?id=' + eq(site.id), { paired_at: new Date().toISOString() });
   await audit(db, null, 'plugin_paired', true, site.id);

@@ -55,6 +55,23 @@ export async function listSites(req, env, db, sess) {
   return json({ ok: true, sites: rows.filter((c) => canSee(sess, c)).map(siteView) });
 }
 
+// حدود الخطة: الحساب الموقوف أو التجربة المنتهية = 402، وحد المواقع في التجربة = 409. بيرجّع null لو مفيش مانع.
+export function planGate(env, org, siteCount) {
+  if (org.status === 'off' || org.status === 'past_due' || (org.status === 'trial' && org.trial_ends_at && Date.parse(org.trial_ends_at) < Date.now())) return { status: 402, body: { ok: false, error: 'plan_inactive' } };
+  const max = Number(env.MAX_SITES_TRIAL) > 0 ? Number(env.MAX_SITES_TRIAL) : 3;
+  if (org.status === 'trial' && siteCount >= max) return { status: 409, body: { ok: false, error: 'site_limit', limit: max } };
+  return null;
+}
+
+// صف موقع جديد بمفتاح جديد (الهاش بس بيتخزن). بيرجّع { id, key }.
+export async function insertSite(env, db, orgId, name, domain, timezone, countryCode) {
+  const id = newSiteId(), key = 'ltk' + randomToken(24);
+  const tz = /^[A-Za-z_]+\/[A-Za-z_]+$/.test(String(timezone || '')) ? String(timezone) : 'Asia/Riyadh';
+  const cc = /^\d{1,4}$/.test(String(countryCode || '')) ? String(countryCode) : '966';
+  await db.insert('clients', [{ id, name, key_hash: await sha256(key), status: 'on', timezone: tz, country_code: cc, org_id: orgId, domains: [domain] }], { returning: false });
+  return { id, key };
+}
+
 export async function createSite(req, env, db, sess) {
   const b = await req.json().catch(() => ({}));
   const orgId = String(b.org_id || '');
@@ -67,15 +84,11 @@ export async function createSite(req, env, db, sess) {
   if (!domain) return json({ ok: false, error: 'domain' }, 400);
   const org = await db.one('organizations?id=' + eq(orgId) + '&select=id,status,trial_ends_at');
   if (!org) return notFound();
-  if (org.status === 'off' || org.status === 'past_due' || (org.status === 'trial' && org.trial_ends_at && Date.parse(org.trial_ends_at) < Date.now())) return json({ ok: false, error: 'plan_inactive' }, 402);
   const existing = (await db.select('clients?org_id=' + eq(orgId) + '&select=id,domains')) || [];
-  const max = Number(env.MAX_SITES_TRIAL) > 0 ? Number(env.MAX_SITES_TRIAL) : 3;
-  if (org.status === 'trial' && existing.length >= max) return json({ ok: false, error: 'site_limit', limit: max }, 409);
+  const gate = planGate(env, org, existing.length);
+  if (gate) return json(gate.body, gate.status);
   if (existing.some((c) => (c.domains || []).includes(domain))) return json({ ok: false, error: 'domain_exists' }, 409);
-  const id = newSiteId(), key = 'ltk' + randomToken(24);
-  const tz = /^[A-Za-z_]+\/[A-Za-z_]+$/.test(String(b.timezone || '')) ? String(b.timezone) : 'Asia/Riyadh';
-  const cc = /^\d{1,4}$/.test(String(b.country_code || '')) ? String(b.country_code) : '966';
-  await db.insert('clients', [{ id, name, key_hash: await sha256(key), status: 'on', timezone: tz, country_code: cc, org_id: orgId, domains: [domain] }], { returning: false });
+  const { id, key } = await insertSite(env, db, orgId, name, domain, b.timezone, b.country_code);
   await audit(db, sess.user.id, 'site_created', true, id);
   return json({ ok: true, site: { id, name, domains: [domain] }, key, key_note: 'ده المفتاح الوحيد المعروض. انسخه دلوقتي: مابيتعرضش تاني.' }, 201);
 }

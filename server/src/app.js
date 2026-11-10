@@ -4,10 +4,11 @@ import { json } from './util.js';
 import { appOrigin, authStart, authCallback, authLogout, authStatus, getSession, checkCsrf } from './auth.js';
 import { me, listSites, createSite, rotateKey, installStatus, loadSite, notFound } from './sites.js';
 import { createPairCode } from './pairing.js';
+import { connectSite } from './connect.js';
 
 const SITE_ACT = /^\/v1\/sites\/([A-Za-z0-9]{6,20})\/(rotate-key|install-status|pair-code)$/;
 
-export const isAppPath = (p) => p === '/v1/me' || p.startsWith('/v1/auth/') || p === '/v1/sites' || p.startsWith('/v1/sites/');
+export const isAppPath = (p) => p === '/v1/me' || p.startsWith('/v1/auth/') || p === '/v1/sites' || p.startsWith('/v1/sites/') || p === '/v1/connect';
 
 function corsHeaders(req, env) {
   const o = req.headers.get('origin');
@@ -43,6 +44,7 @@ export async function handleApp(req, env, db, url, p, fetchImpl) {
   else if (m === 'POST' && p === '/v1/auth/logout') res = await authLogout(req, env, db, sess);
   else if (m === 'GET' && p === '/v1/sites') res = await listSites(req, env, db, sess);
   else if (m === 'POST' && p === '/v1/sites') res = await createSite(req, env, db, sess);
+  else if (m === 'POST' && p === '/v1/connect') res = await connectSite(req, env, db, sess, fetchImpl);
   else if (m === 'POST' && act && act[2] === 'rotate-key') res = await rotateKey(req, env, db, sess, act[1]);
   else if (m === 'POST' && act && act[2] === 'pair-code') { const site = await loadSite(db, sess, act[1]); res = site ? await createPairCode(req, env, db, sess, site) : notFound(); }
   else if (m === 'GET' && act && act[2] === 'install-status') res = await installStatus(req, env, db, sess, act[1]);
