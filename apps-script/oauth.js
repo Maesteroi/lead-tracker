@@ -1,36 +1,18 @@
 /**
- * oauth.gs — OAuth Flow للربط مع Google Ads
- * 
- * Flow:
- * 1. البلجن يفتح /exec?action=connect&site_id=XXX&signature=YYY
- * 2. السيرفر يتحقق من التوقيع
- * 3. السيرفر يودي العميل لـ Google OAuth
- * 4. العميل يوافق
- * 5. Google ترجع للـ /exec?code=ZZZ&state=site_id
- * 6. السيرفر يبدل الكود بـ refresh_token
- * 7. السيرفر يحفظ التوكن مربط بالموقع
- * 8. السيرفر يعرض "تم الربط"
- */
-/**
- * doGet — نقطة الدخول الموحدة
- * لو الطلب OAuth (فيه action أو code) → نحوّله لـ OAuth handler
- * لو لأ → نرجع صفحة ترحيب
- */
-/**
- * doGet — نقطة الدخول الموحدة لكل طلبات GET
- * تتعامل مع:
- * 1. page=test → صفحة اختبار OAuth
- * 2. action=connect → بدء OAuth Flow
- * 3. code + state → callback من Google
- * 4. غير كده → صفحة ترحيب
+ * oauth.gs — ربط حساب Google Ads (v3.14.0)
+ *
+ * الربط كله بيتم من خدمة الربط على auth.maestrolt.com (الكود في auth/worker.js):
+ * 1. إحنا بنطلّع لينك ربط موقّع وصالح 15 دقيقة (adsConnectLink_ / menuAdsConnectLink).
+ * 2. العميل يفتحه ← خدمة الربط تتأكد من التوقيع والمدة ← شاشة موافقة جوجل.
+ * 3. خدمة الربط بتبعت التوكن هنا (doPost ← action=save_token) بتوقيع HMAC_SECRET.
+ * 4. handleSaveToken_ بيتأكد من التوقيع ويحفظ في _Tokens.
+ *
+ * المسار القديم (‎/exec?action=connect ثم code + state) وصفحة الاختبار (‎?page=test) اتقفلوا 10 نوفمبر 2026 (G-01):
+ * الـstate فيهم كان الـSite ID من غير توقيع، فأي حد معاه Site ID كان يقدر يكتب توكن حسابه مكان العميل.
+ *
+ * الإعدادات (Script Properties): HMAC_SECRET · LINK_SECRET (نفس اللي في خدمة الربط) · AUTH_URL (اختياري).
  */
 
-/**
- * getRedirectUri_ — تجيب الـ Redirect URI الصح
- * الأولوية:
- * 1. من _Config (الأكيد)
- * 2. من ScriptApp مع تحويل /dev لـ /exec
- */
 /**
  * getRedirectUri_ — تجيب الـ Redirect URI الصح
  */
@@ -50,15 +32,10 @@ function getRedirectUri_() {
 }
 
 /**
- * doGet — نقطة الدخول الموحدة لكل طلبات GET
+ * doGet — أي طلب GET على رابط الشيت بيرجّع صفحة ثابتة.
+ * مابيبدأش ربط، ومابيستقبلش code من جوجل، ومابيعرضش أي حاجة من الرابط.
  */
 function doGet(e) {
-  // 1. صفحة الاختبار
-  if (e && e.parameter && e.parameter.page === 'test') {
-    return testOAuthPage();
-  }
-  
-  // 2. باقي الحالات (connect / callback / welcome)
   return doGetPhase4(e);
 }
 
@@ -94,170 +71,52 @@ function setConfigValue_(key, value) {
 }
 
 // ═══════════════════════════════════════════════════════════
-// 1. doGetPhase4 — نقطة الدخول (authorize + callback)
+// 1. doGetPhase4 — صفحة ثابتة (المسار القديم اتقفل · G-01)
 // ═══════════════════════════════════════════════════════════
 
 function doGetPhase4(e) {
-  try {
-    var action = e && e.parameter ? e.parameter.action : '';
-    var code = e && e.parameter ? e.parameter.code : '';
-    var state = e && e.parameter ? e.parameter.state : '';
-    var error = e && e.parameter ? e.parameter.error : '';
-    
-    // Google رجعت بخطأ؟
-    if (error) {
-      return htmlPage_('❌ فشل الربط', 
-        'السبب: ' + error + '<br>حاول تاني من البلجن.');
-    }
-    
-    // Callback من Google
-    if (code && state) {
-      return handleOAuthCallback_(code, state);
-    }
-    
-    // طلب ربط جديد
-    if (action === 'connect') {
-      return handleOAuthConnect_(e.parameter);
-    }
-    
-    // الصفحة الرئيسية
-    return htmlPage_('🔗 Lead Tracker — OAuth', 
-      'الصفحة دي بتستخدم لربط موقعك بحساب Google Ads.<br>' +
-      'لو إنت صاحب موقع، افتح إعدادات البلجن واضغط "ربط Google Ads".');
-      
-  } catch (err) {
-    Logger.log('doGetPhase4 error: ' + err);
-    return htmlPage_('❌ خطأ', String(err));
-  }
+  return htmlPage_('🔗 Maestro LT',
+    'ربط حساب Google Ads بيتم من لينك بيبعته فريقنا.<br>' +
+    'لو محتاج لينك جديد، كلّمنا.');
 }
 
 // ═══════════════════════════════════════════════════════════
-// 2. handleOAuthConnect_ — بدء عملية الربط
+// 2. لينك الربط الموقّع (صالح 15 دقيقة)
 // ═══════════════════════════════════════════════════════════
 
-function handleOAuthConnect_(params) {
-  var siteId = String(params.site_id || '').trim();
-  var signature = String(params.signature || '').trim();
-  
-  if (!siteId) {
-    return htmlPage_('❌ خطأ', 'مفيش site_id');
-  }
-  
-  // 1. نتأكد إن الموقع مسجل
+var ADS_LINK_TTL_S = 15 * 60;
+
+// نفس الصيغة اللي خدمة الربط بتتحقق منها: HMAC(LINK_SECRET, "connect:" + site_id + ":" + exp)
+function adsConnectLink_(siteId, nowMs) {
+  siteId = String(siteId || '').trim();
   var props = PropertiesService.getScriptProperties();
-  var rec = siteRec_(siteId, props);
-  if (!rec) {
-    return htmlPage_('❌ خطأ', 'الموقع مش مسجل في النظام.<br>Site ID: ' + siteId);
-  }
-  
-  // 2. نتحقق من التوقيع (اختياري)
-  if (signature) {
-    var expectedSig = computeHmac_(siteId, rec.k);
-    if (signature !== expectedSig) {
-      return htmlPage_('❌ خطأ', 'التوقيع غلط');
-    }
-  }
-  
-  // 3. نجيب الإعدادات
-  var clientId = getConfigValue_('GOOGLE_CLIENT_ID');
-  var scopes = getConfigValue_('SCOPES') || 'https://www.googleapis.com/auth/adwords';
-  
-  if (!clientId) {
-    return htmlPage_('❌ خطأ', 
-      'GOOGLE_CLIENT_ID مش موجود في _Config.<br>' +
-      'ارجع للشيت وحطه يدويًا.');
-  }
-  
-  // 4. نجيب Redirect URI من الدالة الجديدة
-  var redirectUri = getRedirectUri_();
-  
-  // نخزنه في _Config لو لسه
-  if (!getConfigValue_('REDIRECT_URI')) {
-    setConfigValue_('REDIRECT_URI', redirectUri);
-  }
-  
-  // 5. نبني رابط OAuth
-  var authUrl = 'https://accounts.google.com/o/oauth2/v2/auth' +
-    '?client_id=' + encodeURIComponent(clientId) +
-    '&redirect_uri=' + encodeURIComponent(redirectUri) +
-    '&response_type=code' +
-    '&scope=' + encodeURIComponent(scopes) +
-    '&access_type=offline' +
-    '&prompt=consent' +
-    '&state=' + encodeURIComponent(siteId);
-  
-  // 6. نحوّل العميل
-  return HtmlService.createHtmlOutput(
-    '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>جارِ التحويل...</title></head>' +
-    '<body style="font-family:Arial;text-align:center;padding:50px;direction:rtl;">' +
-    '<h2>جارِ التحويل إلى Google...</h2>' +
-    '<p>سيتم تحويلك خلال لحظات.</p>' +
-    '<script>window.location.href=' + JSON.stringify(authUrl) + ';</script>' +
-    '</body></html>'
-  );
+  var secret = String(props.getProperty('LINK_SECRET') || '').trim();
+  if (!secret) throw new Error('حط LINK_SECRET في Script Properties الأول (نفس القيمة اللي في خدمة الربط)');
+  if (!/^[A-Za-z0-9_-]{4,64}$/.test(siteId) || !siteRec_(siteId, props)) throw new Error('الموقع مش مسجل');
+  var base = String(props.getProperty('AUTH_URL') || 'https://auth.maestrolt.com').trim().replace(/\/+$/, '');
+  var exp = Math.floor((nowMs || Date.now()) / 1000) + ADS_LINK_TTL_S;
+  var sig = computeHmac_('connect:' + siteId + ':' + exp, secret);
+  return base + '/connect?site_id=' + encodeURIComponent(siteId) + '&exp=' + exp + '&sig=' + sig;
 }
 
-// ═══════════════════════════════════════════════════════════
-// 3. handleOAuthCallback_ — استقبال الـ code
-// ═══════════════════════════════════════════════════════════
-
-function handleOAuthCallback_(code, siteId) {
-  var clientId = getConfigValue_('GOOGLE_CLIENT_ID');
-  var clientSecret = getConfigValue_('GOOGLE_CLIENT_SECRET');
-  var redirectUri = getRedirectUri_();
-  
-  if (!clientId || !clientSecret) {
-    return htmlPage_('❌ خطأ', 
-      'GOOGLE_CLIENT_ID أو GOOGLE_CLIENT_SECRET مش موجودين في _Config');
-  }
-  
-  // 1. نبدل الـ code بـ tokens
-  try {
-    var response = UrlFetchApp.fetch('https://oauth2.googleapis.com/token', {
-      method: 'post',
-      payload: {
-        code: code,
-        client_id: clientId,
-        client_secret: clientSecret,
-        redirect_uri: redirectUri,
-        grant_type: 'authorization_code'
-      },
-      muteHttpExceptions: true
-    });
-    
-    var responseText = response.getContentText();
-    var tokens = JSON.parse(responseText);
-    
-    if (tokens.error) {
-      Logger.log('OAuth error: ' + responseText);
-      return htmlPage_('❌ فشل', 
-        'خطأ من Google: ' + tokens.error + '<br>' +
-        (tokens.error_description || ''));
-    }
-    
-    if (!tokens.refresh_token) {
-      return htmlPage_('⚠️ تحذير', 
-        'مفيش refresh_token.<br>' +
-        'غالبًا الربط اتعمل قبل كده. روح لحساب Google:<br>' +
-        'myaccount.google.com/permissions<br>' +
-        'امسح صلاحية "AI Organization" وحاول تاني.');
-    }
-    
-    // 2. نحفظ الـ refresh_token
-    saveToken_(siteId, tokens.refresh_token);
-    
-    // 3. نسجّل النجاح
-    logAction_('oauth_connect', siteId, '', '', 'نجاح', '');
-    
-    return htmlPage_('✅ تم الربط', 
-      'تم ربط موقعك بحساب Google Ads بنجاح!<br><br>' +
-      'يمكنك إغلاق الصفحة والعودة للموقع.');
-      
-  } catch (err) {
-    Logger.log('Callback error: ' + err);
-    logAction_('oauth_connect', siteId, '', '', 'فشل', String(err));
-    return htmlPage_('❌ خطأ', String(err));
-  }
+// من القايمة أو من المحرر: اختار الموقع ← يطلع اللينك (ابعته للعميل في خلال 15 دقيقة)
+function menuAdsConnectLink() {
+  var ui = SpreadsheetApp.getUi();
+  var all = PropertiesService.getScriptProperties().getProperties(), sites = [];
+  Object.keys(all).forEach(function (k) {
+    if (k.indexOf('SITE_') !== 0) return;
+    var rec; try { rec = JSON.parse(all[k]); } catch (e) { return; }
+    if (rec && rec.k) sites.push({ id: k.slice(5), name: rec.n || k.slice(5) });
+  });
+  if (!sites.length) { ui.alert('مفيش مواقع مربوطة.'); return; }
+  var list = sites.map(function (s, i) { return (i + 1) + '. ' + s.name; }).join('\n');
+  var r = ui.prompt('🔗 لينك ربط جوجل أدز', 'لأنهي موقع؟ اكتب الرقم:\n' + list, ui.ButtonSet.OK_CANCEL);
+  if (r.getSelectedButton() !== ui.Button.OK) return;
+  var s = sites[Number(r.getResponseText().trim()) - 1];
+  if (!s) { ui.alert('رقم غلط.'); return; }
+  var link;
+  try { link = adsConnectLink_(s.id); } catch (e) { ui.alert('❌ ' + (e && e.message || e)); return; }
+  ui.alert('لينك ربط «' + s.name + '» (صالح 15 دقيقة، ومايتبعتش غير لصاحب حساب الإعلانات):\n\n' + link);
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -336,6 +195,15 @@ function htmlPage_(title, message) {
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
 
+// مقارنة بوقت ثابت (علشان التوقيت مايكشفش التوقيع)
+function oauthSafeEqual_(a, b) {
+  a = String(a || ''); b = String(b || '');
+  if (a.length !== b.length) return false;
+  var r = 0;
+  for (var i = 0; i < a.length; i++) r |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return r === 0;
+}
+
 function computeHmac_(message, secret) {
   var signature = Utilities.computeHmacSha256Signature(message, secret);
   return signature.map(function(byte) {
@@ -404,10 +272,12 @@ function testOAuthSetup() {
   
   // 4. الموقع الاختباري
   var props = PropertiesService.getScriptProperties();
-  var testSite = 'wyzm54ieKtSy';
-  var rec = siteRec_(testSite, props);
+  var testSite = String(getConfigValue_('TEST_SITE_ID') || '').trim();
+  var rec = testSite ? siteRec_(testSite, props) : null;
   report.push('📋 الموقع الاختباري:');
-  if (rec) {
+  if (!testSite) {
+    report.push('— مفيش TEST_SITE_ID في _Config');
+  } else if (rec) {
     report.push('✅ ' + rec.n + ' (' + testSite + ')');
   } else {
     report.push('❌ ' + testSite + ' مش مسجل');
@@ -421,56 +291,6 @@ function testOAuthSetup() {
   } catch (e) {}
   
   return text;
-}
-
-// ═══════════════════════════════════════════════════════════
-// صفحة اختبار OAuth — تفتح الـ OAuth URL من جوه صفحة HTML
-// ═══════════════════════════════════════════════════════════
-
-function testOAuthPage() {
-  var clientId = getConfigValue_('GOOGLE_CLIENT_ID');
-  var scopes = getConfigValue_('SCOPES') || 'https://www.googleapis.com/auth/adwords';
-  var redirectUri = getRedirectUri_();
-  var testSiteId = getConfigValue_('TEST_SITE_ID') || 'wyzm54ieKtSy';
-  
-  if (!clientId) {
-    return HtmlService.createHtmlOutput('<h1>❌ GOOGLE_CLIENT_ID مش موجود</h1>');
-  }
-  
-  var authUrl = 'https://accounts.google.com/o/oauth2/v2/auth' +
-    '?client_id=' + encodeURIComponent(clientId) +
-    '&redirect_uri=' + encodeURIComponent(redirectUri) +
-    '&response_type=code' +
-    '&scope=' + encodeURIComponent(scopes) +
-    '&access_type=offline' +
-    '&prompt=consent' +
-    '&state=' + encodeURIComponent(testSiteId);
-  
-  var html = '<!DOCTYPE html><html><head><meta charset="UTF-8">' +
-    '<title>اختبار OAuth</title>' +
-    '<style>' +
-    'body{font-family:Arial;text-align:center;padding:40px;direction:rtl;background:#f5f5f5;}' +
-    '.box{background:white;border-radius:12px;padding:40px;max-width:600px;margin:0 auto;box-shadow:0 2px 12px rgba(0,0,0,0.1);}' +
-    'h1{color:#1a73e8;}' +
-    'a.btn{display:inline-block;background:#1a73e8;color:white;padding:15px 40px;border-radius:8px;text-decoration:none;font-size:18px;font-weight:bold;margin-top:20px;}' +
-    'a.btn:hover{background:#0d5dbb;}' +
-    '.info{text-align:right;background:#f8f9fa;padding:15px;border-radius:8px;margin:20px 0;font-size:14px;}' +
-    '</style></head><body>' +
-    '<div class="box">' +
-    '<h1>🔗 اختبار ربط Google Ads</h1>' +
-    '<p>اضغط الزرار ده لبدء عملية الربط بحساب Google Ads.</p>' +
-    '<div class="info">' +
-    '<b>معلومات:</b><br>' +
-    '• Site ID: <code>' + testSiteId + '</code><br>' +
-    '• Redirect URI: <code>' + redirectUri + '</code><br>' +
-    '• سجّل دخول بـ: <code>may.pharmatrone@gmail.com</code>' +
-    '</div>' +
-    '<a class="btn" href="' + authUrl + '">🚀 ابدأ الربط</a>' +
-    '</div></body></html>';
-  
-  return HtmlService.createHtmlOutput(html)
-    .setTitle('اختبار OAuth')
-    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -499,7 +319,7 @@ function handleSaveToken_(data, props) {
   }
   var expected = computeHmac_(siteId + ':' + refreshToken, hmacSecret);
   
-  if (signature !== expected) {
+  if (!oauthSafeEqual_(signature, expected)) {
     Logger.log('❌ save_token: invalid signature for ' + siteId);
     logAction_('save_token_from_render', siteId, '', '', 'فشل', 'invalid_signature');
     return json_({ ok: false, error: 'invalid_signature' });
