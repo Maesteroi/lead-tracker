@@ -150,6 +150,11 @@ class LTP_Pair {
         exit;
     }
 
+    // 2.11.3: مربوط بس بالطريقة القديمة (الشيت)، مش بسيرفر Maestro
+    public static function legacy_paired() {
+        return self::is_paired() && (string) LTP_Core::get('pair_source', '') !== 'server';
+    }
+
     public static function connect_link() {
         return wp_nonce_url(admin_url('admin-post.php?action=ltp_connect'), 'ltp_connect');
     }
@@ -347,6 +352,10 @@ class LTP_Pair {
                 <?php // 2.11.0: الطريق الأساسي: زرار واحد ?>
                 <p style="margin:14px 0;"><a class="button button-primary button-hero" href="<?php echo esc_url(self::connect_link()); ?>">🔗 اربط بـ Maestro LT</a></p>
                 <p class="description">هتسجّل دخول بجوجل (لو مش داخل) وتضغط «نعم، اربط». مفيش نسخ ولصق.</p>
+            <?php elseif (self::legacy_paired()): ?>
+                <?php // 2.11.3: موقع مربوط بالشيت القديم: نفس الزرار ينقله للسيرفر ?>
+                <p style="margin:14px 0;"><a class="button button-primary" href="<?php echo esc_url(self::connect_link()); ?>">🔗 انقل الربط لـ Maestro LT</a></p>
+                <p class="description">⚠️ بعد النقل الأحداث بتروح لسيرفر Maestro LT بس، والشيت القديم بيقف للموقع ده.</p>
             <?php elseif (isset($_GET['connected'])): ?>
                 <p style="color:#00a32a;"><strong>✅ الموقع اتربط بحسابك على Maestro LT.</strong></p>
             <?php endif; ?>

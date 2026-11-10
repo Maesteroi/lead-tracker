@@ -10,7 +10,7 @@ const { chromium } = require('playwright');
 const PUB = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../public');
 const SHOTS = process.argv[2] || '';
 const headersFile = fs.readFileSync(path.join(PUB, '_headers'), 'utf8').split('\n').slice(1).map((l) => l.trim()).filter(Boolean).map((l) => [l.slice(0, l.indexOf(':')), l.slice(l.indexOf(':') + 1).trim()]);
-const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml' };
+const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.webp': 'image/webp' };
 const NONCE = 'n0nce-from-the-wordpress-site-0001';
 const CONFIRM = 'https://rawda.site/wp-json/lt/v1/pair-confirm';
 const RETURN = 'https://rawda.site/wp-admin/admin.php?page=lead-tracker-settings&connected=1';

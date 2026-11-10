@@ -74,7 +74,7 @@ a:not(.btn) { color: var(--accent); }
 .points { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 14px; }
 .points li { position: relative; padding-inline-start: 34px; line-height: 1.6; }
 .points li::before { content: ""; position: absolute; inset-inline-start: 0; top: 3px; width: 22px; height: 22px; border-radius: 50%; background: rgba(255, 255, 255, .16) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23fff' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 12.5l4 4 8-9'/%3E%3C/svg%3E") center / 14px no-repeat; }
-.mobile-only { display: none; }
+
 .card.login h1 { font-size: 28px; margin-top: 4px; }
 .btn.google { display: flex; align-items: center; justify-content: center; gap: 12px; background: #fff; color: #1f2937; border: 1px solid #c9d3e3; box-shadow: 0 1px 2px rgba(0, 0, 0, .06); margin: 18px 0 14px; }
 .btn.google:hover { background: #f6f9ff; filter: none; }
@@ -83,6 +83,15 @@ a:not(.btn) { color: var(--accent); }
 @media (max-width: 760px) {
   .split { grid-template-columns: 1fr; max-width: 480px; }
   .panel { display: none; }
-  .mobile-only { display: inline-flex; }
   .split .card { padding: 32px 22px; }
+}
+
+/* ── اللوجو ── */
+.logo-full { display: block; width: 200px; max-width: 70%; height: auto; margin: 0 auto 10px; }
+.card.login .logo-full { margin: 0 0 14px; margin-inline-start: 0; }
+.brand .mark { width: 36px; height: 36px; display: block; }
+.mark-tile { display: inline-grid; place-items: center; width: 46px; height: 46px; border-radius: 12px; background: #fff; }
+.mark-tile .mark { width: 34px; height: 34px; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .logo-full { background: #fff; border-radius: 14px; padding: 8px 12px; }
 }
