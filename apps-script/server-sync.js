@@ -83,24 +83,42 @@ function menuClientConsents() {
   ui.alert('✅ اتسجلت الموافقات لـ«' + s.name + '».\nتسجيل المكالمات: ' + (j.consents.call_recording && j.consents.call_recording.on ? 'متفعّل' : 'مقفول'));
 }
 
-// التشغيل الموازي: زيارات وضغطات امبارح في الشيت مقابل السيرفر
-function compareServerDaily() {
+// التشغيل الموازي: زيارات وضغطات امبارح في الشيت مقابل السيرفر.
+// v3.14.2: كانت بتفتح شيت كل موقع شغّال (10 مواقع) وبتعدّي حد 6 دقايق وتفشل من غير ما تبعت حاجة (11 نوفمبر).
+// دلوقتي: السيرفر الأول (طلب سريع لكل موقع)، والشيت بيتفتح بس للمواقع اللي عليها أحداث على السيرفر (اللي على النسخة الموازية)،
+// بالترتيب من الأكتر أحداثاً، وبميزانية وقت (4 دقايق، أو COMPARE_BUDGET_MS)؛ اللي ما لحقش بيتذكر بالاسم في الرسالة.
+// dayOverride (اختياري، yyyy-MM-dd) للتشغيل اليدوي ليوم معيّن. من التريجر بيتنادى بكائن حدث، فبيتجاهل ويستخدم «امبارح».
+function compareServerDaily(dayOverride) {
   var c;
   try { c = serverConf_(); } catch (e) { return; }
+  var t0 = Date.now();
+  var budget = Number(c.props.getProperty('COMPARE_BUDGET_MS'));
+  if (!(budget >= 0) || c.props.getProperty('COMPARE_BUDGET_MS') === null) budget = 240000;
   var tz = c.props.getProperty('TIMEZONE') || 'Africa/Cairo';
-  var day = Utilities.formatDate(new Date(Date.now() - 86400000), tz, 'yyyy-MM-dd');
+  var day = (typeof dayOverride === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dayOverride)) ? dayOverride : Utilities.formatDate(new Date(Date.now() - 86400000), tz, 'yyyy-MM-dd');
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var lines = ['🖥️ <b>التشغيل الموازي — ' + day + '</b> (الشيت ↔ السيرفر)'];
+  var rows = [], idle = [];
   serverSites_(c.props).filter(function (s) { return s.status === 'on'; }).forEach(function (s) {
     try {
       var j = serverCall_('get', '/v1/admin/compare?client_id=' + encodeURIComponent(s.id) + '&date=' + day);
-      var sheet = sheetCounts_(ss, s.id, day);
-      var sv = { pv: j.counts.page_view || 0, cl: j.counts.click || 0 };
-      var pct = function (a, b) { return Math.max(a, b) === 0 ? 100 : Math.round(100 * Math.min(a, b) / Math.max(a, b)); };
-      var p1 = pct(sheet.pv, sv.pv), p2 = pct(sheet.cl, sv.cl);
-      lines.push((p1 >= 99 && p2 >= 99 ? '✅ ' : '⚠️ ') + esc_(s.name) + ': زيارات ' + sheet.pv + '/' + sv.pv + ' · ضغطات ' + sheet.cl + '/' + sv.cl);
+      if (!(Number(j.total) > 0)) idle.push(s.name); else rows.push({ s: s, j: j });
     } catch (e) { lines.push('⛔ ' + esc_(s.name) + ': ' + esc_(String(e.message || e).slice(0, 120))); }
   });
+  rows.sort(function (a, b) { return b.j.total - a.j.total; });
+  var skipped = [];
+  rows.forEach(function (r) {
+    if (Date.now() - t0 >= budget) { skipped.push(r.s.name); return; }
+    try {
+      var sheet = sheetCounts_(ss, r.s.id, day);
+      var sv = { pv: r.j.counts.page_view || 0, cl: r.j.counts.click || 0 };
+      var pct = function (a, b) { return Math.max(a, b) === 0 ? 100 : Math.round(100 * Math.min(a, b) / Math.max(a, b)); };
+      var p1 = pct(sheet.pv, sv.pv), p2 = pct(sheet.cl, sv.cl);
+      lines.push((p1 >= 99 && p2 >= 99 ? '✅ ' : '⚠️ ') + esc_(r.s.name) + ': زيارات ' + sheet.pv + '/' + sv.pv + ' · ضغطات ' + sheet.cl + '/' + sv.cl);
+    } catch (e) { lines.push('⛔ ' + esc_(r.s.name) + ': ' + esc_(String(e.message || e).slice(0, 120))); }
+  });
+  if (idle.length) lines.push('⚪ من غير أحداث على السيرفر (مش على النسخة الموازية): ' + idle.map(esc_).join('، '));
+  if (skipped.length) lines.push('⏱ ماتقارنش (الوقت خلص): ' + skipped.map(esc_).join('، ') + ' — شغّل الدالة تاني');
   sendTelegramText_(c.props, lines.join('\n'));
 }
 
