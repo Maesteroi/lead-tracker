@@ -4,7 +4,7 @@ Tags: analytics, tracking, google-ads, whatsapp, lead-tracking
 Requires at least: 5.8
 Tested up to: 6.5
 Requires PHP: 7.4
-Stable tag: 2.11.0
+Stable tag: 2.11.1
 License: GPLv2 or later
 
 تتبع احترافي لكل زيارة ونقرة اتصال/واتساب — Google Sheet + Telegram.
@@ -25,6 +25,8 @@ Lead Tracker Pro يسجّل:
 4. الصق Webhook URL و SECRET
 
 == Changelog ==
+= 2.11.1 =
+* إصلاح: ضغطة الاتصال بقى ليها كود مطابقة خاص بيها، فأزرار النتيجة (تم · بيفكر · لغى...) بتظهر على تنبيه تليجرام للاتصال زي الواتساب (كانت بتظهر للواتساب بس)
 = 2.11.0 =
 * جديد (S03): زرار «اربط بـ Maestro LT» (3 ضغطات: الزرار ← دخول جوجل ← «نعم، اربط») بدل نسخ ولصق الكود. الكود القصير لسه موجود كبديل
 = 2.10.0 =
