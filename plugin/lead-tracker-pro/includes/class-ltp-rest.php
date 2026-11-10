@@ -250,14 +250,18 @@ class LTP_Rest {
                 'ua'      => $ua,
             ];
 
-            wp_remote_post($webhook, [
-                'blocking'    => false,
-                'timeout'     => 3,
-                'redirection' => 0,
-                'headers'     => ['Content-Type' => 'application/json'],
-                'body'        => wp_json_encode($payload),
-            ]);
-            LTP_Core::mirror($payload);   // 2.9.0: نسخة للسيرفر (لو متفعّل)
+            if (LTP_Core::is_server_url($webhook)) {
+                LTP_Core::send_reliable($webhook, $payload);   // 2.11.2: السيرفر: إرسال موثوق (بعد الطلب + إعادة محاولة)
+            } else {
+                wp_remote_post($webhook, [   // الشيت (القديم): زي ما هو
+                    'blocking'    => false,
+                    'timeout'     => 3,
+                    'redirection' => 0,
+                    'headers'     => ['Content-Type' => 'application/json'],
+                    'body'        => wp_json_encode($payload),
+                ]);
+            }
+            LTP_Core::mirror($payload);   // 2.9.0: نسخة للسيرفر (لو متفعّل ولو الأساسي مش السيرفر)
         }
 
         return $ok;

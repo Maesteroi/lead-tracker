@@ -41,6 +41,8 @@ jobs:
         run: node --test test/static.test.js
       - name: البلجن — اختبار الربط بكود (PHP)
         run: php tests/test-plugin-pair.php
+      - name: البلجن — اختبار الإرسال الموثوق للسيرفر (PHP)
+        run: php tests/test-plugin-delivery.php
       - name: البلجن — فحص كتابة PHP
         run: |
           fail=0
