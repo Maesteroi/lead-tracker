@@ -9,11 +9,18 @@ if (!defined('ABSPATH')) exit;
  *      ⇒ لو حد ادّعى إنه موقع تاني، الموقع الحقيقي مش هيلاقي الرقم عنده فيرفض
  *   3) البلجن يحفظ المفتاح. لو التأكيد ماوصلش (حماية على الموقع): «مستني تأكيد» عند محمود
  * لو مااتربطش: بيحاول تاني لوحده كل ساعة.
+ *
+ * 2.10.0 (S03، الخيار ب): ربط بكود قصير على سيرفر Maestro LT نفسه (مش الشيت):
+ *   1) العميل يكتب الكود (8 حروف) اللي طلع له في لوحة Maestro
+ *   2) البلجن ← السيرفر: «الكود ده + الرقم المؤقت (n) + عنوان التأكيد بتاع موقعي»
+ *   3) السيرفر يتأكد من الكود ومن إن العنوان تابع لدومين الموقع المسجّل، وبعدين يبعت المفتاح للموقع نفسه (pair-confirm)
+ *      مع نفس الرقم المؤقت. المفتاح مابيرجعش في رد الطلب أبداً.
  */
 class LTP_Pair {
 
     private static $instance = null;
     const NONCE_TTL = 900; // 15 دقيقة
+    const SERVER_ORIGIN = 'https://api.maestrolt.com';
 
     public static function instance() {
         if (self::$instance === null) self::$instance = new self();
@@ -26,6 +33,7 @@ class LTP_Pair {
         add_action('ltp_autopair', [$this, 'cron_pair']);
         add_action('ltp_autopair_now', [$this, 'cron_pair']);
         add_action('admin_post_ltp_pair_now', [$this, 'pair_now_button']);
+        add_action('admin_post_ltp_pair_code', [$this, 'pair_code_button']);
         add_action('admin_notices', [$this, 'notice']);
     }
 
@@ -87,12 +95,33 @@ class LTP_Pair {
         $secret = preg_replace('/[^A-Za-z0-9]/', '', (string) ($p['secret'] ?? ''));
         if (strlen($secret) < 32) return new WP_REST_Response(['ok' => false], 400);
 
-        self::store($secret, $p);
+        // 2.10.0: لو التأكيد جاي من سيرفر Maestro، لازم يكون السيرفر المعروف للبلجن بالظبط (مش أي عنوان)
+        $server = isset($p['server']) ? rtrim((string) $p['server'], '/') : '';
+        if ($server !== '' && !hash_equals(self::server_origin(), $server)) {
+            delete_option('ltp_pair_nonce');
+            return new WP_REST_Response(['ok' => false], 403);
+        }
+
+        self::store($secret, $p, $server !== '');
         delete_option('ltp_pair_nonce');
         return new WP_REST_Response(['ok' => true, 'site_id' => LTP_Core::get('site_id')], 200);
     }
 
-    private static function store($secret, $p) {
+    // عنوان السيرفر المعروف. بيتغيّر بفلتر للتجربة بس، وبيتقبل https بس
+    public static function server_origin() {
+        $o = rtrim((string) apply_filters('ltp_server_origin', self::SERVER_ORIGIN), '/');
+        return strpos($o, 'https://') === 0 ? $o : self::SERVER_ORIGIN;
+    }
+
+    private static function store($secret, $p, $server_mode = false) {
+        if ($server_mode) {
+            // الموقع بقى بيبعت للسيرفر مباشرة (من غير الشيت): العنوان ودومينه، ومن غير نسخة تانية للسيرفر
+            $o = self::server_origin();
+            LTP_Core::set('server_host', (string) wp_parse_url($o, PHP_URL_HOST));
+            LTP_Core::set('webhook_url', $o . '/v1/events');
+            LTP_Core::set('server_mirror', 0);
+            LTP_Core::set('pair_source', 'server');
+        }
         LTP_Core::set('webhook_secret', $secret);
         $sid = preg_replace('/[^A-Za-z0-9_-]/', '', (string) ($p['site_id'] ?? ''));
         if ($sid !== '') LTP_Core::set('site_id', $sid);               // نفس الموقع اتركّب تاني ← يكمّل على بياناته القديمة
@@ -186,12 +215,65 @@ class LTP_Pair {
         exit;
     }
 
+    // ─── 2.10.0: ربط بكود من لوحة Maestro (السيرفر الجديد) ───
+    // بيرجّع الحالة: paired · code · bad_code · domain_mismatch · site_unreachable · network · bad_reply
+    public static function pair_with_code($code) {
+        $code = strtoupper(preg_replace('/[^A-Za-z0-9]/', '', (string) $code));
+        if (strlen($code) !== 8) { LTP_Core::set('pair_state', 'bad_code'); return 'bad_code'; }
+
+        $n = wp_generate_password(40, false, false);
+        update_option('ltp_pair_nonce', ['n' => $n, 't' => time()], false);
+        LTP_Core::set('pair_tried_at', current_time('mysql'));
+
+        // بلوكنج: السيرفر بيكلّم الموقع نفسه (pair-confirm) أثناء الطلب ده، فالمفتاح بيتحفظ قبل ما الرد يرجع
+        $res = wp_remote_post(self::server_origin() . '/v1/plugin/pair', [
+            'timeout'     => 30,
+            'blocking'    => true,
+            'redirection' => 0,
+            'headers'     => ['Content-Type' => 'application/json'],
+            'body'        => wp_json_encode([
+                'code'           => $code,
+                'nonce'          => $n,
+                'confirm_url'    => rest_url('lt/v1/pair-confirm'),
+                'plugin_version' => LTP_VERSION,
+            ]),
+        ]);
+        wp_cache_delete('ltp_webhook_secret', 'options');
+        wp_cache_delete('alloptions', 'options');
+
+        if (is_wp_error($res)) { delete_option('ltp_pair_nonce'); LTP_Core::set('pair_state', 'network'); return 'network'; }
+        $status = (int) wp_remote_retrieve_response_code($res);
+        $j = json_decode(wp_remote_retrieve_body($res), true);
+        if ($status === 200 && is_array($j) && !empty($j['ok'])) {
+            if (self::is_paired()) return 'paired';           // التأكيد وصل وحفظ المفتاح
+            LTP_Core::set('pair_state', 'bad_reply');          // السيرفر قال تمام والموقع ماحفظش: حاجة غلط في الاتصال
+            return 'bad_reply';
+        }
+        delete_option('ltp_pair_nonce');
+        $err = is_array($j) ? preg_replace('/[^a-z_]/', '', (string) ($j['error'] ?? '')) : '';
+        $state = ['code' => 'code', 'domain_mismatch' => 'domain_mismatch', 'site_unreachable' => 'site_unreachable', 'bad_request' => 'bad_code'][$err] ?? 'bad_reply';
+        LTP_Core::set('pair_state', $state);
+        return $state;
+    }
+
+    public function pair_code_button() {
+        if (!current_user_can('manage_options')) wp_die('ممنوع');
+        check_admin_referer('ltp_pair_code', '_ltp_pc_nonce');
+        $s = self::pair_with_code(sanitize_text_field(wp_unslash($_POST['pair_code'] ?? '')));
+        wp_safe_redirect(admin_url('admin.php?page=lead-tracker-settings&pairtry=' . rawurlencode($s)));
+        exit;
+    }
+
     public static function state_text($s) {
         $map = [
             'paired'    => '✅ مربوط',
             'pending'   => '⏳ اتسجّل، ومستني تأكيد من مقدّم الخدمة (حماية على الموقع منعت التأكيد الأوتوماتيك).',
             'disabled'  => '⛔ الموقع ده موقوف من مقدّم الخدمة.',
-            'no_hub'    => '❌ عنوان الاستقبال مش موجود في البلجن — نزّل البلجن من المصدر الأصلي.',
+            'no_hub'    => '⚪ اكتب كود الربط من لوحة Maestro LT في الحقل اللي تحت.',
+            'code'      => '❌ الكود غلط أو انتهى أو اتستعمل. اطلب كود جديد من لوحة Maestro LT (بيتجدد ويصلح 15 دقيقة).',
+            'bad_code'  => '❌ الكود مكتوب غلط: لازم 8 حروف وأرقام (زي K7M2-QX9P).',
+            'domain_mismatch' => '❌ دومين الموقع ده مش نفس الدومين المسجّل في لوحة Maestro LT لموقعك.',
+            'site_unreachable' => '❌ سيرفر Maestro مقدرش يوصل لموقعك علشان يأكد الربط. غالباً بلجن أمان أو جدار حماية بيقفل REST API (المسار /wp-json/lt/v1/pair-confirm). اسمح بيه وحاول تاني بنفس الكود (لسه صالح).',
             'network'   => '🔄 مقدرناش نوصل للاستقبال — هنحاول تاني لوحدنا كل ساعة.',
             'bad_reply' => '🔄 الرد من الاستقبال مش مفهوم — هنحاول تاني لوحدنا كل ساعة.',
             'busy'      => '🔄 محاولات كتير في نفس الوقت — هنحاول تاني لوحدنا كل ساعة.',
@@ -218,6 +300,17 @@ class LTP_Pair {
             <p><?php echo esc_html(self::state_text($s)); ?>
                 <?php if ($paired && LTP_Core::get('paired_at') !== '') echo ' · من ' . esc_html(LTP_Core::get('paired_at')); ?>
             </p>
+            <?php // 2.10.0: الربط بكود من لوحة Maestro LT ?>
+            <?php if ($paired): ?><details><summary>ربط بكود جديد من لوحة Maestro LT</summary><p class="description">⚠️ لو الموقع كان مربوط بالشيت، الربط بكود هيخلّي الأحداث تروح للسيرفر الجديد بس.</p><?php endif; ?>
+            <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="margin:10px 0;">
+                <input type="hidden" name="action" value="ltp_pair_code">
+                <?php wp_nonce_field('ltp_pair_code', '_ltp_pc_nonce'); ?>
+                <label for="ltp_pair_code"><strong>كود الربط من لوحة Maestro LT</strong></label><br>
+                <input type="text" name="pair_code" id="ltp_pair_code" class="regular-text" dir="ltr" maxlength="9" placeholder="K7M2-QX9P" autocomplete="off" style="font-family:monospace;letter-spacing:2px;">
+                <button type="submit" class="button button-primary">اربط</button>
+                <p class="description">الكود صالح 15 دقيقة ومرة واحدة. من اللوحة: مواقعي ← الموقع ← «كود الربط».</p>
+            </form>
+            <?php if ($paired): ?></details><?php endif; ?>
             <?php if (!$paired): ?>
                 <?php $t = LTP_Core::get('pair_tried_at'); if ($t !== '') echo '<p class="description">آخر محاولة: ' . esc_html($t) . '</p>'; ?>
                 <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">

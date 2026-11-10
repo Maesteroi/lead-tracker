@@ -52,14 +52,15 @@
 - **المواقع:** `POST /v1/sites` (owner/admin) بيولّد Site ID ومفتاح `ltk_…` **بيتعرض مرة واحدة** وبيتخزن هاشه بس · `GET /v1/sites` · `POST /v1/sites/<id>/rotate-key` · `GET /v1/sites/<id>/install-status`.
 - **عزل العملاء:** موقع مش بتاع حسابك = **404** (مش 403)، وصلاحية العضو ممكن تتحدد بمواقع معينة.
 - **الإعدادات (Cloudflare ← Variables and Secrets، كلهم Secret):** `GOOGLE_SIGNIN_CLIENT_ID` · `GOOGLE_SIGNIN_CLIENT_SECRET` · `SESSION_SECRET` (32 حرف أو أكتر). اختياري: `APP_ORIGIN` · `AUTH_REDIRECT_URI` · `COOKIE_DOMAIN` · `TRIAL_DAYS` (14) · `MAX_SITES_TRIAL` (3).
+- **ربط البلجن بكود قصير (S03، الخيار ب):** اللوحة بتطلّع كود 8 حروف (`POST /v1/sites/<id>/pair-code`، صالح 15 دقيقة ومرة واحدة، بيتخزن هاشه بس). العميل يكتبه في البلجن (2.10+) ← البلجن يبعت `POST /v1/plugin/pair {code, nonce, confirm_url}` ← السيرفر يتأكد من الكود ومن إن عنوان التأكيد **https وتابع لدومين الموقع المسجّل ومسار البلجن بس** ← يولّد مفتاح جديد ويبعته **للموقع نفسه** (`pair-confirm`) مع الـnonce اللي الموقع حافظه. **المفتاح مابيرجعش في رد الطلب.** لو الموقع ماأكدش: المفتاح القديم بيرجع والكود يفضل شغال. 5 محاولات فاشلة والكود بيموت. جداول `0004_site_pairing.sql`.
 - **فحص الإعدادات من غير ما نشوف أي قيمة:** `GET /v1/admin/auth/status` (بمفتاح الإدارة) بيرجّع أسماء الناقص بس.
-- **التشغيل:** تشغيل `0003_accounts.sql` في Supabase ← النشر. من غير الأسرار الثلاثة الدخول بيرجّع 503 ومايعملش حاجة.
+- **التشغيل:** تشغيل `0003_accounts.sql` ثم `0004_site_pairing.sql` في Supabase ← النشر. من غير الأسرار الثلاثة الدخول بيرجّع 503 ومايعملش حاجة.
 
 ## الملفات
 - `src/index.js` المسارات · `events.js` البلجن · `device.js` التطبيق · `admin.js` الإدارة · `matching.js` المطابقة · `ai.js` الذكاء الاصطناعي · `cron.js` المهام الدورية · `db.js` Supabase · `util.js`
-- الدخول والمواقع: `auth.js` · `sites.js` · `app.js`
+- الدخول والمواقع: `auth.js` · `sites.js` · `app.js` · `pairing.js` (ربط البلجن بكود)
 - جوجل أدز: `ads.js` السحب والتنبيهات والعداد · `gads.js` الاتصال بالـAPI والاستعلامات · `crypto.js` تشفير التوكنات · `telegram.js`
-- `supabase/migrations/0001_init.sql` الجداول · `0002_ads.sql` جداول جوجل أدز · `0003_accounts.sql` الحسابات والجلسات
+- `supabase/migrations/0001_init.sql` الجداول · `0002_ads.sql` جداول جوجل أدز · `0003_accounts.sql` الحسابات والجلسات · `0004_site_pairing.sql` أكواد الربط
 - `test/` اختبارات بمحاكي لـSupabase (`fake-supabase.js`) ولجوجل أدز بقواعده الرسمية (`fake-google.js`): `npm test`
 
 ## التركيب (مرة واحدة · 👤 محمود)

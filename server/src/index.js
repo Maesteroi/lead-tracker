@@ -8,6 +8,7 @@ import { pairDevice, authDevice, heartbeat, postCalls, postMessages, putRecordin
 import { runScheduled } from './cron.js';
 import { saveCredentials, setBackfill, adsStatus, reportUsage, adsTick } from './ads.js';
 import { handleApp, isAppPath, authStatus } from './app.js';
+import { pluginPair } from './pairing.js';
 
 export const VERSION = '1.0.0';
 
@@ -21,6 +22,7 @@ export async function route(req, env, fetchImpl) {
   try {
     if (m === 'POST' && p === '/v1/events') return await handleEvent(req, env, db);
     if (m === 'POST' && p === '/v1/device/pair') return await pairDevice(req, env, db);
+    if (m === 'POST' && p === '/v1/plugin/pair') return await pluginPair(req, env, db, fetchImpl);
 
     // اللوحة: الدخول بجوجل · الجلسة · المواقع (S03)
     if (isAppPath(p)) return await handleApp(req, env, db, url, p, fetchImpl);

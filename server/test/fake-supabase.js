@@ -3,7 +3,7 @@
 
 const SERIAL = new Set(['raw_events', 'contact_clicks', 'messages', 'outcomes', 'ai_calls', 'ads_clicks', 'ads_search_terms', 'ads_campaign_daily', 'ads_account_health', 'ads_pull_runs', 'auth_events']);
 const DEFAULTS = {
-  clients: () => ({ org_id: null, domains: [], created_at: new Date().toISOString(), status: 'on', timezone: 'Asia/Riyadh', country_code: '966', thresholds: { serious_call_s: 120, weak_call_s: 30, wa_match_min: 10, call_match_s: 90 }, consents: {}, ai_budget_month: 10 }),
+  clients: () => ({ paired_at: null, org_id: null, domains: [], created_at: new Date().toISOString(), status: 'on', timezone: 'Asia/Riyadh', country_code: '966', thresholds: { serious_call_s: 120, weak_call_s: 30, wa_match_min: 10, call_match_s: 90 }, consents: {}, ai_budget_month: 10 }),
   devices: () => ({ status: 'on', health: {} }),
   persons: () => ({ stage: 'new', known_to_client: false, first_click_id: null }),
   conversations: () => ({ analysis_round: 0, match_method: 'none', match_confidence: 'none', first_reply_s: null, channel: 'wa' }),
@@ -11,6 +11,7 @@ const DEFAULTS = {
   recordings: () => ({ status: 'pending' }),
   pair_codes: () => ({ used_at: null }),
   raw_events: () => ({ received_at: new Date().toISOString() }),
+  site_pair_codes: () => ({ used_at: null, attempts: 0 }),
   users: () => ({ name: null, locale: null, last_login_at: null }),
   organizations: () => ({ type: 'business', status: 'trial', trial_ends_at: null }),
   memberships: () => ({ site_ids: null }),
@@ -19,7 +20,7 @@ const DEFAULTS = {
 };
 const UNIQUE = {
   clients: [['id']], devices: [['token_hash']], pair_codes: [['code']],
-  users: [['google_sub']], memberships: [['user_id', 'org_id']], sessions: [['token_hash']],
+  site_pair_codes: [['code_hash']], users: [['google_sub']], memberships: [['user_id', 'org_id']], sessions: [['token_hash']],
   raw_events: [['client_id', 'dedupe_key']], contact_clicks: [['client_id', 'match_code', 'type']],
   persons: [['client_id', 'phone_e164']], messages: [['conversation_id', 'dedupe_key']],
   calls: [['device_id', 'started_at', 'phone_e164', 'NND']],

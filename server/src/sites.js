@@ -1,6 +1,6 @@
 // مواقع الحساب (S03): إضافة موقع · قايمة المواقع · تدوير المفتاح · حالة التركيب.
 // كل دالة بتتأكد إن صاحب الجلسة عضو في حساب الموقع (وصلاحية الموقع نفسه). أي موقع مش بتاعه = 404 (مش 403، علشان مايتخمّنش وجوده).
-// المفتاح بيتولّد هنا ويتعرض مرة واحدة بس، ومابيتخزنش غير هاش (زي ما البلجن والسيرفر متعودين).
+// المفتاح (ltk + 48 حرف/رقم من غير رموز، علشان البلجن مايشيلش منه حاجة) بيتولّد هنا ويتعرض مرة واحدة بس، ومابيتخزنش غير هاش (زي ما البلجن والسيرفر متعودين).
 import { eq } from './db.js';
 import { sha256, json, randomToken } from './util.js';
 import { audit } from './auth.js';
@@ -33,9 +33,9 @@ function canSee(sess, site) {
   const m = membershipFor(sess, site.org_id);
   return !!m && (!m.site_ids || m.site_ids.includes(site.id));
 }
-async function loadSite(db, sess, id) {
+export async function loadSite(db, sess, id) {
   if (!SITE_ID_RE.test(String(id || ''))) return null;
-  const c = await db.one('clients?id=' + eq(id) + '&select=id,name,status,org_id,domains,created_at,timezone,country_code');
+  const c = await db.one('clients?id=' + eq(id) + '&select=id,name,status,org_id,domains,created_at,timezone,country_code,paired_at');
   return c && c.org_id && canSee(sess, c) ? c : null;
 }
 
@@ -72,7 +72,7 @@ export async function createSite(req, env, db, sess) {
   const max = Number(env.MAX_SITES_TRIAL) > 0 ? Number(env.MAX_SITES_TRIAL) : 3;
   if (org.status === 'trial' && existing.length >= max) return json({ ok: false, error: 'site_limit', limit: max }, 409);
   if (existing.some((c) => (c.domains || []).includes(domain))) return json({ ok: false, error: 'domain_exists' }, 409);
-  const id = newSiteId(), key = 'ltk_' + randomToken(24);
+  const id = newSiteId(), key = 'ltk' + randomToken(24);
   const tz = /^[A-Za-z_]+\/[A-Za-z_]+$/.test(String(b.timezone || '')) ? String(b.timezone) : 'Asia/Riyadh';
   const cc = /^\d{1,4}$/.test(String(b.country_code || '')) ? String(b.country_code) : '966';
   await db.insert('clients', [{ id, name, key_hash: await sha256(key), status: 'on', timezone: tz, country_code: cc, org_id: orgId, domains: [domain] }], { returning: false });
@@ -84,7 +84,7 @@ export async function rotateKey(req, env, db, sess, id) {
   const site = await loadSite(db, sess, id);
   if (!site) return notFound();
   if (!MANAGE.has(membershipFor(sess, site.org_id).role)) return json({ ok: false, error: 'forbidden' }, 403);
-  const key = 'ltk_' + randomToken(24);
+  const key = 'ltk' + randomToken(24);
   await db.update('clients?id=' + eq(site.id), { key_hash: await sha256(key) });
   await audit(db, sess.user.id, 'key_rotated', true, site.id);
   return json({ ok: true, key, key_note: 'المفتاح القديم وقف. حطّ الجديد في البلجن.' });
@@ -97,8 +97,8 @@ export async function installStatus(req, env, db, sess, id) {
   const last = await db.one('raw_events?client_id=' + eq(site.id) + '&select=event_time,received_at&order=received_at.desc');
   if (last) {
     const first = await db.one('raw_events?client_id=' + eq(site.id) + '&select=received_at&order=received_at.asc');
-    return json({ ok: true, status: 'connected', first_event_at: first && first.received_at, last_event_at: last.received_at });
+    return json({ ok: true, status: 'connected', paired: !!site.paired_at, first_event_at: first && first.received_at, last_event_at: last.received_at });
   }
   const waited = Math.floor((Date.now() - Date.parse(site.created_at)) / 60000);
-  return json({ ok: true, status: 'waiting', minutes_waiting: waited, hint: waited >= WAIT_HINT_MIN ? 'no_events_yet' : null });
+  return json({ ok: true, status: 'waiting', paired: !!site.paired_at, minutes_waiting: waited, hint: waited >= WAIT_HINT_MIN ? 'no_events_yet' : null });
 }
