@@ -3,6 +3,7 @@ import { eq } from './db.js';
 import { sha256, safeEqual, json, localToIso, tzOffsetMinutes } from './util.js';
 import { enrichEvent } from './geo.js';
 import { notifyEvent, notifyTest } from './notify.js';
+import { saveHealth } from './health.js';
 
 const CONTACT_TYPES = { wa: 'wa', call: 'call', form: 'form', email: 'email' };
 
@@ -55,6 +56,7 @@ export async function handleEvent(req, env, db, ctx, fetchImpl) {
   delete payload.secret;
   const event = String(payload.event || '').slice(0, 40);
   if (!event) return json({ ok: false, error: 'event' }, 400);
+  if (event === 'ltp_health') return saveHealth(db, client, payload);   // بلجن 2.12.2: أعداد التوصيل كل ساعة (مش حدث زائر)
   if (event === 'test') {
     const t = notifyTest(env, client, fetchImpl).catch(() => {});
     if (ctx && typeof ctx.waitUntil === 'function') ctx.waitUntil(t); else await t;

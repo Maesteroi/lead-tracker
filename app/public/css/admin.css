@@ -132,6 +132,7 @@ input.mini { width: 56px; padding: 2px 6px; text-align: center; font-weight: 800
 .d-sites .s-name { font-weight: 700; }
 .d-sites .s-dom { font-size: 13px; color: var(--muted); direction: ltr; unicode-bidi: isolate; display: block; }
 .d-sites .s-num { text-align: end; font-size: 13px; color: var(--muted); white-space: nowrap; }
+.d-sites li.dl { background: var(--bg); padding-block: 8px; border-top-style: dashed; }
 .d-sites .s-num b { color: var(--ink); font-variant-numeric: tabular-nums; }
 .d-foot { border-top: 1px solid var(--line); padding: 14px 22px 18px; background: var(--card); }
 .d-foot .notice { margin: 0 0 12px; font-size: 14px; }

@@ -54,7 +54,7 @@ function overviewData() {
     totals: { orgs: 4, active: 1, trial: 1, attention: 2, sites: 7, ev_24h: 1284, ev_7d: 8031 },
     orgs: [
       { id: 'o-da', name: 'Digital Avenue', status: 'active', plan: 'internal', trial_ends_at: iso(13), max_sites: null, events_policy: 'keep', grace_days: 7, notes: null, created_at: iso(-30), owner: { name: 'محمود', email: 'owner@digital-avenue.example', last_login_at: iso(-0.01) },
-        sites: [site('RAgH4vV49gjd', 'المعقب الذهبي', 'goldenpen.pro', 312, 2011, iso(-0.002)), site('KzFeD6ZXsbYH', 'الانجاز السريع', 'enjaz.biz', 540, 3302, iso(-0.01)), site('uEpXTJ6JhbdN', 'روضة الصالحين', 'rawda.site', 201, 1500, iso(-0.1))],
+        sites: [site('RAgH4vV49gjd', 'المعقب الذهبي', 'goldenpen.pro', 312, 2011, iso(-0.002)), Object.assign(site('KzFeD6ZXsbYH', 'الانجاز السريع', 'enjaz.biz', 540, 3302, iso(-0.01)), { delivery: [{ day: '2026-11-12', local_pv: 60, server_pv: 60, local_click: 9, server_click: 9, pv_pct: 100, ok: true, out: {} }] }), Object.assign(site('uEpXTJ6JhbdN', 'روضة الصالحين', 'rawda.site', 201, 1500, iso(-0.1)), { delivery: [{ day: '2026-11-12', local_pv: 40, server_pv: 38, local_click: 6, server_click: 6, pv_pct: 95, ok: false, out: { failed_first: 3, rejected: 2 } }] })],
         site_count: 3, ev_24h: 1053, ev_7d: 6813, last_at: iso(-0.002), events: { state: 'accepting' }, trial_expired: false },
       { id: 'o-ac', name: 'مؤسسة الأفق للتكييف', status: 'trial', plan: 'trial', trial_ends_at: iso(5), max_sites: null, events_policy: 'grace', grace_days: 7, notes: null, created_at: iso(-9), owner: { name: 'أحمد', email: 'ahmed@ofoq.example', last_login_at: iso(-1) },
         sites: [site('Ofq1Ofq1Ofq1', 'الأفق', 'ofoq-ac.com', 140, 900, iso(-0.05)), site('Ofq2Ofq2Ofq2', 'الأفق جدة', 'ofoq-jed.com', 60, 220, iso(-0.2))], site_count: 2, ev_24h: 200, ev_7d: 1120, last_at: iso(-0.05), events: { state: 'accepting' }, trial_expired: false },
@@ -209,6 +209,7 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
   t('admin: KPIs show the totals', /1,284/.test(await pg.locator('#kpis').innerText()) && /8,031 في 7 أيام/.test(await pg.locator('#kpis').innerText()));
   t('admin: all 4 accounts listed, the ones needing attention first', (await pg.locator('#rows tr').count()) === 4 && /عيادات النخبة|متجر لمسة/.test(await pg.locator('#rows tr').first().innerText()));
   t('admin: an expired trial is labelled as such, and a stopped account as stopped', /التجربة خلصت/.test(await pg.locator('#rows').innerText()) && /موقوف/.test(await pg.locator('#rows').innerText()));
+  t('admin: delivery column shows the worst site of the account (Rawda 95%) and "no report yet" for others', /95%/.test(await pg.locator('#rows tr', { hasText: 'Digital Avenue' }).innerText()) && /لسه مفيش تقرير/.test(await pg.locator('#rows tr', { hasText: 'متجر لمسة' }).innerText()));
   t('admin: telegram card says the bot is on the sheet with 3 waiting, and offers to move it', /على الشيت/.test(await pg.locator('#tg-pill').innerText()) && /3 تحديث مستني/.test(await pg.locator('#tg-meta').innerText()) && await pg.locator('#tg-server').isVisible());
   await shot(pg, 'admin-1-desktop');
   await pg.locator('#q').fill('ofoq');

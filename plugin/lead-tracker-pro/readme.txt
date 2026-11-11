@@ -4,7 +4,7 @@ Tags: analytics, tracking, google-ads, whatsapp, lead-tracking
 Requires at least: 5.8
 Tested up to: 6.5
 Requires PHP: 7.4
-Stable tag: 2.12.1
+Stable tag: 2.12.2
 License: GPLv2 or later
 
 تتبع احترافي لكل زيارة ونقرة اتصال/واتساب — Google Sheet + Telegram.
@@ -25,6 +25,9 @@ Lead Tracker Pro يسجّل:
 4. الصق Webhook URL و SECRET
 
 == Changelog ==
+= 2.12.2 =
+* تقرير التوصيل: كل ساعة البلجن بيبعت للسيرفر عدد الأحداث اللي سجّلها (النهارده وامبارح) وإحصائية الإرسال، علشان السيرفر يقيس لو فيه حدث ماوصلش. أعداد بس، من غير أي بيانات عن الزوار.
+
 = 2.12.1 =
 * «اختبار الاتصال» للمواقع اللي بتبعت للسيرفر: الرسالة بقت بتقول إن سيرفر Maestro LT هو اللي استلم (مش الشيت)، والسيرفر بيبعت «اختبار ناجح» على تليجرام.
 
