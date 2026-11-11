@@ -25,6 +25,15 @@
     { id: 'KzFeD6ZXsbYH', name: 'الإنجاز السريع', domain: 'enjaz.biz', currency: 'ر.س', cpc: 6.2, perDay: 38, seed: 11,
       keywords: ['معقب', 'تعقيب معاملات', 'معقب الرياض', 'استخراج تصريح', 'نقل كفالة', 'تجديد إقامة'],
       campaigns: ['خدمات التعقيب — بحث'] },
+    // عملاء تانيين للوكالة (شاشة «كل العملاء» والتقارير)
+    { id: 'Nkb7Clinic01', name: 'عيادات النخبة للأسنان', domain: 'nokhba-dental.sa', currency: 'ر.س', cpc: 9.4, perDay: 44, seed: 23,
+      keywords: ['تقويم أسنان', 'زراعة أسنان', 'تبييض أسنان', 'عيادة أسنان قريبة', 'ابتسامة هوليود'], campaigns: ['التقويم — بحث', 'الزراعة — بحث'] },
+    { id: 'Afq9Cool0001', name: 'مؤسسة الأفق للتكييف', domain: 'ofoq-ac.com', currency: 'ر.س', cpc: 3.8, perDay: 70, seed: 31,
+      keywords: ['صيانة مكيفات', 'تنظيف مكيفات', 'فني تكييف', 'تركيب مكيف سبليت', 'شحن فريون'], campaigns: ['صيانة — بحث', 'صيانة — خرائط'] },
+    { id: 'Nql4Movers01', name: 'نقل عفش جدة', domain: 'jeddah-movers.com', currency: 'ر.س', cpc: 5.1, perDay: 55, seed: 41,
+      keywords: ['نقل عفش جدة', 'شركة نقل اثاث', 'نقل عفش مع التغليف', 'دينا نقل عفش'], campaigns: ['نقل عفش — بحث'] },
+    { id: 'Lms2Store001', name: 'متجر لمسة للعطور', domain: 'lamsa.store', currency: 'ر.س', cpc: 2.2, perDay: 90, seed: 53,
+      keywords: ['عطور رجالية', 'عطر عود', 'عطور نسائية فخمة', 'بخور'], campaigns: ['متجر — بحث', 'متجر — تسوق'] },
   ];
 
   var REASONS = {
@@ -116,7 +125,7 @@
 
   function protection(r, site, visits) {
     var bad = visits.filter(function (v) { return v.status !== 'real'; });
-    var pending = bad.filter(function (v) { return v.status === 'suspicious'; }).slice(0, 4).map(function (v) {
+    var pending = bad.filter(function (v) { return v.status === 'suspicious'; }).slice(0, site.seed === 7 ? 4 : Math.floor(r() * 4)).map(function (v) {
       return { id: 'p' + v.id, kind: v.net === 'dc' ? 'نطاق IP' : 'جهاز', value: v.ip, score: v.score, reasons: v.reasons, clicks: 2 + Math.floor(r() * 5), cost: Math.round(site.cpc * (2 + r() * 5)), city: v.city };
     });
     var blocked = bad.filter(function (v) { return v.status === 'blocked'; }).slice(0, 8).map(function (v, i) {
@@ -138,8 +147,28 @@
   }
   function sum(list, k) { return list.reduce(function (s, x) { return s + (x[k] || 0); }, 0); }
 
+  // لكل عميل: ملخص الفترة (للوكالة)
+  function summary(siteId, range) {
+    var D = data(siteId), days = inRange(D.days, range), prev = prevRange(D.days, range);
+    var leads = D.leads.filter(function (l) { return l.at.slice(0, 10) >= dayStr(NOW - (range - 1) * DAY); });
+    var won = leads.filter(function (l) { return l.outcome === 'تم'; }).length;
+    var tot = sum(days, 'real') + sum(days, 'suspicious') + sum(days, 'blocked');
+    var bad = sum(days, 'suspicious') + sum(days, 'blocked'), pbad = sum(prev, 'suspicious') + sum(prev, 'blocked');
+    var ptot = sum(prev, 'real') + pbad;
+    var cost = sum(days, 'cost');
+    return { id: D.site.id, name: D.site.name, domain: D.site.domain, currency: D.site.currency,
+      billed: sum(days, 'billed'), cost: cost, saved: sum(days, 'invalid_cost'), bad: bad, visits: tot,
+      bad_pct: tot ? Math.round((bad / tot) * 1000) / 10 : 0, bad_pct_prev: ptot ? Math.round((pbad / ptot) * 1000) / 10 : 0,
+      leads: leads.length, won: won, cpl: won ? Math.round(cost / won) : null,
+      pending: D.protection.pending.length, delivery: D.site.id === 'Nql4Movers01' ? 98.7 : 99.8,
+      ads: D.site.id !== 'Lms2Store001', template: D.site.id !== 'KzFeD6ZXsbYH' };
+  }
+
   window.LTDemo = {
     demo: true,
+    agency: { name: 'وكالة المدار للتسويق', email: 'reports@almadar.agency' },
+    clients: function (range) { return Promise.resolve(SITES.map(function (s) { return summary(s.id, range); })); },
+    summary: function (siteId, range) { return Promise.resolve(summary(siteId, range)); },
     sites: function () { return Promise.resolve(SITES.map(function (s) { return { id: s.id, name: s.name, domain: s.domain, currency: s.currency }; })); },
     overview: function (siteId, range) {
       var D = data(siteId), days = inRange(D.days, range), prev = prevRange(D.days, range);

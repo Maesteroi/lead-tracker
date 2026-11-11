@@ -290,7 +290,7 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
   await shot(pg, 'demo-0-simple');
   await pg.locator('#level').getByRole('button', { name: 'تفصيلي' }).click();
   await pg.waitForSelector('.kpis .kpi');
-  t('demo: switching to detailed shows the full menu (7)', (await pg.locator('.side-nav a').count()) === 7);
+  t('demo: switching to detailed shows the full menu (9)', (await pg.locator('.side-nav a').count()) === 9);
   t('demo: overview shows the 6 KPI cards, the status strip and the action cards', (await pg.locator('.kpis .kpi').count()) === 6 && /الحماية شغالة/.test(await pg.locator('.status-strip').innerText()) && (await pg.locator('.act').count()) >= 2);
   t('demo: the quality chart draws stacked bars with a legend (3 series)', (await pg.locator('svg .mk').count()) > 10 && (await pg.locator('.chart-legend .lg').count()) === 3);
   await pg.locator('svg .hit').nth(2).hover();
@@ -338,7 +338,7 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
   await pg.locator('.bottom-nav .more').click();
   await pg.locator('.more-link', { hasText: 'المواقع والتركيب' }).click();
   await pg.waitForFunction(() => document.getElementById('page-title').textContent === 'المواقع والتركيب');
-  t('demo mobile: "more" opens the other screens', await pg.locator('#drawer').isHidden() && (await pg.locator('.checks').count()) === 2);
+  t('demo mobile: "more" opens the other screens', await pg.locator('#drawer').isHidden() && (await pg.locator('.checks').count()) === 6);
   await pg.locator('.bottom-nav .more').click();
   await pg.locator('.more-link', { hasText: 'اعرض التفاصيل' }).click();
   await pg.waitForFunction(() => document.querySelectorAll('.bottom-nav a').length === 4 && document.querySelector('.bottom-nav a[data-r="statement"]'));
@@ -352,6 +352,59 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
   }
   await shot(pg, 'demo-mobile-sites');
   t('demo mobile: no console errors or CSP violations', pg.errors.length === 0 && pg.csp.length === 0);
+  if (pg.errors.length || pg.csp.length) console.log(pg.errors, pg.csp);
+  await pg.context().close(); }
+
+// 14) الوكالات: كل العملاء + التقارير باسم الوكالة
+{ const api = fakeApi(); const pg = await page(api, { viewport: { width: 1440, height: 900 } });
+  const apiCalls = []; pg.on('request', (r) => { if (r.url().startsWith('https://api.maestrolt.com')) apiCalls.push(r.url()); });
+  await pg.goto('https://app.maestrolt.com/demo');
+  await pg.waitForSelector('.answers .ans');
+  t('agency: simple level hides the agency screens from the menu', (await pg.locator('.side-nav a[data-r="clients"], .side-nav a[data-r="reports"]').count()) === 0);
+  await pg.locator('#level').getByRole('button', { name: 'تفصيلي' }).click();
+  await pg.locator('.side-nav a[data-r="clients"]').click();
+  await pg.waitForFunction(() => document.getElementById('page-title').textContent === 'كل العملاء' && document.querySelector('#view .tbl tbody tr'));
+  t('clients: every client in one table (6) with totals, site picker hidden', (await pg.locator('#view .tbl tbody tr').count()) === 6 && (await pg.locator('.kpis .kpi').count()) === 6 && await pg.locator('#site').isHidden());
+  const firstIssues = await pg.locator('#view .tbl tbody tr').first().locator('.issues .pill').count();
+  const lastIssues = await pg.locator('#view .tbl tbody tr').last().locator('.issues .pill').allInnerTexts();
+  t('clients: sorted by what needs attention first', firstIssues >= 1 && (firstIssues >= lastIssues.length));
+  await pg.locator('.th-sort', { hasText: 'تكلفة العميل' }).click();
+  const cpls = await pg.locator('#view .tbl tbody tr td:nth-child(5)').allInnerTexts();
+  const nums = cpls.map((x) => Number(x.replace(/[^\d]/g, '')) || 0);
+  t('clients: sorting by a column orders the rows', nums.every((v, i) => i === 0 || nums[i - 1] >= v));
+  await shot(pg, 'agency-clients');
+  const dl = pg.waitForEvent('download');
+  await pg.getByRole('button', { name: '⬇ CSV' }).click();
+  const file = await dl; const p = await file.path(); const csv = fs.readFileSync(p, 'utf8');
+  t('clients: CSV export has a header and 6 clients (Excel-friendly BOM)', csv.charCodeAt(0) === 0xfeff && csv.trim().split('\n').length === 7 && /العميل,الدومين/.test(csv));
+  await pg.locator('#view .tbl tbody tr', { hasText: 'نقل عفش جدة' }).click();
+  await pg.waitForFunction(() => document.getElementById('page-title').textContent === 'الرئيسية' && document.querySelector('.kpis .kpi'));
+  t('clients: clicking a client opens its dashboard', (await pg.locator('#site').inputValue()) === 'Nql4Movers01');
+  await pg.locator('.side-nav a[data-r="reports"]').click();
+  await pg.waitForSelector('.report-doc .rd-answers');
+  t('reports: preview shows the agency name, the client and the 3 answers', /وكالة المدار/.test(await pg.locator('.rd-brand').innerText()) && /نقل عفش جدة/.test(await pg.locator('.rd-meta').innerText()) && (await pg.locator('.rd-answers > div').count()) === 3);
+  t('reports: white-label by default (no Maestro name in the report)', !/Maestro/.test(await pg.locator('.report-doc').innerText()));
+  await pg.locator('.fld', { hasText: 'اسم الوكالة' }).locator('input').fill('وكالة نجمة');
+  await pg.waitForFunction(() => /وكالة نجمة/.test(document.querySelector('.rd-brand').textContent));
+  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64');
+  await pg.locator('.fld', { hasText: 'لوجو الوكالة' }).locator('input[type="file"]').setInputFiles({ name: 'logo.png', mimeType: 'image/png', buffer: png });
+  await pg.waitForSelector('.report-doc .rd-logo');
+  t('reports: the agency name and logo show in the report (logo stays in the browser)', (await pg.locator('.rd-logo').getAttribute('src')).startsWith('data:image/png;base64,'));
+  await pg.locator('.ck-in', { hasText: 'كشف الحساب' }).locator('input').uncheck();
+  t('reports: unticking a section removes it from the report', !(await pg.locator('.report-doc h3').allInnerTexts()).includes('كشف الحساب'));
+  await pg.locator('.rep-form').getByRole('button', { name: 'تفصيلي', exact: true }).click();
+  await pg.waitForFunction(() => document.querySelectorAll('.rd-kpis > div').length === 6);
+  t('reports: the detailed report shows more numbers (6 vs 3)', true);
+  await pg.getByRole('button', { name: 'ابعته أوتوماتيك' }).click();
+  t('reports: scheduling needs a valid client email', /اكتب إيميل العميل صح/.test(await pg.locator('#toast').innerText()));
+  await pg.locator('.fld', { hasText: 'الإيميل' }).locator('input').fill('owner@client.example');
+  await pg.getByRole('button', { name: 'ابعته أوتوماتيك' }).click();
+  t('reports: scheduling confirms (demo)', /owner@client.example/.test(await pg.locator('#toast').innerText()));
+  await shot(pg, 'agency-reports');
+  await pg.emulateMedia({ media: 'print' }); await pg.evaluate(() => document.body.classList.add('print-report'));
+  t('reports: print/PDF shows only the report', await pg.locator('.report-doc').isVisible() && await pg.locator('.rep-form').isHidden() && await pg.locator('.side').isHidden());
+  await pg.emulateMedia({ media: 'screen' });
+  t('agency: no API calls, no console errors, no CSP violations', apiCalls.length === 0 && pg.errors.length === 0 && pg.csp.length === 0);
   if (pg.errors.length || pg.csp.length) console.log(pg.errors, pg.csp);
   await pg.context().close(); }
 

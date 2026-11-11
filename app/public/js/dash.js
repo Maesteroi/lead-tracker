@@ -21,6 +21,8 @@
     alerts: 'M18 16V11a6 6 0 10-12 0v5l-2 2h16l-2-2zM10 20a2 2 0 004 0',
     sites: 'M12 21a9 9 0 100-18 9 9 0 000 18zM3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18',
     more: 'M5 12h.01M12 12h.01M19 12h.01',
+    clients: 'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z',
+    reports: 'M7 3h7l5 5v13H7zM14 3v5h5M10 17v-3M13 17v-6M16 17v-2',
   };
   function icon(name) {
     var svg = document.createElementNS(NS, 'svg'); svg.setAttribute('viewBox', '0 0 24 24'); svg.setAttribute('class', 'ic'); svg.setAttribute('aria-hidden', 'true');
@@ -28,8 +30,8 @@
   }
 
   var ROUTES = [
-    ['overview', 'الرئيسية'], ['statement', 'كشف الحساب'], ['visits', 'الزيارات'], ['protection', 'الحماية'],
-    ['leads', 'العملاء الحقيقيين'], ['alerts', 'التنبيهات'], ['sites', 'المواقع والتركيب'],
+    ['overview', 'الرئيسية'], ['clients', 'كل العملاء'], ['statement', 'كشف الحساب'], ['visits', 'الزيارات'], ['protection', 'الحماية'],
+    ['leads', 'العملاء الحقيقيين'], ['alerts', 'التنبيهات'], ['reports', 'التقارير'], ['sites', 'المواقع والتركيب'],
   ];
   var NAV = { simple: ['overview', 'leads', 'protection', 'alerts', 'sites'], detailed: ROUTES.map(function (r) { return r[0]; }) };
   var BOTTOMS = { simple: ['overview', 'leads', 'protection', 'alerts'], detailed: ['overview', 'statement', 'visits', 'protection'] };
@@ -110,7 +112,8 @@
     var title = ROUTES.filter(function (x) { return x[0] === r; })[0][1];
     $('page-title').textContent = title;
     document.title = title + ' · Maestro LT' + (DATA.demo ? ' (تجريبية)' : '');
-    $('range').hidden = r === 'protection' || r === 'alerts' || r === 'sites' || (r === 'overview' && state.level === 'simple');
+    $('range').hidden = r === 'protection' || r === 'alerts' || r === 'sites' || r === 'reports' || (r === 'overview' && state.level === 'simple');
+    $('site').parentNode.hidden = r === 'clients';
     if (r === 'overview' && state.level === 'simple') $('page-title').textContent = 'الخلاصة';
     if (state.level === 'simple' && NAV.simple.indexOf(r) < 0) { /* شاشة تفصيلية من رابط: بتتفتح عادي */ }
     view.appendChild(el('div', { class: 'loading' }, [el('span', { class: 'spinner' }), document.createTextNode('بنحمّل…')]));
@@ -474,7 +477,161 @@
     });
   }
 
-  var VIEWS = { overview: vOverview, statement: vStatement, visits: vVisits, protection: vProtection, leads: vLeads, alerts: vAlerts, sites: vSites };
+  // ════════ كل العملاء (الوكالات) ════════
+  var COLS = [['name', 'العميل'], ['bad_pct', 'المشبوه %'], ['saved', 'اتحمى'], ['won', 'عملاء حقيقيين'], ['cpl', 'تكلفة العميل'], ['billed', 'ضغطات جوجل'], ['delivery', 'التوصيل']];
+  state.sort = 'attention';
+  function issues(c) {
+    var x = [];
+    if (!c.ads) x.push(['جوجل أدز مش متربط', 'bad']);
+    if (c.pending) x.push([c.pending === 1 ? 'واحد مستني موافقة' : c.pending + ' مستنيين موافقة', 'warn']);
+    if (c.bad_pct > 18) x.push(['مشبوه عالي (' + c.bad_pct + '%)', 'warn']);
+    if (c.delivery < 99.5) x.push(['التوصيل ' + c.delivery + '%', 'warn']);
+    if (!c.template) x.push(['لاحقة التتبع ناقصة', 'warn']);
+    return x;
+  }
+  function vClients(view) {
+    return DATA.clients(state.range).then(function (list) {
+      clear(view);
+      var cur = list[0] ? list[0].currency : '';
+      var tot = list.reduce(function (a, c) { a.saved += c.saved; a.won += c.won; a.cost += c.cost; a.bad += c.bad; a.visits += c.visits; a.att += issues(c).length ? 1 : 0; return a; }, { saved: 0, won: 0, cost: 0, bad: 0, visits: 0, att: 0 });
+      view.appendChild(el('div', { class: 'kpis' }, [
+        kpi('العملاء', fmt(list.length), DATA.agency ? DATA.agency.name : '', 'info'),
+        kpi('محتاجين انتباه', fmt(tot.att), 'فيهم حاجة لازم تتعمل', tot.att ? 'warn' : 'mute'),
+        kpi('اتحمى لكل العملاء', money(tot.saved, cur), fmt(tot.bad) + ' ضغطة مشبوهة', 'ok'),
+        kpi('متوسط المشبوه', pct(tot.bad, tot.visits) + '%', 'من كل الزيارات', 'warn'),
+        kpi('عملاء حقيقيين', fmt(tot.won), tot.won ? 'العميل بـ' + money(tot.cost / tot.won, cur) + ' في المتوسط' : '', 'ok'),
+        kpi('صرف الإعلانات', money(tot.cost, cur), 'كل الحسابات', 'info'),
+      ]));
+      var tbody = el('tbody'), head = el('tr');
+      var sorted = function () {
+        var l = list.slice();
+        if (state.sort === 'attention') l.sort(function (a, b) { return issues(b).length - issues(a).length || b.bad_pct - a.bad_pct; });
+        else l.sort(function (a, b) { var x = a[state.sort], y = b[state.sort]; if (typeof x === 'string') return x.localeCompare(y, 'ar'); return (y == null ? -1 : y) - (x == null ? -1 : x); });
+        return l;
+      };
+      var draw = function () {
+        clear(head); clear(tbody);
+        COLS.forEach(function (c) {
+          var b = el('button', { type: 'button', class: 'th-sort' + (state.sort === c[0] ? ' on' : ''), text: c[1] });
+          b.addEventListener('click', function () { state.sort = state.sort === c[0] ? 'attention' : c[0]; draw(); });
+          head.appendChild(el('th', { 'aria-sort': state.sort === c[0] ? 'descending' : 'none' }, [b]));
+        });
+        head.appendChild(el('th', { text: 'محتاج' }));
+        sorted().forEach(function (c) {
+          var tr = el('tr', { tabindex: '0' }, [
+            el('td', { class: 'first' }, [el('div', { class: 'acc-name', text: c.name }), el('span', { class: 'acc-sub', text: c.domain })]),
+            el('td', { 'data-l': 'المشبوه %' }, [el('b', { class: 'num', text: c.bad_pct + '%' }), el('span', { class: 'dim', text: (c.bad_pct > c.bad_pct_prev ? ' ▲' : ' ▼') })]),
+            el('td', { 'data-l': 'اتحمى', class: 'num', text: money(c.saved, c.currency) }),
+            el('td', { 'data-l': 'عملاء حقيقيين', class: 'num', text: fmt(c.won) + ' من ' + fmt(c.leads) }),
+            el('td', { 'data-l': 'تكلفة العميل', class: 'num', text: c.cpl ? money(c.cpl, c.currency) : '—' }),
+            el('td', { 'data-l': 'ضغطات جوجل', class: 'num', text: fmt(c.billed) }),
+            el('td', { 'data-l': 'التوصيل' }, [pill(c.delivery + '%', c.delivery >= 99.5 ? 'ok' : 'warn')]),
+            el('td', { 'data-l': 'محتاج', class: 'issues' }, issues(c).length ? issues(c).map(function (i) { return pill(i[0], i[1]); }) : [pill('كله تمام', 'ok')]),
+          ]);
+          var open = function () { state.site = c.id; buildTop(); location.hash = '#/overview'; };
+          tr.addEventListener('click', open);
+          tr.addEventListener('keydown', function (e) { if (e.key === 'Enter') open(); });
+          tbody.appendChild(tr);
+        });
+      };
+      draw();
+      var exp = el('button', { class: 'btn ghost sm', type: 'button', text: '⬇ CSV' });
+      exp.addEventListener('click', function () { downloadCsv(list); });
+      view.appendChild(card('', [el('div', { class: 'sec-head' }, [el('h2', { text: 'كل العملاء' }), el('div', { class: 'tools' }, [el('span', { class: 'hint', text: 'رتّب بأي عمود · دوس على عميل تفتح لوحته' }), exp])]),
+        el('div', { class: 'tbl-wrap' }, [el('table', { class: 'tbl' }, [el('thead', {}, [head]), tbody])])]));
+    });
+  }
+  function downloadCsv(list) {
+    var rows = [['العميل', 'الدومين', 'المشبوه %', 'اتحمى', 'تواصل', 'عملاء حقيقيين', 'تكلفة العميل', 'ضغطات جوجل', 'الصرف', 'التوصيل %']];
+    list.forEach(function (c) { rows.push([c.name, c.domain, c.bad_pct, c.saved, c.leads, c.won, c.cpl == null ? '' : c.cpl, c.billed, c.cost, c.delivery]); });
+    var csv = '\ufeff' + rows.map(function (r) { return r.map(function (v) { var x = String(v); return /[",\n]/.test(x) ? '"' + x.replace(/"/g, '""') + '"' : x; }).join(','); }).join('\n');
+    var a = el('a', { href: URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' })), download: 'maestro-clients-' + state.range + 'd.csv' });
+    document.body.appendChild(a); a.click(); a.remove();
+  }
+
+  // ════════ التقارير (باسم الوكالة ولوجوها) ════════
+  var rep = { site: null, range: 7, level: 'simple', name: '', logo: '', color: '#1a6fe8', white: true, email: '', every: 'weekly',
+    parts: { answers: true, kpis: true, chart: true, statement: true, leads: true, todo: true } };
+  var PARTS = [['answers', 'الخلاصة (3 إجابات)'], ['kpis', 'الأرقام'], ['chart', 'جودة الزيارات (رسم)'], ['statement', 'كشف الحساب'], ['leads', 'العملاء الحقيقيين'], ['todo', 'التوصيات']];
+  function vReports(view) {
+    clear(view);
+    if (!rep.site) rep.site = state.site;
+    if (!rep.name) rep.name = DATA.agency ? DATA.agency.name : '';
+    var form = el('div', { class: 'rep-form' }), prev = el('div', { class: 'rep-prev' });
+    var field = function (label, node) { return el('label', { class: 'fld' }, [el('span', { text: label }), node]); };
+    var sel = el('select', {}, state.sites.map(function (x) { return el('option', { value: x.id, text: x.name }); })); sel.value = rep.site;
+    sel.addEventListener('change', function () { rep.site = sel.value; redraw(); });
+    var segR = el('div', { class: 'seg' }), segL = el('div', { class: 'seg' });
+    var drawSegs = function () {
+      clear(segR); clear(segL);
+      [[7, 'أسبوعي'], [30, 'شهري']].forEach(function (x) { var b = el('button', { type: 'button', 'aria-pressed': String(rep.range === x[0]), text: x[1] }); b.addEventListener('click', function () { rep.range = x[0]; drawSegs(); redraw(); }); segR.appendChild(b); });
+      [['simple', 'بسيط (لصاحب البزنس)'], ['detailed', 'تفصيلي']].forEach(function (x) { var b = el('button', { type: 'button', 'aria-pressed': String(rep.level === x[0]), text: x[1] }); b.addEventListener('click', function () { rep.level = x[0]; drawSegs(); redraw(); }); segL.appendChild(b); });
+    };
+    drawSegs();
+    var name = el('input', { type: 'text', maxlength: '60' }); name.value = rep.name; name.addEventListener('input', function () { rep.name = name.value; redraw(); });
+    var logo = el('input', { type: 'file', accept: 'image/png,image/jpeg,image/webp' });
+    var logoMsg = el('small', { class: 'hint', text: 'PNG أو JPG، أقل من 1 ميجا. بيفضل على جهازك.' });
+    logo.addEventListener('change', function () {
+      var f = logo.files && logo.files[0]; if (!f) return;
+      if (!/^image\/(png|jpeg|webp)$/.test(f.type) || f.size > 1024 * 1024) { logoMsg.textContent = 'الصورة لازم تكون PNG أو JPG أو WEBP وأقل من 1 ميجا.'; return; }
+      var r = new FileReader(); r.onload = function () { if (/^data:image\/(png|jpeg|webp);base64,/.test(String(r.result))) { rep.logo = String(r.result); redraw(); } }; r.readAsDataURL(f);
+    });
+    var color = el('input', { type: 'color' }); color.value = rep.color; color.addEventListener('input', function () { rep.color = color.value; redraw(); });
+    var white = el('input', { type: 'checkbox' }); white.checked = rep.white; white.addEventListener('change', function () { rep.white = white.checked; redraw(); });
+    var parts = el('div', { class: 'checks-in' }, PARTS.map(function (x) { var c = el('input', { type: 'checkbox' }); c.checked = rep.parts[x[0]]; c.addEventListener('change', function () { rep.parts[x[0]] = c.checked; redraw(); }); return el('label', { class: 'ck-in' }, [c, el('span', { text: x[1] })]); }));
+    var pdf = el('button', { class: 'btn', type: 'button', text: '⬇ نزّل PDF' });
+    pdf.addEventListener('click', function () { document.body.classList.add('print-report'); window.print(); });
+    var email = el('input', { type: 'email', placeholder: 'إيميل العميل', dir: 'ltr' }); email.value = rep.email; email.addEventListener('input', function () { rep.email = email.value; });
+    var every = el('select', {}, [el('option', { value: 'weekly', text: 'كل أسبوع (السبت الصبح)' }), el('option', { value: 'monthly', text: 'أول كل شهر' })]);
+    var sched = el('button', { class: 'btn ghost', type: 'button', text: 'ابعته أوتوماتيك' });
+    sched.addEventListener('click', function () { if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(rep.email)) { toast('اكتب إيميل العميل صح'); return; } demoAct('التقرير هيتبعت ' + (every.value === 'weekly' ? 'كل أسبوع' : 'كل شهر') + ' لـ ' + rep.email); });
+    form.appendChild(card('جهّز التقرير', [field('العميل', sel), field('الفترة', segR), field('المستوى', segL), field('اسم الوكالة', name), field('لوجو الوكالة', el('div', {}, [logo, logoMsg])), field('لون التقرير', color),
+      el('label', { class: 'ck-in' }, [white, el('span', { text: 'باسم الوكالة بس (من غير اسم Maestro)' })]), el('div', { class: 'fld' }, [el('span', { text: 'الأقسام' }), parts]), el('div', { class: 'row-btns' }, [pdf])]));
+    form.appendChild(card('ابعته للعميل أوتوماتيك', [field('الإيميل', email), field('كل قد إيه', every), sched]));
+    view.appendChild(el('div', { class: 'rep-grid' }, [form, prev]));
+    var redraw = function () {
+      Promise.all([DATA.overview(rep.site, rep.range), DATA.statement(rep.site, rep.range), DATA.summary(rep.site, rep.range)]).then(function (r) { clear(prev); prev.appendChild(reportDoc(r[0], r[1], r[2])); });
+    };
+    redraw();
+    return Promise.resolve();
+  }
+  function reportDoc(o, st, sm) {
+    var k = o.kpi, cur = o.currency, detailed = rep.level === 'detailed';
+    var doc = el('article', { class: 'report-doc', 'aria-label': 'معاينة التقرير' });
+    doc.style.setProperty('--rc', rep.color);
+    var brand = el('div', { class: 'rd-brand' }, [rep.logo ? el('img', { src: rep.logo, alt: rep.name, class: 'rd-logo' }) : null, el('b', { text: rep.name || 'اسم الوكالة' })]);
+    doc.appendChild(el('header', { class: 'rd-head' }, [brand, el('div', { class: 'rd-meta' }, [el('b', { text: sm.name }), el('span', { text: (rep.range === 7 ? 'تقرير أسبوعي' : 'تقرير شهري') + ' · لحد ' + dateAr(new Date().toISOString()) })])]));
+    if (rep.parts.answers) doc.appendChild(el('section', { class: 'rd-answers' }, [
+      el('div', {}, [el('span', { text: 'إعلانك محمي؟' }), el('b', { text: sm.ads ? 'أيوه' : 'مش كامل' })]),
+      el('div', {}, [el('span', { text: 'اتحمى من فلوسك' }), el('b', { text: money(k.saved, cur) })]),
+      el('div', {}, [el('span', { text: 'عملاء حقيقيين' }), el('b', { text: fmt(k.won) + (k.cpl ? ' · ' + money(k.cpl, cur) + ' للعميل' : '') })]),
+    ]));
+    if (rep.parts.kpis) doc.appendChild(el('section', { class: 'rd-sec' }, [el('h3', { text: 'الأرقام' }), el('div', { class: 'rd-kpis' }, [
+      ['ضغطات جوجل', fmt(k.billed)], ['الصرف', money(k.cost, cur)], ['زوار حقيقيين', fmt(k.real)], ['مشبوه', fmt(k.suspicious)], ['اتحظر', fmt(k.blocked)], ['تواصل', fmt(k.leads)],
+    ].slice(0, detailed ? 6 : 3).map(function (x) { return el('div', {}, [el('span', { text: x[0] }), el('b', { text: x[1] })]); }))]));
+    if (rep.parts.chart) { var ch = el('div'); C.stacked(ch, o.days, [{ key: 'real', label: 'حقيقي', cls: 'c-real' }, { key: 'suspicious', label: 'مشبوه', cls: 'c-sus' }, { key: 'blocked', label: 'اتحظر', cls: 'c-blk' }], { label: 'جودة الزيارات', height: 170 }); doc.appendChild(el('section', { class: 'rd-sec' }, [el('h3', { text: 'جودة الزيارات كل يوم' }), ch])); }
+    if (rep.parts.statement) {
+      var t = st.total, fun = el('div');
+      C.hbars(fun, [{ label: 'ضغطات جوجل حاسبها', value: t.billed, cls: 'c-data' }, { label: 'من الإعلان نفسه (اتصال · واتساب)', value: t.offsite, cls: 'c-data' }, { label: 'وصلت الموقع', value: t.reached, cls: 'c-real' }, { label: 'مشبوهة أو اتحظرت', value: t.bad, cls: 'c-sus' }, { label: 'الصفحة مافتحتش', value: t.not_loaded, cls: 'c-blk' }].slice(0, detailed ? 5 : 3), { max: t.billed, compact: true });
+      doc.appendChild(el('section', { class: 'rd-sec' }, [el('h3', { text: 'كشف الحساب' }), fun]));
+    }
+    if (rep.parts.leads) doc.appendChild(el('section', { class: 'rd-sec' }, [el('h3', { text: 'العملاء الحقيقيين' }), el('p', { text: 'كلّمك ' + fmt(k.leads) + ' (واتساب واتصال)، و' + fmt(k.won) + ' اتفقوا' + (k.cpl ? '، العميل الواحد كلّف ' + money(k.cpl, cur) + ' من الإعلانات' : '') + '.' })]));
+    if (rep.parts.todo) {
+      var adv = [];
+      if (!sm.ads) adv.push('نربط حساب جوجل أدز علشان الحظر يتنفذ جوه جوجل نفسه، مش على الموقع بس.');
+      if (sm.pending) adv.push(sm.pending === 1 ? 'فيه جهاز مشبوه مستني موافقتك علشان نمنعه من جوجل.' : 'فيه ' + sm.pending + ' أجهزة مشبوهة مستنية موافقتك علشان نمنعها من جوجل.');
+      if (sm.bad_pct > 18) adv.push('نسبة المشبوه ' + sm.bad_pct + '% أعلى من الطبيعي: هنراجع الكلمات والأماكن اللي جاي منها.');
+      if (!sm.template) adv.push('نضيف لاحقة التتبع في حساب الإعلانات علشان نعرف الكلمة اللي جابت كل عميل.');
+      if (sm.delivery < 99.5) adv.push('بنتابع توصيل البيانات من الموقع (' + sm.delivery + '%) لحد ما يرجع 100%.');
+      adv.push('نكمّل الحماية بنفس الإعدادات، ونبعتلك التقرير الجاي ' + (rep.range === 7 ? 'الأسبوع الجاي' : 'الشهر الجاي') + '.');
+      doc.appendChild(el('section', { class: 'rd-sec' }, [el('h3', { text: 'التوصيات' }), el('ul', {}, adv.map(function (t2) { return el('li', { text: t2 }); }))]));
+    }
+    doc.appendChild(el('footer', { class: 'rd-foot', text: rep.white ? (rep.name || '') : (rep.name ? rep.name + ' · ' : '') + 'بأدوات Maestro LT' }));
+    return doc;
+  }
+  window.addEventListener('afterprint', function () { document.body.classList.remove('print-report'); });
+
+  var VIEWS = { overview: vOverview, clients: vClients, statement: vStatement, visits: vVisits, protection: vProtection, leads: vLeads, alerts: vAlerts, reports: vReports, sites: vSites };
 
   // ── الدرج ──
   var lastFocus = null;
