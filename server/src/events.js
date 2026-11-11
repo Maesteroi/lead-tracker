@@ -2,12 +2,13 @@
 import { eq } from './db.js';
 import { sha256, safeEqual, json, localToIso, tzOffsetMinutes } from './util.js';
 import { enrichEvent } from './geo.js';
+import { notifyEvent } from './notify.js';
 
 const CONTACT_TYPES = { wa: 'wa', call: 'call', form: 'form', email: 'email' };
 
 export async function authSite(db, siteId, secret) {
   if (!siteId || typeof secret !== 'string' || !secret) return null;
-  const c = await db.one('clients?id=' + eq(siteId) + '&select=id,key_hash,status,timezone,country_code');
+  const c = await db.one('clients?id=' + eq(siteId) + '&select=id,name,org_id,key_hash,status,timezone,country_code');
   if (!c || c.status !== 'on') return null;
   return safeEqual(await sha256(secret), c.key_hash) ? c : null;
 }
@@ -43,9 +44,13 @@ export async function handleEvent(req, env, db, ctx, fetchImpl) {
   const saved = ins && ins[0];
   if (!saved) return json({ ok: true, duplicate: true });
 
-  // المكان التقريبي من الـIP (G-28): بعد الرد على البلجن، فمابيأخّرش الحدث، وفشله مابيأثرش عليه
-  const geoJob = enrichEvent(env, db, saved.id, payload.ip, fetchImpl);
-  if (ctx && typeof ctx.waitUntil === 'function') ctx.waitUntil(geoJob); else await geoJob;
+  // بعد الرد على البلجن (مابيأخّرش الحدث، وفشلهم مابيأثرش عليه):
+  // ١) المكان التقريبي من الـIP (G-28) ← ٢) تنبيه تليجرام للجلسة (للمواقع اللي على السيرفر بس) بالمكان
+  const after = enrichEvent(env, db, saved.id, payload.ip, fetchImpl)
+    .catch(() => ({}))
+    .then((g) => notifyEvent(env, db, client, payload, g && g.geo, fetchImpl))
+    .catch(() => {});
+  if (ctx && typeof ctx.waitUntil === 'function') ctx.waitUntil(after); else await after;
 
   if (event === 'click' && CONTACT_TYPES[ct]) {
     const off = tzOffsetMinutes(client.timezone);

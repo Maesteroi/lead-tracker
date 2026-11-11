@@ -156,6 +156,9 @@ test('operations are counted per request, the run is logged, and no developer to
   assert.deepEqual(run.rows, { campaigns: 2, terms: 3, clicks: 3, places: 3 });
   assert.equal(s.g.devTokenSeen, false);
   assert.ok(s.g.calls.every((c) => c.version === 'v26' && c.customer === CID));
+  // الحالة بتعدّ آخر 24 ساعة بالساعة الحقيقية، والسحبة اتعملت بساعة الاختبار الثابتة (10 نوفمبر): نقرّب وقتها لدلوقتي
+  // (كان الاختبار بيقع لوحده بعد 11 نوفمبر 06:00 UTC)
+  s.fs.t.ads_pull_runs.forEach((r) => { r.at = new Date().toISOString(); });
   const st = await s.call('GET', '/v1/admin/ads/status', undefined, admin);
   assert.equal(st.body.operations_24h.server, 8); assert.equal(st.body.limit, 15000);
 });
