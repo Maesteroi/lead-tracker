@@ -275,6 +275,68 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
   t('admin mobile: no console errors or CSP violations', pg.errors.length === 0 && pg.csp.length === 0);
   await pg.context().close(); }
 
+// 13) اللوحة التجريبية: الشاشات السبعة ببيانات وهمية (موافقة محمود 11 نوفمبر)
+{ const api = fakeApi(); const pg = await page(api, { viewport: { width: 1440, height: 900 } });
+  const apiCalls = []; pg.on('request', (r) => { if (r.url().startsWith('https://api.maestrolt.com')) apiCalls.push(r.url()); });
+  await pg.goto('https://app.maestrolt.com/demo');
+  await pg.waitForSelector('.kpis .kpi');
+  t('demo: overview shows the 6 KPI cards, the status strip and the action cards', (await pg.locator('.kpis .kpi').count()) === 6 && /الحماية شغالة/.test(await pg.locator('.status-strip').innerText()) && (await pg.locator('.act').count()) >= 2);
+  t('demo: the quality chart draws stacked bars with a legend (3 series)', (await pg.locator('svg .mk').count()) > 10 && (await pg.locator('.chart-legend .lg').count()) === 3);
+  await pg.locator('svg .hit').nth(2).hover();
+  t('demo: hovering a day shows a tooltip with the 3 numbers', await pg.locator('.tip').isVisible() && (await pg.locator('.tip .tr').count()) === 3);
+  await pg.getByRole('button', { name: 'عرض كجدول' }).click();
+  t('demo: "show as table" swaps the chart for a table', await pg.locator('.tview').isVisible() && await pg.locator('.plot').isHidden());
+  await shot(pg, 'demo-1-overview');
+  await pg.getByRole('button', { name: '30 يوم' }).click();
+  await pg.waitForFunction(() => document.querySelectorAll('svg .hit').length === 30);
+  t('demo: switching to 30 days redraws with 30 days', true);
+  for (const [r, title] of [['statement', 'كشف الحساب'], ['visits', 'الزيارات'], ['protection', 'الحماية'], ['leads', 'العملاء الحقيقيين'], ['alerts', 'التنبيهات'], ['sites', 'المواقع والتركيب']]) {
+    await pg.locator('.side-nav a[data-r="' + r + '"]').click();
+    await pg.waitForFunction((x) => document.getElementById('page-title').textContent === x && !document.querySelector('.view .loading'), title);
+    t('demo: ' + r + ' opens and its menu item is marked current', (await pg.locator('.side-nav a[aria-current="page"]').getAttribute('data-r')) === r);
+    await shot(pg, 'demo-' + r);
+  }
+  await pg.locator('.side-nav a[data-r="statement"]').click();
+  await pg.waitForFunction(() => document.getElementById('page-title').textContent === 'كشف الحساب' && document.querySelector('.callout'));
+  t('demo statement: the funnel adds up (from the ad + reached + not loaded = billed)', await pg.evaluate(() => { const v = [...document.querySelectorAll('.hbars .hb-v')].map((x) => Number(x.textContent.replace(/,/g, ''))); return v[0] === v[1] + v[2] + v[4]; }));
+  await pg.locator('.side-nav a[data-r="visits"]').click();
+  await pg.waitForFunction(() => document.getElementById('page-title').textContent === 'الزيارات' && !document.querySelector('.view .loading') && document.querySelector('.more-rows'));
+  t('demo visits: 25 rows first, with a "show more" button', (await pg.locator('#view .tbl tbody tr').count()) === 25 && await pg.locator('.more-rows').isVisible());
+  await pg.getByRole('button', { name: /^مشبوه/ }).click();
+  t('demo visits: the suspicious filter shows only suspicious visits', (await pg.locator('#view .tbl tbody tr .pill').allInnerTexts()).every((x) => x === 'مشبوه'));
+  await pg.locator('#view .tbl tbody tr').first().click();
+  await pg.waitForSelector('#drawer:not([hidden])');
+  t('demo visit drawer: score, the reasons ("ليه"), the journey timeline and actions', /من 100/.test(await pg.locator('.verdict').innerText()) && (await pg.locator('.why li').count()) >= 1 && (await pg.locator('.timeline li').count()) >= 2 && (await pg.locator('#d-foot .btn').count()) === 2);
+  await shot(pg, 'demo-visit-drawer');
+  await pg.keyboard.press('Escape');
+  t('demo: Escape closes the drawer', await pg.locator('#drawer').isHidden());
+  await pg.locator('.side-nav a[data-r="protection"]').click();
+  await pg.waitForFunction(() => document.getElementById('page-title').textContent === 'الحماية' && document.querySelector('.q-item'));
+  const before = await pg.locator('.q-item').count();
+  await pg.locator('.q-item').first().getByRole('button', { name: 'اعتمد لجوجل' }).click();
+  t('demo protection: approving removes it from the queue and says it is a demo', (await pg.locator('.q-item').count()) === before - 1 && /التجريبية/.test(await pg.locator('#toast').innerText()));
+  t('demo: never calls the API, no console errors, no CSP violations', apiCalls.length === 0 && pg.errors.length === 0 && pg.csp.length === 0);
+  if (pg.errors.length || pg.csp.length) console.log(pg.errors, pg.csp);
+  await pg.context().close(); }
+
+{ const api = fakeApi(); const pg = await page(api, { viewport: { width: 390, height: 844 }, colorScheme: 'dark' });
+  await pg.goto('https://app.maestrolt.com/demo');
+  await pg.waitForSelector('.kpis .kpi');
+  t('demo mobile: sidebar hidden, bottom bar with 5 items, no sideways scrolling', await pg.locator('.side').isHidden() && (await pg.locator('.bottom-nav > *').count()) === 5 && await pg.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1));
+  await shot(pg, 'demo-mobile-overview');
+  await pg.locator('.bottom-nav .more').click();
+  await pg.locator('.more-link', { hasText: 'التنبيهات' }).click();
+  await pg.waitForFunction(() => document.getElementById('page-title').textContent === 'التنبيهات');
+  t('demo mobile: "more" opens the other screens', await pg.locator('#drawer').isHidden() && (await pg.locator('.rule').count()) === 6);
+  for (const r of ['visits', 'statement', 'protection', 'leads', 'sites']) {
+    await pg.goto('https://app.maestrolt.com/demo#/' + r); await pg.waitForFunction(() => !document.querySelector('.view .loading'));
+    t('demo mobile ' + r + ': no sideways scrolling', await pg.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1));
+  }
+  await shot(pg, 'demo-mobile-sites');
+  t('demo mobile: no console errors or CSP violations', pg.errors.length === 0 && pg.csp.length === 0);
+  if (pg.errors.length || pg.csp.length) console.log(pg.errors, pg.csp);
+  await pg.context().close(); }
+
 await browser.close();
 console.log(`\n${ok} passed, ${bad} failed`);
 process.exit(bad ? 1 : 0);
