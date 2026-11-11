@@ -11,7 +11,7 @@ const DEFAULTS = {
   recordings: () => ({ status: 'pending' }),
   pair_codes: () => ({ used_at: null }),
   auth_events: () => ({ at: new Date().toISOString() }),
-  raw_events: () => ({ received_at: new Date().toISOString() }),
+  raw_events: () => ({ received_at: new Date().toISOString(), geo: null }),
   site_pair_codes: () => ({ used_at: null, attempts: 0 }),
   users: () => ({ name: null, locale: null, last_login_at: null }),
   organizations: () => ({ type: 'business', status: 'trial', trial_ends_at: null }),
@@ -21,7 +21,7 @@ const DEFAULTS = {
 };
 const UNIQUE = {
   clients: [['id']], devices: [['token_hash']], pair_codes: [['code']],
-  site_pair_codes: [['code_hash']], users: [['google_sub']], memberships: [['user_id', 'org_id']], sessions: [['token_hash']],
+  site_pair_codes: [['code_hash']], ip_geo: [['ip']], users: [['google_sub']], memberships: [['user_id', 'org_id']], sessions: [['token_hash']],
   raw_events: [['client_id', 'dedupe_key']], contact_clicks: [['client_id', 'match_code', 'type']],
   persons: [['client_id', 'phone_e164']], messages: [['conversation_id', 'dedupe_key']],
   calls: [['device_id', 'started_at', 'phone_e164', 'NND']],
