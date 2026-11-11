@@ -3,9 +3,10 @@
  * Plugin Name:       Lead Tracker Pro
  * Plugin URI:        https://leadtrackerpro.com
  * Description:       تتبع احترافي لكل زيارة ونقرة اتصال/واتساب + تكامل كامل مع WooCommerce (شراء · سلة · دفع). يحفظ في Google Sheet + إشعارات Telegram. بدون GA4 ولا اشتراكات.
- * Version:           2.11.3
+ * Version:           2.12.0
  * Requires at least: 5.8
  * Requires PHP:      7.4
+ * Update URI:        https://app.maestrolt.com/plugin/
  * Author:            Lead Tracker Pro
  * Author URI:        https://leadtrackerpro.com
  * License:           GPL v2 or later
@@ -16,7 +17,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('LTP_VERSION', '2.11.3');
+define('LTP_VERSION', '2.12.0');
 define('LTP_FILE', __FILE__);
 define('LTP_PATH', plugin_dir_path(__FILE__));
 define('LTP_URL', plugin_dir_url(__FILE__));
@@ -35,6 +36,7 @@ require_once LTP_PATH . 'includes/class-ltp-numbers.php';
 require_once LTP_PATH . 'includes/class-ltp-inventory.php';
 require_once LTP_PATH . 'includes/class-ltp-roles.php';
 require_once LTP_PATH . 'includes/class-ltp-telegram.php';
+require_once LTP_PATH . 'includes/class-ltp-updater.php';   // 2.12.0
 
 // ─── التكاملات (جديدة في 2.4.0) ───
 require_once LTP_PATH . 'includes/class-ltp-woocommerce.php';
@@ -53,6 +55,8 @@ add_action('plugins_loaded', function () {
     LTP_Numbers::instance();
     LTP_Telegram::instance();
     LTP_Pair::maybe_upgrade();
+    LTP_Updater::instance();          // 2.12.0: التحديث الأوتوماتيك الموقّع
+    LTP_Updater::migrate_config();    // مرة واحدة: قيم config.json تتنسخ لقاعدة البيانات
 
     // ─── التكاملات ───
     LTP_WooCommerce::instance();

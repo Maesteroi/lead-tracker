@@ -268,6 +268,27 @@ class LTP_Settings {
                     </table>
                 </details>
 
+                <?php // 2.12.0: التحديث الأوتوماتيك ?>
+                <div class="ltp-card">
+                    <h3>🔄 التحديثات</h3>
+                    <?php $us = LTP_Updater::status(); ?>
+                    <?php if (!LTP_Updater::enabled()): ?>
+                        <p class="description">التحديث الأوتوماتيك لسه مش متفعّل في النسخة دي.</p>
+                    <?php else: ?>
+                        <p><label><input type="checkbox" name="auto_update" value="1" <?php checked((string) LTP_Core::get('auto_update', '1') !== '0'); ?>>
+                            حدّث البلجن لوحده لما يطلع إصدار جديد (موقّع من Maestro LT)</label></p>
+                        <p><label for="update_channel">القناة:</label>
+                            <select name="update_channel" id="update_channel">
+                                <option value="stable" <?php selected(LTP_Updater::channel(), 'stable'); ?>>عادية (بعد ما الإصدار يتجرب)</option>
+                                <option value="early" <?php selected(LTP_Updater::channel(), 'early'); ?>>مبكرة (أول ما يطلع)</option>
+                            </select></p>
+                        <p class="description">الإصدار الحالي <?php echo esc_html(LTP_VERSION); ?>
+                            <?php if (!empty($us['checked'])) echo ' · آخر فحص ' . esc_html($us['checked']) . ' UTC'; ?>
+                            <?php if (!empty($us['available']) && version_compare($us['available'], LTP_VERSION, '>')) echo ' · متاح ' . esc_html($us['available']); ?>
+                            <?php if (!empty($us['error'])) echo ' · ⚠️ ' . esc_html($us['error']) . ' (' . esc_html($us['error_at'] ?? '') . ' UTC)'; ?></p>
+                    <?php endif; ?>
+                </div>
+
                 <div class="ltp-card">
                     <h3>💬 إعدادات WhatsApp</h3>
 
@@ -456,6 +477,10 @@ class LTP_Settings {
         LTP_Core::set('server_mirror',   isset($_POST['server_mirror']) ? 1 : 0);
         $su = esc_url_raw(trim(wp_unslash($_POST['server_url'] ?? '')));
         LTP_Core::set('server_url', strpos($su, 'https://') === 0 ? $su : LTP_Core::SERVER_URL);
+        if (LTP_Updater::enabled()) {   // 2.12.0
+            LTP_Core::set('auto_update', isset($_POST['auto_update']) ? '1' : '0');
+            LTP_Core::set('update_channel', ($_POST['update_channel'] ?? '') === 'early' ? 'early' : 'stable');
+        }
 
         wp_safe_redirect(admin_url('admin.php?page=lead-tracker-settings&saved=1' . ($bad_url ? '&badurl=1' : '')));
         exit;

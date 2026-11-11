@@ -8,7 +8,7 @@ if (!defined('WP_UNINSTALL_PLUGIN')) exit;
 
 // حذف كل الإعدادات
 $options = [
-    'ltp_out_q', 'ltp_out_stats',
+    'ltp_out_q', 'ltp_out_stats', 'ltp_upd_status', 'ltp_cfg_migrated', 'ltp_auto_update', 'ltp_update_channel',
     'ltp_installed_at', 'ltp_version', 'ltp_site_id',
     'ltp_events', 'ltp_flush_rewrite',
     'ltp_webhook_url', 'ltp_webhook_secret', 'ltp_site_label',
