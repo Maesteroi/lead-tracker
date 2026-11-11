@@ -22,7 +22,7 @@ class LTP_Updater {
     const PKG_PREFIX = 'https://app.maestrolt.com/plugin/';
     const SLUG       = 'lead-tracker-pro';
     // المفتاح العام (Ed25519، 32 بايت base64). فاضي = التحديث الأوتوماتيك مقفول.
-    const PUBKEY     = '';
+    const PUBKEY     = 'TdVe07WSQ+3wQ+u/6XettsWN46sz2Uyfh+ENKYrtnpg=';   // من محمود 11 نوفمبر (المفتاح الخاص في Cloudflare: PLUGIN_SIGNING_KEY)
     const FEED_TTL   = 21600;   // 6 ساعات
     const FAIL_TTL   = 1800;    // لو الخادم ماردش: نحاول تاني بعد نص ساعة
 

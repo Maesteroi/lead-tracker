@@ -87,7 +87,7 @@ export async function enrichEvent(env, db, rowId, ip, fetchImpl) {
     const geo = await geoFor(env, db, pub, fetchImpl);
     if (!geo) return { failed: true };                       // الكرون يكمّله
     await db.update('raw_events?id=' + eq(rowId), { geo });
-    return { ok: true };
+    return { ok: true, geo };
   } catch (e) {
     console.error('geo: ' + String(e && e.message || e).replace(/\d{1,3}(\.\d{1,3}){3}|[0-9a-f]{1,4}(:[0-9a-f]{0,4}){2,7}/gi, '<ip>').slice(0, 120));
     return { failed: true };
