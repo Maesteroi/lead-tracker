@@ -42,6 +42,7 @@
     if (!m) { location.replace('/login'); return; }
     document.getElementById('who').textContent = m.user.email || m.user.name || '';
     var out = document.getElementById('out'); out.hidden = false;
+    if (m.user.platform_admin) document.getElementById('admin-link').hidden = false;   // مدير المنصة بس
     out.addEventListener('click', function () { LT.logout().then(function () { location.replace('/login'); }); });
     LT.api('/v1/sites').then(function (r) {
       var sites = (r.body && r.body.sites) || [];

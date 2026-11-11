@@ -5,10 +5,12 @@ import { appOrigin, authStart, authCallback, authLogout, authStatus, getSession,
 import { me, listSites, createSite, rotateKey, installStatus, loadSite, notFound } from './sites.js';
 import { createPairCode } from './pairing.js';
 import { connectSite } from './connect.js';
+import { isPlatformAdmin, overview, updateOrg, telegramStatus, telegramSwitch } from './platform.js';
 
 const SITE_ACT = /^\/v1\/sites\/([A-Za-z0-9]{6,20})\/(rotate-key|install-status|pair-code)$/;
+const ORG_ACT = /^\/v1\/platform\/orgs\/([^/]+)$/;
 
-export const isAppPath = (p) => p === '/v1/me' || p.startsWith('/v1/auth/') || p === '/v1/sites' || p.startsWith('/v1/sites/') || p === '/v1/connect';
+export const isAppPath = (p) => p === '/v1/me' || p.startsWith('/v1/auth/') || p === '/v1/sites' || p.startsWith('/v1/sites/') || p === '/v1/connect' || p.startsWith('/v1/platform/');
 
 function corsHeaders(req, env) {
   const o = req.headers.get('origin');
@@ -39,6 +41,17 @@ export async function handleApp(req, env, db, url, p, fetchImpl) {
   if (!checkCsrf(req, env, sess)) return finish(json({ ok: false, error: 'csrf' }, 403), req, env, true);
 
   let res;
+  // لوحة إدارة المنصة: لمدير المنصة بس، وأي حد تاني بياخد 404
+  if (p.startsWith('/v1/platform/')) {
+    const oa = ORG_ACT.exec(p);
+    if (!isPlatformAdmin(sess)) res = notFound();
+    else if (m === 'GET' && p === '/v1/platform/overview') res = await overview(req, env, db, sess);
+    else if (m === 'POST' && oa) res = await updateOrg(req, env, db, sess, oa[1]);
+    else if (m === 'GET' && p === '/v1/platform/telegram') res = await telegramStatus(req, env, db, sess, fetchImpl);
+    else if (m === 'POST' && p === '/v1/platform/telegram') res = await telegramSwitch(req, env, db, sess, fetchImpl);
+    else res = notFound();
+    return finish(res, req, env, true);
+  }
   const act = SITE_ACT.exec(p);
   if (m === 'GET' && p === '/v1/me') res = await me(req, env, db, sess);
   else if (m === 'POST' && p === '/v1/auth/logout') res = await authLogout(req, env, db, sess);

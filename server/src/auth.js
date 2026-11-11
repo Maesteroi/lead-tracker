@@ -177,7 +177,7 @@ export async function getSession(req, db) {
   if (!/^[0-9a-f]{64}$/.test(tok)) return null;
   const s = await db.one('sessions?token_hash=eq.' + (await sha256(tok)) + '&select=id,user_id,csrf_token,expires_at');
   if (!s || !(Date.parse(s.expires_at) > Date.now())) return null;
-  const user = await db.one('users?id=' + eq(s.user_id) + '&select=id,email,name');
+  const user = await db.one('users?id=' + eq(s.user_id) + '&select=id,email,name,platform_admin');
   if (!user) return null;
   const memberships = (await db.select('memberships?user_id=eq.' + encodeURIComponent(s.user_id) + '&select=org_id,role,site_ids')) || [];
   return { user, memberships, csrf: s.csrf_token, sessionId: s.id };

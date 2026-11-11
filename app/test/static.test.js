@@ -46,7 +46,7 @@ test('the connect page keeps the plugin data out of the address bar and out of t
 });
 
 test('every file the pages refer to exists, and the API is only ever api.maestrolt.com', () => {
-  for (const f of htmls) for (const m of read(f).matchAll(/(?:src|href)="(\/[^"#?]+)"/g)) assert.ok(fs.existsSync(path.join(PUB, m[1])), f + ' → ' + m[1]);
+  for (const f of htmls) for (const m of read(f).matchAll(/(?:src|href)="(\/[^"#?]+)"/g)) assert.ok(fs.existsSync(path.join(PUB, m[1])) || fs.existsSync(path.join(PUB, m[1] + '.html')), f + ' → ' + m[1]);   // /admin ← admin.html (html_handling)
   assert.match(read('js/common.js'), /var API = 'https:\/\/api\.maestrolt\.com';/);
   for (const f of jsFiles) for (const m of read(f).matchAll(/https?:\/\/[a-z0-9.-]+/gi)) assert.ok(/^https:\/\/(api\.maestrolt\.com|www\.w3\.org)/.test(m[0]) || f === 'js/connect.js', f + ' → ' + m[0]);
 });

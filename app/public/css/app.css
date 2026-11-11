@@ -48,6 +48,7 @@ select { width: 100%; font: inherit; padding: 11px 12px; border-radius: 10px; bo
 @media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 3s; } }
 .top { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; flex-wrap: wrap; }
 .top .who { color: var(--muted); font-size: 14px; }
+.top-act { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .site { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 14px 0; border-top: 1px solid var(--line); }
 .site:first-of-type { border-top: 0; }
 .site.sub { border-top: 0; padding-top: 0; margin-top: -8px; }
