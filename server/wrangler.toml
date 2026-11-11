@@ -27,6 +27,7 @@ SUPABASE_URL = "https://cimvozxvnrdryarjzpoq.supabase.co"
 #   (لما نختار مزوّد الذكاء الاصطناعي) AI_BASE_URL · AI_API_KEY · AI_MODEL_CLASSIFY · AI_MODEL_TRANSCRIBE
 #   (جوجل أدز S02) TOKEN_ENC_KEY (32 بايت base64، لتشفير توكنات الربط) · GOOGLE_CLIENT_ID · GOOGLE_CLIENT_SECRET (نفس الـOAuth client اللي عليه Basic)
 #                  TG_TOKEN · TG_CHAT_ID (تنبيهات محمود على بوت Lead Tracker)
+#   (بوت تليجرام على السيرفر) APPS_SCRIPT_URL = رابط /exec بتاع الشيت: السيرفر بيعدّي له أي تحديث مش بتاعه (tgbot.js)
 
 # ───────── نسخة التجربة (staging) ─────────
 # Worker منفصل اسمه maestro-api-staging على رابط workers.dev بس. أي تعديل يتجرب عليه قبل الحي.

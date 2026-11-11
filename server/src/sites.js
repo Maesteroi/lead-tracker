@@ -44,7 +44,7 @@ export const notFound = () => json({ ok: false, error: 'not_found' }, 404);
 export async function me(req, env, db, sess) {
   const orgIds = sess.memberships.map((m) => m.org_id);
   const orgs = orgIds.length ? (await db.select('organizations?id=in.(' + orgIds.join(',') + ')&select=id,name,type,status,trial_ends_at')) || [] : [];
-  return json({ ok: true, user: { id: sess.user.id, email: sess.user.email, name: sess.user.name },
+  return json({ ok: true, user: { id: sess.user.id, email: sess.user.email, name: sess.user.name, platform_admin: sess.user.platform_admin === true },
     orgs: orgs.map((o) => Object.assign({}, o, { role: membershipFor(sess, o.id).role })), csrf: sess.csrf });
 }
 
@@ -55,11 +55,14 @@ export async function listSites(req, env, db, sess) {
   return json({ ok: true, sites: rows.filter((c) => canSee(sess, c)).map(siteView) });
 }
 
-// حدود الخطة: الحساب الموقوف أو التجربة المنتهية = 402، وحد المواقع في التجربة = 409. بيرجّع null لو مفيش مانع.
+// حدود الخطة: الحساب الموقوف أو التجربة المنتهية = 402، وحد المواقع = 409. بيرجّع null لو مفيش مانع.
+// حد المواقع: max_sites من لوحة الإدارة لو متحدد، وإلا التجربة MAX_SITES_TRIAL (3) والمفعّل من غير حد.
+export const ORG_GATE_SELECT = 'id,status,trial_ends_at,max_sites';
 export function planGate(env, org, siteCount) {
   if (org.status === 'off' || org.status === 'past_due' || (org.status === 'trial' && org.trial_ends_at && Date.parse(org.trial_ends_at) < Date.now())) return { status: 402, body: { ok: false, error: 'plan_inactive' } };
-  const max = Number(env.MAX_SITES_TRIAL) > 0 ? Number(env.MAX_SITES_TRIAL) : 3;
-  if (org.status === 'trial' && siteCount >= max) return { status: 409, body: { ok: false, error: 'site_limit', limit: max } };
+  const trialMax = Number(env.MAX_SITES_TRIAL) > 0 ? Number(env.MAX_SITES_TRIAL) : 3;
+  const max = Number.isInteger(org.max_sites) ? org.max_sites : (org.status === 'trial' ? trialMax : null);
+  if (max !== null && siteCount >= max) return { status: 409, body: { ok: false, error: 'site_limit', limit: max } };
   return null;
 }
 
@@ -82,7 +85,7 @@ export async function createSite(req, env, db, sess) {
   const domain = normalizeDomain(b.domain);
   if (!name) return json({ ok: false, error: 'name' }, 400);
   if (!domain) return json({ ok: false, error: 'domain' }, 400);
-  const org = await db.one('organizations?id=' + eq(orgId) + '&select=id,status,trial_ends_at');
+  const org = await db.one('organizations?id=' + eq(orgId) + '&select=' + ORG_GATE_SELECT);
   if (!org) return notFound();
   const existing = (await db.select('clients?org_id=' + eq(orgId) + '&select=id,domains')) || [];
   const gate = planGate(env, org, existing.length);

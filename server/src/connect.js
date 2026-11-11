@@ -6,7 +6,7 @@
 import { eq } from './db.js';
 import { json } from './util.js';
 import { audit } from './auth.js';
-import { normalizeDomain, planGate, insertSite, notFound } from './sites.js';
+import { normalizeDomain, planGate, insertSite, notFound, ORG_GATE_SELECT } from './sites.js';
 import { validConfirmUrl, deliverKey } from './pairing.js';
 
 const MANAGE = new Set(['owner', 'admin']);
@@ -42,7 +42,7 @@ export async function connectSite(req, env, db, sess, fetchImpl) {
   const fails = (await db.select('auth_events?user_id=' + eq(sess.user.id) + '&kind=eq.connect_failed&at=gte.' + encodeURIComponent(since) + '&select=id')) || [];
   if (fails.length >= MAX_FAILS_PER_HOUR) return json({ ok: false, error: 'too_many' }, 429);
 
-  const org = await db.one('organizations?id=' + eq(m.org_id) + '&select=id,status,trial_ends_at');
+  const org = await db.one('organizations?id=' + eq(m.org_id) + '&select=' + ORG_GATE_SELECT);
   if (!org) return notFound();
   const sites = (await db.select('clients?org_id=' + eq(org.id) + '&select=id,name,domains,key_hash,status')) || [];
   let site = sites.find((c) => (c.domains || []).includes(host)) || null;

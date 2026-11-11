@@ -13,12 +13,43 @@ export async function authSite(db, siteId, secret) {
   return safeEqual(await sha256(secret), c.key_hash) ? c : null;
 }
 
+// ── حساب موقوف أو تجربته خلصت (قرار محمود 11 نوفمبر: «خلي دى يتحكم فيها المدير») ──
+// events_policy من لوحة الإدارة: keep = الأحداث بتفضل تتسجل · reject = بتترفض على طول · grace = بتتسجل grace_days يوم من وقت التوقف وبعدين بتترفض.
+// بداية التوقف: status_changed_at (موقوف / متأخر في الدفع) أو trial_ends_at (التجربة خلصت).
+// الرفض 402: البلجن بيعتبره رفض نهائي (مابيعيدش الإرسال)، فمفيش ضغط على السيرفر.
+// كاش 60 ثانية لكل حساب جوه نفس النسخة: تغيير من لوحة الإدارة بيوصل خلال دقيقة.
+const ORG_TTL_MS = 60 * 1000;
+const orgCache = new Map();
+export function eventsAllowed(org, now) {
+  if (!org) return true;
+  now = now || Date.now();
+  let since = null;
+  if (org.status === 'off' || org.status === 'past_due') since = Date.parse(org.status_changed_at || '') || now;
+  else if (org.status === 'trial' && org.trial_ends_at && Date.parse(org.trial_ends_at) < now) since = Date.parse(org.trial_ends_at);
+  if (since === null) return true;
+  const policy = org.events_policy || 'grace';
+  if (policy === 'keep') return true;
+  if (policy === 'reject') return false;
+  const days = Number.isFinite(Number(org.grace_days)) ? Number(org.grace_days) : 7;
+  return now < since + days * 864e5;
+}
+async function orgFor(db, orgId) {
+  const hit = orgCache.get(orgId);
+  if (hit && hit.at > Date.now() - ORG_TTL_MS) return hit.org;
+  const org = await db.one('organizations?id=' + eq(orgId) + '&select=id,status,trial_ends_at,events_policy,grace_days,status_changed_at');
+  if (orgCache.size > 500) orgCache.clear();
+  orgCache.set(orgId, { at: Date.now(), org });
+  return org;
+}
+export function clearOrgCache(orgId) { if (orgId) orgCache.delete(orgId); else orgCache.clear(); }
+
 export async function handleEvent(req, env, db, ctx, fetchImpl) {
   let body;
   try { body = await req.json(); } catch (e) { return json({ ok: false, error: 'bad json' }, 400); }
   if (!body || typeof body !== 'object') return json({ ok: false, error: 'bad json' }, 400);
   const client = await authSite(db, String(body.site_id || ''), body.secret);
   if (!client) return json({ ok: false, error: 'forbidden' }, 403);
+  if (client.org_id && !eventsAllowed(await orgFor(db, client.org_id))) return json({ ok: false, error: 'plan_inactive' }, 402);
 
   const payload = Object.assign({}, body);
   delete payload.secret;

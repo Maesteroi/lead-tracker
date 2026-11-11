@@ -2,13 +2,34 @@
 // نفس شكل تنبيهات الشيت: رسالة واحدة لكل جلسة، بتتعدّل مع كل زيارة صفحة أو ضغطة.
 //   • للمواقع اللي بتبعت للسيرفر بس (المربوطة من لوحة Maestro = عندها org_id). المواقع اللي لسه على الشيت
 //     الشيت هو اللي بيبعت تنبيهاتها، فمابنكررش.
-//   • لمحمود بس في المرحلة دي (TG_CHAT_ID). شات العميل وأزرار النتيجة مرحلة 2.
+//   • لمحمود بس في المرحلة دي (TG_CHAT_ID). شات العميل مرحلة جاية.
+//   • أزرار النتيجة (11 نوفمبر): لما الجلسة فيها ضغطة واتساب أو اتصال بكود، الرسالة بيبقى عليها نفس زراير الشيت
+//     (تم · بيفكر · لغى · مش جاد · ماوصلش رسالة). الضغطة بتوصل للسيرفر نفسه (tgbot.js) وبتتسجل في outcomes.
 //   • بعد الرد على البلجن (ctx.waitUntil) وبعد تحديد المكان، فمابيأخّرش الحدث، وأي فشل في تليجرام مابيأثرش عليه.
 //   • TG_ALERTS = "off" بيقفلها من غير نشر.
 import { eq } from './db.js';
 import { escHtml as esc } from './telegram.js';
 
 const SESSION_MS = 30 * 60 * 1000;      // نفس مدة جلسة الشيت
+
+// نفس زراير الشيت بالظبط (apps-script/outcome-buttons.js)، ونفس شكل callback_data: «o|<SiteID>|<الكود>|<رقم النتيجة>»
+export const OUTCOMES = [['تم', '✅'], ['بيفكر', '🤔'], ['لغى', '❌'], ['مش جاد', '🚫'], ['ماوصلش رسالة', '📭']];
+export function outcomeKeyboard(siteId, code, chosen) {
+  code = String(code || '').replace(/^#/, '');
+  if (!siteId || !code) return null;
+  const btn = (i) => ({ text: (chosen === OUTCOMES[i][0] ? '✓ ' : OUTCOMES[i][1] + ' ') + OUTCOMES[i][0], callback_data: 'o|' + siteId + '|' + code + '|' + i });
+  return { inline_keyboard: [[btn(0), btn(1), btn(2)], [btn(3), btn(4)]] };
+}
+// آخر ضغطة واتساب أو اتصال بكود في الجلسة (مش تجربة) = اللي الزراير بتسجّل عليها (نفس قاعدة الشيت)
+export function contactCode(p) {
+  const ct = String(p.click_type || p.ct || '');
+  if (p.event === 'click' && (ct === 'wa' || ct === 'call') && p.match_code && String(p.is_test) !== '1') {
+    const c = String(p.match_code).replace(/^#/, '');
+    return /^[A-Za-z0-9]{2,20}$/.test(c) ? c : '';
+  }
+  return '';
+}
+const markupFor = (clientId, info) => (info && info.oc ? outcomeKeyboard(clientId, info.oc, info.oc_v || '') : undefined);
 const MAX_LINES = 40;
 const MAX_TEXT = 3900;
 
@@ -64,6 +85,8 @@ function mergeInfo(old, p, geo) {
   o.last_time = p.time || o.last_time;
   o.test = o.test || String(p.is_test) === '1';
   if (geo && geo.country && !o.country) Object.assign(o, { country: geo.country, city: geo.city || '', region: geo.region || '', isp: geo.isp || '' });
+  const oc = contactCode(p);
+  if (oc && oc !== o.oc) { o.oc = oc; delete o.oc_v; }               // كود جديد: الاختيار القديم مايتنقلش عليه
   return o;
 }
 
@@ -94,7 +117,7 @@ export function sessionText(siteName, startedAt, lines, info) {
   return text;
 }
 
-async function tg(env, method, payload, fetchImpl) {
+export async function tg(env, method, payload, fetchImpl) {
   const f = fetchImpl || ((...a) => fetch(...a));
   const ctl = new AbortController(); const timer = setTimeout(() => ctl.abort(), 8000);
   try {
@@ -129,13 +152,13 @@ export async function notifyEvent(env, db, client, payload, geo, fetchImpl) {
       const info = mergeInfo({}, payload, geo);
       const ins = await db.insert('tg_sessions', [{ client_id: client.id, session_id: sid, chat_id: chat, started_at: String(payload.time || ''), lines: [line], info, updated_at: now }], { ignoreDuplicates: true, onConflict: 'client_id,session_id,chat_id' });
       if (ins && ins[0]) {
-        const sent = await tg(env, 'sendMessage', { chat_id: chat, text: sessionText(name, payload.time, [line], info), parse_mode: 'HTML', disable_web_page_preview: true }, fetchImpl);
+        const sent = await tg(env, 'sendMessage', { chat_id: chat, text: sessionText(name, payload.time, [line], info), parse_mode: 'HTML', disable_web_page_preview: true, reply_markup: markupFor(client.id, info) }, fetchImpl);
         if (!sent.ok) { await db.req('DELETE', key(client.id, sid, chat)); console.error('telegram send ' + sent.status); return { failed: true }; }
         await db.update(key(client.id, sid, chat), { message_id: sent.j.result.message_id });
         // حدث تاني من نفس الجلسة وصل وإحنا بنبعت: نعدّل الرسالة علشان يبان
         const after = await db.one(key(client.id, sid, chat) + '&select=lines,info,started_at');
         if (after && Array.isArray(after.lines) && after.lines.length > 1) {
-          await tg(env, 'editMessageText', { chat_id: chat, message_id: sent.j.result.message_id, text: sessionText(name, after.started_at, after.lines, after.info || info), parse_mode: 'HTML', disable_web_page_preview: true }, fetchImpl);
+          await tg(env, 'editMessageText', { chat_id: chat, message_id: sent.j.result.message_id, text: sessionText(name, after.started_at, after.lines, after.info || info), parse_mode: 'HTML', disable_web_page_preview: true, reply_markup: markupFor(client.id, after.info || info) }, fetchImpl);
         }
         return { sent: true };
       }
@@ -146,7 +169,7 @@ export async function notifyEvent(env, db, client, payload, geo, fetchImpl) {
     const info = mergeInfo(row.info, payload, geo);
     await db.update(key(client.id, sid, chat), { lines, info, updated_at: now });
     if (!row.message_id) return { queued: true };                                   // الرسالة الأولى لسه بتتبعت، وهي هتعدّل نفسها
-    const ed = await tg(env, 'editMessageText', { chat_id: chat, message_id: row.message_id, text: sessionText(name, row.started_at, lines, info), parse_mode: 'HTML', disable_web_page_preview: true }, fetchImpl);
+    const ed = await tg(env, 'editMessageText', { chat_id: chat, message_id: row.message_id, text: sessionText(name, row.started_at, lines, info), parse_mode: 'HTML', disable_web_page_preview: true, reply_markup: markupFor(client.id, info) }, fetchImpl);
     if (!ed.ok && !/not modified/i.test(String(ed.j && ed.j.description || ''))) { console.error('telegram edit ' + ed.status); return { failed: true }; }
     return { edited: true };
   } catch (e) {
@@ -155,7 +178,6 @@ export async function notifyEvent(env, db, client, payload, geo, fetchImpl) {
   }
 }
 
-// الكرون: رسايل الجلسات القديمة (أكتر من يومين) بتتشال من الجدول
 // «اختبار الاتصال» من إعدادات البلجن (الموقع بيبعت للسيرفر): رسالة واحدة لمحمود إن السيرفر استلم ومفتاح الموقع سليم.
 // الشيت كان بيبعت «اختبار ناجح»؛ المواقع اللي بقت على السيرفر كانت بتنجح في الاختبار من غير أي رسالة (11 نوفمبر، روضة).
 export async function notifyTest(env, client, fetchImpl) {
@@ -170,6 +192,7 @@ export async function notifyTest(env, client, fetchImpl) {
   }
 }
 
+// الكرون: رسايل الجلسات القديمة (أكتر من يومين) بتتشال من الجدول
 export async function cleanupSessions(db) {
   await db.req('DELETE', 'tg_sessions?updated_at=lt.' + encodeURIComponent(new Date(Date.now() - 2 * 864e5).toISOString()));
   return { ok: true };

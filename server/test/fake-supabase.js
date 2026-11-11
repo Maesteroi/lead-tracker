@@ -14,8 +14,8 @@ const DEFAULTS = {
   tg_sessions: () => ({ message_id: null, lines: [], info: {} }),
   raw_events: () => ({ received_at: new Date().toISOString(), geo: null }),
   site_pair_codes: () => ({ used_at: null, attempts: 0 }),
-  users: () => ({ name: null, locale: null, last_login_at: null }),
-  organizations: () => ({ type: 'business', status: 'trial', trial_ends_at: null }),
+  users: () => ({ name: null, locale: null, last_login_at: null, platform_admin: false }),
+  organizations: () => ({ type: 'business', status: 'trial', trial_ends_at: null, max_sites: null, plan: null, notes: null, events_policy: 'grace', grace_days: 7, status_changed_at: null, created_at: new Date().toISOString() }),
   memberships: () => ({ site_ids: null }),
   sessions: () => ({ last_seen_at: null }),
   ads_credentials: () => ({ status: 'on', login_customer_id: null, campaign_ids: null, currency: null, timezone: null, backfill_from: null, last_pull_at: null, last_ok_day: null, last_error: null }),
@@ -96,6 +96,18 @@ export function fakeSupabase() {
       if (method === 'POST') { files[path] = opts.body; return resp(200, { Key: path }); }
       if (method === 'GET') return files[path] ? new Response(files[path]) : resp(404, {});
       if (method === 'DELETE') { const b = JSON.parse(opts.body); b.prefixes.forEach((x) => { delete files[path + '/' + x]; }); return resp(200, []); }
+    }
+    // دوال SQL (rpc): بنحاكي اللي السيرفر بيستخدمه بس
+    if (u.pathname === '/rest/v1/rpc/platform_site_stats' && method === 'POST') {
+      const a = JSON.parse(opts.body || '{}'); const out = new Map();
+      for (const e of table('raw_events')) {
+        if (!(String(e.received_at) >= a.since_7d)) continue;
+        const s = out.get(e.client_id) || { client_id: e.client_id, ev_24h: 0, ev_7d: 0, last_at: null };
+        s.ev_7d++; if (String(e.received_at) >= a.since_24h) s.ev_24h++;
+        if (!s.last_at || e.received_at > s.last_at) s.last_at = e.received_at;
+        out.set(e.client_id, s);
+      }
+      return resp(200, [...out.values()]);
     }
     const q = u.pathname.replace('/rest/v1/', '') + u.search;
     const p = parse(q);
