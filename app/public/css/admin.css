@@ -1,7 +1,7 @@
 /* لوحة إدارة المنصة — نفس ألوان وخطوط اللوحة (app.css)، بتخطيط أعرض لشاشة الإدارة */
-:root { --info: #1a5fc8; --info-bg: #e8f0fe; --row-hover: #f6f9fe; --scrim: rgba(9, 18, 36, .42); --ring: rgba(26, 115, 232, .28); }
+:root { --row-hover: #f6f9fe; --scrim: rgba(9, 18, 36, .42); --ring: rgba(26, 115, 232, .28); }
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) { --info: #8ab4ff; --info-bg: #152a4d; --row-hover: #17243f; --scrim: rgba(0, 0, 0, .6); --ring: rgba(91, 157, 255, .35); }
+  :root:not([data-theme="light"]) { --row-hover: #17243f; --scrim: rgba(0, 0, 0, .6); --ring: rgba(91, 157, 255, .35); }
 }
 
 body.adm { background-attachment: fixed; }
@@ -34,9 +34,9 @@ body.adm { background-attachment: fixed; }
 .kpi { position: relative; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px 16px 14px; box-shadow: var(--shadow); overflow: hidden; }
 .kpi::before { content: ""; position: absolute; inset-inline-start: 0; top: 14px; bottom: 14px; width: 3px; border-radius: 3px; background: var(--k, var(--accent)); }
 .kpi .k-label { font-size: 13px; color: var(--muted); font-weight: 700; }
-.kpi .k-val { font-size: 30px; font-weight: 800; line-height: 1.25; margin-top: 4px; font-variant-numeric: tabular-nums; }
+.kpi .k-val { font-family: var(--font-head); font-size: 30px; font-weight: 800; line-height: 1.25; margin-top: 4px; font-variant-numeric: tabular-nums; }
 .kpi .k-sub { font-size: 12.5px; color: var(--muted); }
-.kpi.ok { --k: var(--ok); } .kpi.info { --k: var(--accent); } .kpi.warn { --k: var(--warn); } .kpi.mute { --k: var(--line); }
+.kpi.ok { --k: var(--growth); } .kpi.info { --k: var(--accent); } .kpi.warn { --k: var(--warn); } .kpi.mute { --k: var(--line); }
 
 /* ── الكروت ── */
 .panel-card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow); padding: 20px 22px; margin-bottom: 18px; }
@@ -84,10 +84,10 @@ textarea { width: 100%; resize: vertical; min-height: 84px; }
 .tbl tbody tr { cursor: pointer; transition: background .12s; }
 .tbl tbody tr:hover { background: var(--row-hover); }
 .tbl tbody tr:last-child td { border-bottom: 0; }
-.acc-name { font-weight: 800; }
+.acc-name { font-family: var(--font-head); font-weight: 700; }
 .acc-sub { font-size: 13px; color: var(--muted); direction: ltr; unicode-bidi: isolate; display: inline-block; }
 .bar { height: 6px; width: 84px; background: var(--bg); border-radius: 6px; overflow: hidden; margin-top: 6px; border: 1px solid var(--line); }
-.bar i { display: block; height: 100%; background: var(--accent); border-radius: 6px; }
+.bar i { display: block; height: 100%; background: var(--data); border-radius: 6px; }
 .bar.full i { background: var(--warn); }
 .num { font-weight: 800; font-variant-numeric: tabular-nums; }
 .dim { color: var(--muted); font-size: 13px; }
