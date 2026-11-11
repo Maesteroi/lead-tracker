@@ -47,13 +47,13 @@ async function setup(modes, envOver) {
 }
 const rows = (fs) => fs.t.raw_events || [];
 
-test('a visit gets its approximate place right away from the first service, and the IP is cached', async () => {
+test('a visit gets its approximate place right away from the first service (geojs.io), and the IP is cached', async () => {
   const s = await setup();
   const r = await s.ev();
   assert.equal(r.status, 200);
   const g = rows(s.fs)[0].geo;
-  assert.deepEqual([g.country, g.country_code, g.city, g.region, g.isp, g.asn, g.src], ['Saudi Arabia', 'SA', 'Riyadh', 'Riyadh Region', 'Saudi Telecom Company JSC', 'AS25019', 'ipwho.is']);
-  assert.deepEqual(s.net.calls, ['ipwho.is']);
+  assert.deepEqual([g.country, g.country_code, g.city, g.region, g.isp, g.asn, g.src], ['Saudi Arabia', 'SA', 'Jeddah', 'Makkah', 'Mobily', 'AS35819', 'geojs.io']);
+  assert.deepEqual(s.net.calls, ['get.geojs.io']);
   assert.equal(s.fs.t.ip_geo.length, 1); assert.equal(s.fs.t.ip_geo[0].ip, IP);
   assert.equal(rows(s.fs)[0].payload.ip, IP);                                                         // الحدث الأصلي زي ما هو
 });
@@ -61,15 +61,15 @@ test('a visit gets its approximate place right away from the first service, and 
 test('the same IP again is answered from the cache (no outside call); after 30 days it is looked up again', async () => {
   const s = await setup();
   await s.ev(); await s.ev({ event: 'click', click_type: 'wa' });
-  assert.deepEqual(s.net.calls, ['ipwho.is']);
-  assert.equal(rows(s.fs)[1].geo.city, 'Riyadh');
+  assert.deepEqual(s.net.calls, ['get.geojs.io']);
+  assert.equal(rows(s.fs)[1].geo.city, 'Jeddah');
   s.fs.t.ip_geo[0].looked_up_at = new Date(Date.now() - 31 * 864e5).toISOString();
   await s.ev();
-  assert.deepEqual(s.net.calls, ['ipwho.is', 'ipwho.is']);
+  assert.deepEqual(s.net.calls, ['get.geojs.io', 'get.geojs.io']);
 });
 
-test('fallback chain: ipwho.is down → geojs.io; both down → ipapi.co (same order as the sheet)', async () => {
-  for (const [modes, src, city] of [[{ 'ipwho.is': '500' }, 'geojs.io', 'Jeddah'], [{ 'ipwho.is': 'bad' }, 'geojs.io', 'Jeddah'], [{ 'ipwho.is': 'throw', 'get.geojs.io': '500' }, 'ipapi.co', 'Dammam'], [{ 'ipwho.is': 'hang', 'get.geojs.io': 'hang' }, 'ipapi.co', 'Dammam']]) {
+test('fallback chain: geojs.io down → ipwho.is; both down → ipapi.co', async () => {
+  for (const [modes, src, city] of [[{ 'get.geojs.io': '500' }, 'ipwho.is', 'Riyadh'], [{ 'get.geojs.io': 'bad' }, 'ipwho.is', 'Riyadh'], [{ 'get.geojs.io': 'throw', 'ipwho.is': '500' }, 'ipapi.co', 'Dammam'], [{ 'get.geojs.io': 'hang', 'ipwho.is': 'hang' }, 'ipapi.co', 'Dammam']]) {
     const s = await setup(modes); await s.ev();
     assert.deepEqual([rows(s.fs)[0].geo.src, rows(s.fs)[0].geo.city], [src, city], JSON.stringify(modes));
   }
@@ -95,7 +95,7 @@ test('the lookup runs AFTER the answer (waitUntil): a slow service never delays 
   assert.equal(r.status, 200); assert.equal(pending.length, 1);
   assert.equal(rows(s.fs)[0].geo, null);                                                              // الرد رجع والبحث لسه شغال
   release(); await Promise.all(pending);
-  assert.equal(rows(s.fs)[0].geo.city, 'Riyadh');
+  assert.equal(rows(s.fs)[0].geo.city, 'Jeddah');
 });
 
 test('private, local, empty and malformed IPs are never sent to any service', async () => {
@@ -119,7 +119,7 @@ test('a duplicate event does not trigger another lookup', async () => {
   const s = await setup();
   const body = { site_id: 'abc123xyz', secret: 'site-secret', event: 'page_view', time: '2026-11-11 03:48:55', session_id: 'SD', visitor_id: 'V1', ip: '51.36.99.1' };
   await s.call('/v1/events', body); s.fs.t.ip_geo.length = 0; await s.call('/v1/events', body);   // من غير كاش: أي بحث تاني هيبان
-  assert.equal(rows(s.fs).length, 1); assert.deepEqual(s.net.calls, ['ipwho.is']);
+  assert.equal(rows(s.fs).length, 1); assert.deepEqual(s.net.calls, ['get.geojs.io']);
 });
 
 test('the cron fills the place for events the instant lookup missed (last 3 days only, small batches)', async () => {
@@ -127,11 +127,11 @@ test('the cron fills the place for events the instant lookup missed (last 3 days
   await s.ev(); await s.ev({ ip: '51.36.12.35' }); await s.ev({ event: 'scroll_50' });
   rows(s.fs).push({ id: 999, client_id: 'abc123xyz', event: 'page_view', received_at: new Date(Date.now() - 4 * 864e5).toISOString(), geo: null, payload: { ip: '51.36.1.1' } });
   assert.ok(rows(s.fs).filter((r) => r.event !== 'scroll_50').every((r) => r.geo === null));
-  s.net.modes['ipwho.is'] = 'ok'; s.net.calls.length = 0;
+  s.net.modes['get.geojs.io'] = 'ok'; s.net.calls.length = 0;
   const { Db } = await import('../src/db.js');
   const out = await runScheduled(s.env, new Db(s.env, s.net.fetch), { fetchImpl: s.net.fetch });
   assert.equal(out.geo.filled, 2);
-  assert.ok(rows(s.fs).filter((r) => r.event === 'page_view' && r.id !== 999).every((r) => r.geo && r.geo.city === 'Riyadh'));
+  assert.ok(rows(s.fs).filter((r) => r.event === 'page_view' && r.id !== 999).every((r) => r.geo && r.geo.city === 'Jeddah'));
   assert.equal(rows(s.fs).find((r) => r.id === 999).geo, null);                                        // أقدم من 3 أيام: مالوش دعوة
 });
 

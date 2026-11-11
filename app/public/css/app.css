@@ -87,11 +87,8 @@ a:not(.btn) { color: var(--accent); }
 }
 
 /* ── اللوجو ── */
-.logo-full { display: block; width: 200px; max-width: 70%; height: auto; margin: 0 auto 10px; }
+.logo-full { display: block; width: 220px; max-width: 75%; height: auto; margin: 0 auto 10px; }
 .card.login .logo-full { margin: 0 0 14px; margin-inline-start: 0; }
 .brand .mark { width: 36px; height: 36px; display: block; }
 .mark-tile { display: inline-grid; place-items: center; width: 46px; height: 46px; border-radius: 12px; background: #fff; }
 .mark-tile .mark { width: 34px; height: 34px; }
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .logo-full { background: #fff; border-radius: 14px; padding: 8px 12px; }
-}
