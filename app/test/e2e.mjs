@@ -38,6 +38,17 @@ function fakeApi(over) {
     }
     if (p === '/v1/connect' && req.method() === 'POST') { st.calls.push({ body: JSON.parse(req.postData()), csrf: req.headers()['x-csrf-token'], origin: req.headers()['origin'] }); return j(st.connect.status, st.connect.body); }
     if (p === '/v1/sites') return j(200, { ok: true, sites: st.sites });
+    if (p.startsWith('/v1/dash/')) {
+      st.dashCalls = (st.dashCalls || []).concat([p + u.search]);
+      const today = new Date(Date.now() + 3 * 3600e3).toISOString().slice(0, 10);
+      const range = Number(u.searchParams.get('range')) || 7;
+      if (p === '/v1/dash/overview') { const days = []; for (let i = range - 1; i >= 0; i--) days.push({ day: new Date(Date.now() + 3 * 3600e3 - i * 864e5).toISOString().slice(0, 10), sessions: 10 + i, pageviews: 14 + i, clicks: 3, contacts: 2 }); return j(200, { ok: true, site: { id: u.searchParams.get('site') }, range, days, kpi: { sessions: 60, pageviews: 80, contacts: 9, won: 3, open: 2, leads: 9 }, prev: { sessions: 50, contacts: 7 }, live: 2, status: { scoring: false, ads: false, delivery: 99.8, paired: true }, sources: [{ name: 'google_ads', n: 40 }, { name: 'google_organic', n: 15 }, { name: 'direct', n: 5 }], places: [{ name: 'Riyadh', n: 30 }, { name: 'Jeddah', n: 12 }], devices: [{ name: 'موبايل', n: 50 }] }); }
+      if (p === '/v1/dash/visits') return j(200, { ok: true, sessions: [{ id: 'SES1', at: new Date().toISOString(), last_at: new Date().toISOString(), pages: 2, seconds: 70, scroll: 80, contact: 'wa', code: 'AB12', source: 'google_ads', detail: '', utm: '', gclid: true, device: 'موبايل', os: 'iOS', browser: 'Safari', city: 'Riyadh', region: 'Riyadh Region', country: 'Saudi Arabia', isp: 'Saudi Telecom Company JSC', visit_no: 1, landing: 'الرئيسية', automation: false }, { id: 'SES2', at: new Date(Date.now() - 3600e3).toISOString(), last_at: new Date(Date.now() - 3500e3).toISOString(), pages: 1, seconds: 12, scroll: null, contact: '', code: null, source: 'google_organic', detail: '', device: 'كمبيوتر', os: 'Windows', browser: 'Chrome', city: 'Jeddah', region: '', country: 'Saudi Arabia', isp: 'Mobily', visit_no: 2, landing: 'الأسعار', automation: false }] });
+      if (p === '/v1/dash/session') return j(200, { ok: true, events: [{ at: new Date().toISOString(), event: 'page_view', title: 'الرئيسية' }, { at: new Date().toISOString(), event: 'click', click_type: 'wa', btn_text: 'واتساب' }] });
+      if (p === '/v1/dash/leads') return j(200, { ok: true, leads: [{ at: new Date().toISOString(), type: 'wa', code: 'AB12', btn: 'واتساب', source: 'google_ads', detail: '', city: 'Riyadh', region: '', session: 'SES1', outcome: '' }] });
+      if (p === '/v1/dash/setup') return j(200, { ok: true, sites: st.sites.map((x) => ({ id: x.id, name: x.name, domains: x.domains, status: 'on', paired: !!x.paired, installed: !!x.paired, last_event: x.paired ? new Date().toISOString() : null, plugin: x.paired ? '2.12.2' : null, delivery: x.paired ? [{ day: today, pct: 99.8, ok: true }] : [], ads: false })) });
+      if (p === '/v1/dash/outcome') { const b = JSON.parse(req.postData()); st.outcomeCalls = (st.outcomeCalls || []).concat([Object.assign({ csrf: req.headers()['x-csrf-token'] }, b)]); return j(200, { ok: true, code: b.code, value: b.value }); }
+    }
     if (p.endsWith('/install-status')) return j(200, { ok: true, status: 'waiting', paired: true });
     if (p.endsWith('/pair-code')) return j(201, { ok: true, code: 'K7M2-QX9P', valid_minutes: 15 });
     if (p === '/v1/auth/logout') { st.signedIn = false; return j(200, { ok: true }); }
@@ -176,10 +187,12 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
 { const api = fakeApi(); const pg = await page(api); await pg.goto('https://app.maestrolt.com/'); await pg.waitForURL('https://app.maestrolt.com/login');
   t('home page without a session goes to /login', true);
   api.signedIn = true; api.sites = []; await pg.goto('https://app.maestrolt.com/'); await pg.waitForSelector('text=لسه مفيش مواقع');
-  t('home page with no sites explains how to connect', /اربط بـ Maestro LT/.test(await pg.locator('#sites').innerText())); await shot(pg, 'home-empty');
-  api.sites = [{ id: 'SiteId123456', name: 'روضة الصالحين', domains: ['rawda.site'] }]; await pg.reload(); await pg.waitForSelector('.site');
-  t('home page lists the site with its status', /rawda\.site/.test(await pg.locator('#sites').innerText()) && /مربوط ومستني أول زيارة/.test(await pg.locator('#sites').innerText()));
-  await pg.getByRole('button', { name: 'كود ربط (بديل)' }).click().catch(() => {});
+  t('home page with no sites explains how to connect', /اربط بـ Maestro LT/.test(await pg.locator('#view').innerText())); await shot(pg, 'home-empty');
+  api.sites = [{ id: 'SiteId123456', name: 'روضة الصالحين', domains: ['rawda.site'] }]; await pg.goto('https://app.maestrolt.com/#/sites'); await pg.reload(); await pg.waitForSelector('.checks');
+  t('home page lists the site with its status and a pair code for unpaired sites', /rawda\.site/.test(await pg.locator('#view').innerText()) && /لسه مااتربطش/.test(await pg.locator('#view').innerText()));
+  await pg.getByRole('button', { name: 'كود ربط (بديل للزرار)' }).click();
+  await pg.waitForSelector('.code');
+  t('home page: the pair code shows (K7M2-QX9P)', /K7M2-QX9P/.test(await pg.locator('.code').innerText()));
   t('home page: logout goes back to /login', await (async () => { await pg.getByRole('button', { name: 'خروج' }).click(); await pg.waitForURL('https://app.maestrolt.com/login'); return true; })());
   t('home: no CSP violations', pg.csp.length === 0 && pg.errors.length === 0); await pg.context().close(); }
 
@@ -195,7 +208,7 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
   await pg.waitForSelector('#denied:not([hidden])');
   t('admin: a normal user sees "not available" and nothing else', await pg.locator('#app').isHidden() && /مش متاحة/.test(await pg.locator('#denied').innerText()));
   await pg.goto('https://app.maestrolt.com/');
-  await pg.waitForSelector('#sites h2');
+  await pg.waitForSelector('#view .panel-card, #view .answers');
   t('admin: the main page hides the admin link from a normal user', await pg.locator('#admin-link').isHidden());
   await pg.context().close(); }
 
@@ -405,6 +418,63 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
   t('reports: print/PDF shows only the report', await pg.locator('.report-doc').isVisible() && await pg.locator('.rep-form').isHidden() && await pg.locator('.side').isHidden());
   await pg.emulateMedia({ media: 'screen' });
   t('agency: no API calls, no console errors, no CSP violations', apiCalls.length === 0 && pg.errors.length === 0 && pg.csp.length === 0);
+  if (pg.errors.length || pg.csp.length) console.log(pg.errors, pg.csp);
+  await pg.context().close(); }
+
+// 15) اللوحة الحقيقية (بعد الدخول): نفس الشاشات على بيانات /v1/dash
+{ const api = fakeApi({ signedIn: true, sites: [{ id: 'SiteId123456', name: 'روضة الصالحين', domains: ['rawda.site'], paired: true }] }); const pg = await page(api, { viewport: { width: 1440, height: 900 } });
+  await pg.goto('https://app.maestrolt.com/');
+  await pg.waitForSelector('.answers .ans');
+  t('live: a business account opens on the simple level with real numbers', /60 زيارة/.test(await pg.locator('.answers').innerText()) && /3 عميل/.test(await pg.locator('.answers').innerText()));
+  t('live: protection is said honestly to be coming (no fake money numbers)', /بنراقب كل زيارة/.test(await pg.locator('.ans').first().innerText()) && !/ر\.س/.test(await pg.locator('.answers').innerText()));
+  t('live: the checklist marks what is coming as "قريباً"', (await pg.locator('.steps-check li.soon').count()) >= 2);
+  t('live: the dashboard calls the real endpoints with the site', (api.dashCalls || []).some((c) => c.startsWith('/v1/dash/overview?site=SiteId123456')));
+  await shot(pg, 'live-simple');
+  await pg.locator('#level').getByRole('button', { name: 'تفصيلي' }).click();
+  await pg.waitForSelector('.kpis .kpi');
+  t('live detailed: visits, contacts, conversion, customers, delivery KPIs and a single-series chart', /60/.test(await pg.locator('.kpis').innerText()) && /99.8%/.test(await pg.locator('.kpis').innerText()) && (await pg.locator('.chart-legend .lg').count()) === 1);
+  t('live detailed: sources and cities come from the server', /إعلان جوجل/.test(await pg.locator('#view').innerText()) && /Riyadh/.test(await pg.locator('#view').innerText()));
+  await shot(pg, 'live-overview');
+  await pg.locator('.side-nav a[data-r="visits"]').click();
+  await pg.waitForFunction(() => document.getElementById('page-title').textContent === 'الزيارات' && document.querySelector('#view .tbl tbody tr'));
+  t('live visits: rows from the server with contact status and network', (await pg.locator('#view .tbl tbody tr').count()) === 2 && /كلّمك واتساب/.test(await pg.locator('#view .tbl').innerText()) && /Saudi Telecom/.test(await pg.locator('#view .tbl').innerText()));
+  await pg.getByRole('button', { name: /^تواصلوا/ }).click();
+  await pg.waitForFunction(() => document.querySelectorAll('#view .tbl tbody tr').length === 1).catch(() => {});
+  t('live visits: "contacted" filter', (await pg.locator('#view .tbl tbody tr').count()) === 1);
+  await pg.locator('#view .tbl tbody tr').first().click();
+  await pg.waitForSelector('.timeline li.k-contact');
+  t('live visit: the journey loads from the server when opened', /ضغط واتساب/.test(await pg.locator('.timeline').innerText()) && (api.dashCalls || []).some((c) => c.startsWith('/v1/dash/session')));
+  await shot(pg, 'live-visit');
+  await pg.keyboard.press('Escape');
+  await pg.locator('.side-nav a[data-r="leads"]').click();
+  await pg.waitForFunction(() => document.getElementById('page-title').textContent === 'العملاء الحقيقيين' && document.querySelector('#view .tbl select'));
+  await pg.locator('#view .tbl select').first().selectOption('تم');
+  await pg.waitForFunction(() => /اتسجلت/.test(document.getElementById('toast').textContent));
+  t('live leads: choosing an outcome saves it to the server with the CSRF token', (api.outcomeCalls || []).length === 1 && api.outcomeCalls[0].code === 'AB12' && api.outcomeCalls[0].value === 'تم' && api.outcomeCalls[0].site === 'SiteId123456' && api.outcomeCalls[0].csrf === 'csrf-token-123');
+  for (const [r, txt, title] of [['statement', 'كشف الحساب بيشتغل أول ما تربط جوجل أدز', 'كشف الحساب'], ['protection', 'الحماية بتتجهز', 'الحماية']]) {
+    await pg.locator('.side-nav a[data-r="' + r + '"]').click();
+    await pg.waitForFunction((x) => document.getElementById('page-title').textContent === x && document.querySelector('.callout'), title);
+    t('live ' + r + ': honest "coming" page, no fake numbers', (await pg.locator('.callout').innerText()).includes(txt));
+  }
+  await pg.locator('.side-nav a[data-r="sites"]').click();
+  await pg.waitForSelector('.checks');
+  t('live sites: installed, plugin version and delivery from the server', /2.12.2/.test(await pg.locator('.checks').innerText()) && /99.8%/.test(await pg.locator('.checks').innerText()));
+  t('live: no console errors and no CSP violations', pg.errors.length === 0 && pg.csp.length === 0);
+  if (pg.errors.length || pg.csp.length) console.log(pg.errors, pg.csp);
+  await pg.context().close(); }
+
+{ const api = fakeApi({ signedIn: true, orgs: [{ id: 'org1', name: 'وكالة', role: 'owner', type: 'agency', status: 'active' }], sites: [{ id: 'SiteId123456', name: 'روضة الصالحين', domains: ['rawda.site'], paired: true }, { id: 'SiteId654321', name: 'الإنجاز', domains: ['enjaz.biz'], paired: true }] });
+  const pg = await page(api, { viewport: { width: 1440, height: 900 } });
+  await pg.goto('https://app.maestrolt.com/');
+  await pg.waitForSelector('.kpis .kpi');
+  t('live agency: an agency account opens on the detailed level', (await pg.locator('.side-nav a').count()) === 9);
+  await pg.locator('.side-nav a[data-r="clients"]').click();
+  await pg.waitForFunction(() => document.querySelectorAll('#view .tbl tbody tr').length === 2);
+  t('live agency: all clients with real visits/contacts/customers', /60/.test(await pg.locator('#view .tbl').innerText()) && /تواصل من غير نتيجة/.test(await pg.locator('#view .tbl').innerText()));
+  await pg.locator('.side-nav a[data-r="reports"]').click();
+  await pg.waitForSelector('.report-doc .rd-answers');
+  t('live agency: the report uses real numbers and no statement section yet', /بنراقب كل زيارة/.test(await pg.locator('.rd-answers').innerText()) && !(await pg.locator('.report-doc h3').allInnerTexts()).includes('كشف الحساب'));
+  t('live agency: no console errors and no CSP violations', pg.errors.length === 0 && pg.csp.length === 0);
   if (pg.errors.length || pg.csp.length) console.log(pg.errors, pg.csp);
   await pg.context().close(); }
 

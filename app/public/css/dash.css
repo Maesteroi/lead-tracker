@@ -271,3 +271,13 @@ table.mini th, table.mini td { padding: 6px 8px; border-bottom: 1px solid var(--
   body.print-report .rep-grid { display: block; }
   body.print-report .report-doc { border: 0; box-shadow: none; max-width: none; padding: 0; }
 }
+
+/* ── البيانات الحقيقية: «قريباً» ── */
+.panel-card.soon { border-style: dashed; }
+.soon-list { margin: 0 0 8px; padding-inline-start: 20px; display: grid; gap: 4px; color: var(--muted); }
+.steps-check li.soon { background: var(--bg); color: var(--muted); }
+.steps-check .soon .ck { border: 2px dotted var(--muted); color: var(--muted); }
+.checks .soon .ck { background: var(--bg); color: var(--muted); border: 1px dashed var(--line); }
+.verdict.s-none { background: var(--info-bg); }
+.side-user { display: grid; gap: 6px; font-size: 14px; }
+.side-user .who { color: var(--muted); }
