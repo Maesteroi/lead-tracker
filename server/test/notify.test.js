@@ -152,3 +152,16 @@ test('a database problem on the alerts table (e.g. table missing) never breaks t
   const r = await s.evWith(s.w.f);
   assert.equal(r.status, 200); assert.equal(s.w.fs.t.raw_events.length, 1); assert.equal(s.n.sent.length, 0);
 });
+
+test('"test connection" from the plugin sends one «اختبار ناجح» message, stores nothing, and a wrong key gets nothing', async () => {
+  const s = await setup();
+  const r = await s.ev({ event: 'test' });
+  assert.equal(r.status, 200); assert.equal(r.body.test, true);
+  assert.equal(s.n.sent.length, 1);
+  assert.ok(s.n.sent[0].text.includes('اختبار ناجح') && s.n.sent[0].text.includes('المعقب الذهبي'), s.n.sent[0].text);
+  assert.equal((s.w.fs.t.raw_events || []).length, 0);
+  assert.equal((s.w.fs.t.tg_sessions || []).length, 0);
+  const bad = await s.ev({ event: 'test', secret: 'wrong' });
+  assert.equal(bad.status, 403);
+  assert.equal(s.n.sent.length, 1);
+});

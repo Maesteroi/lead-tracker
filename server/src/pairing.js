@@ -11,7 +11,7 @@ import { normalizeDomain } from './sites.js';
 
 const CODE_TTL_MS = 15 * 60 * 1000;
 const MAX_ATTEMPTS = 5;
-const CONFIRM_TIMEOUT_MS = 8000;
+const CONFIRM_TIMEOUT_MS = 20000;   // 11 نوفمبر: روضة ردّت بعد أكتر من 8 ثواني فالربط بالزرار فشل 3 مرات (البلجن بيستنى السيرفر 30 ثانية)
 const MANAGE = new Set(['owner', 'admin']);
 
 const normCode = (c) => String(c || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
