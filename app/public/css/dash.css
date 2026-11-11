@@ -198,3 +198,28 @@ table.mini th, table.mini td { padding: 6px 8px; border-bottom: 1px solid var(--
   .side, .topbar, .bottom-nav, .btn, .seg, .linkish { display: none !important; }
   .dmain { margin: 0; } .panel-card { break-inside: avoid; box-shadow: none; }
 }
+
+/* ── المستوى البسيط ── */
+.answers { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-bottom: 16px; }
+.ans { display: grid; gap: 6px; align-content: start; padding: 20px 20px 18px; border-radius: 18px; background: var(--card); border: 1px solid var(--line); box-shadow: var(--shadow); border-top: 5px solid var(--k, var(--accent)); }
+.ans.ok { --k: var(--growth); } .ans.warn { --k: var(--warn); } .ans.bad { --k: var(--bad); } .ans.info { --k: var(--accent); }
+.ans .q { color: var(--muted); font-weight: 700; font-size: 15px; }
+.ans .a { font-family: var(--font-head); font-size: 28px; line-height: 1.3; font-weight: 800; }
+.ans.warn .a { color: var(--warn); } .ans.bad .a { color: var(--bad); }
+.ans .s { color: var(--muted); font-size: 15px; }
+.progress { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+.p-bar { flex: 1; height: 10px; border-radius: 6px; background: var(--bg); overflow: hidden; border: 1px solid var(--line); }
+.p-bar i { display: block; height: 100%; background: var(--growth); border-radius: 6px; }
+.steps-check { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.steps-check li { display: grid; grid-template-columns: 26px 1fr auto; gap: 10px; align-items: center; padding: 8px 10px; border-radius: 10px; }
+.steps-check li.todo { background: var(--warn-bg); }
+.steps-check .ok .ck { background: var(--ok-bg); color: var(--ok); }
+.steps-check .todo .ck { border: 2px dashed var(--warn); }
+.story { font-size: 17px; line-height: 2; margin: 0 0 12px; }
+.how { margin: 0; padding-inline-start: 20px; display: grid; gap: 6px; }
+.seg.level button[aria-pressed="true"] { color: var(--accent); }
+@media (max-width: 900px) {
+  .answers { grid-template-columns: 1fr; }
+  .ans .a { font-size: 24px; }
+  .seg.level { order: -1; }
+}
