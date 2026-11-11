@@ -33,3 +33,10 @@
 node --test app/test/static.test.js      # فحص ثابت (هيدرز · مفيش كود inline · مفيش innerHTML) — بيشتغل في الفحص الآلي
 node app/test/e2e.mjs [مجلد لقطات]       # متصفح حقيقي (Playwright) بيحاكي api وووردبريس — محلي بس (40 فحص)
 ```
+
+## تحديث البلجن الأوتوماتيك (الخادم)
+- **Build command** في إعدادات `maestro-app` (Settings ← Builds): `node build-plugin.mjs`. السكريبت بيعمل نسخة العملاء من البلجن ويوقّعها ويحطها في `public/plugin/` (الملفات دي مش في المستودع، بتتعمل وقت البناء).
+- **سر البناء** `PLUGIN_SIGNING_KEY` (Settings ← Builds ← Variables and secrets، نوع Secret): المفتاح الخاص Ed25519 (PKCS8 base64). محمود ولّده في متصفحه وحطه بنفسه، ونسخة احتياطية عنده. المفتاح العام جوه البلجن (`LTP_Updater::PUBKEY`).
+- **إصدار جديد:** في نفس طلب الدمج: رقم الإصدار في `lead-tracker-pro.php` + `plugin/release.json` (نفس الرقم، `released_at` بوقت الدمج، و`notes`). بعد الدمج Cloudflare بيبني وينشر، ومواقع القناة المبكرة بتاخده خلال ساعات، والعادية بعد `stable_delay_days` (3).
+- **إيقاف كل التحديثات فوراً:** `"stop": true` في `plugin/release.json` ودمج. ولو أي حاجة غلط (مفتاح ناقص أو مش مطابق، إصدار مش مطابق) السكريبت بيكتب `stop` لوحده ومابيطلّعش ملف.
+- **التأكد:** `https://app.maestrolt.com/plugin/info.json` لازم يبيّن الإصدار و`"stop": false`.
