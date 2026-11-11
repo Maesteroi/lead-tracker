@@ -24,7 +24,7 @@ async function run(matchOn, steps) {
       <a id="call2" href="tel:+966554912921">اتصل مرة تانية</a>
       <a id="wa" href="https://wa.me/966554912921">واتساب</a>
       <footer class="credits"><a id="dev" href="tel:+201000000001">تصميم: المطوّر</a></footer>
-      <script>window.LTP_CFG={endpoint:'https://rawda.test/e',pid:1,greet:'هلا، ',matchOn:${matchOn},consentRequired:0,trackAll:1,version:'2.11.2',rules:'',skipNums:['201000000001'],inv:'',roles:{},pt:'home'};</script>
+      <script>window.LTP_CFG={endpoint:'https://rawda.test/e',pid:1,greet:'هلا، ',matchOn:${matchOn},consentRequired:0,trackAll:1,version:'2.11.3',rules:'',skipNums:['201000000001'],inv:'',roles:{},pt:'home'};</script>
       <script src="/tracker.js"></script></body>` });
   });
   await page.goto('https://rawda.test/');
