@@ -1,4 +1,5 @@
-// المكان التقريبي للزائر من الـIP (G-28). نفس سلسلة الخدمات المجانية اللي الشيت بيستخدمها: ipwho.is ← geojs.io ← ipapi.co.
+// المكان التقريبي للزائر من الـIP (G-28). خدمات مجانية: geojs.io ← ipwho.is ← ipapi.co.
+// (11 نوفمبر: geojs.io بقت الأولى لأن ipwho.is مابتردش على سيرفرات Cloudflare، فكانت بتضيّع مهلتها في كل بحث.)
 // «فوري ومن غير أي تأثير سلبي» (قرار محمود 11 نوفمبر):
 //   • البحث بيتعمل بعد ما السيرفر يرد على البلجن (ctx.waitUntil)، فالحدث مابيتأخرش ثانية.
 //   • أي فشل (الخدمات واقعة · بطء · رد غلط) مايأثرش على الحدث: بيتسجل من غير مكان، والكرون يكمّله بعدين.
@@ -12,10 +13,10 @@ const BACKFILL_WINDOW_MS = 3 * 24 * 3600 * 1000;
 const clean = (s, n) => String(s == null ? '' : s).trim().slice(0, n || 80);
 
 export const PROVIDERS = [
-  { name: 'ipwho.is', url: (ip) => 'https://ipwho.is/' + encodeURIComponent(ip),
-    parse: (g) => (!g || g.success === false || !g.country) ? null : { country: g.country, country_code: g.country_code, region: g.region, city: g.city, isp: (g.connection && (g.connection.isp || g.connection.org)) || '', asn: g.connection && g.connection.asn ? 'AS' + g.connection.asn : '' } },
   { name: 'geojs.io', url: (ip) => 'https://get.geojs.io/v1/ip/geo/' + encodeURIComponent(ip) + '.json',
     parse: (g) => (!g || !g.country) ? null : { country: g.country, country_code: g.country_code, region: g.region, city: g.city, isp: g.organization_name || '', asn: g.asn ? 'AS' + g.asn : '' } },
+  { name: 'ipwho.is', url: (ip) => 'https://ipwho.is/' + encodeURIComponent(ip),
+    parse: (g) => (!g || g.success === false || !g.country) ? null : { country: g.country, country_code: g.country_code, region: g.region, city: g.city, isp: (g.connection && (g.connection.isp || g.connection.org)) || '', asn: g.connection && g.connection.asn ? 'AS' + g.connection.asn : '' } },
   { name: 'ipapi.co', url: (ip) => 'https://ipapi.co/' + encodeURIComponent(ip) + '/json/',
     parse: (g) => (!g || g.error || !(g.country_name || g.country)) ? null : { country: g.country_name || g.country, country_code: g.country_code || g.country, region: g.region, city: g.city, isp: g.org || '', asn: g.asn || '' } },
 ];
