@@ -92,7 +92,10 @@
   }
   function buildTop() {
     var sel = clear($('site'));
-    state.sites.forEach(function (s) { sel.appendChild(el('option', { value: s.id, text: s.name })); });
+    // مدير المنصة بيشوف مواقع كل الحسابات: متقسمة حسب الحساب
+    var orgs = []; state.sites.forEach(function (s) { if (s.org && orgs.indexOf(s.org) < 0) orgs.push(s.org); });
+    if (orgs.length) orgs.forEach(function (o) { sel.appendChild(el('optgroup', { label: o }, state.sites.filter(function (s) { return s.org === o; }).map(function (s) { return el('option', { value: s.id, text: s.name }); }))); });
+    else state.sites.forEach(function (s) { sel.appendChild(el('option', { value: s.id, text: s.name })); });
     sel.value = state.site;
     sel.onchange = function () { state.site = sel.value; render(); };
     var lvl = clear($('level'));
@@ -814,6 +817,8 @@
       }
       return DATA.sites().then(function (s) {
         state.sites = s; state.site = s[0] && s[0].id;
+        var want = null; try { want = new URLSearchParams(location.search).get('site'); } catch (e) { /* عادي */ }
+        if (want && s.some(function (x) { return x.id === want; })) state.site = want;      // من «افتح لوحته» في لوحة الإدارة
         buildNav(); buildTop();
         if (!s.length && DATA.live) { location.hash = '#/sites'; }
         render();

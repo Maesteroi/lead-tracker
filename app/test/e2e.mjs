@@ -37,7 +37,7 @@ function fakeApi(over) {
       if (m && req.method() === 'POST') { const b = JSON.parse(req.postData()); st.orgCalls.push({ id: m[1], body: b, csrf: req.headers()['x-csrf-token'] }); const o = st.overview.orgs.find((x) => x.id === m[1]); Object.assign(o, b); return j(200, { ok: true, org: o, changed: Object.keys(b) }); }
     }
     if (p === '/v1/connect' && req.method() === 'POST') { st.calls.push({ body: JSON.parse(req.postData()), csrf: req.headers()['x-csrf-token'], origin: req.headers()['origin'] }); return j(st.connect.status, st.connect.body); }
-    if (p === '/v1/sites') return j(200, { ok: true, sites: st.sites });
+    if (p === '/v1/sites') return j(200, Object.assign({ ok: true, sites: st.sites }, st.sitesAll ? { all: true } : {}));
     if (p.startsWith('/v1/dash/')) {
       st.dashCalls = (st.dashCalls || []).concat([p + u.search]);
       const today = new Date(Date.now() + 3 * 3600e3).toISOString().slice(0, 10);
@@ -476,6 +476,21 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
   t('live agency: the report uses real numbers and no statement section yet', /بنراقب كل زيارة/.test(await pg.locator('.rd-answers').innerText()) && !(await pg.locator('.report-doc h3').allInnerTexts()).includes('كشف الحساب'));
   t('live agency: no console errors and no CSP violations', pg.errors.length === 0 && pg.csp.length === 0);
   if (pg.errors.length || pg.csp.length) console.log(pg.errors, pg.csp);
+  await pg.context().close(); }
+
+// 16) مدير المنصة: كل المواقع متقسمة حسب الحساب، و«افتح لوحته» من الإدارة
+{ const api = fakeApi({ signedIn: true, platformAdmin: true, overview: overviewData(), tg: { ok: true, configured: true, mode: 'server', sheet_ready: true, pending: 0 }, tgCalls: [], orgCalls: [],
+    sites: [{ id: 'SiteId123456', name: 'روضة الصالحين', domains: ['rawda.site'], paired: true, org_name: 'Digital Avenue' }, { id: 'SiteId654321', name: 'عيادات النخبة', domains: ['nokhba.clinic'], paired: true, org_name: 'عيادات النخبة' }], sitesAll: true });
+  const pg = await page(api, { viewport: { width: 1440, height: 900 } });
+  await pg.goto('https://app.maestrolt.com/?site=SiteId654321');
+  await pg.waitForSelector('.answers .ans');
+  t('super admin: the site picker groups every site by account', (await pg.locator('#site optgroup').count()) === 2);
+  t('super admin: ?site= opens that site directly', (await pg.locator('#site').inputValue()) === 'SiteId654321' && (api.dashCalls || []).some((c) => c.includes('site=SiteId654321')));
+  await pg.goto('https://app.maestrolt.com/admin');
+  await pg.waitForSelector('#rows tr');
+  await pg.locator('#rows tr', { hasText: 'Digital Avenue' }).click();
+  t('super admin: the admin drawer links each site to its dashboard', (await pg.locator('#d-sites .open-dash').first().getAttribute('href')).startsWith('/?site=RAgH4vV49gjd'));
+  t('super admin: no console errors or CSP violations', pg.errors.length === 0 && pg.csp.length === 0);
   await pg.context().close(); }
 
 await browser.close();

@@ -34,7 +34,7 @@
     init: function () { return LT.me().then(function (m) { me = m; return m; }); },
     me: function () { return me; },
     agency: null,
-    sites: function () { return get('/v1/sites').then(function (b) { return (b.sites || []).map(function (s) { return { id: s.id, name: s.name, domain: (s.domains || [])[0] || '', currency: 'ر.س' }; }); }); },
+    sites: function () { return get('/v1/sites').then(function (b) { return (b.sites || []).map(function (s) { return { id: s.id, name: s.name, domain: (s.domains || [])[0] || '', currency: 'ر.س', org: b.all ? (s.org_name || '') : '' }; }); }); },
     overview: function (site, range) { return overviewRaw(site, range).then(mapOverview); },
     statement: function () { return Promise.resolve({ unavailable: 'ads' }); },
     visits: function (site, range) { return get('/v1/dash/visits' + q(site, range)).then(function (b) { return (b.sessions || []).map(mapVisit); }); },

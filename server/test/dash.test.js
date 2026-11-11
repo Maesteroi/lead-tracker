@@ -90,3 +90,20 @@ test('dash setup: each of my sites with installed / last event / plugin / delive
   assert.equal(out[0].delivery[0].day, s.today); assert.equal(out[0].delivery[0].pct, 100);
   assert.equal((await s.gc(s.other, '/v1/dash/setup')).body.sites.length, 0);
 });
+
+test('platform admin (super admin) sees and manages every site of every account; normal users still only their own', async () => {
+  const s = await setup();
+  s.w.fs.t.users.find((u) => u.email === 'other@example.com').platform_admin = true;     // «other» بقى مدير منصة
+  const list = (await s.gc(s.other, '/v1/sites')).body;
+  assert.equal(list.all, true);
+  const mine = list.sites.find((x) => x.id === s.site.id);
+  assert.ok(mine, 'sees the other account\'s site'); assert.ok(mine.org_name);
+  assert.equal((await s.gc(s.other, '/v1/dash/overview?range=7&site=' + s.site.id)).status, 200);
+  assert.equal((await s.gc(s.other, '/v1/dash/setup')).body.sites.some((x) => x.id === s.site.id), true);
+  assert.equal((await s.pc(s.other, '/v1/sites/' + s.site.id + '/pair-code', {})).status, 201);
+  assert.equal((await s.pc(s.other, '/v1/dash/outcome', { site: s.site.id, code: 'AB12', value: 'تم' })).status, 200);
+  s.w.fs.t.users.find((u) => u.email === 'other@example.com').platform_admin = false;      // من غير الصلاحية: يرجع زي الأول
+  assert.equal((await s.gc(s.other, '/v1/sites')).body.sites.length, 0);
+  assert.equal((await s.gc(s.other, '/v1/dash/overview?range=7&site=' + s.site.id)).status, 404);
+  assert.equal((await s.pc(s.other, '/v1/sites/' + s.site.id + '/pair-code', {})).status, 404);
+});

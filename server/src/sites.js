@@ -25,11 +25,15 @@ export function normalizeDomain(v) {
   return /^(?=.{4,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+([a-z]{2,63}|xn--[a-z0-9-]{2,59})$/.test(s) ? s : '';
 }
 
-const siteView = (c) => ({ id: c.id, name: c.name, domains: c.domains || [], status: c.status, org_id: c.org_id, created_at: c.created_at, timezone: c.timezone, country_code: c.country_code });
+const siteView = (c) => ({ id: c.id, name: c.name, domains: c.domains || [], status: c.status, org_id: c.org_id, created_at: c.created_at, timezone: c.timezone, country_code: c.country_code, org_name: c.org_name || undefined });
 
 // الأحقية على موقع: عضو في حسابه، ولو صلاحيته محددة بمواقع معينة يبقى الموقع منها
 function membershipFor(sess, orgId) { return sess.memberships.find((m) => m.org_id === orgId) || null; }
+// مدير المنصة (users.platform_admin، قرار محمود 11 نوفمبر): بيشوف ويدير كل مواقع كل الحسابات من اللوحة، كأنه مالك
+export const isPlatform = (sess) => !!(sess && sess.user && sess.user.platform_admin === true);
+export function roleFor(sess, orgId) { const m = membershipFor(sess, orgId); return m ? m.role : isPlatform(sess) ? 'owner' : null; }
 function canSee(sess, site) {
+  if (isPlatform(sess) && site.org_id) return true;
   const m = membershipFor(sess, site.org_id);
   return !!m && (!m.site_ids || m.site_ids.includes(site.id));
 }
@@ -49,6 +53,12 @@ export async function me(req, env, db, sess) {
 }
 
 export async function listSites(req, env, db, sess) {
+  if (isPlatform(sess)) {
+    const rows = (await db.select('clients?org_id=not.is.null&select=id,name,status,org_id,domains,created_at,timezone,country_code&order=created_at.asc')) || [];
+    const orgs = (await db.select('organizations?select=id,name')) || [];
+    const on = new Map(orgs.map((o) => [o.id, o.name]));
+    return json({ ok: true, all: true, sites: rows.map((c) => siteView(Object.assign({}, c, { org_name: on.get(c.org_id) || '' }))) });
+  }
   const orgIds = sess.memberships.map((m) => m.org_id);
   if (!orgIds.length) return json({ ok: true, sites: [] });
   const rows = (await db.select('clients?org_id=in.(' + orgIds.join(',') + ')&select=id,name,status,org_id,domains,created_at,timezone,country_code&order=created_at.asc')) || [];
@@ -99,7 +109,7 @@ export async function createSite(req, env, db, sess) {
 export async function rotateKey(req, env, db, sess, id) {
   const site = await loadSite(db, sess, id);
   if (!site) return notFound();
-  if (!MANAGE.has(membershipFor(sess, site.org_id).role)) return json({ ok: false, error: 'forbidden' }, 403);
+  if (!MANAGE.has(roleFor(sess, site.org_id))) return json({ ok: false, error: 'forbidden' }, 403);
   const key = 'ltk' + randomToken(24);
   await db.update('clients?id=' + eq(site.id), { key_hash: await sha256(key) });
   await audit(db, sess.user.id, 'key_rotated', true, site.id);
