@@ -14,6 +14,7 @@ const DEFAULTS = {
   tg_sessions: () => ({ message_id: null, lines: [], info: {} }),
   site_health: () => ({ local_counts: {}, out_stats: null, plugin_version: null, reported_at: new Date().toISOString() }),
   daily_reports: () => ({ sent_at: new Date().toISOString() }),
+  outcomes: () => ({ at: new Date().toISOString() }),
   raw_events: () => ({ received_at: new Date().toISOString(), geo: null }),
   site_pair_codes: () => ({ used_at: null, attempts: 0 }),
   users: () => ({ name: null, locale: null, last_login_at: null, platform_admin: false }),
@@ -121,6 +122,38 @@ export function fakeSupabase() {
         out.set(k, s);
       }
       return resp(200, [...out.values()]);
+    }
+    // دوال اللوحة (0009): نسخة JS بسيطة من نفس المنطق
+    if (u.pathname.startsWith('/rest/v1/rpc/dash_') && method === 'POST') {
+      const a = JSON.parse(opts.body || '{}'); const fn = u.pathname.split('/').pop();
+      const notTest = (e) => String((e.payload || {}).is_test || '0') !== '1';
+      const evs = table('raw_events').filter((e) => e.client_id === a.p_site && notTest(e));
+      if (fn === 'dash_daily') {
+        const m = new Map();
+        for (const e of evs) { const d = String(e.event_time || '').slice(0, 10); if (!/^\d{4}-\d{2}-\d{2}$/.test(d) || d < a.p_since) continue; const x = m.get(d) || { day: d, s: new Set(), pageviews: 0, clicks: 0, contacts: 0 }; if (e.event === 'page_view') { x.s.add(e.session_id); x.pageviews++; } if (e.event === 'click') { x.clicks++; if (['wa', 'call'].includes(e.click_type)) x.contacts++; } m.set(d, x); }
+        return resp(200, [...m.values()].map((x) => ({ day: x.day, sessions: x.s.size, pageviews: x.pageviews, clicks: x.clicks, contacts: x.contacts })));
+      }
+      if (fn === 'dash_sessions') {
+        const m = new Map();
+        for (const e of evs.filter((e) => String(e.received_at) >= a.p_since && e.session_id).sort((x, y) => (x.received_at < y.received_at ? -1 : 1))) {
+          const p = e.payload || {}, g = e.geo || {};
+          const x = m.get(e.session_id) || { session_id: e.session_id, started_at: e.received_at, first_time: e.event_time, pages: 0, seconds: null, scroll: null, contacts: null, match_code: null, source: p.source || null, source_fine: p.source_fine || null, source_detail: p.source_detail || null, utm: p.utm || null, has_gclid: !!e.gclid, device: p.device || null, os: p.os || null, browser: p.browser || null, city: g.city || p.city || null, region: g.region || null, country: g.country || p.country || null, isp: g.isp || null, visit_no: p.visit_no || null, landing_title: p.title || null, automation: false };
+          x.last_at = e.received_at;
+          if (e.event === 'page_view') x.pages++;
+          if (p.seconds != null) x.seconds = Math.max(Number(x.seconds) || 0, Number(p.seconds));
+          if (e.event === 'click' && ['wa', 'call'].includes(e.click_type)) { x.contacts = [...new Set(((x.contacts || '') + ',' + e.click_type).split(',').filter(Boolean))].sort().join(','); x.match_code = e.match_code || x.match_code; }
+          m.set(e.session_id, x);
+        }
+        return resp(200, [...m.values()].sort((x, y) => (x.last_at < y.last_at ? 1 : -1)).slice(0, a.p_limit));
+      }
+      if (fn === 'dash_session_events') return resp(200, evs.filter((e) => e.session_id === a.p_session).map((e) => ({ at: e.received_at, event_time: e.event_time, event: e.event, title: (e.payload || {}).title || null, path: (e.payload || {}).path || null, click_type: e.click_type, btn_text: (e.payload || {}).btn_text || null, seconds: null, scroll: null })));
+      if (fn === 'dash_leads') {
+        const outs = table('outcomes');
+        return resp(200, evs.filter((e) => String(e.received_at) >= a.p_since && e.event === 'click' && ['wa', 'call'].includes(e.click_type)).map((e) => {
+          const o = outs.filter((x) => x.client_id === a.p_site && e.match_code && x.match_code === e.match_code).sort((x, y) => (x.at < y.at ? 1 : -1))[0];
+          return { at: e.received_at, event_time: e.event_time, click_type: e.click_type, match_code: e.match_code, btn_text: (e.payload || {}).btn_text || null, source: (e.payload || {}).source || null, source_fine: (e.payload || {}).source_fine || null, source_detail: null, city: (e.geo || {}).city || null, region: null, session_id: e.session_id, outcome: o ? o.value : null, outcome_at: o ? o.at : null };
+        }));
+      }
     }
     const q = u.pathname.replace('/rest/v1/', '') + u.search;
     const p = parse(q);

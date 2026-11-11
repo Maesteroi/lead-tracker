@@ -2,23 +2,61 @@
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
-<title>مواقعي · Maestro LT</title>
+<meta name="theme-color" content="#0b1f4d">
+<title>لوحتك · Maestro LT</title>
 <link rel="icon" href="/favicon.png" type="image/png">
 <link rel="apple-touch-icon" href="/img/logo-icon.png">
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="stylesheet" href="/css/app.css">
+<link rel="stylesheet" href="/css/admin.css">
+<link rel="stylesheet" href="/css/dash.css">
 </head>
-<body>
-<main class="wrap wide page">
-  <div class="top">
-    <a class="brand-logo" href="/"><picture><source srcset="/img/logo-dark.webp" media="(prefers-color-scheme: dark)"><img class="logo-head" src="/img/logo.webp" alt="Maestro LT — Leads Tracker" width="114" height="69"></picture></a>
-    <div class="top-act"><a class="btn ghost" id="admin-link" href="/admin" hidden>إدارة المنصة</a> <span class="who" id="who"></span> <button class="btn ghost" id="out" type="button" hidden>خروج</button></div>
+<body class="dash">
+<a class="skip" href="#view">انتقل للمحتوى</a>
+<aside class="side" aria-label="القائمة">
+  <a class="side-logo" href="#/overview"><picture><source srcset="/img/logo-dark.webp" media="(prefers-color-scheme: dark)"><img src="/img/logo.webp" alt="Maestro LT — Leads Tracker" width="132" height="80"></picture></a>
+  <nav class="side-nav" id="side-nav"></nav>
+  <div class="side-foot side-user">
+    <span class="who" id="who"></span>
+    <a class="linkish" id="admin-link" href="/admin" hidden>إدارة المنصة ‹</a>
+    <a class="linkish" href="/demo">شوف اللوحة التجريبية ‹</a>
+    <button class="btn ghost sm" id="out" type="button" hidden>خروج</button>
   </div>
-  <section class="card" id="sites" aria-live="polite"><p class="muted"><span class="spinner"></span>بنحمّل مواقعك…</p></section>
-</main>
+</aside>
+
+<div class="dmain">
+  <header class="topbar">
+    <div class="tb-title">
+      <a class="tb-logo" href="#/overview"><img src="/img/logo-icon.png" alt="Maestro LT" width="36" height="36"></a>
+      <h1 id="page-title">الرئيسية</h1>
+    </div>
+    <div class="tb-tools">
+      <div class="seg level" id="level" role="group" aria-label="مستوى العرض"></div>
+      <label class="site-pick"><span class="sr">الموقع</span><select id="site" aria-label="الموقع"></select></label>
+      <div class="seg" id="range" role="group" aria-label="الفترة"></div>
+    </div>
+  </header>
+  <main class="view" id="view" tabindex="-1"></main>
+</div>
+
+<nav class="bottom-nav" id="bottom-nav" aria-label="التنقل"></nav>
+
+<div class="scrim" id="scrim" hidden></div>
+<aside class="drawer" id="drawer" role="dialog" aria-modal="true" aria-labelledby="d-title" hidden>
+  <header class="d-head">
+    <div><h2 id="d-title"></h2><p class="hint" id="d-sub"></p></div>
+    <button class="icon-btn" id="d-close" type="button" aria-label="قفل">×</button>
+  </header>
+  <div class="d-body" id="d-body"></div>
+  <footer class="d-foot" id="d-foot" hidden></footer>
+</aside>
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
 <script src="/js/common.js"></script>
-<script src="/js/index.js"></script>
+<script src="/js/charts.js"></script>
+<script src="/js/live-data.js"></script>
+<script src="/js/dash.js"></script>
 </body>
 </html>

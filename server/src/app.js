@@ -6,11 +6,12 @@ import { me, listSites, createSite, rotateKey, installStatus, loadSite, notFound
 import { createPairCode } from './pairing.js';
 import { connectSite } from './connect.js';
 import { isPlatformAdmin, overview, updateOrg, telegramStatus, telegramSwitch } from './platform.js';
+import { dashOverview, dashVisits, dashSession, dashLeads, dashSetup, dashOutcome } from './dash.js';
 
 const SITE_ACT = /^\/v1\/sites\/([A-Za-z0-9]{6,20})\/(rotate-key|install-status|pair-code)$/;
 const ORG_ACT = /^\/v1\/platform\/orgs\/([^/]+)$/;
 
-export const isAppPath = (p) => p === '/v1/me' || p.startsWith('/v1/auth/') || p === '/v1/sites' || p.startsWith('/v1/sites/') || p === '/v1/connect' || p.startsWith('/v1/platform/');
+export const isAppPath = (p) => p === '/v1/me' || p.startsWith('/v1/auth/') || p === '/v1/sites' || p.startsWith('/v1/sites/') || p === '/v1/connect' || p.startsWith('/v1/platform/') || p.startsWith('/v1/dash/');
 
 function corsHeaders(req, env) {
   const o = req.headers.get('origin');
@@ -49,6 +50,17 @@ export async function handleApp(req, env, db, url, p, fetchImpl) {
     else if (m === 'POST' && oa) res = await updateOrg(req, env, db, sess, oa[1]);
     else if (m === 'GET' && p === '/v1/platform/telegram') res = await telegramStatus(req, env, db, sess, fetchImpl);
     else if (m === 'POST' && p === '/v1/platform/telegram') res = await telegramSwitch(req, env, db, sess, fetchImpl);
+    else res = notFound();
+    return finish(res, req, env, true);
+  }
+  // لوحة العميل: البيانات الحقيقية (dash.js)
+  if (p.startsWith('/v1/dash/')) {
+    if (m === 'GET' && p === '/v1/dash/overview') res = await dashOverview(req, env, db, sess, url);
+    else if (m === 'GET' && p === '/v1/dash/visits') res = await dashVisits(req, env, db, sess, url);
+    else if (m === 'GET' && p === '/v1/dash/session') res = await dashSession(req, env, db, sess, url);
+    else if (m === 'GET' && p === '/v1/dash/leads') res = await dashLeads(req, env, db, sess, url);
+    else if (m === 'GET' && p === '/v1/dash/setup') res = await dashSetup(req, env, db, sess);
+    else if (m === 'POST' && p === '/v1/dash/outcome') res = await dashOutcome(req, env, db, sess);
     else res = notFound();
     return finish(res, req, env, true);
   }
