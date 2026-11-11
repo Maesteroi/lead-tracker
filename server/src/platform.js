@@ -10,6 +10,7 @@ import { audit } from './auth.js';
 import { notFound } from './sites.js';
 import { eventsAllowed, clearOrgCache } from './events.js';
 import { webhookStatus, setWebhookTarget } from './tgbot.js';
+import { deliveryRows, riyadhDay } from './health.js';
 
 const STATUSES = new Set(['trial', 'active', 'past_due', 'off']);
 const PLANS = new Set(['trial', 'basic', 'pro', 'agency', 'internal']);
@@ -38,6 +39,8 @@ export async function overview(req, env, db, sess) {
   const sites = (await db.select('clients?org_id=not.is.null&select=id,name,domains,status,org_id,paired_at,created_at&order=created_at.asc')) || [];
   const stats = (await db.req('POST', 'rpc/platform_site_stats', { since_24h: new Date(now - 864e5).toISOString(), since_7d: new Date(now - 7 * 864e5).toISOString() })) || [];
   const st = new Map(stats.map((s) => [s.client_id, s]));
+  // قياس التوصيل (آخر 3 أيام): محلي البلجن ↔ اللي وصل السيرفر
+  const deliv = await deliveryRows(db, riyadhDay(now - 2 * 864e5)).catch(() => []);
   const uById = new Map(users.map((u) => [u.id, u]));
 
   const list = orgs.map((o) => {
@@ -45,7 +48,8 @@ export async function overview(req, env, db, sess) {
     const u = own ? uById.get(own.user_id) : null;
     const ss = sites.filter((c) => c.org_id === o.id).map((c) => {
       const s = st.get(c.id) || {};
-      return { id: c.id, name: c.name, domains: c.domains || [], status: c.status, paired: !!c.paired_at, created_at: c.created_at, ev_24h: Number(s.ev_24h) || 0, ev_7d: Number(s.ev_7d) || 0, last_at: s.last_at || null };
+      const dl = deliv.filter((d) => d.client_id === c.id).map((d) => ({ day: d.day, local_pv: d.local_pv, server_pv: d.server_pv, local_click: d.local_click, server_click: d.server_click, pv_pct: d.pv_pct, ok: d.ok, out: d.out, plugin_version: d.plugin_version, reported_at: d.reported_at }));
+      return { id: c.id, name: c.name, domains: c.domains || [], status: c.status, paired: !!c.paired_at, created_at: c.created_at, ev_24h: Number(s.ev_24h) || 0, ev_7d: Number(s.ev_7d) || 0, last_at: s.last_at || null, delivery: dl };
     });
     const last = ss.map((c) => c.last_at).filter(Boolean).sort().pop() || null;
     return Object.assign({}, o, {

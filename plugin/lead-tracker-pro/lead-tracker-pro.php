@@ -3,7 +3,7 @@
  * Plugin Name:       Lead Tracker Pro
  * Plugin URI:        https://leadtrackerpro.com
  * Description:       تتبع احترافي لكل زيارة ونقرة اتصال/واتساب + تكامل كامل مع WooCommerce (شراء · سلة · دفع). يحفظ في Google Sheet + إشعارات Telegram. بدون GA4 ولا اشتراكات.
- * Version:           2.12.1
+ * Version:           2.12.2
  * Requires at least: 5.8
  * Requires PHP:      7.4
  * Update URI:        https://app.maestrolt.com/plugin/
@@ -17,7 +17,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('LTP_VERSION', '2.12.1');
+define('LTP_VERSION', '2.12.2');
 define('LTP_FILE', __FILE__);
 define('LTP_PATH', plugin_dir_path(__FILE__));
 define('LTP_URL', plugin_dir_url(__FILE__));
@@ -37,6 +37,7 @@ require_once LTP_PATH . 'includes/class-ltp-inventory.php';
 require_once LTP_PATH . 'includes/class-ltp-roles.php';
 require_once LTP_PATH . 'includes/class-ltp-telegram.php';
 require_once LTP_PATH . 'includes/class-ltp-updater.php';   // 2.12.0
+require_once LTP_PATH . 'includes/class-ltp-health.php';    // 2.12.2: تقرير التوصيل للسيرفر
 
 // ─── التكاملات (جديدة في 2.4.0) ───
 require_once LTP_PATH . 'includes/class-ltp-woocommerce.php';
@@ -57,6 +58,7 @@ add_action('plugins_loaded', function () {
     LTP_Pair::maybe_upgrade();
     LTP_Updater::instance();          // 2.12.0: التحديث الأوتوماتيك الموقّع
     LTP_Updater::migrate_config();    // مرة واحدة: قيم config.json تتنسخ لقاعدة البيانات
+    LTP_Health::init();               // 2.12.2: كل ساعة: أعداد الأحداث المحلية ← السيرفر (قياس التوصيل)
 
     // ─── التكاملات ───
     LTP_WooCommerce::instance();
@@ -87,6 +89,7 @@ register_activation_hook(__FILE__, function () {
 register_deactivation_hook(__FILE__, function () {
     wp_clear_scheduled_hook('ltp_daily_flush');
     LTP_Pair::on_deactivate();
+    LTP_Health::unschedule();
 });
 
 // ═══════════════════════════════════════════════════════════

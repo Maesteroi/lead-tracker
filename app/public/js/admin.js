@@ -32,6 +32,18 @@
   function limitOf(o) { return o.max_sites != null ? o.max_sites : (o.status === 'trial' ? data.defaults.trial_max_sites : null); }
   function attention(o) { return o.status === 'past_due' || o.status === 'off' || o.trial_expired; }
   function bar(pct, full) { var i = el('i'); i.style.width = pct + '%'; return el('div', { class: 'bar' + (full ? ' full' : '') }, [i]); }   // CSSOM (الـCSP بيمنع style="")
+  // قياس التوصيل (بلجن 2.12.2): آخر يوم بلّغ عنه كل موقع، وأسوأ موقع للحساب
+  function lastDelivery(site) { return site.delivery && site.delivery.length ? site.delivery[0] : null; }
+  function orgDelivery(o) {
+    var rows = o.sites.map(lastDelivery).filter(Boolean);
+    if (!rows.length) return null;
+    rows.sort(function (a, b) { return (a.ok - b.ok) || (a.pv_pct - b.pv_pct); });
+    return rows[0];
+  }
+  function deliveryPill(d) {
+    if (!d) return el('span', { class: 'dim', text: 'لسه مفيش تقرير' });
+    return el('span', { class: 'pill ' + (d.ok ? 'ok' : 'warn'), title: d.day + ' · زيارات ' + d.server_pv + '/' + d.local_pv + ' · ضغطات ' + d.server_click + '/' + d.local_click, text: d.pv_pct + '%' + (d.server_click < d.local_click ? ' · ضغطات ناقصة' : '') });
+  }
   function pill(s) { return el('span', { class: 'pill ' + s.c, text: s.t }); }
   function toast(msg, bad) {
     var t = $('toast'); t.textContent = msg; t.className = 'toast' + (bad ? ' bad' : ''); t.hidden = false;
@@ -102,6 +114,7 @@
         el('td', { 'data-l': 'المواقع' }, [el('div', {}, [el('span', { class: 'num', text: String(o.site_count) }), el('span', { class: 'dim', text: lim == null ? ' · من غير حد' : ' من ' + lim })]),
           lim ? bar(pct, o.site_count >= lim) : null]),
         el('td', { 'data-l': 'الأحداث' }, [el('div', {}, [el('span', { class: 'num', text: fmt(o.ev_24h) }), el('span', { class: 'dim', text: ' اليوم · ' + fmt(o.ev_7d) + ' أسبوع' })])]),
+        el('td', { 'data-l': 'التوصيل' }, [deliveryPill(orgDelivery(o))]),
         el('td', { 'data-l': 'آخر نشاط', class: 'dim', text: ago(o.last_at) }),
         el('td', { 'data-l': 'التجربة / الخطة' }, [el('div', { text: o.plan ? PLAN[o.plan] || o.plan : '—' }), trial ? el('div', { class: 'dim', text: trial }) : null]),
         el('td', { class: 'last' }, [el('span', { class: 'go', text: 'إدارة ‹' })])
@@ -174,6 +187,16 @@
         el('div', {}, [el('span', { class: 's-name', text: s.name }), el('span', { class: 's-dom', text: s.domains.join(' · ') })]),
         el('div', { class: 's-num' }, [el('b', { text: fmt(s.ev_24h) }), document.createTextNode(' اليوم · '), el('b', { text: fmt(s.ev_7d) }), document.createTextNode(' أسبوع'), el('div', { text: s.paired ? ago(s.last_at) : 'مااتربطش لسه' })])
       ]));
+      (s.delivery || []).forEach(function (d) {
+        var o2 = d.out || {}, bits = [];
+        if (o2.failed_first) bits.push('فشل أول مرة ' + o2.failed_first);
+        if (o2.queued) bits.push('في الطابور ' + o2.queued);
+        if (o2.rejected) bits.push('اترفض ' + o2.rejected);
+        ul.appendChild(el('li', { class: 'dl' }, [
+          el('div', {}, [el('span', { class: 'dim', text: 'التوصيل ' + d.day }), bits.length ? el('span', { class: 's-dom', text: bits.join(' · ') }) : null]),
+          el('div', { class: 's-num' }, [deliveryPill(d), el('div', { text: 'زيارات ' + d.server_pv + '/' + d.local_pv + ' · ضغطات ' + d.server_click + '/' + d.local_click })])
+        ]));
+      });
     });
   }
   function renderDrawerForm() {

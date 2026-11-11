@@ -12,6 +12,8 @@ const DEFAULTS = {
   pair_codes: () => ({ used_at: null }),
   auth_events: () => ({ at: new Date().toISOString() }),
   tg_sessions: () => ({ message_id: null, lines: [], info: {} }),
+  site_health: () => ({ local_counts: {}, out_stats: null, plugin_version: null, reported_at: new Date().toISOString() }),
+  daily_reports: () => ({ sent_at: new Date().toISOString() }),
   raw_events: () => ({ received_at: new Date().toISOString(), geo: null }),
   site_pair_codes: () => ({ used_at: null, attempts: 0 }),
   users: () => ({ name: null, locale: null, last_login_at: null, platform_admin: false }),
@@ -22,7 +24,7 @@ const DEFAULTS = {
 };
 const UNIQUE = {
   clients: [['id']], devices: [['token_hash']], pair_codes: [['code']],
-  site_pair_codes: [['code_hash']], ip_geo: [['ip']], tg_sessions: [['client_id', 'session_id', 'chat_id']], users: [['google_sub']], memberships: [['user_id', 'org_id']], sessions: [['token_hash']],
+  site_pair_codes: [['code_hash']], site_health: [['client_id', 'day']], daily_reports: [['kind', 'day']], ip_geo: [['ip']], tg_sessions: [['client_id', 'session_id', 'chat_id']], users: [['google_sub']], memberships: [['user_id', 'org_id']], sessions: [['token_hash']],
   raw_events: [['client_id', 'dedupe_key']], contact_clicks: [['client_id', 'match_code', 'type']],
   persons: [['client_id', 'phone_e164']], messages: [['conversation_id', 'dedupe_key']],
   calls: [['device_id', 'started_at', 'phone_e164', 'NND']],
@@ -106,6 +108,17 @@ export function fakeSupabase() {
         s.ev_7d++; if (String(e.received_at) >= a.since_24h) s.ev_24h++;
         if (!s.last_at || e.received_at > s.last_at) s.last_at = e.received_at;
         out.set(e.client_id, s);
+      }
+      return resp(200, [...out.values()]);
+    }
+    if (u.pathname === '/rest/v1/rpc/site_delivery' && method === 'POST') {
+      const a = JSON.parse(opts.body || '{}'); const out = new Map();
+      for (const e of table('raw_events')) {
+        const d = String(e.event_time || '').slice(0, 10);
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(d) || d < a.since_day) continue;
+        const k = e.client_id + '|' + d; const s = out.get(k) || { client_id: e.client_id, day: d, server_pv: 0, server_click: 0 };
+        if (e.event === 'page_view') s.server_pv++; if (e.event === 'click') s.server_click++;
+        out.set(k, s);
       }
       return resp(200, [...out.values()]);
     }

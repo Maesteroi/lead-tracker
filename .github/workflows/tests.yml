@@ -45,6 +45,8 @@ jobs:
         run: php tests/test-plugin-delivery.php
       - name: البلجن — التحديث الأوتوماتيك الموقّع (PHP + سكريبت البناء الحقيقي)
         run: php tests/test-plugin-updater.php
+      - name: البلجن — تقرير التوصيل للسيرفر (PHP)
+        run: php tests/test-plugin-health.php
       - name: البلجن — فحص كتابة PHP
         run: |
           fail=0
