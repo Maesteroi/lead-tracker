@@ -5,6 +5,7 @@
 //            مع الـnonce اللي البلجن حافظه. المفتاح مابيرجعش في رد الطلب أبداً: بيروح للموقع اللي بيمسك الـnonce بس.
 // مين يقدر يكسر ده: لازم يعرف الكود (40 بت، 15 دقيقة، 5 محاولات) ويكون صاحب موقع بنفس الدومين المسجّل.
 import { eq } from './db.js';
+import { roleFor } from './sites.js';
 import { sha256, json, pairCode, randomToken } from './util.js';
 import { audit } from './auth.js';
 import { normalizeDomain } from './sites.js';
@@ -20,8 +21,7 @@ const dash = (c) => c.slice(0, 4) + '-' + c.slice(4);
 
 // ── اللوحة: كود جديد لموقع ──
 export async function createPairCode(req, env, db, sess, site) {
-  const m = sess.memberships.find((x) => x.org_id === site.org_id);
-  if (!m || !MANAGE.has(m.role)) return json({ ok: false, error: 'forbidden' }, 403);
+  if (!MANAGE.has(roleFor(sess, site.org_id))) return json({ ok: false, error: 'forbidden' }, 403);
   const now = new Date().toISOString();
   await db.update('site_pair_codes?site_id=' + eq(site.id) + '&used_at=is.null', { expires_at: now });   // الكود القديم يموت
   const code = pairCode();

@@ -184,7 +184,7 @@
     if (!o.sites.length) ul.appendChild(el('li', {}, [el('span', { class: 'dim', text: 'لسه مفيش مواقع.' })]));
     o.sites.forEach(function (s) {
       ul.appendChild(el('li', {}, [
-        el('div', {}, [el('span', { class: 's-name', text: s.name }), el('span', { class: 's-dom', text: s.domains.join(' · ') })]),
+        el('div', {}, [el('span', { class: 's-name', text: s.name }), el('span', { class: 's-dom', text: s.domains.join(' · ') }), el('a', { class: 'open-dash', href: '/?site=' + encodeURIComponent(s.id) + '#/overview', text: 'افتح لوحته ‹' })]),
         el('div', { class: 's-num' }, [el('b', { text: fmt(s.ev_24h) }), document.createTextNode(' اليوم · '), el('b', { text: fmt(s.ev_7d) }), document.createTextNode(' أسبوع'), el('div', { text: s.paired ? ago(s.last_at) : 'مااتربطش لسه' })])
       ]));
       (s.delivery || []).forEach(function (d) {

@@ -9,7 +9,7 @@
 // واللوحة بتعرضهم «قريباً» بدل أرقام وهمية.
 import { eq } from './db.js';
 import { json } from './util.js';
-import { loadSite, notFound } from './sites.js';
+import { loadSite, notFound, isPlatform, roleFor } from './sites.js';
 import { deliveryRows, riyadhDay } from './health.js';
 import { OUTCOMES } from './notify.js';
 import { audit } from './auth.js';
@@ -91,9 +91,11 @@ export async function dashLeads(req, env, db, sess, url) {
 
 export async function dashSetup(req, env, db, sess) {
   const orgIds = sess.memberships.map((m) => m.org_id);
-  if (!orgIds.length) return json({ ok: true, sites: [] });
-  const sites = ((await db.select('clients?org_id=in.(' + orgIds.join(',') + ')&select=id,name,status,org_id,domains,paired_at,created_at&order=created_at.asc')) || [])
-    .filter((c) => { const m = sess.memberships.find((x) => x.org_id === c.org_id); return m && (!m.site_ids || m.site_ids.includes(c.id)); });
+  if (!orgIds.length && !isPlatform(sess)) return json({ ok: true, sites: [] });
+  const sites = isPlatform(sess)
+    ? ((await db.select('clients?org_id=not.is.null&select=id,name,status,org_id,domains,paired_at,created_at&order=created_at.asc')) || [])
+    : ((await db.select('clients?org_id=in.(' + orgIds.join(',') + ')&select=id,name,status,org_id,domains,paired_at,created_at&order=created_at.asc')) || [])
+      .filter((c) => { const m = sess.memberships.find((x) => x.org_id === c.org_id); return m && (!m.site_ids || m.site_ids.includes(c.id)); });
   const now = Date.now();
   const deliv = await deliveryRows(db, riyadhDay(now - 7 * 864e5)).catch(() => []);
   const out = [];
@@ -110,8 +112,8 @@ export async function dashOutcome(req, env, db, sess) {
   const b = await req.json().catch(() => ({}));
   const site = await loadSite(db, sess, b.site);
   if (!site) return notFound();
-  const m = sess.memberships.find((x) => x.org_id === site.org_id);
-  if (!m || m.role === 'viewer') return json({ ok: false, error: 'forbidden' }, 403);
+  const role = roleFor(sess, site.org_id);
+  if (!role || role === 'viewer') return json({ ok: false, error: 'forbidden' }, 403);
   const code = String(b.code || '').replace(/^#/, ''), value = String(b.value || '');
   if (!CODE_RE.test(code)) return json({ ok: false, error: 'code' }, 400);
   if (!VALUES.has(value)) return json({ ok: false, error: 'value' }, 400);
