@@ -2,7 +2,7 @@
 import { eq } from './db.js';
 import { sha256, safeEqual, json, localToIso, tzOffsetMinutes } from './util.js';
 import { enrichEvent } from './geo.js';
-import { notifyEvent } from './notify.js';
+import { notifyEvent, notifyTest } from './notify.js';
 
 const CONTACT_TYPES = { wa: 'wa', call: 'call', form: 'form', email: 'email' };
 
@@ -24,7 +24,11 @@ export async function handleEvent(req, env, db, ctx, fetchImpl) {
   delete payload.secret;
   const event = String(payload.event || '').slice(0, 40);
   if (!event) return json({ ok: false, error: 'event' }, 400);
-  if (event === 'test') return json({ ok: true, test: true });
+  if (event === 'test') {
+    const t = notifyTest(env, client, fetchImpl).catch(() => {});
+    if (ctx && typeof ctx.waitUntil === 'function') ctx.waitUntil(t); else await t;
+    return json({ ok: true, test: true });
+  }
 
   const ct = String(payload.click_type || payload.ct || '');
   const code = String(payload.match_code || '').replace(/^#/, '').slice(0, 20) || null;

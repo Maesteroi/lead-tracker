@@ -156,6 +156,20 @@ export async function notifyEvent(env, db, client, payload, geo, fetchImpl) {
 }
 
 // الكرون: رسايل الجلسات القديمة (أكتر من يومين) بتتشال من الجدول
+// «اختبار الاتصال» من إعدادات البلجن (الموقع بيبعت للسيرفر): رسالة واحدة لمحمود إن السيرفر استلم ومفتاح الموقع سليم.
+// الشيت كان بيبعت «اختبار ناجح»؛ المواقع اللي بقت على السيرفر كانت بتنجح في الاختبار من غير أي رسالة (11 نوفمبر، روضة).
+export async function notifyTest(env, client, fetchImpl) {
+  try {
+    if (!env.TG_TOKEN || !env.TG_CHAT_ID || String(env.TG_ALERTS || '').toLowerCase() === 'off') return { skipped: 'off' };
+    if (!client) return { skipped: 'no-site' };
+    const text = '✅ <b>اختبار ناجح</b> — ' + esc(client.name || client.id) + '\nالموقع متوصّل بسيرفر Maestro LT، والأحداث بتوصل.';
+    const r = await tg(env, 'sendMessage', { chat_id: String(env.TG_CHAT_ID), text, parse_mode: 'HTML', disable_web_page_preview: true }, fetchImpl);
+    return { sent: r.ok };
+  } catch (e) {
+    return { error: true };
+  }
+}
+
 export async function cleanupSessions(db) {
   await db.req('DELETE', 'tg_sessions?updated_at=lt.' + encodeURIComponent(new Date(Date.now() - 2 * 864e5).toISOString()));
   return { ok: true };
