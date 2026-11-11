@@ -2,6 +2,7 @@
 import { eq } from './db.js';
 import { aiEnabled, classify, transcribe, buildTranscript, PROMPT_VERSION } from './ai.js';
 import { adsTick } from './ads.js';
+import { geoBackfill } from './geo.js';
 
 const H = 3600 * 1000;
 const ago = (ms) => new Date(Date.now() - ms).toISOString();
@@ -92,6 +93,8 @@ export async function runScheduled(env, db, opts) {
     out.recordings = await processRecordings(env, db, 5);
     if (new Date().getUTCMinutes() < 5) out.retention = await retention(env, db);   // مرة في الساعة
   } catch (e) { failed = e; }
+  // المكان التقريبي للأحداث اللي فاتها البحث الفوري (G-28): مستقل، وعطله مايوقفش حاجة
+  try { out.geo = await geoBackfill(env, db, opts && opts.fetchImpl, 20); } catch (e) { out.geo = { error: String(e && e.message || e).slice(0, 80) }; }
   // سحب جوجل أدز مستقل: عطل في اللي فوق مايوقفوش، وعطله مايوقفش اللي فوق. مقفول لحد ما ADS_PULL_ENABLED = "1"
   out.ads = await adsTick(env, db, opts);
   if (failed) throw failed;

@@ -12,7 +12,7 @@ import { pluginPair } from './pairing.js';
 
 export const VERSION = '1.0.0';
 
-export async function route(req, env, fetchImpl) {
+export async function route(req, env, fetchImpl, ctx) {
   const url = new URL(req.url);
   const p = url.pathname.replace(/\/+$/, '') || '/';
   const m = req.method;
@@ -20,7 +20,7 @@ export async function route(req, env, fetchImpl) {
 
   const db = new Db(env, fetchImpl);
   try {
-    if (m === 'POST' && p === '/v1/events') return await handleEvent(req, env, db);
+    if (m === 'POST' && p === '/v1/events') return await handleEvent(req, env, db, ctx, fetchImpl);
     if (m === 'POST' && p === '/v1/device/pair') return await pairDevice(req, env, db);
     if (m === 'POST' && p === '/v1/plugin/pair') return await pluginPair(req, env, db, fetchImpl);
 
@@ -60,7 +60,7 @@ export async function route(req, env, fetchImpl) {
 }
 
 export default {
-  fetch: (req, env) => route(req, env),
+  fetch: (req, env, ctx) => route(req, env, undefined, ctx),
   scheduled: async (event, env, ctx) => {
     ctx.waitUntil(runScheduled(env, new Db(env)).then((r) => console.log('cron ' + JSON.stringify(r))).catch((e) => console.error('cron: ' + e)));
   },

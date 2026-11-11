@@ -1,6 +1,7 @@
 // أحداث البلجن (التشغيل الموازي): نفس الحدث اللي بيروح للشيت بيوصل هنا كمان.
 import { eq } from './db.js';
 import { sha256, safeEqual, json, localToIso, tzOffsetMinutes } from './util.js';
+import { enrichEvent } from './geo.js';
 
 const CONTACT_TYPES = { wa: 'wa', call: 'call', form: 'form', email: 'email' };
 
@@ -11,7 +12,7 @@ export async function authSite(db, siteId, secret) {
   return safeEqual(await sha256(secret), c.key_hash) ? c : null;
 }
 
-export async function handleEvent(req, env, db) {
+export async function handleEvent(req, env, db, ctx, fetchImpl) {
   let body;
   try { body = await req.json(); } catch (e) { return json({ ok: false, error: 'bad json' }, 400); }
   if (!body || typeof body !== 'object') return json({ ok: false, error: 'bad json' }, 400);
@@ -41,6 +42,10 @@ export async function handleEvent(req, env, db) {
   const ins = await db.insert('raw_events', [row], { ignoreDuplicates: true, onConflict: 'client_id,dedupe_key' });
   const saved = ins && ins[0];
   if (!saved) return json({ ok: true, duplicate: true });
+
+  // المكان التقريبي من الـIP (G-28): بعد الرد على البلجن، فمابيأخّرش الحدث، وفشله مابيأثرش عليه
+  const geoJob = enrichEvent(env, db, saved.id, payload.ip, fetchImpl);
+  if (ctx && typeof ctx.waitUntil === 'function') ctx.waitUntil(geoJob); else await geoJob;
 
   if (event === 'click' && CONTACT_TYPES[ct]) {
     const off = tzOffsetMinutes(client.timezone);
