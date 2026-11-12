@@ -157,10 +157,10 @@ table.mini th, table.mini td { padding: 6px 8px; border-bottom: 1px solid var(--
 .rule { display: flex; justify-content: space-between; gap: 14px; align-items: flex-start; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; }
 .r-main { display: grid; gap: 4px; }
 .r-main .chips { margin-top: 4px; }
-.switch { flex: none; width: 46px; height: 28px; border-radius: 999px; border: 0; background: var(--c-mute); position: relative; cursor: pointer; transition: background .15s; }
-.switch::after { content: ""; position: absolute; top: 3px; inset-inline-start: 3px; width: 22px; height: 22px; border-radius: 50%; background: #fff; transition: inset-inline-start .15s; box-shadow: 0 1px 3px rgba(0, 0, 0, .2); }
-.switch[aria-checked="true"] { background: var(--accent); }
-.switch[aria-checked="true"]::after { inset-inline-start: 21px; }
+button.switch { flex: none; width: 46px; height: 28px; border-radius: 999px; border: 0; background: var(--c-mute); position: relative; cursor: pointer; transition: background .15s; }
+button.switch::after { content: ""; position: absolute; top: 3px; inset-inline-start: 3px; width: 22px; height: 22px; border-radius: 50%; background: #fff; transition: inset-inline-start .15s; box-shadow: 0 1px 3px rgba(0, 0, 0, .2); }
+button.switch[aria-checked="true"] { background: var(--accent); }
+button.switch[aria-checked="true"]::after { inset-inline-start: 21px; }
 
 /* المواقع */
 .checks { list-style: none; margin: 8px 0 10px; padding: 0; display: grid; gap: 8px; }
@@ -282,3 +282,8 @@ table.mini th, table.mini td { padding: 6px 8px; border-bottom: 1px solid var(--
 .verdict.s-none { background: var(--info-bg); }
 .side-user { display: grid; gap: 6px; font-size: 14px; }
 .side-user .who { color: var(--muted); }
+/* «▶ شوف الزيارة» (تسجيل rrweb) */
+.rp-link { display: inline-block; margin-inline-start: 8px; font-size: 12.5px; font-weight: 700; color: var(--accent); text-decoration: none; padding: 1px 8px; border-radius: 999px; background: var(--info-bg); }
+.rp-link:hover, .rp-link:focus-visible { text-decoration: underline; }
+.rp-cta { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 14px; }
+.rp-open { text-decoration: none; }

@@ -70,6 +70,13 @@ export class Db {
     return res.arrayBuffer();
   }
 
+  // كذا ملف مرة واحدة (Storage بيقبل لحد 1000 مسار)
+  async deleteObjects(bucket, paths) {
+    if (!paths.length) return true;
+    const res = await this.fetch(this.base + '/storage/v1/object/' + bucket, { method: 'DELETE', headers: this.headers(), body: JSON.stringify({ prefixes: paths }) });
+    return res.ok;
+  }
+
   async deleteObject(bucket, path) {
     const res = await this.fetch(this.base + '/storage/v1/object/' + bucket, {
       method: 'DELETE',

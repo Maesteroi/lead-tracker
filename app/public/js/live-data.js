@@ -29,7 +29,7 @@
     return { id: s.id, at: s.at, city: s.city || 'مكان مش معروف', district: s.region || '', src: s.source, kw: s.detail || '', campaign: '',
       device: s.device || '—', os: s.os || '', net: null, isp: s.isp || '', pages: s.pages, dur: s.seconds == null ? null : Math.round(s.seconds), scroll: s.scroll,
       contact: s.contact ? s.contact.split(',')[0] : '', code: s.code, score: s.score == null ? null : s.score, status: s.status || 'none', reasons: s.reasons || [], verdict: s.verdict || null,
-      ad: !!s.ad, outside: !!s.outside, country: s.country || '', repeats: s.repeats || 0, visit_no: s.visit_no, landing: s.landing, automation: s.automation, journey: null, live: true };
+      ad: !!s.ad, outside: !!s.outside, country: s.country || '', repeats: s.repeats || 0, replay: !!s.replay, visit_no: s.visit_no, landing: s.landing, automation: s.automation, journey: null, live: true };
   }
 
   window.LTData = {

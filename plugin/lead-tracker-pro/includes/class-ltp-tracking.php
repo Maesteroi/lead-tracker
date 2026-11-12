@@ -60,6 +60,8 @@ class LTP_Tracking {
             'fps'      => (string) LTP_Core::get('fpjs_scope', 'ads'),
             // 2.8.2: ThumbmarkJS API (اختياري، للمقارنة)
             'tmk'      => (string) LTP_Core::get('tm_key', ''),
+            // 2.13.0: تسجيل زيارات الإعلان كفيديو (rrweb) — null لو الموقع مش على سيرفر Maestro أو مقفول
+            'rp'       => class_exists('LTP_Replay') ? LTP_Replay::cfg() : null,
         ];
         // نسخة احتياطية بالطريقة القديمة، والأساس إن الإعدادات ماشية على وسم التتبع نفسه (تحت)
         wp_localize_script('ltp-tracker', 'LTP_CFG', $this->cfg);
@@ -109,7 +111,7 @@ class LTP_Tracking {
 
     // بيرجّع نفس النوع اللي جاله (قايمة أو نص) عشان مايبوّظش إعدادات LiteSpeed
     public function ls_excludes($list) {
-        $add = ['lead-tracker-pro/assets/tracker.js', 'lead-tracker-pro/assets/thumbmark.umd.js', 'LTP_CFG'];
+        $add = ['lead-tracker-pro/assets/tracker.js', 'lead-tracker-pro/assets/thumbmark.umd.js', 'lead-tracker-pro/assets/rrweb-record.min.js', 'LTP_CFG'];
         if (is_array($list)) return array_merge($list, $add);
         if (is_string($list)) return trim($list . "\n" . implode("\n", $add));
         return $list;

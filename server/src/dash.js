@@ -14,6 +14,7 @@ import { deliveryRows, riyadhDay } from './health.js';
 import { OUTCOMES } from './notify.js';
 import { audit } from './auth.js';
 import { scoreSession, REASON_AR, outsideTarget, countryAr } from './score.js';
+import { replaySet, loadReplay } from './replay.js';
 
 const RANGES = new Set([1, 7, 30]);
 const SID_RE = /^[A-Za-z0-9_-]{4,64}$/;
@@ -52,7 +53,8 @@ export async function dashOverview(req, env, db, sess, url) {
   for (let i = range - 1; i >= 0; i--) { const day = riyadhDay(now - i * 864e5), d = byDay.get(day) || {}; days.push({ day, sessions: num(d.sessions), pageviews: num(d.pageviews), clicks: num(d.clicks), contacts: num(d.contacts) }); }
   const prev = daily.filter((d) => String(d.day).slice(0, 10) >= prevFrom && String(d.day).slice(0, 10) < from);
   const sinceTs = new Date(now - range * 864e5).toISOString();
-  const sessions = await scoredSessions(db, site.id, sinceTs, 2000);
+  const [sessions, rp] = await Promise.all([scoredSessions(db, site.id, sinceTs, 2000), replaySet(db, site.id, sinceTs)]);
+  for (const x of sessions) x.replay = rp.has(x.session_id);
   const sc = new Map();
   for (const x of sessions) { const k = dayOf(x); const c = sc.get(k) || { real: 0, suspicious: 0, high: 0 }; c[x.status]++; sc.set(k, c); }
   for (const d of days) { const c = sc.get(d.day) || { real: 0, suspicious: 0, high: 0 }; d.real = c.real; d.suspicious = c.suspicious; d.high = c.high; }
@@ -81,8 +83,9 @@ export async function dashVisits(req, env, db, sess, url) {
   const site = await siteFrom(db, sess, url);
   if (!site) return notFound();
   const range = rangeOf(url);
-  const list = await scoredSessions(db, site.id, new Date(Date.now() - range * 864e5).toISOString(), 1000);
-  return json({ ok: true, sessions: list.map(sessionView) });
+  const since = new Date(Date.now() - range * 864e5).toISOString();
+  const [list, rp] = await Promise.all([scoredSessions(db, site.id, since, 1000), replaySet(db, site.id, since)]);
+  return json({ ok: true, sessions: list.map((s) => Object.assign(sessionView(s), { replay: rp.has(s.session_id) })) });
 }
 // تواصل من زيارة بره البلد المستهدف: بيتعلّم «بره النطاق» (ملحوظة) ومابيستناش نتيجة
 function markOutside(leads, sessions) {
@@ -95,7 +98,7 @@ function sessionView(s) {
     contact: s.contacts || '', code: s.match_code || null, source: s.source_fine || s.source || 'direct', detail: s.source_detail || '', utm: s.utm || '', gclid: !!s.has_gclid,
     device: s.device || '', os: s.os || '', browser: s.browser || '', city: s.city || '', region: s.region || '', country: s.country || '', country_code: s.country_code || '', isp: s.isp || '',
     visit_no: num(s.visit_no) || 1, landing: s.landing_title || '', automation: !!s.automation,
-    score: s.score, status: s.status, reasons: s.reasons || [], ad: !!s.ad, verdict: s.verdict || null, repeats: num(s.fp_ad_sessions), outside: !!s.outside,
+    score: s.score, status: s.status, reasons: s.reasons || [], ad: !!s.ad, verdict: s.verdict || null, repeats: num(s.fp_ad_sessions), outside: !!s.outside, replay: !!s.replay,
   };
 }
 
@@ -104,7 +107,9 @@ export async function dashProtection(req, env, db, sess, url) {
   const site = await siteFrom(db, sess, url);
   if (!site) return notFound();
   const range = rangeOf(url);
-  const list = await scoredSessions(db, site.id, new Date(Date.now() - range * 864e5).toISOString(), 2000);
+  const since = new Date(Date.now() - range * 864e5).toISOString();
+  const [list, rp] = await Promise.all([scoredSessions(db, site.id, since, 2000), replaySet(db, site.id, since)]);
+  for (const x of list) x.replay = rp.has(x.session_id);
   const ads = list.filter((x) => x.ad);
   const reasons = new Map();
   for (const x of list) if (x.status !== 'real') for (const c of x.codes || []) reasons.set(c, (reasons.get(c) || 0) + 1);
@@ -182,4 +187,17 @@ export async function dashOutcome(req, env, db, sess) {
   await db.insert('outcomes', [{ client_id: site.id, match_code: code, value, by_who: String(sess.user.name || sess.user.email || '').slice(0, 40) || null }], { returning: false });
   await audit(db, sess.user.id, 'outcome_set', true, site.id + ' #' + code + ' ' + value);
   return json({ ok: true, code, value });
+}
+
+// «▶ شوف الزيارة»: التسجيل (rrweb) + الزيارة نفسها بدرجتها و«ليه» (علشان تتعرض جنب الفيديو)
+export async function dashReplay(req, env, db, sess, url) {
+  const site = await siteFrom(db, sess, url);
+  if (!site) return notFound();
+  const sid = String(url.searchParams.get('sid') || '');
+  if (!SID_RE.test(sid)) return json({ ok: false, error: 'sid' }, 400);
+  const rp = await loadReplay(db, site.id, sid);
+  if (!rp) return json({ ok: false, error: 'no_replay' }, 404);
+  const list = await scoredSessions(db, site.id, new Date(Date.parse(rp.started_at) - 864e5).toISOString(), 2000).catch(() => []);
+  const v = list.find((x) => x.session_id === sid);
+  return json(Object.assign({ ok: true, site: { id: site.id, name: site.name }, visit: v ? sessionView(v) : null }, rp));
 }

@@ -18,14 +18,15 @@ const DEFAULTS = {
   raw_events: () => ({ received_at: new Date().toISOString(), geo: null }),
   site_pair_codes: () => ({ used_at: null, attempts: 0 }),
   users: () => ({ name: null, locale: null, last_login_at: null, platform_admin: false }),
-  organizations: () => ({ type: 'business', status: 'trial', trial_ends_at: null, max_sites: null, plan: null, notes: null, events_policy: 'grace', grace_days: 7, status_changed_at: null, created_at: new Date().toISOString() }),
+  organizations: () => ({ type: 'business', status: 'trial', trial_ends_at: null, max_sites: null, plan: null, notes: null, events_policy: 'grace', grace_days: 7, status_changed_at: null, replay: true, created_at: new Date().toISOString() }),
+  replay_sessions: () => ({ started_at: new Date().toISOString(), last_at: new Date().toISOString(), chunks: 0, max_seq: 0, bytes: 0 }),
   memberships: () => ({ site_ids: null }),
   sessions: () => ({ last_seen_at: null }),
   ads_credentials: () => ({ status: 'on', login_customer_id: null, campaign_ids: null, currency: null, timezone: null, backfill_from: null, last_pull_at: null, last_ok_day: null, last_error: null }),
 };
 const UNIQUE = {
   clients: [['id']], devices: [['token_hash']], pair_codes: [['code']],
-  site_pair_codes: [['code_hash']], site_health: [['client_id', 'day']], protection_verdicts: [['client_id', 'session_id']], daily_reports: [['kind', 'day']], ip_geo: [['ip']], tg_sessions: [['client_id', 'session_id', 'chat_id']], users: [['google_sub']], memberships: [['user_id', 'org_id']], sessions: [['token_hash']],
+  site_pair_codes: [['code_hash']], site_health: [['client_id', 'day']], protection_verdicts: [['client_id', 'session_id']], replay_sessions: [['client_id', 'session_id']], daily_reports: [['kind', 'day']], ip_geo: [['ip']], tg_sessions: [['client_id', 'session_id', 'chat_id']], users: [['google_sub']], memberships: [['user_id', 'org_id']], sessions: [['token_hash']],
   raw_events: [['client_id', 'dedupe_key']], contact_clicks: [['client_id', 'match_code', 'type']],
   persons: [['client_id', 'phone_e164']], messages: [['conversation_id', 'dedupe_key']],
   calls: [['device_id', 'started_at', 'phone_e164', 'NND']],
@@ -55,14 +56,14 @@ export function fakeSupabase() {
   }
   function parse(q) {
     const [name, qs] = q.split('?');
-    const filters = []; let order = null, limit = null, select = '*', onConflict = null;
+    const filters = []; let order = null, limit = null, offset = 0, select = '*', onConflict = null;
     for (const part of (qs || '').split('&').filter(Boolean)) {
       const i = part.indexOf('=');
       const k = part.slice(0, i), v = decodeURIComponent(part.slice(i + 1));
-      if (k === 'select') select = v; else if (k === 'order') order = v; else if (k === 'limit') limit = +v; else if (k === 'on_conflict') onConflict = v.split(',');
+      if (k === 'select') select = v; else if (k === 'order') order = v; else if (k === 'limit') limit = +v; else if (k === 'offset') offset = +v; else if (k === 'on_conflict') onConflict = v.split(',');
       else filters.push([k, v]);
     }
-    return { name, filters, order, limit, select, onConflict };
+    return { name, filters, order, limit, offset, select, onConflict };
   }
   const pick = (row, select) => select === '*' ? Object.assign({}, row) : Object.fromEntries(select.split(',').map((c) => [c, row[c] === undefined ? null : row[c]]));
   function rows(p) {
@@ -73,6 +74,7 @@ export function fakeSupabase() {
         ? (a[c] == null ? (b[c] == null ? 0 : (nulls === 'nullsfirst' ? -1 : 1)) : (nulls === 'nullsfirst' ? 1 : -1))
         : (d === 'desc' ? -1 : 1) * cmp(a[c], b[c]));
     }
+    if (p.offset) r = r.slice(p.offset);
     if (p.limit) r = r.slice(0, p.limit);
     return r;
   }
@@ -101,6 +103,14 @@ export function fakeSupabase() {
       if (method === 'DELETE') { const b = JSON.parse(opts.body); b.prefixes.forEach((x) => { delete files[path + '/' + x]; }); return resp(200, []); }
     }
     // دوال SQL (rpc): بنحاكي اللي السيرفر بيستخدمه بس
+    if (u.pathname === '/rest/v1/rpc/replay_add' && method === 'POST') {
+      const a = JSON.parse(opts.body), now = new Date().toISOString();
+      let r = table('replay_sessions').find((x) => x.client_id === a.p_site && x.session_id === a.p_sid);
+      if (!r) { r = { client_id: a.p_site, session_id: a.p_sid, started_at: now, last_at: now, chunks: 1, max_seq: a.p_seq, bytes: a.p_bytes }; table('replay_sessions').push(r); return resp(200, [{ started_at: r.started_at, chunks: r.chunks, bytes: r.bytes }]); }
+      if (r.bytes + a.p_bytes > a.p_max_bytes || r.chunks >= 200) return resp(200, []);
+      Object.assign(r, { chunks: r.chunks + 1, max_seq: Math.max(r.max_seq, a.p_seq), bytes: r.bytes + a.p_bytes, last_at: now });
+      return resp(200, [{ started_at: r.started_at, chunks: r.chunks, bytes: r.bytes }]);
+    }
     if (u.pathname === '/rest/v1/rpc/platform_site_stats' && method === 'POST') {
       const a = JSON.parse(opts.body || '{}'); const out = new Map();
       for (const e of table('raw_events')) {

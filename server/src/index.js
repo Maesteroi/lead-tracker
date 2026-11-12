@@ -10,6 +10,7 @@ import { saveCredentials, setBackfill, adsStatus, reportUsage, adsTick } from '.
 import { handleApp, isAppPath, authStatus } from './app.js';
 import { pluginPair } from './pairing.js';
 import { handleTgWebhook } from './tgbot.js';
+import { handleReplay, replayPreflight } from './replay.js';
 
 export const VERSION = '1.0.0';
 
@@ -22,6 +23,7 @@ export async function route(req, env, fetchImpl, ctx) {
   const db = new Db(env, fetchImpl);
   try {
     if (m === 'POST' && p === '/v1/events') return await handleEvent(req, env, db, ctx, fetchImpl);
+    if (p === '/v1/replay') return m === 'OPTIONS' ? replayPreflight() : m === 'POST' ? await handleReplay(req, env, db) : json({ ok: false }, 405);   // تسجيل الزيارة (replay.js)
     if (m === 'POST' && p === '/v1/device/pair') return await pairDevice(req, env, db);
     if (m === 'POST' && p === '/v1/plugin/pair') return await pluginPair(req, env, db, fetchImpl);
     if (m === 'POST' && p === '/v1/tg/webhook') return await handleTgWebhook(req, env, db, fetchImpl);   // بوت تليجرام (tgbot.js)

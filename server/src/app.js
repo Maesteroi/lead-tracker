@@ -6,7 +6,7 @@ import { me, listSites, createSite, rotateKey, installStatus, loadSite, notFound
 import { createPairCode } from './pairing.js';
 import { connectSite } from './connect.js';
 import { isPlatformAdmin, overview, updateOrg, telegramStatus, telegramSwitch } from './platform.js';
-import { dashOverview, dashVisits, dashSession, dashLeads, dashSetup, dashOutcome, dashProtection, dashVerdict } from './dash.js';
+import { dashOverview, dashVisits, dashSession, dashLeads, dashSetup, dashOutcome, dashProtection, dashVerdict, dashReplay } from './dash.js';
 
 const SITE_ACT = /^\/v1\/sites\/([A-Za-z0-9]{6,20})\/(rotate-key|install-status|pair-code)$/;
 const ORG_ACT = /^\/v1\/platform\/orgs\/([^/]+)$/;
@@ -63,6 +63,7 @@ export async function handleApp(req, env, db, url, p, fetchImpl) {
     else if (m === 'POST' && p === '/v1/dash/outcome') res = await dashOutcome(req, env, db, sess);
     else if (m === 'GET' && p === '/v1/dash/protection') res = await dashProtection(req, env, db, sess, url);
     else if (m === 'POST' && p === '/v1/dash/verdict') res = await dashVerdict(req, env, db, sess);
+    else if (m === 'GET' && p === '/v1/dash/replay') res = await dashReplay(req, env, db, sess, url);
     else res = notFound();
     return finish(res, req, env, true);
   }
