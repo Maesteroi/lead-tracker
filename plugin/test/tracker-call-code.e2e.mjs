@@ -23,6 +23,7 @@ async function run(matchOn, steps) {
       <a id="call" href="tel:+966554912921">اتصل بنا</a>
       <a id="call2" href="tel:+966554912921">اتصل مرة تانية</a>
       <a id="wa" href="https://wa.me/966554912921">واتساب</a>
+      <div class="elementor-widget"><a id="designer" class="elementor-button" href="tel:+966554912921"><span>تواصل مع المصمم</span></a></div>
       <footer class="credits"><a id="dev" href="tel:+201000000001">تصميم: المطوّر</a></footer>
       <script>window.LTP_CFG={endpoint:'https://rawda.test/e',pid:1,greet:'هلا، ',matchOn:${matchOn},consentRequired:0,trackAll:1,version:'2.11.3',rules:'',skipNums:['201000000001'],inv:'',roles:{},pt:'home'};</script>
       <script src="/tracker.js"></script></body>` });
@@ -52,6 +53,10 @@ t('the call click carries its own 4-character match code', r1.call1.length === 1
 t('a second call click gets a different code (each click its own row for the result buttons)', r1.call2.length === 2 && r1.call2[1].mc && r1.call2[1].mc !== r1.call2[0].mc);
 t('the WhatsApp click keeps the session code that is inside the message', r1.wa.length === 1 && /^[A-HJ-NP-Z2-9]{4}$/.test(r1.wa[0].mc || '') && decodeURIComponent(r1.waHref).includes('#' + r1.wa[0].mc));
 t('the call code is NOT the WhatsApp session code', r1.wa.length === 1 && r1.call1[0].mc !== r1.wa[0].mc);
+
+// ②أ شادو ديزاين (12 نوفمبر): زرار «تواصل مع المصمم» برقم الشركة نفسه = تواصل، مش سطر المطوّر
+const rD = await run(1, async (page, sent) => { await page.click('#designer'); await page.waitForTimeout(600); return clicks(sent); });
+t('a business call button whose text has «المصمم» (designer) still counts as a call, with its own code', rD.length === 1 && rD[0].ct === 'call' && !/:ext/.test(rD[0].via || '') && /^[A-HJ-NP-Z2-9]{4}$/.test(rD[0].mc || ''));
 
 // ② رقم المطوّر مايتبعتش بكود
 const r2 = await run(1, async (page, sent) => { await page.click('#dev'); await page.waitForTimeout(600); return clicks(sent); });

@@ -912,13 +912,27 @@
       }
       return false;
     }
+    // 2.13.1: رقم الموقع نفسه؟ لو نفس الرقم موجود في رابط تاني على الصفحة بره سطر الحقوق، يبقى رقم النشاط (مش المطوّر).
+    // شادو ديزاين (12 نوفمبر): زرار «تواصل مع المصمم» برقم الشركة كان بيتحسب «سطر المطوّر» بسبب كلمة «المصمم»، والضغطة ماكانتش بتتسجل.
+    function siteNum_(n) {
+      var k = key9_(n); if (!k) return false;
+      try {
+        var ls = document.querySelectorAll('a[href^="tel:"],a[href*="wa.me"],a[href*="whatsapp"]');
+        for (var i = 0; i < ls.length; i++) {
+          var h = ls[i].getAttribute('href') || '';
+          var kk = key9_(/^tel:/i.test(h) ? h.replace(/^tel:/i, '') : waNumber_(h));
+          if (kk === k && !creditCtx_(ls[i])) return true;
+        }
+      } catch (e) {}
+      return false;
+    }
     // رقم الموقع؟ (= مش خارجي)
     function waAllowed_(u, el) {
       var k = key9_(waNumber_(u));
       if (!k) return false; // رابط من غير رقم = مشاركة، مانحطش فيه كود
       if (SKIP.indexOf(k) >= 0) return false;
       if (el) { var er = elRole_('wa', el, u); if (er === 'dev' || er === 'ignore') return false; }
-      if (el && creditCtx_(el)) return false;
+      if (el && creditCtx_(el) && !siteNum_(waNumber_(u))) return false;
       return true;
     }
     // يحط كود المطابقة في رسالة الواتساب (ومايكررهوش)
@@ -1017,7 +1031,7 @@
         b.tnum = numFromUrl_(ct, url);
         b.mc = ct === 'wa' ? codeIn_(url) : '';  // مانسجلش كود إلا لو اتحط فعلاً في الرسالة
         // رقم خارجي (سطر الحقوق / المطوّر): بيتسجل بعلامة ext عشان مايتحسبش تواصل للنشاط
-        var ext = (ct === 'wa' || ct === 'call') && ((key9_(b.tnum) && SKIP.indexOf(key9_(b.tnum)) >= 0) || (el && creditCtx_(el)));
+        var ext = (ct === 'wa' || ct === 'call') && ((key9_(b.tnum) && SKIP.indexOf(key9_(b.tnum)) >= 0) || (el && creditCtx_(el) && !siteNum_(b.tnum)));
         if (ext) b.via = via + ':ext';
         // 2.11.1: ضغطة الاتصال ليها كود خاص بيها (4 حروف عشوائية، مش كود جلسة الواتساب): الاتصال مافيهوش رسالة نحط فيها كود،
         // وبدون كود تنبيه تليجرام ماكانش بيظهر عليه أزرار النتيجة (والنتيجة ماكانش ليها صف تتسجّل فيه). نفس الكود لو الدالة اتنادت تاني على نفس الضغطة.
@@ -1264,7 +1278,7 @@
           var d = detect_(el);
           if (!d || !(CONTACT[d.ct] || d.via === 'rule')) continue;
           var vis = !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length);
-          var cr = creditCtx_(el) ? 1 : 0;
+          var cr = creditCtx_(el) && !(d.url && siteNum_(numFromUrl_(d.ct, d.url))) ? 1 : 0;   // 2.13.1: رقم النشاط نفسه مش سطر حقوق
           var ready = (d.ct !== 'wa' || d.via !== 'href') ? 1 : (codeIn_(d.url) || !waAllowed_(d.url, el) ? 1 : 0); // من غير رابط حقيقي: الكود بيتحط وقت الفتح
           add({ t: d.ct, v: d.via, d: desc_(el), x: label_(el).slice(0, 30), u: d.url ? cleanUrl(d.url) : '', c: ready, s: vis ? 1 : 0, p: pos_(el), n: d.url ? numFromUrl_(d.ct, d.url) : '', cr: cr, h: d.url ? numHealth_(d.ct, d.url) : '', e: (el.tagName === 'A' && /^(#.*|javascript:.*|)$/i.test((el.getAttribute('href') || '').trim()) && !d.url && !el.getAttribute('onclick')) ? 1 : 0 });
         }
