@@ -114,8 +114,8 @@ test('protection: suspicious ad visits wait for the owner; a verdict moves them 
   for (let i = 0; i < 3; i++) await s.ev({ session_id: 'BOT' + i, time: s.today + ' 12:0' + i + ':00', gclid: 'Cj0g' + i, automation: '1', seconds: 1, interactions: 0, fingerprint: 'fpbot' });
   let p = (await s.gc(s.owner, '/v1/dash/protection?range=7&site=' + s.site.id)).body;
   assert.equal(p.mode, 'monitor'); assert.equal(p.ads, false);
-  assert.equal(p.pending.length, 3); assert.equal(p.pending[0].status, 'high'); assert.ok(p.pending[0].reasons.some((r) => r.includes('بوت')));
-  assert.ok(p.top_reasons.length >= 1); assert.equal(p.top_reasons[0].code, 'bot'); assert.equal(p.top_reasons[0].name, 'بوتات (متصفح آلي)');
+  assert.equal(p.pending.length, 3); assert.equal(p.pending[0].status, 'high'); assert.ok(p.pending[0].reasons.some((r) => r.includes('برنامج آلي')));
+  assert.ok(p.top_reasons.length >= 1); assert.equal(p.top_reasons[0].code, 'bot'); assert.equal(p.top_reasons[0].name, 'برامج آلية');
   const v = (await s.gc(s.owner, '/v1/dash/visits?range=7&site=' + s.site.id)).body.sessions.find((x) => x.id === 'BOT0');
   assert.equal(v.status, 'high'); assert.ok(v.score >= 70); assert.equal(v.repeats, 3);
   assert.equal((await s.pc(s.owner, '/v1/dash/verdict', { site: s.site.id, sid: 'BOT0', verdict: 'maybe' })).status, 400);
@@ -141,10 +141,17 @@ test('outside the target country (Libya on a Saudi-only site): the contact is ma
   await s.ev({ session_id: 'LY1', event: 'click', time: s.today + ' 12:00:20', click_type: 'wa', match_code: 'LY29', lead_level: 'primary', country: 'LY', target_geo: 'SA|جدة' });
   const leads = (await s.gc(s.owner, '/v1/dash/leads?range=7&site=' + s.site.id)).body.leads;
   const ly = leads.find((l) => l.code === 'LY29');
-  assert.equal(ly.outside, true); assert.ok(ly.outside_note.includes('ليبيا'), ly.outside_note);
+  assert.equal(ly.outside, true); assert.ok(ly.outside_note.includes('ليبيا') && ly.outside_note.includes('خارج'), ly.outside_note);
   assert.equal(leads.find((l) => l.code === 'AB12').outside, false);
   const k = (await s.gc(s.owner, '/v1/dash/overview?range=7&site=' + s.site.id)).body.kpi;
   assert.equal(k.open, before.open); assert.equal(k.outside_leads, 1); assert.equal(k.leads, before.leads + 1);
   const v = (await s.gc(s.owner, '/v1/dash/visits?range=7&site=' + s.site.id)).body.sessions.find((x) => x.id === 'LY1');
   assert.equal(v.outside, true);
+});
+
+test('leads carry the contact strength (estimate) from the visitor coming back to the page', async () => {
+  const s = await setup();
+  await s.ev({ event: 'contact_return', time: s.today + ' 10:05:00', click_type: 'wa', match_code: 'AB12', away_seconds: 130, app_opened: 1 });
+  const l = (await s.gc(s.owner, '/v1/dash/leads?range=7&site=' + s.site.id)).body.leads.find((x) => x.code === 'AB12');
+  assert.equal(l.strength.key, 'strong'); assert.ok(l.strength.detail.includes('2 د 10 ث'));
 });

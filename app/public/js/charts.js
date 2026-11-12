@@ -4,6 +4,7 @@
   'use strict';
   var NS = 'http://www.w3.org/2000/svg';
   var el = window.LT.el;
+  var T = function (k, v) { return window.LT.t ? window.LT.t(k, v) : k; };
   function s(tag, attrs) { var e = document.createElementNS(NS, tag); for (var k in attrs) e.setAttribute(k, attrs[k]); return e; }
   var fmt = function (n) { return Number(n || 0).toLocaleString('en-US'); };
   function niceMax(v) { if (v <= 5) return 5; var p = Math.pow(10, Math.floor(Math.log10(v))); var m = v / p; return (m <= 1 ? 1 : m <= 2 ? 2 : m <= 5 ? 5 : 10) * p; }
@@ -15,22 +16,24 @@
     var wrap = el('div', { class: 'chart' });
     var legend = el('div', { class: 'chart-legend', role: 'list' });
     series.forEach(function (sr) { legend.appendChild(el('span', { class: 'lg', role: 'listitem' }, [el('i', { class: 'sw ' + sr.cls }), document.createTextNode(sr.label)])); });
-    var tbtn = el('button', { class: 'linkish', type: 'button', text: 'عرض كجدول' });
+    var tbtn = el('button', { class: 'linkish', type: 'button', text: T('ch.as_table') });
     var head = el('div', { class: 'chart-head' }, [legend, tbtn]);
     var W = 720, H = opts.height || 220, padT = 10, padB = 26, padS = 36;
     var max = niceMax(Math.max.apply(null, rows.map(function (r) { return series.reduce(function (a, sr) { return a + (r[sr.key] || 0); }, 0); }).concat([1])));
     var svg = s('svg', { viewBox: '0 0 ' + W + ' ' + H, class: 'svg', role: 'img', 'aria-label': opts.label || '' });
     var plotW = W - padS - 8, plotH = H - padT - padB;
+    // العربي: أقدم يوم يمين والمحور يمين · الإنجليزي (LTR): نفس الرسم معكوس
+    var LTR = window.LT.dir === 'ltr', X = function (x) { return LTR ? W - x : x; };
     for (var g = 0; g <= 3; g++) {
       var y = padT + plotH - (plotH * g) / 3;
-      svg.appendChild(s('line', { x1: 8, x2: W - padS, y1: y, y2: y, class: g ? 'grid' : 'axis' }));
-      var t = s('text', { x: W - padS + 6, y: y + 4, class: 'tick', 'text-anchor': 'start' }); t.textContent = fmt(Math.round((max * g) / 3)); svg.appendChild(t);
+      svg.appendChild(s('line', { x1: X(8), x2: X(W - padS), y1: y, y2: y, class: g ? 'grid' : 'axis' }));
+      var t = s('text', { x: X(W - padS + 6), y: y + 4, class: 'tick', 'text-anchor': LTR ? 'end' : 'start' }); t.textContent = fmt(Math.round((max * g) / 3)); svg.appendChild(t);
     }
     var n = rows.length, slot = plotW / n, bw = Math.max(3, Math.min(22, slot * 0.62));
     var tip = el('div', { class: 'tip', hidden: '' });
     rows.forEach(function (r, i) {
       // RTL: أقدم يوم يمين، وأحدث يوم شمال
-      var cx = W - padS - slot * (i + 0.5), yb = padT + plotH, total = 0;
+      var cx = X(W - padS - slot * (i + 0.5)), yb = padT + plotH, total = 0;
       var segs = series.filter(function (sr) { return (r[sr.key] || 0) > 0; });
       segs.forEach(function (sr, j) {
         var v = r[sr.key], h = (plotH * v) / max, gap = j < segs.length - 1 ? 2 : 0;
@@ -59,9 +62,9 @@
       svg.appendChild(hit);
     });
     var plot = el('div', { class: 'plot' }, [svg, tip]);
-    var table = tableView(rows, [{ key: 'day', label: 'اليوم' }].concat(series));
+    var table = tableView(rows, [{ key: 'day', label: T('ch.day') }].concat(series));
     table.hidden = true;
-    tbtn.addEventListener('click', function () { var on = table.hidden; table.hidden = !on; plot.hidden = on; tbtn.textContent = on ? 'عرض كرسم' : 'عرض كجدول'; });
+    tbtn.addEventListener('click', function () { var on = table.hidden; table.hidden = !on; plot.hidden = on; tbtn.textContent = on ? T('ch.as_chart') : T('ch.as_table'); });
     wrap.appendChild(head); wrap.appendChild(plot); wrap.appendChild(table);
     box.appendChild(wrap);
     return wrap;

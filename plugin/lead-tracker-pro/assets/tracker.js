@@ -97,6 +97,7 @@
         var lv = roleOf_(data);
         if (lv === 'dev' || lv === 'ignore') return;   // رقم المطوّر / تجاهل = مابيتسجلش
         if (lv) data.lv = lv;
+        if ((data.ct === 'wa' || data.ct === 'call') && !/:ext/.test(data.via || '')) armReturn_(data.ct, data.mc);
       }
       if (data) { delete data._d; delete data._x; if (TEST) data.test = 1; }
       try { if (data && data.event === 'click') { data.bh = behavior_(); ga4_(data); } } catch (e) {}
@@ -111,6 +112,32 @@
         fetch(U, { method: 'POST', body: j, headers: { 'Content-Type': 'application/json' }, keepalive: true });
       } catch (e) {}
     }
+
+    // ───────────── 2.13.1: قوة التواصل (تقديري) ─────────────
+    // بعد ضغطة واتساب أو اتصال: الصفحة استخبت (التطبيق اتفتح)؟ والزائر رجع بعد قد إيه؟ رجوع في ثواني = غالباً ضغطة بالغلط،
+    // وغياب دقيقة أو أكتر = كلّمك فعلاً غالباً. ده تقدير (الوقت بره الصفحة مش مدة المكالمة نفسها)، والقياس الحقيقي من تطبيق الموبايل.
+    var RET = null;
+    function armReturn_(ct, mc) {
+      RET = { ct: ct, mc: mc || '', t: Date.now(), hid: 0, sent: false };
+      st(SS, 'ltp_ret', JSON.stringify(RET));
+      setTimeout(function () { if (RET && !RET.hid && !RET.sent && document.visibilityState === 'visible') sendReturn_(0, 0); }, 8000);
+    }
+    function sendReturn_(away, opened) {
+      if (!RET || RET.sent) return;
+      RET.sent = true; rm(SS, 'ltp_ret');
+      var b = base('contact_return');
+      b.ct = RET.ct; b.mc = RET.mc; b.away = Math.max(0, Math.min(86400, Math.round(away))); b.opened = opened ? 1 : 0;
+      send(b);
+    }
+    document.addEventListener('visibilitychange', function () {
+      if (!RET || RET.sent) return;
+      if (document.visibilityState === 'hidden') { if (!RET.hid && Date.now() - RET.t < 15000) { RET.hid = Date.now(); st(SS, 'ltp_ret', JSON.stringify(RET)); } }
+      else if (RET.hid) sendReturn_((Date.now() - RET.hid) / 1000, 1);
+    });
+    // المتصفح فتح الصفحة من الأول وهو راجع (بدل ما يكمّل): نحسب من وقت ما ساب
+    setTimeout(function () {
+      try { var pr = JSON.parse(sg(SS, 'ltp_ret') || 'null'); if (pr && !pr.sent && pr.hid && Date.now() - pr.hid < 2 * 3600e3) { RET = pr; sendReturn_((Date.now() - pr.hid) / 1000, 1); } } catch (e) {}
+    }, 0);
 
     // ───────────── الموافقة ─────────────
     // full    = موافقة (أو الموقع مش محتاج بانر): كل البيانات
@@ -496,7 +523,7 @@
     function behavior_() {
       bhTick_();
       var parts = ['فعلي ' + Math.round(BH.act / 1000) + 'ث'];
-      if (BH.away) parts.push('خرج ورجع ' + BH.away);
+      if (BH.away) parts.push('غادر وعاد ' + BH.away);
       if (BH.copy) parts.push('نسخ ' + BH.copy + (BH.copyNum ? ' (رقم)' : ''));
       if (BH.hoverEl && BH.hoverT) { var h = (Date.now() - BH.hoverT) / 1000; if (h > 0.3 && h < 120) parts.push('تردد ' + h.toFixed(1) + 'ث'); }
       return parts.join(' · ').slice(0, 120);
@@ -844,12 +871,12 @@
         if (ct === 'wa') {
           var w = new URL(u, location.href);
           var raw = w.searchParams.get('phone') || dec(w.pathname.split('/')[1] || '');
-          if (!raw) return isWaHost(w.hostname.toLowerCase()) && !/send|channel|catalog|message|qr|c$/i.test(w.pathname) ? 'رابط واتساب من غير رقم' : '';
-          if (/[^\d]/.test(raw)) return 'رموز زيادة في الرقم (+ أو - أو مسافة)';
-          for (var i = 0; i < CC.length; i++) if (raw.indexOf(CC[i] + '0') === 0 && raw.length > CC[i].length + 9) return 'صفر زيادة بعد مفتاح الدولة';
-          if (raw.charAt(0) === '0') return 'الرقم من غير مفتاح الدولة';
+          if (!raw) return isWaHost(w.hostname.toLowerCase()) && !/send|channel|catalog|message|qr|c$/i.test(w.pathname) ? 'رابط واتساب دون رقم' : '';
+          if (/[^\d]/.test(raw)) return 'رموز زائدة في الرقم (+ أو - أو مسافة)';
+          for (var i = 0; i < CC.length; i++) if (raw.indexOf(CC[i] + '0') === 0 && raw.length > CC[i].length + 9) return 'صفر زائد بعد مفتاح الدولة';
+          if (raw.charAt(0) === '0') return 'الرقم دون مفتاح الدولة';
           if (raw.length < 10) return 'الرقم ناقص';
-          if (/^web\.whatsapp\.com$/i.test(w.hostname)) return 'رابط واتساب ويب (بيفتح على الكمبيوتر بس)';
+          if (/^web\.whatsapp\.com$/i.test(w.hostname)) return 'رابط واتساب ويب (يفتح على الحاسوب فقط)';
         }
         if (ct === 'call') {
           var d = dec(String(u).replace(/^tel:/i, '')).replace(/[\s\-()]/g, '');
@@ -885,13 +912,27 @@
       }
       return false;
     }
+    // 2.13.1: رقم الموقع نفسه؟ لو نفس الرقم موجود في رابط تاني على الصفحة بره سطر الحقوق، يبقى رقم النشاط (مش المطوّر).
+    // شادو ديزاين (12 نوفمبر): زرار «تواصل مع المصمم» برقم الشركة كان بيتحسب «سطر المطوّر» بسبب كلمة «المصمم»، والضغطة ماكانتش بتتسجل.
+    function siteNum_(n) {
+      var k = key9_(n); if (!k) return false;
+      try {
+        var ls = document.querySelectorAll('a[href^="tel:"],a[href*="wa.me"],a[href*="whatsapp"]');
+        for (var i = 0; i < ls.length; i++) {
+          var h = ls[i].getAttribute('href') || '';
+          var kk = key9_(/^tel:/i.test(h) ? h.replace(/^tel:/i, '') : waNumber_(h));
+          if (kk === k && !creditCtx_(ls[i])) return true;
+        }
+      } catch (e) {}
+      return false;
+    }
     // رقم الموقع؟ (= مش خارجي)
     function waAllowed_(u, el) {
       var k = key9_(waNumber_(u));
       if (!k) return false; // رابط من غير رقم = مشاركة، مانحطش فيه كود
       if (SKIP.indexOf(k) >= 0) return false;
       if (el) { var er = elRole_('wa', el, u); if (er === 'dev' || er === 'ignore') return false; }
-      if (el && creditCtx_(el)) return false;
+      if (el && creditCtx_(el) && !siteNum_(waNumber_(u))) return false;
       return true;
     }
     // يحط كود المطابقة في رسالة الواتساب (ومايكررهوش)
@@ -990,7 +1031,7 @@
         b.tnum = numFromUrl_(ct, url);
         b.mc = ct === 'wa' ? codeIn_(url) : '';  // مانسجلش كود إلا لو اتحط فعلاً في الرسالة
         // رقم خارجي (سطر الحقوق / المطوّر): بيتسجل بعلامة ext عشان مايتحسبش تواصل للنشاط
-        var ext = (ct === 'wa' || ct === 'call') && ((key9_(b.tnum) && SKIP.indexOf(key9_(b.tnum)) >= 0) || (el && creditCtx_(el)));
+        var ext = (ct === 'wa' || ct === 'call') && ((key9_(b.tnum) && SKIP.indexOf(key9_(b.tnum)) >= 0) || (el && creditCtx_(el) && !siteNum_(b.tnum)));
         if (ext) b.via = via + ':ext';
         // 2.11.1: ضغطة الاتصال ليها كود خاص بيها (4 حروف عشوائية، مش كود جلسة الواتساب): الاتصال مافيهوش رسالة نحط فيها كود،
         // وبدون كود تنبيه تليجرام ماكانش بيظهر عليه أزرار النتيجة (والنتيجة ماكانش ليها صف تتسجّل فيه). نفس الكود لو الدالة اتنادت تاني على نفس الضغطة.
@@ -1237,7 +1278,7 @@
           var d = detect_(el);
           if (!d || !(CONTACT[d.ct] || d.via === 'rule')) continue;
           var vis = !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length);
-          var cr = creditCtx_(el) ? 1 : 0;
+          var cr = creditCtx_(el) && !(d.url && siteNum_(numFromUrl_(d.ct, d.url))) ? 1 : 0;   // 2.13.1: رقم النشاط نفسه مش سطر حقوق
           var ready = (d.ct !== 'wa' || d.via !== 'href') ? 1 : (codeIn_(d.url) || !waAllowed_(d.url, el) ? 1 : 0); // من غير رابط حقيقي: الكود بيتحط وقت الفتح
           add({ t: d.ct, v: d.via, d: desc_(el), x: label_(el).slice(0, 30), u: d.url ? cleanUrl(d.url) : '', c: ready, s: vis ? 1 : 0, p: pos_(el), n: d.url ? numFromUrl_(d.ct, d.url) : '', cr: cr, h: d.url ? numHealth_(d.ct, d.url) : '', e: (el.tagName === 'A' && /^(#.*|javascript:.*|)$/i.test((el.getAttribute('href') || '').trim()) && !d.url && !el.getAttribute('onclick')) ? 1 : 0 });
         }

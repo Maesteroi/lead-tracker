@@ -7,7 +7,7 @@ class LTP_Core {
     private static $config_cache = null;
 
     const SOURCES = ['maps','google','bing','ai','social','ads','listening','direct','other'];
-    const EVENTS  = ['page_view','scroll_50','scroll_90','click','exit','consent','view_item','fp_update'];
+    const EVENTS  = ['page_view','scroll_50','scroll_90','click','exit','consent','view_item','fp_update','contact_return'];   // 2.13.1: contact_return = رجع للصفحة بعد واتساب/اتصال
 
     public static function instance() {
         if (self::$instance === null) self::$instance = new self();
@@ -232,8 +232,8 @@ class LTP_Core {
 
         // 2.3.4: صاحب الموقع وهو داخل بحسابه مابيتسجلش (عشان ماينحسبش زبون) — نقوله بوضوح عشان مايتلخبطش وهو بيجرّب
         if ((int) self::get('exclude_admin', 0) === 1) {
-            echo '<div class="notice notice-info"><p><strong>👤 إنت داخل كمدير:</strong> زياراتك وضغطاتك من المتصفح ده <strong>مش بتتسجّل</strong> (عشان ماتتحسبش زبون). '
-               . 'عشان تجرّب: افتح الموقع من <strong>نافذة متخفّية</strong> (Ctrl + Shift + N) أو من الموبايل وإنت مش داخل بحسابك.</p></div>';
+            echo '<div class="notice notice-info"><p><strong>👤 أنت مسجّل الدخول كمدير:</strong> زياراتك ونقراتك من هذا المتصفح <strong>لا تُسجَّل</strong> (حتى لا تُحتسب عميلًا). '
+               . 'للتجربة: افتح الموقع من <strong>نافذة خاصة</strong> (Ctrl + Shift + N) أو من الجوال دون تسجيل الدخول بحسابك.</p></div>';
         }
 
         if (!self::has_config_file()) return;
@@ -244,8 +244,8 @@ class LTP_Core {
         <?php if ($secret_in_file): ?>
         <div class="notice notice-warning">
             <p>
-                <strong>⚠️ كلمة السر مكتوبة جوه config.json.</strong>
-                الأفضل تكتبها من صفحة الإعدادات (بتتحفظ في قاعدة البيانات) وتسيب خانتها فاضية في الملف.
+                <strong>⚠️ كلمة المرور مكتوبة داخل config.json.</strong>
+                الأفضل أن تكتبها من صفحة الإعدادات (تُحفظ في قاعدة البيانات) وتترك خانتها فارغة في الملف.
             </p>
         </div>
         <?php endif; ?>
@@ -381,7 +381,7 @@ class LTP_Core {
 
     public function ajax_test_webhook() {
         check_ajax_referer('ltp_test', 'nonce');
-        if (!current_user_can('manage_options')) wp_send_json_error(['msg' => 'ممنوع']);
+        if (!current_user_can('manage_options')) wp_send_json_error(['msg' => 'غير مسموح']);
 
         $url    = self::get('webhook_url');
         $secret = self::get('webhook_secret');
@@ -389,7 +389,7 @@ class LTP_Core {
 
         if (!$url) wp_send_json_error(['msg' => '❌ Webhook URL فارغ']);
         if (!self::webhook_ready($url)) {
-            wp_send_json_error(['msg' => '❌ الرابط مش صحيح — لازم يبدأ بـ https://script.google.com/ وينتهي بـ /exec (مش القيمة المؤقتة)']);
+            wp_send_json_error(['msg' => '❌ الرابط غير صحيح — يجب أن يبدأ بـ https://script.google.com/ وينتهي بـ /exec (لا القيمة المؤقتة)']);
         }
 
         $payload = [
@@ -413,7 +413,7 @@ class LTP_Core {
         ]);
 
         if (is_wp_error($res)) {
-            wp_send_json_error(['msg' => '❌ مش قادر يوصل للشيت: ' . $res->get_error_message()]);
+            wp_send_json_error(['msg' => '❌ تعذّر الوصول إلى الجدول: ' . $res->get_error_message()]);
         }
 
         $code = (int) wp_remote_retrieve_response_code($res);
@@ -430,13 +430,13 @@ class LTP_Core {
         }
 
         if ($code === 200 && stripos($body, 'forbidden') !== false) {
-            wp_send_json_error(['msg' => '❌ الشيت رفض الاختبار: الموقع مش مربوط، أو اتوقف من الشيت الرئيسي']);
+            wp_send_json_error(['msg' => '❌ رفض الجدول الاختبار: الموقع غير مربوط، أو أُوقف من الجدول الرئيسي']);
         }
         if ($code === 200) {
             // 2.12.1: الموقع اللي بيبعت للسيرفر: السيرفر هو اللي استلم (مش الشيت)، وهو اللي بيبعت «اختبار ناجح» على تليجرام
-            if (self::is_server_url($url)) wp_send_json_success(['msg' => '✅ نجح — سيرفر Maestro LT استلم الاختبار ومفتاح الموقع سليم، وهيوصلك «اختبار ناجح» على تليجرام']);
-            wp_send_json_success(['msg' => '✅ نجح — الشيت استلم الاختبار، ولو تيليجرام متظبّط هيوصلك «اختبار ناجح»']);
+            if (self::is_server_url($url)) wp_send_json_success(['msg' => '✅ نجح — استلم خادم Maestro LT الاختبار ومفتاح الموقع سليم، وستصلك رسالة «اختبار ناجح» على تيليجرام']);
+            wp_send_json_success(['msg' => '✅ نجح — استلم الجدول الاختبار، وإذا كان تيليجرام مضبوطًا فستصلك رسالة «اختبار ناجح»']);
         }
-        wp_send_json_error(['msg' => '❌ الشيت رد بخطأ (رقم ' . $code . ')']);
+        wp_send_json_error(['msg' => '❌ ردّ الجدول بخطأ (رقم ' . $code . ')']);
     }
 }

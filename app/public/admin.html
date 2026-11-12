@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
-<title>إدارة المنصة · Maestro LT</title>
+<title data-i18n="adm.title">إدارة المنصة · Maestro LT</title>
 <link rel="icon" href="/favicon.png" type="image/png">
 <link rel="apple-touch-icon" href="/img/logo-icon.png">
 <link rel="stylesheet" href="/css/app.css">
@@ -14,79 +14,79 @@
 <header class="adm-bar">
   <div class="adm-bar-in">
     <a class="brand-logo" href="/"><picture><source srcset="/img/logo-dark.webp" media="(prefers-color-scheme: dark)"><img class="logo-head sm" src="/img/logo.webp" alt="Maestro LT — Leads Tracker" width="96" height="58"></picture></a>
-    <nav class="adm-nav" aria-label="التنقل">
-      <a href="/">مواقعي</a>
-      <a href="/admin" aria-current="page">إدارة المنصة</a>
+    <nav class="adm-nav" aria-label="التنقل" data-i18n-aria="adm.nav">
+      <a href="/" data-i18n="adm.my_sites">مواقعي</a>
+      <a href="/admin" aria-current="page" data-i18n="adm.h1">إدارة المنصة</a>
     </nav>
-    <div class="adm-user"><span class="who" id="who"></span> <button class="btn ghost sm" id="out" type="button" hidden>خروج</button></div>
+    <div class="adm-user"><span data-lang-switch></span> <span class="who" id="who"></span> <button class="btn ghost sm" id="out" type="button" hidden data-i18n="adm.logout">خروج</button></div>
   </div>
 </header>
 
 <main class="adm-main" id="main">
-  <div class="adm-loading" id="loading"><span class="spinner"></span>بنحمّل لوحة الإدارة…</div>
+  <div class="adm-loading" id="loading"><span class="spinner"></span><span data-i18n="adm.loading">جارٍ تحميل لوحة الإدارة…</span></div>
 
   <section id="app" hidden>
     <div class="adm-head">
       <div>
-        <p class="eyebrow" id="role-eyebrow">مدير المنصة</p>
-        <h1>إدارة المنصة</h1>
-        <p class="muted">كل الحسابات ومواقعها وحدودها في مكان واحد. أي تغيير هنا بيتطبّق على السيرفر خلال دقيقة.</p>
+        <p class="eyebrow" id="role-eyebrow" data-i18n="adm.role">المدير العام</p>
+        <h1 data-i18n="adm.h1">إدارة المنصة</h1>
+        <p class="muted" data-i18n="adm.sub">كل الحسابات ومواقعها وحدودها في مكان واحد. أي تغيير هنا يُطبَّق على الخادم خلال دقيقة.</p>
       </div>
       <div class="adm-head-act">
         <span class="hint" id="updated"></span>
-        <button class="btn ghost sm" id="refresh" type="button">تحديث</button>
+        <button class="btn ghost sm" id="refresh" type="button" data-i18n="adm.refresh">تحديث</button>
       </div>
     </div>
 
-    <div class="seg adm-tabs" id="tabs" role="tablist" aria-label="أقسام الإدارة">
-      <button type="button" role="tab" id="tab-btn-accounts" data-tab="accounts" aria-selected="true">الحسابات</button>
-      <button type="button" role="tab" id="tab-btn-team" data-tab="team" aria-selected="false" hidden>الفريق</button>
-      <button type="button" role="tab" id="tab-btn-audit" data-tab="audit" aria-selected="false" hidden>سجل التغييرات</button>
+    <div class="seg adm-tabs" id="tabs" role="tablist" aria-label="أقسام الإدارة" data-i18n-aria="adm.tabs">
+      <button type="button" role="tab" id="tab-btn-accounts" data-tab="accounts" aria-selected="true" data-i18n="adm.accounts">الحسابات</button>
+      <button type="button" role="tab" id="tab-btn-team" data-tab="team" aria-selected="false" hidden data-i18n="adm.team">الفريق</button>
+      <button type="button" role="tab" id="tab-btn-audit" data-tab="audit" aria-selected="false" hidden data-i18n="adm.audit">سجل التغييرات</button>
     </div>
 
     <div id="tab-accounts" role="tabpanel" aria-labelledby="tab-btn-accounts">
-    <div class="kpis" id="kpis" aria-label="أرقام المنصة"></div>
+    <div class="kpis" id="kpis" aria-label="أرقام المنصة" data-i18n-aria="adm.kpis"></div>
 
     <section class="panel-card tg" id="tg" aria-labelledby="tg-h">
       <div class="tg-main">
         <div class="tg-icon" aria-hidden="true"></div>
         <div>
-          <h2 id="tg-h">بوت تليجرام</h2>
-          <p class="muted" id="tg-desc">بنشوف البوت رايح فين…</p>
+          <h2 id="tg-h" data-i18n="adm.tg">بوت تيليجرام</h2>
+          <p class="muted" id="tg-desc" data-i18n="adm.tg.checking">نتحقق من وجهة البوت…</p>
           <p class="tg-meta hint" id="tg-meta"></p>
         </div>
       </div>
       <div class="tg-act">
         <span class="pill" id="tg-pill">—</span>
-        <button class="btn sm" id="tg-server" type="button" hidden>حوّل البوت للسيرفر</button>
-        <button class="btn ghost sm" id="tg-sheet" type="button" hidden>رجّع البوت للشيت</button>
+        <button class="btn sm" id="tg-server" type="button" hidden data-i18n="adm.tg.server">حوّل البوت إلى الخادم</button>
+        <button class="btn ghost sm" id="tg-sheet" type="button" hidden data-i18n="adm.tg.sheet">أعِد البوت إلى الجدول</button>
       </div>
     </section>
 
     <section class="panel-card" aria-labelledby="acc-h">
       <div class="sec-head">
-        <h2 id="acc-h">الحسابات</h2>
+        <h2 id="acc-h" data-i18n="adm.accounts">الحسابات</h2>
         <div class="tools">
-          <label class="search"><span class="sr">بحث</span><input id="q" type="search" placeholder="ابحث بالاسم أو الإيميل أو الدومين" autocomplete="off"></label>
-          <div class="seg" id="filter" role="tablist" aria-label="تصفية الحسابات"></div>
+          <label class="search"><span class="sr" data-i18n="adm.search">بحث</span><input id="q" type="search" placeholder="ابحث بالاسم أو البريد أو النطاق" data-i18n-ph="adm.search.ph" autocomplete="off"></label>
+          <div class="seg" id="filter" role="tablist" aria-label="تصفية الحسابات" data-i18n-aria="adm.filter"></div>
         </div>
       </div>
       <div class="tbl-wrap">
         <table class="tbl" id="tbl">
           <thead><tr>
-            <th scope="col">الحساب</th>
-            <th scope="col">الحالة</th>
-            <th scope="col">المواقع</th>
-            <th scope="col">الأحداث</th>
-            <th scope="col">التوصيل</th>
-            <th scope="col">آخر نشاط</th>
-            <th scope="col">التجربة / الخطة</th>
-            <th scope="col"><span class="sr">إدارة</span></th>
+            <th scope="col" data-i18n="adm.h.account">الحساب</th>
+            <th scope="col" data-i18n="adm.h.status">الحالة</th>
+            <th scope="col" data-i18n="adm.h.sites">المواقع</th>
+            <th scope="col" data-i18n="adm.h.events">الأحداث</th>
+            <th scope="col" data-i18n="adm.h.delivery">اكتمال البيانات</th>
+            <th scope="col" data-i18n="adm.h.last">آخر نشاط</th>
+            <th scope="col" data-i18n="adm.h.plan">التجربة / الخطة</th>
+            <th scope="col"><span class="sr" data-i18n="adm.h.manage">إدارة</span></th>
           </tr></thead>
           <tbody id="rows"></tbody>
         </table>
       </div>
-      <p class="empty muted" id="empty" hidden>مفيش حسابات بالشكل ده.</p>
+      <p class="empty muted" id="empty" hidden data-i18n="adm.empty">لا توجد حسابات مطابقة.</p>
     </section>
     </div>
     <div id="tab-team" role="tabpanel" aria-labelledby="tab-btn-team" hidden></div>
@@ -94,9 +94,9 @@
   </section>
 
   <section class="card narrow center" id="denied" hidden>
-    <h1>الصفحة دي مش متاحة</h1>
-    <p class="muted">لوحة الإدارة لمدير المنصة بس.</p>
-    <p><a class="btn" href="/">ارجع لمواقعك</a></p>
+    <h1 data-i18n="adm.denied">هذه الصفحة غير متاحة</h1>
+    <p class="muted" data-i18n="adm.denied.p">لوحة الإدارة لفريق المنصة فقط.</p>
+    <p><a class="btn" href="/" data-i18n="adm.denied.back">العودة إلى مواقعك</a></p>
   </section>
 </main>
 
@@ -108,80 +108,80 @@
       <h2 id="d-name"></h2>
       <p class="hint" id="d-since"></p>
     </div>
-    <button class="icon-btn" id="d-close" type="button" aria-label="قفل">×</button>
+    <button class="icon-btn" id="d-close" type="button" aria-label="إغلاق" data-i18n-aria="close">×</button>
   </header>
   <div class="d-body" id="d-body">
     <div class="d-state" id="d-state"></div>
 
     <fieldset class="d-sec" data-perm="orgs_status">
-      <legend>حالة الحساب</legend>
-      <div class="seg wide" id="d-status" role="radiogroup" aria-label="حالة الحساب"></div>
+      <legend data-i18n="adm.d.status">حالة الحساب</legend>
+      <div class="seg wide" id="d-status" role="radiogroup" aria-label="حالة الحساب" data-i18n-aria="adm.d.status"></div>
       <p class="hint" id="d-status-hint"></p>
     </fieldset>
 
     <fieldset class="d-sec" data-perm="orgs_trial">
-      <legend>التجربة المجانية</legend>
+      <legend data-i18n="adm.d.trial">التجربة المجانية</legend>
       <p class="d-trial" id="d-trial"></p>
       <div class="chips">
-        <button class="chip" type="button" data-extend="7">+7 أيام</button>
-        <button class="chip" type="button" data-extend="14">+14 يوم</button>
-        <button class="chip" type="button" data-extend="30">+30 يوم</button>
+        <button class="chip" type="button" data-extend="7" data-i18n="adm.d.ext7">+7 أيام</button>
+        <button class="chip" type="button" data-extend="14" data-i18n="adm.d.ext14">+14 يومًا</button>
+        <button class="chip" type="button" data-extend="30" data-i18n="adm.d.ext30">+30 يومًا</button>
       </div>
     </fieldset>
 
     <fieldset class="d-sec" data-perm="orgs_plan">
-      <legend>حد المواقع</legend>
-      <div class="opts" role="radiogroup" aria-label="حد المواقع">
-        <label class="opt"><input type="radio" name="lim" value="plan"><span><b>حسب الخطة</b><small id="d-lim-plan"></small></span></label>
-        <label class="opt"><input type="radio" name="lim" value="custom"><span><b>حد خاص بالحساب ده</b>
-          <span class="stepper"><button type="button" class="icon-btn sm" id="lim-minus" aria-label="أقل">−</button><input id="d-max" type="number" min="0" max="1000" inputmode="numeric" aria-label="عدد المواقع"><button type="button" class="icon-btn sm" id="lim-plus" aria-label="أكتر">+</button></span></span></label>
+      <legend data-i18n="adm.d.limit">حد المواقع</legend>
+      <div class="opts" role="radiogroup" aria-label="حد المواقع" data-i18n-aria="adm.d.limit">
+        <label class="opt"><input type="radio" name="lim" value="plan"><span><b data-i18n="adm.d.by_plan">حسب الخطة</b><small id="d-lim-plan"></small></span></label>
+        <label class="opt"><input type="radio" name="lim" value="custom"><span><b data-i18n="adm.d.custom">حد خاص بهذا الحساب</b>
+          <span class="stepper"><button type="button" class="icon-btn sm" id="lim-minus" aria-label="أقل" data-i18n-aria="adm.less">−</button><input id="d-max" type="number" min="0" max="1000" inputmode="numeric" aria-label="عدد المواقع" data-i18n-aria="adm.d.count"><button type="button" class="icon-btn sm" id="lim-plus" aria-label="أكثر" data-i18n-aria="adm.more">+</button></span></span></label>
       </div>
     </fieldset>
 
     <fieldset class="d-sec" data-perm="orgs_plan">
-      <legend>الخطة</legend>
-      <select id="d-plan" aria-label="الخطة">
-        <option value="">— من غير خطة —</option>
-        <option value="trial">تجربة</option>
-        <option value="basic">أساسية</option>
-        <option value="pro">احترافية</option>
-        <option value="agency">وكالة</option>
-        <option value="internal">داخلي (حساباتنا)</option>
+      <legend data-i18n="adm.d.plan">الخطة</legend>
+      <select id="d-plan" aria-label="الخطة" data-i18n-aria="adm.d.plan">
+        <option value="" data-i18n="adm.plan.none">— دون خطة —</option>
+        <option value="trial" data-i18n="adm.plan.trial">تجربة</option>
+        <option value="basic" data-i18n="adm.plan.basic">أساسية</option>
+        <option value="pro" data-i18n="adm.plan.pro">احترافية</option>
+        <option value="agency" data-i18n="adm.plan.agency">وكالة</option>
+        <option value="internal" data-i18n="adm.plan.internal">داخلية (حساباتنا)</option>
       </select>
     </fieldset>
 
     <fieldset class="d-sec" data-perm="orgs_policy">
-      <legend>لو الحساب اتوقف أو التجربة خلصت: أحداث مواقعه</legend>
-      <div class="opts" role="radiogroup" aria-label="سياسة الأحداث">
-        <label class="opt"><input type="radio" name="pol" value="grace"><span><b>فترة سماح ثم رفض</b><small>بتتسجل <input id="d-grace" class="mini" type="number" min="0" max="90" inputmode="numeric" aria-label="أيام السماح"> يوم من وقت التوقف، وبعدين بتترفض. العميل مابيخسرش بيانات لو اتأخر يوم في الدفع.</small></span></label>
-        <label class="opt"><input type="radio" name="pol" value="reject"><span><b>رفض فوري</b><small>من لحظة التوقف السيرفر مابيسجّلش أي حدث جديد من مواقعه.</small></span></label>
-        <label class="opt"><input type="radio" name="pol" value="keep"><span><b>استمرار الاستقبال</b><small>الأحداث بتفضل تتسجل حتى لو الحساب موقوف (مناسب لحساباتنا الداخلية).</small></span></label>
+      <legend data-i18n="adm.d.policy">إذا توقف الحساب أو انتهت التجربة: أحداث مواقعه</legend>
+      <div class="opts" role="radiogroup" aria-label="سياسة الأحداث" data-i18n-aria="adm.d.policy.a">
+        <label class="opt"><input type="radio" name="pol" value="grace"><span><b data-i18n="adm.pol.grace">فترة سماح ثم رفض</b><small><span data-i18n="adm.pol.grace.a">تُسجَّل لمدة</span> <input id="d-grace" class="mini" type="number" min="0" max="90" inputmode="numeric" aria-label="أيام السماح" data-i18n-aria="adm.pol.grace_days"> <span data-i18n="adm.pol.grace.b">يومًا من وقت التوقف، ثم تُرفض. لا يخسر العميل بياناته إذا تأخّر في الدفع يومًا.</span></small></span></label>
+        <label class="opt"><input type="radio" name="pol" value="reject"><span><b data-i18n="adm.pol.reject">رفض فوري</b><small data-i18n="adm.pol.reject.d">من لحظة التوقف، لا يسجّل الخادم أي حدث جديد من مواقعه.</small></span></label>
+        <label class="opt"><input type="radio" name="pol" value="keep"><span><b data-i18n="adm.pol.keep">استمرار الاستقبال</b><small data-i18n="adm.pol.keep.d">تستمر الأحداث في التسجيل حتى لو كان الحساب موقوفًا (مناسب لحساباتنا الداخلية).</small></span></label>
       </div>
     </fieldset>
 
     <fieldset class="d-sec" data-perm="orgs_replay">
-      <legend>تسجيل الزيارات كفيديو</legend>
-      <div class="opts" role="radiogroup" aria-label="تسجيل الزيارات">
-        <label class="opt"><input type="radio" name="rep" value="on"><span><b>شغال</b><small>زيارات الإعلان بتتسجل (الكتابة متخبية) وبتتمسح بعد 30 يوم.</small></span></label>
-        <label class="opt"><input type="radio" name="rep" value="off"><span><b>مقفول</b><small>مفيش تسجيل لمواقع الحساب ده (مثلاً لو الباقة مافيهاش).</small></span></label>
+      <legend data-i18n="adm.d.replay">تسجيل الزيارات</legend>
+      <div class="opts" role="radiogroup" aria-label="تسجيل الزيارات" data-i18n-aria="adm.d.replay">
+        <label class="opt"><input type="radio" name="rep" value="on"><span><b data-i18n="adm.rep.on">مفعّل</b><small data-i18n="adm.rep.on.d">تُسجَّل زيارات الإعلانات (مع إخفاء ما يُكتب) وتُحذف بعد 30 يومًا.</small></span></label>
+        <label class="opt"><input type="radio" name="rep" value="off"><span><b data-i18n="adm.rep.off">متوقف</b><small data-i18n="adm.rep.off.d">لا تسجيل لمواقع هذا الحساب (مثلًا إذا كانت الباقة لا تشمله).</small></span></label>
       </div>
     </fieldset>
 
     <fieldset class="d-sec" data-perm="orgs_notes">
-      <legend>ملاحظات</legend>
-      <textarea id="d-notes" rows="3" maxlength="1000" placeholder="ملاحظة داخلية، العميل مابيشوفهاش"></textarea>
+      <legend data-i18n="adm.d.notes">ملاحظات</legend>
+      <textarea id="d-notes" rows="3" maxlength="1000" placeholder="ملاحظة داخلية، لا يراها العميل" data-i18n-ph="adm.d.notes.ph"></textarea>
     </fieldset>
 
     <section class="d-sec">
-      <h3 class="legend">المواقع</h3>
+      <h3 class="legend" data-i18n="adm.h.sites">المواقع</h3>
       <ul class="d-sites" id="d-sites"></ul>
     </section>
   </div>
   <footer class="d-foot">
     <div class="d-confirm notice warn" id="d-confirm" hidden></div>
     <div class="d-foot-act">
-      <button class="btn" id="d-save" type="button">حفظ التغييرات</button>
-      <button class="btn ghost" id="d-cancel" type="button">إلغاء</button>
+      <button class="btn" id="d-save" type="button" data-i18n="adm.save">حفظ التغييرات</button>
+      <button class="btn ghost" id="d-cancel" type="button" data-i18n="cancel">إلغاء</button>
     </div>
   </footer>
 </aside>
@@ -189,6 +189,9 @@
 <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 
 <script src="/js/common.js"></script>
+<script src="/js/lang/ar.js"></script>
+<script src="/js/lang/en.js"></script>
+<script src="/js/i18n.js"></script>
 <script src="/js/admin-team.js"></script>
 <script src="/js/admin.js"></script>
 </body>

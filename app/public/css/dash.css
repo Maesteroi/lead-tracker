@@ -141,6 +141,7 @@ table.mini th, table.mini td { padding: 6px 8px; border-bottom: 1px solid var(--
 .facts dt { color: var(--muted); }
 .facts dd { margin: 0; font-weight: 700; }
 .more-link { display: flex; align-items: center; gap: 12px; padding: 14px 6px; border-bottom: 1px solid var(--line); color: var(--ink); text-decoration: none; font-weight: 700; font-size: 16px; }
+button.more-link { width: 100%; background: none; border: 0; border-bottom: 1px solid var(--line); font: inherit; font-weight: 700; font-size: 16px; text-align: start; cursor: pointer; }
 
 /* الحماية */
 .seg.wide3 { display: grid; grid-template-columns: repeat(3, 1fr); width: 100%; margin-bottom: 8px; }
@@ -291,3 +292,11 @@ button.switch[aria-checked="true"]::after { inset-inline-start: 21px; }
 body.level-simple .pro-only, body.level-detailed .simple-only { display: none !important; }
 .simple-line { font-size: 17px; line-height: 1.8; margin: 0 0 14px; }
 .simple-line b { font-family: var(--font-head); }
+/* كارت «الزيارة دي عدّت على إيه» */
+.checks .bad .ck { background: var(--bad-bg); color: var(--bad); }
+.vchecks li { grid-template-columns: 26px minmax(150px, 230px) 1fr; }
+.rp-side .vchecks, .d-sec .vchecks { margin-top: 4px; }
+.rp-side .vchecks li { grid-template-columns: 26px 1fr; }
+.rp-side .vchecks li span { grid-column: 2; font-size: 13px; }
+.strength { margin-top: 4px; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.strength small { font-size: 12px; }

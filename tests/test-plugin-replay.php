@@ -66,5 +66,11 @@ t('the plugin loads and starts the replay class', strpos($main, "class-ltp-repla
 $trk = file_get_contents(__DIR__ . '/../plugin/lead-tracker-pro/assets/tracker.js');
 t('tracker: ad visits only, all typed input masked, checkout/cart/account never recorded', strpos($trk, "!isAd") !== false && strpos($trk, 'maskAllInputs: true') !== false && preg_match("~checkout.*cart.*account~", $trk) === 1);
 
+// ⑤ 2.13.1: قوة التواصل — الحدث مقبول، ومعاه الثواني وهل التطبيق اتفتح، وبيروح للسيرفر بس (الشيت مايعرفوش)
+t('contact_return is an accepted event', in_array('contact_return', LTP_Core::EVENTS, true));
+$rest = file_get_contents(__DIR__ . '/../plugin/lead-tracker-pro/includes/class-ltp-rest.php');
+t('contact_return carries away seconds (capped at a day) and whether the app opened', strpos($rest, "'away_seconds' => \$event === 'contact_return' ? min(86400, absint(\$r->get_param('away'))) : 0") !== false && strpos($rest, "'app_opened'") !== false);
+t('contact_return goes to the Maestro server only, never to the old Google sheet', strpos($rest, "} elseif (\$event !== 'contact_return') {") !== false);
+
 echo "\n$ok passed, $bad failed\n";
 exit($bad ? 1 : 0);

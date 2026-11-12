@@ -3,10 +3,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import vm from 'node:vm';
 const PUB = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../public');
 const read = (f) => fs.readFileSync(path.join(PUB, f), 'utf8');
 const htmls = fs.readdirSync(PUB).filter((f) => f.endsWith('.html'));
-const jsFiles = fs.readdirSync(path.join(PUB, 'js')).map((f) => 'js/' + f);
+const jsFiles = fs.readdirSync(path.join(PUB, 'js')).filter((f) => f.endsWith('.js')).map((f) => 'js/' + f).concat(fs.readdirSync(path.join(PUB, 'js/lang')).filter((f) => f.endsWith('.js')).map((f) => 'js/lang/' + f));
 
 test('security headers are set for every page', () => {
   const h = read('_headers');
@@ -55,4 +56,32 @@ test('the worker config serves only the static folder on app.maestrolt.com, with
   const w = fs.readFileSync(path.resolve(PUB, '../wrangler.toml'), 'utf8');
   assert.ok(/name = "maestro-app"/.test(w) && /pattern = "app\.maestrolt\.com", custom_domain = true/.test(w) && /directory = "\.\/public"/.test(w));
   assert.ok(!/^main\s*=/m.test(w));                                          // مفيش سكريبت Worker
+});
+
+// اللغات (قرار 12 نوفمبر): كل مفتاح مستخدم موجود في ملف العربي، وملف العربي فصحى مبسّطة من غير عامية مصرية
+test('i18n: every key used by the screens exists in the Arabic file, and the Arabic file has no Egyptian colloquial words', () => {
+  const ctx = { window: {} }; vm.createContext(ctx); vm.runInContext(read('js/lang/ar.js'), ctx);
+  const AR = ctx.window.LT_LANG.ar;
+  const used = new Set();
+  for (const f of jsFiles) for (const m of read(f).matchAll(/\b(?:T|LT\.t)\('([a-z0-9_.]+)'/g)) used.add(m[1]);
+  for (const f of htmls) for (const m of read(f).matchAll(/data-i18n(?:-ph|-title|-aria)?="([a-z0-9_.]+)"/g)) used.add(m[1]);
+  const missing = [...used].filter((k) => !k.endsWith('.') && AR[k] === undefined);   // «nav.» + متغير = مفتاح بيتركّب (بيتفحص في المتصفح)
+  assert.deepEqual(missing, [], 'missing keys');
+  const text = JSON.stringify(AR);
+  // كلمة كاملة (مش جزء من كلمة: «ليه» جوه «عليها» مسموح)
+  for (const w of ['مش', 'مفيش', 'دلوقتي', 'إزاي', 'ليه', 'بتاع', 'عايز', 'لسه', 'بره', 'كمان', 'بنحمّل', 'مقدرناش', 'النهارده', 'شوف', 'اتسجل', 'جاي', 'بيتفعّل', 'هيظهر'])
+    assert.ok(!new RegExp('(^|[\\s«"(،.:])' + w + '($|[\\s»"),.،؟:])').test(text), 'colloquial word in ar.js: ' + w);
+});
+
+test('i18n: the English file has exactly the same keys as the Arabic one, with the same {placeholders} and no Arabic text', () => {
+  const ctx = { window: {} }; vm.createContext(ctx); vm.runInContext(read('js/lang/ar.js'), ctx); vm.runInContext(read('js/lang/en.js'), ctx);
+  const AR = ctx.window.LT_LANG.ar, EN = ctx.window.LT_LANG.en;
+  assert.deepEqual(Object.keys(EN).filter((k) => !(k in AR)), [], 'keys in en.js but not ar.js');
+  assert.deepEqual(Object.keys(AR).filter((k) => !(k in EN)), [], 'keys missing from en.js');
+  const ph = (v) => (String(v).match(/\{\w+(?::nom)?\}/g) || []).map((x) => x.replace(':nom', '')).sort().join();
+  for (const k of Object.keys(AR)) {
+    if (Array.isArray(AR[k])) { assert.ok(Array.isArray(EN[k]) && EN[k].length === 2, 'units must be [one, many]: ' + k); continue; }
+    assert.equal(ph(EN[k]), ph(AR[k]), 'placeholders differ: ' + k);
+    assert.ok(!/[\u0600-\u06FF]/.test(EN[k]) || k === 'app.name', 'Arabic text in en.js: ' + k);
+  }
 });

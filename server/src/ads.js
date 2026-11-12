@@ -77,7 +77,7 @@ async function quotaStop(env, db, now, usage, limit, fetchImpl) {
   const since = new Date(now.getTime() - 24 * 3600000).toISOString();
   const sent = await db.one('ads_pull_runs?source=eq.quota_alert&at=gte.' + encodeURIComponent(since) + '&select=id');
   if (sent) return;
-  const ok = await sendTelegram(env, '🛑 <b>سحب جوجل أدز وقف مؤقتاً</b>\nاستهلاك الـAPI ' + usage.total + ' من ' + limit + ' في آخر 24 ساعة (السيرفر ' + usage.server + ' · الشيت ' + usage.apps_script + '). هيكمل لوحده لما الاستهلاك ينزل.', fetchImpl);
+  const ok = await sendTelegram(env, '🛑 <b>توقّف سحب بيانات جوجل أدز مؤقتًا</b>\nاستهلاك الـAPI ' + usage.total + ' من ' + limit + ' في آخر 24 ساعة (الخادم ' + usage.server + ' · الجدول ' + usage.apps_script + '). سيُستأنف تلقائيًا عندما ينخفض الاستهلاك.', fetchImpl);
   await db.insert('ads_pull_runs', [{ source: 'quota_alert', ok, operations: 0, error: 'quota ' + usage.total + '/' + limit, at: now.toISOString() }], { returning: false });
 }
 
@@ -236,9 +236,9 @@ async function pullDay(env, db, cred, job, ctx) {
       await db.update('ads_credentials?id=' + eq(cred.id), patch);
     } catch (e2) { console.error('ads pull log: ' + String(e2 && e2.message || e2).slice(0, 150)); }
     if (reauth || job.attempt === 1 || job.attempt >= MAX_ATTEMPTS) {
-      const tail = reauth ? '\nالربط انتهى أو اتلغى ← محتاج إعادة ربط الحساب. السحب وقف للحساب ده.'
-        : job.attempt >= MAX_ATTEMPTS ? '\nدي آخر محاولة النهارده، وهيتجرب تاني بكرة.' : '\nهيتجرب تاني لوحده.';
-      await sendTelegram(env, '⚠️ <b>سحب جوجل أدز فشل</b>\n' + escHtml(name) + ' · ' + job.day + ' · محاولة ' + job.attempt + ' من ' + MAX_ATTEMPTS + '\n' + escHtml(reason) + tail, fetchImpl);
+      const tail = reauth ? '\nانتهى الربط أو أُلغي ← يجب إعادة ربط الحساب. توقّف السحب لهذا الحساب.'
+        : job.attempt >= MAX_ATTEMPTS ? '\nهذه آخر محاولة اليوم، وسيُعاد غدًا.' : '\nسيُعاد تلقائيًا.';
+      await sendTelegram(env, '⚠️ <b>فشل سحب بيانات جوجل أدز</b>\n' + escHtml(name) + ' · ' + job.day + ' · المحاولة ' + job.attempt + ' من ' + MAX_ATTEMPTS + '\n' + escHtml(reason) + tail, fetchImpl);
     }
     return { ok: false, client_id: cred.client_id, day: job.day, operations: ops, error: reason };
   }
@@ -270,14 +270,14 @@ async function learnPlaces(db, api, names, at) {
   }
 }
 
-const STATUS_AR = { SUSPENDED: 'موقوف من جوجل', CANCELED: 'ملغي', CLOSED: 'مقفول' };
+const STATUS_AR = { SUSPENDED: 'موقوف من جوجل', CANCELED: 'ملغى', CLOSED: 'مغلق' };
 const REASON_AR = {
-  HAS_ADS_DISAPPROVED: 'فيها إعلان مرفوض', HAS_ADS_LIMITED_BY_POLICY: 'إعلان محدود بالسياسة', BUDGET_CONSTRAINED: 'الميزانية محدّدة العرض',
-  BUDGET_MISCONFIGURED: 'إعداد الميزانية غلط', BIDDING_STRATEGY_MISCONFIGURED: 'إعداد المزايدة غلط', BIDDING_STRATEGY_LEARNING: 'المزايدة بتتعلم',
-  BIDDING_STRATEGY_LIMITED: 'المزايدة محدودة', MOST_ADS_UNDER_REVIEW: 'أغلب الإعلانات تحت المراجعة', NO_KEYWORDS: 'مفيش كلمات شغالة',
-  NO_AD_GROUP_ADS: 'مفيش إعلانات شغالة', NO_AD_GROUPS: 'مفيش مجموعات شغالة', AD_GROUPS_PAUSED: 'المجموعات موقوفة', AD_GROUP_ADS_PAUSED: 'الإعلانات موقوفة',
-  KEYWORDS_PAUSED: 'الكلمات موقوفة', SEARCH_VOLUME_LIMITED: 'حجم البحث قليل', CAMPAIGN_ENDED: 'الحملة انتهت', CAMPAIGN_PENDING: 'الحملة لسه مابدأتش',
-  MISSING_LOCATION_TARGETING: 'مفيش استهداف مكان',
+  HAS_ADS_DISAPPROVED: 'فيها إعلان مرفوض', HAS_ADS_LIMITED_BY_POLICY: 'إعلان مقيَّد بالسياسة', BUDGET_CONSTRAINED: 'الميزانية تحدّ من الظهور',
+  BUDGET_MISCONFIGURED: 'إعداد الميزانية خاطئ', BIDDING_STRATEGY_MISCONFIGURED: 'إعداد المزايدة خاطئ', BIDDING_STRATEGY_LEARNING: 'المزايدة في مرحلة التعلّم',
+  BIDDING_STRATEGY_LIMITED: 'المزايدة محدودة', MOST_ADS_UNDER_REVIEW: 'أغلب الإعلانات تحت المراجعة', NO_KEYWORDS: 'لا توجد كلمات مفعّلة',
+  NO_AD_GROUP_ADS: 'لا توجد إعلانات مفعّلة', NO_AD_GROUPS: 'لا توجد مجموعات مفعّلة', AD_GROUPS_PAUSED: 'المجموعات موقوفة', AD_GROUP_ADS_PAUSED: 'الإعلانات موقوفة',
+  KEYWORDS_PAUSED: 'الكلمات موقوفة', SEARCH_VOLUME_LIMITED: 'حجم البحث منخفض', CAMPAIGN_ENDED: 'الحملة انتهت', CAMPAIGN_PENDING: 'لم تبدأ الحملة بعد',
+  MISSING_LOCATION_TARGETING: 'لا يوجد استهداف جغرافي',
 };
 const reasonsAr = (list) => (list || []).map((r) => REASON_AR[r] || r).join('، ');
 
@@ -285,13 +285,13 @@ const reasonsAr = (list) => (list || []).map((r) => REASON_AR[r] || r).join('، 
 // فالإشارة: حملة شغالة وماظهرتش خالص امبارح. ولو كل الحملات الشغالة كده ← غالباً الدفع أو حالة الحساب.
 export function buildAlerts(name, customerStatus, campaigns) {
   const out = [];
-  if (customerStatus && customerStatus !== 'ENABLED') out.push('🚨 الحساب ' + (STATUS_AR[customerStatus] || customerStatus) + ' ← الإعلانات مش بتظهر');
+  if (customerStatus && customerStatus !== 'ENABLED') out.push('🚨 الحساب ' + (STATUS_AR[customerStatus] || customerStatus) + ' ← الإعلانات لا تظهر');
   const on = campaigns.filter((c) => c.status === 'ENABLED');
   const silent = on.filter((c) => c.impressions === 0);
   if (on.length > 1 && silent.length === on.length) {
-    out.push('🚨 كل الحملات الشغالة (' + on.length + ') ماظهرتش امبارح خالص ← غالباً الدفع أو حالة الحساب');
+    out.push('🚨 كل الحملات المفعّلة (' + on.length + ') لم تظهر أمس إطلاقًا ← غالبًا بسبب الدفع أو حالة الحساب');
   } else {
-    for (const c of silent) out.push('🚨 «' + c.name + '» شغالة وماظهرتش امبارح خالص' + (c.reasons.length ? ' (' + reasonsAr(c.reasons) + ')' : '') + ' ← شوف الدفع والسياسات');
+    for (const c of silent) out.push('🚨 «' + c.name + '» مفعّلة ولم تظهر أمس إطلاقًا' + (c.reasons.length ? ' (' + reasonsAr(c.reasons) + ')' : '') + ' ← راجع الدفع والسياسات');
   }
   for (const c of on) if (c.disapproved) out.push('⛔ «' + c.name + '»: ' + c.disapproved + ' إعلان مرفوض');
   return out;

@@ -8,7 +8,7 @@
 // الرجوع: من لوحة الإدارة («رجّع البوت للشيت») أو setWebhook على رابط الشيت. تليجرام بيحتفظ بالتحديثات اللي ماتسلمتش.
 import { eq } from './db.js';
 import { sha256, safeEqual, json } from './util.js';
-import { tg, OUTCOMES, outcomeKeyboard } from './notify.js';
+import { tg, OUTCOMES, outcomeKeyboard, OUTCOME_LABEL } from './notify.js';
 
 const CB_RE = /^o\|([A-Za-z0-9]{6,20})\|([A-Za-z0-9]{2,20})\|(\d)$/;
 const FORWARD_TIMEOUT_MS = 25000;
@@ -54,10 +54,10 @@ async function handleOutcome(env, db, cq, site, code, i, fetchImpl) {
   try {
     const chat = String(((cq.message || {}).chat || {}).id || '');
     const msgId = Number((cq.message || {}).message_id) || 0;
-    if (!OUTCOMES[i]) return answer('زرار مش صالح');
+    if (!OUTCOMES[i]) return answer('زر غير صالح');
     // المرحلة دي: محمود بس (شات العميل جاي بعدين)
-    if (!chat || !env.TG_CHAT_ID || chat !== String(env.TG_CHAT_ID)) return answer('⛔ مش مسموح لك تسجّل نتيجة الموقع ده');
-    if (site.status !== 'on') return answer('⚠️ الموقع مش شغال');
+    if (!chat || !env.TG_CHAT_ID || chat !== String(env.TG_CHAT_ID)) return answer('⛔ غير مسموح لك بتسجيل نتيجة هذا الموقع');
+    if (site.status !== 'on') return answer('⚠️ الموقع غير مفعّل');
     const value = OUTCOMES[i][0];
     const who = [((cq.from || {}).first_name || ''), ((cq.from || {}).last_name || '')].join(' ').trim().slice(0, 40) || null;
     await db.insert('outcomes', [{ client_id: site.id, match_code: code, value, by_who: who }], { returning: false });
@@ -66,11 +66,11 @@ async function handleOutcome(env, db, cq, site, code, i, fetchImpl) {
       const row = await db.one(k + '&select=info');
       if (row) await db.update(k, { info: Object.assign({}, row.info || {}, { oc_v: value, oc: (row.info && row.info.oc) || code }) });
     }
-    await answer(OUTCOMES[i][1] + ' اتسجل: ' + value + ' (#' + code + ')');
+    await answer(OUTCOMES[i][1] + ' تم التسجيل: ' + (OUTCOME_LABEL[value] || value) + ' (#' + code + ')');
     if (msgId) await tg(env, 'editMessageReplyMarkup', { chat_id: chat, message_id: msgId, reply_markup: outcomeKeyboard(site.id, code, value) }, fetchImpl);
   } catch (e) {
     console.error('tg outcome: ' + String(e && e.message || e).slice(0, 120));
-    try { await answer('⚠️ حصل خطأ، جرّب تاني'); } catch (e2) { /* ignore */ }
+    try { await answer('⚠️ حدث خطأ، حاول مرة أخرى'); } catch (e2) { /* ignore */ }
   }
 }
 

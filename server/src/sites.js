@@ -134,7 +134,7 @@ export async function createSite(req, env, db, sess) {
   if (existing.some((c) => (c.domains || []).includes(domain))) return json({ ok: false, error: 'domain_exists' }, 409);
   const { id, key } = await insertSite(env, db, orgId, name, domain, b.timezone, b.country_code);
   await audit(db, sess.user.id, 'site_created', true, id);
-  return json({ ok: true, site: { id, name, domains: [domain] }, key, key_note: 'ده المفتاح الوحيد المعروض. انسخه دلوقتي: مابيتعرضش تاني.' }, 201);
+  return json({ ok: true, site: { id, name, domains: [domain] }, key, key_note: 'هذا هو المفتاح الوحيد المعروض. انسخه الآن، فلن يظهر مرة أخرى.' }, 201);
 }
 
 export async function rotateKey(req, env, db, sess, id) {
@@ -144,7 +144,7 @@ export async function rotateKey(req, env, db, sess, id) {
   const key = 'ltk' + randomToken(24);
   await db.update('clients?id=' + eq(site.id), { key_hash: await sha256(key) });
   await audit(db, sess.user.id, 'key_rotated', true, site.id);
-  return json({ ok: true, key, key_note: 'المفتاح القديم وقف. حطّ الجديد في البلجن.' });
+  return json({ ok: true, key, key_note: 'توقّف المفتاح القديم. ضع المفتاح الجديد في الإضافة.' });
 }
 
 // فحص التركيب: وصل أول حدث ولا لسه؟

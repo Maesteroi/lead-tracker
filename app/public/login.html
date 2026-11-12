@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
-<title>تسجيل الدخول · Maestro LT</title>
+<title data-i18n="login.title">تسجيل الدخول · Maestro LT</title>
 <link rel="icon" href="/favicon.png" type="image/png">
 <link rel="apple-touch-icon" href="/img/logo-icon.png">
 <link rel="manifest" href="/manifest.webmanifest">
@@ -13,28 +13,32 @@
 <body>
 <main class="shell">
   <div class="split">
-    <aside class="panel" aria-label="عن Maestro LT">
+    <aside class="panel" aria-label="عن Maestro LT" data-i18n-aria="login.about">
       <img class="logo-panel" src="/img/logo-dark.webp" alt="Maestro LT — Leads Tracker" width="200" height="121">
-      <h2>اعرف مين بيضغط على إعلاناتك فعلاً</h2>
+      <h2 data-i18n="login.h2">اعرف من ينقر على إعلاناتك فعلًا</h2>
       <ul class="points">
-        <li>حماية ميزانيتك من النقرات الوهمية</li>
-        <li>كشف حساب كامل لإعلانات جوجل في مكان واحد</li>
-        <li>تنبيه لو حملة شغالة وماظهرتش</li>
+        <li data-i18n="login.p1">حماية ميزانيتك من النقرات الوهمية</li>
+        <li data-i18n="login.p2">كشف حساب كامل لإعلانات جوجل في مكان واحد</li>
+        <li data-i18n="login.p3">تنبيه إذا كانت حملة تعمل ولا تظهر</li>
       </ul>
-      <p class="fine">تتبّع النقرات والاتصالات والواتساب، من أول ضغطة لحد الطلب.</p>
+      <p class="fine" data-i18n="login.fine">تتبّع النقرات والاتصالات والواتساب، من أول نقرة حتى الطلب.</p>
     </aside>
     <section class="card login">
       <picture><source srcset="/img/logo-dark.webp" media="(prefers-color-scheme: dark)"><img class="logo-full" src="/img/logo.webp" alt="Maestro LT — Leads Tracker" width="220" height="133"></picture>
-      <h1>سجّل الدخول</h1>
-      <p class="muted">بحساب جوجل، من غير كلمة سر.</p>
+      <h1 data-i18n="login.h1">سجّل الدخول</h1>
+      <p class="muted" data-i18n="login.sub">بحساب جوجل، دون كلمة مرور.</p>
       <div id="err" class="notice bad" role="alert" hidden></div>
-      <a id="go" class="btn google block" href="#"><img src="/img/google.svg" alt="" width="20" height="20"><span>الدخول بحساب جوجل</span></a>
-      <p class="hint">بنقرا اسمك وإيميلك بس. مابنشوفش إعلاناتك ولا بريدك.</p>
-      <p class="hint">أول دخول بيفتح لك حساب جديد بتجربة مجانية 14 يوم.</p>
+      <a id="go" class="btn google block" href="#"><img src="/img/google.svg" alt="" width="20" height="20"><span data-i18n="login.google">الدخول بحساب جوجل</span></a>
+      <p class="hint" data-i18n="login.privacy">نقرأ اسمك وبريدك الإلكتروني فقط، ولا نطّلع على إعلاناتك ولا رسائلك.</p>
+      <p class="hint" data-lang-switch></p>
+      <p class="hint" data-i18n="login.trial">أول دخول ينشئ لك حسابًا جديدًا بتجربة مجانية لمدة 14 يومًا.</p>
     </section>
   </div>
 </main>
 <script src="/js/common.js"></script>
+<script src="/js/lang/ar.js"></script>
+<script src="/js/lang/en.js"></script>
+<script src="/js/i18n.js"></script>
 <script src="/js/login.js"></script>
 </body>
 </html>

@@ -162,7 +162,7 @@ export async function postMessages(req, env, db, ctx) {
 // ── تسجيل المكالمة (ملف الصوت) ── PUT /v1/device/recordings?started_at=…&phone=…
 export async function putRecording(req, env, db, ctx, url) {
   const { client, device } = ctx;
-  if (!(client.consents && client.consents.call_recording && client.consents.call_recording.on)) return json({ ok: false, error: 'تسجيل المكالمات مش متفعّل للعميل ده (محتاج الموافقة)' }, 409);
+  if (!(client.consents && client.consents.call_recording && client.consents.call_recording.on)) return json({ ok: false, error: 'تسجيل المكالمات غير مفعّل لهذا العميل (يحتاج إلى موافقة)' }, 409);
   const started = iso(url.searchParams.get('started_at'));
   if (!started) return json({ ok: false, error: 'started_at' }, 400);
   const mime = (req.headers.get('content-type') || 'audio/mp4').slice(0, 60);

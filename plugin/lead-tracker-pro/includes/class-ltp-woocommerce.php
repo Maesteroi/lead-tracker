@@ -24,10 +24,10 @@ class LTP_WooCommerce {
     const RETRY  = 'ltp_wc_retry';
     const STATUS_AR = [
         'pending'    => 'في انتظار الدفع',
-        'processing' => 'جاري التجهيز',
+        'processing' => 'قيد التجهيز',
         'on-hold'    => 'معلّق',
-        'completed'  => 'اتسلّم / مكتمل',
-        'cancelled'  => 'اتلغى',
+        'completed'  => 'تم التسليم / مكتمل',
+        'cancelled'  => 'ملغى',
         'refunded'   => 'مرتجع',
         'failed'     => 'فشل الدفع',
         'checkout-draft' => 'مسودة',
@@ -79,7 +79,7 @@ class LTP_WooCommerce {
     public static function is_internal() {
         if (isset($_COOKIE['ltp_internal']) && $_COOKIE['ltp_internal'] === '1') return 'جهاز داخلي';
         if (self::is_test()) return 'وضع التجربة';
-        if (is_user_logged_in() && (current_user_can('manage_woocommerce') || current_user_can('edit_shop_orders'))) return 'أدمن / مدير المتجر';
+        if (is_user_logged_in() && (current_user_can('manage_woocommerce') || current_user_can('edit_shop_orders'))) return 'مسؤول / مدير المتجر';
         return '';
     }
 
@@ -269,7 +269,7 @@ class LTP_WooCommerce {
             'detect_via'       => 'wc:' . $via . ' · ' . ($attr['via'] ?? ''),
             'lead_level'       => 'primary',
             'warning'          => trim(($test !== '' ? '🧪 طلب تجريبي (' . $test . ')' : '')
-                                  . (($attr['via'] ?? '') === 'created_via:admin' ? ' · ✍️ طلب يدوي من لوحة التحكم (واتساب أو تليفون؟)' : '')
+                                  . (($attr['via'] ?? '') === 'created_via:admin' ? ' · ✍️ طلب يدوي من لوحة التحكم (واتساب أو هاتف؟)' : '')
                                   . (empty($attr['source']) && ($attr['via'] ?? '') !== 'cookies' ? ' · المصدر غير معروف' : ''), ' ·'),
         ]);
         $this->queue_event($test !== '' ? 'test_order' : 'purchase', $data);
@@ -354,7 +354,7 @@ class LTP_WooCommerce {
                 'customer_email' => (string) $u->user_email,
                 'customer_id'    => $uid,
                 'lead_level'     => 'primary',
-                'btn_text'       => '📝 حساب جديد اتسجل',
+                'btn_text'       => '📝 تسجيل حساب جديد',
                 'detect_via'     => 'wp:user_register',
                 'warning'        => $why !== '' ? '🧪 تسجيل تجريبي (' . $why . ')' : '',
                 'ip'             => LTP_Core::ip(),
@@ -368,23 +368,23 @@ class LTP_WooCommerce {
     // تعليم طلب كتجربة يدوياً (صفحة الطلب ← الإجراءات)
     // ═══════════════════════════════════════════════════════
     public function order_actions($actions) {
-        $actions['ltp_mark_test'] = 'Lead Tracker: ده طلب تجريبي';
+        $actions['ltp_mark_test'] = 'Lead Tracker: هذا طلب تجريبي';
         return $actions;
     }
 
     public function mark_test($order) {
         if (!$order instanceof WC_Order || $order->get_meta('_ltp_test') !== '') return;
-        $order->update_meta_data('_ltp_test', 'اتعلّم يدوياً');
+        $order->update_meta_data('_ltp_test', 'عُلِّم يدويًا');
         $order->save_meta_data();
-        $order->add_order_note('Lead Tracker: اتعلّم طلب تجريبي — مش هيدخل في الأرقام.');
+        $order->add_order_note('Lead Tracker: عُلِّم طلبًا تجريبيًا — لن يدخل في الأرقام.');
         $this->queue_event('test_order', array_merge($this->attr_fields($this->attr_of($order)), [
             'order_id'    => $order->get_id(),
             'order_total' => (float) $order->get_total(),
             'currency'    => $order->get_currency(),
             'path'        => '/order/' . $order->get_id(),
             'title'       => 'طلب #' . $order->get_order_number(),
-            'btn_text'    => '🧪 اتعلّم تجريبي',
-            'warning'     => '🧪 الطلب #' . $order->get_order_number() . ' اتعلّم تجريبي يدوياً — مايتحسبش',
+            'btn_text'    => '🧪 عُلِّم تجريبيًا',
+            'warning'     => '🧪 الطلب #' . $order->get_order_number() . ' عُلِّم تجريبيًا يدويًا — لا يُحتسب',
         ]));
     }
 
@@ -506,13 +506,13 @@ class LTP_WooCommerce {
         $last   = get_option('ltp_wc_last', []);
         $rows = [
             'view_item'        => ['🛍️ مشاهدة منتج', 'من المتصفح · مرة لكل منتج في الزيارة', 'view_item'],
-            'add_to_cart'      => ['🛒 إضافة للسلة', 'من السيرفر · من صفحة المنتج أو المنتجات المقترحة', 'wc_add_to_cart'],
-            'remove_from_cart' => ['❌ حذف من السلة', 'من السيرفر', 'wc_remove_from_cart'],
-            'view_cart'        => ['👀 فتح السلة', 'من السيرفر · مرة لكل زيارة', 'wc_view_cart'],
-            'begin_checkout'   => ['💳 بدء الدفع', 'من السيرفر · مرة لكل زيارة', 'wc_begin_checkout'],
-            'purchase'         => ['💰 طلب حقيقي', 'من السيرفر · مرة لكل رقم طلب، أول ما يبقى طلب حقيقي', 'wc_purchase'],
-            'order_status'     => ['📦 تغيير حالة الطلب', 'اتسلّم · اتلغى · مرتجع', 'wc_order_status'],
-            'test_order'       => ['🧪 طلب تجريبي', 'أجهزتنا والأدمن — مابيتحسبش', 'wc_test_order'],
+            'add_to_cart'      => ['🛒 إضافة للسلة', 'من الخادم · من صفحة المنتج أو المنتجات المقترحة', 'wc_add_to_cart'],
+            'remove_from_cart' => ['❌ حذف من السلة', 'من الخادم', 'wc_remove_from_cart'],
+            'view_cart'        => ['👀 فتح السلة', 'من الخادم · مرة لكل زيارة', 'wc_view_cart'],
+            'begin_checkout'   => ['💳 بدء الدفع', 'من الخادم · مرة لكل زيارة', 'wc_begin_checkout'],
+            'purchase'         => ['💰 طلب حقيقي', 'من الخادم · مرة لكل رقم طلب، فور أن يصبح طلبًا حقيقيًا', 'wc_purchase'],
+            'order_status'     => ['📦 تغيير حالة الطلب', 'تم التسليم · ملغى · مرتجع', 'wc_order_status'],
+            'test_order'       => ['🧪 طلب تجريبي', 'أجهزتنا والمسؤولون — لا يُحتسب', 'wc_test_order'],
         ];
         $sum = [];
         for ($i = 0; $i < 7; $i++) {
@@ -522,9 +522,9 @@ class LTP_WooCommerce {
         ?>
         <div class="ltp-card">
             <h3>🛒 تتبع المتجر (ووكومرس)</h3>
-            <p class="description">خطوات الشراء بتتسجل لوحدها من ووكومرس نفسه — مش محتاجة جرد ولا إعداد، ومابتظهرش في «جرد عناصر التواصل» (الجرد للواتساب والاتصال والفورمز). الطلب بيتبعت لجوجل كتحويل أساسي.</p>
+            <p class="description">تُسجَّل خطوات الشراء تلقائيًا من ووكومرس نفسه — لا تحتاج إلى جرد ولا إعداد، ولا تظهر في «جرد عناصر التواصل» (الجرد للواتساب والاتصال والنماذج). يُرسل الطلب إلى جوجل كتحويل أساسي.</p>
             <table class="ltp-table widefat striped">
-                <thead><tr><th>الخطوة</th><th>بتتسجل إزاي</th><th>آخر 7 أيام</th><th>آخر مرة</th></tr></thead>
+                <thead><tr><th>الخطوة</th><th>طريقة التسجيل</th><th>آخر 7 أيام</th><th>آخر مرة</th></tr></thead>
                 <tbody>
                 <?php foreach ($rows as $k => $r): $l = $last[$k] ?? null; ?>
                     <tr>
@@ -536,7 +536,7 @@ class LTP_WooCommerce {
                 <?php endforeach; ?>
                 </tbody>
             </table>
-            <p class="description">«آخر مرة» بتبدأ تتملى من بعد تحديث 2.7.1. الأرقام الكاملة في الشيت.</p>
+            <p class="description">يبدأ عمود «آخر مرة» بالامتلاء بعد تحديث 2.7.1. الأرقام الكاملة في الجدول.</p>
         </div>
         <?php
     }

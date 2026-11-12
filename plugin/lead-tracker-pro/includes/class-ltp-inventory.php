@@ -154,14 +154,14 @@ class LTP_Inventory {
     }
 
     private static function note($it) {
-        if (!empty($it['e']) && !self::noop_of($it)) return 'ℹ️ رابط «#» — بيشتغل بسكريبت (لو اتضغط ومافتحش حاجة هيظهر هنا كمشكلة)';
+        if (!empty($it['e']) && !self::noop_of($it)) return 'ℹ️ رابط «#» — يعمل عبر سكريبت (إذا نُقر ولم يفتح شيئًا فسيظهر هنا كمشكلة)';
         return '';
     }
 
     private static function problem($it) {
         if (!empty($it['h'])) return '🔴 ' . $it['h'];
-        if ($c = self::noop_of($it)) return '🔴 اتضغط ومافتحش حاجة (' . $c . ' مرة في آخر 14 يوم)';
-        if ($it['t'] === 'wa' && empty($it['c']) && empty($it['cr'])) return '⚠️ كود المطابقة مش جاهز في الرابط';
+        if ($c = self::noop_of($it)) return '🔴 نُقر ولم يفتح شيئًا (' . $c . ' مرة في آخر 14 يومًا)';
+        if ($it['t'] === 'wa' && empty($it['c']) && empty($it['cr'])) return '⚠️ رمز المطابقة غير جاهز في الرابط';
         return '';
     }
 
@@ -171,12 +171,12 @@ class LTP_Inventory {
     public static function card() {
         $s = self::load();
         $types = [
-            'wa' => '💬 واتساب', 'call' => '📞 اتصال', 'sms' => '✉️ رسالة', 'email' => '📧 إيميل', 'msg' => '📨 تليجرام/ماسنجر',
-            'form' => '📝 فورم', 'button' => '🔘 زرار', 'cart' => '🛒 سلة', 'checkout' => '💳 دفع', 'map' => '📍 خريطة', 'social' => '👥 سوشيال',
+            'wa' => '💬 واتساب', 'call' => '📞 اتصال', 'sms' => '✉️ رسالة', 'email' => '📧 بريد إلكتروني', 'msg' => '📨 تليجرام/ماسنجر',
+            'form' => '📝 نموذج', 'button' => '🔘 زر', 'cart' => '🛒 سلة', 'checkout' => '💳 دفع', 'map' => '📍 خريطة', 'social' => '👥 تواصل اجتماعي',
         ];
         $via = [
-            'href' => 'رابط', 'attr' => 'رابط في الكود', 'kw' => 'بالكلمات (الرابط بيتعرف وقت الضغط)', 'kw-parent' => 'من الحاوية',
-            'rule' => 'قاعدة يدوية', 'type' => 'نوع الزرار', 'text' => 'رقم مكتوب من غير رابط',
+            'href' => 'رابط', 'attr' => 'رابط في الكود', 'kw' => 'بالكلمات (يُعرف الرابط وقت النقر)', 'kw-parent' => 'من الحاوية',
+            'rule' => 'قاعدة يدوية', 'type' => 'نوع الزر', 'text' => 'رقم مكتوب دون رابط',
         ];
         $groups = $s['groups'];
         $total  = count($groups);
@@ -225,15 +225,15 @@ class LTP_Inventory {
             <?php
         };
         $head = function ($showWhere) {
-            echo '<thead><tr><th>النوع</th><th>اتعرف إزاي</th><th>المكان</th><th>النص</th><th>العنصر</th><th>الرابط / الرقم</th><th>الحالة</th>'
+            echo '<thead><tr><th>النوع</th><th>طريقة التعرّف</th><th>المكان</th><th>النص</th><th>العنصر</th><th>الرابط / الرقم</th><th>الحالة</th>'
                 . ($showWhere ? '<th>ظهر في</th>' : '') . '<th>الأجهزة</th><th>الأهمية</th></tr></thead>';
         };
         ?>
         <div class="ltp-card">
             <h3>🔎 جرد عناصر التواصل</h3>
-            <p class="description">بيتجمع لوحده من أجهزة الزوار: مرة في اليوم لكل مجموعة صفحات ولكل نوع جهاز. الصفحات اللي بنفس الشكل (المنتجات، الأقسام، المقالات…) = مجموعة واحدة، والصفحات المميزة (الرئيسية، اتصل بنا…) كل واحدة لوحدها. أي عنصر تواصل ناقص من هنا = مش متتبع. 🙈 = مش ظاهر للزائر.</p>
+            <p class="description">يُجمع تلقائيًا من أجهزة الزوار: مرة يوميًا لكل مجموعة صفحات ولكل نوع جهاز. الصفحات المتشابهة (المنتجات، الأقسام، المقالات…) = مجموعة واحدة، والصفحات المميزة (الرئيسية، اتصل بنا…) كلٌّ منها وحدها. أي عنصر تواصل غير موجود هنا = غير متتبَّع. 🙈 = غير ظاهر للزائر.</p>
             <?php if (!$s['items']): ?>
-                <p>لسه مفيش جرد. هيظهر بعد أول زيارة للموقع بعد التحديث (بيستنى 6 ثواني بعد ما الصفحة تحمل).</p>
+                <p>لا يوجد جرد بعد. سيظهر بعد أول زيارة للموقع بعد التحديث (ينتظر 6 ثوانٍ بعد تحميل الصفحة).</p>
             <?php else: ?>
                 <?php echo LTP_Roles::legend(); // phpcs:ignore ?>
                 <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
@@ -243,14 +243,14 @@ class LTP_Inventory {
                     <?php if ($problems): ?> · <strong style="color:#b32d2e;"><?php echo esc_html(count($problems)); ?> مشكلة</strong><?php endif; ?></p>
 
                 <?php if ($problems): ?>
-                    <h4 style="margin:16px 0 6px;color:#b32d2e;">🔴 محتاج تصليح</h4>
+                    <h4 style="margin:16px 0 6px;color:#b32d2e;">🔴 يحتاج إلى إصلاح</h4>
                     <table class="ltp-table widefat striped"><?php $head(true); ?><tbody>
                         <?php foreach (array_keys($problems) as $k) $row($s['items'][$k], true, false); ?>
                     </tbody></table>
                 <?php endif; ?>
 
                 <?php if ($site): ?>
-                    <h4 style="margin:16px 0 6px;">🌐 في الموقع كله (الهيدر · الفوتر · العائم)</h4>
+                    <h4 style="margin:16px 0 6px;">🌐 في الموقع كله (الترويسة · التذييل · العائم)</h4>
                     <table class="ltp-table widefat striped"><?php $head(true); ?><tbody>
                         <?php foreach ($site as $it) $row($it, true); ?>
                     </tbody></table>

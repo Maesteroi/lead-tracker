@@ -19,33 +19,27 @@
     ['الدمام', ['الفيصلية', 'الشاطئ']],
   ];
   var SITES = [
-    { id: 'uEpXTJ6JhbdN', name: 'روضة الصالحين للعمرة', domain: 'rawda.site', currency: 'ر.س', cpc: 4.6, perDay: 62, seed: 7,
+    { id: 'uEpXTJ6JhbdN', name: 'روضة الصالحين للعمرة', domain: 'rawda.site', currency: window.LT.t('sar'), cpc: 4.6, perDay: 62, seed: 7,
       keywords: ['برنامج عمرة', 'عمرة من الرياض', 'رحلات عمرة باص', 'عمرة رخيصة', 'حملة عمرة', 'عمرة رمضان'],
       campaigns: ['عمرة — بحث', 'عمرة — خرائط'] },
-    { id: 'KzFeD6ZXsbYH', name: 'الإنجاز السريع', domain: 'enjaz.biz', currency: 'ر.س', cpc: 6.2, perDay: 38, seed: 11,
+    { id: 'KzFeD6ZXsbYH', name: 'الإنجاز السريع', domain: 'enjaz.biz', currency: window.LT.t('sar'), cpc: 6.2, perDay: 38, seed: 11,
       keywords: ['معقب', 'تعقيب معاملات', 'معقب الرياض', 'استخراج تصريح', 'نقل كفالة', 'تجديد إقامة'],
       campaigns: ['خدمات التعقيب — بحث'] },
     // عملاء تانيين للوكالة (شاشة «كل العملاء» والتقارير)
-    { id: 'Nkb7Clinic01', name: 'عيادات النخبة للأسنان', domain: 'nokhba-dental.sa', currency: 'ر.س', cpc: 9.4, perDay: 44, seed: 23,
+    { id: 'Nkb7Clinic01', name: 'عيادات النخبة للأسنان', domain: 'nokhba-dental.sa', currency: window.LT.t('sar'), cpc: 9.4, perDay: 44, seed: 23,
       keywords: ['تقويم أسنان', 'زراعة أسنان', 'تبييض أسنان', 'عيادة أسنان قريبة', 'ابتسامة هوليود'], campaigns: ['التقويم — بحث', 'الزراعة — بحث'] },
-    { id: 'Afq9Cool0001', name: 'مؤسسة الأفق للتكييف', domain: 'ofoq-ac.com', currency: 'ر.س', cpc: 3.8, perDay: 70, seed: 31,
+    { id: 'Afq9Cool0001', name: 'مؤسسة الأفق للتكييف', domain: 'ofoq-ac.com', currency: window.LT.t('sar'), cpc: 3.8, perDay: 70, seed: 31,
       keywords: ['صيانة مكيفات', 'تنظيف مكيفات', 'فني تكييف', 'تركيب مكيف سبليت', 'شحن فريون'], campaigns: ['صيانة — بحث', 'صيانة — خرائط'] },
-    { id: 'Nql4Movers01', name: 'نقل عفش جدة', domain: 'jeddah-movers.com', currency: 'ر.س', cpc: 5.1, perDay: 55, seed: 41,
+    { id: 'Nql4Movers01', name: 'نقل عفش جدة', domain: 'jeddah-movers.com', currency: window.LT.t('sar'), cpc: 5.1, perDay: 55, seed: 41,
       keywords: ['نقل عفش جدة', 'شركة نقل اثاث', 'نقل عفش مع التغليف', 'دينا نقل عفش'], campaigns: ['نقل عفش — بحث'] },
-    { id: 'Lms2Store001', name: 'متجر لمسة للعطور', domain: 'lamsa.store', currency: 'ر.س', cpc: 2.2, perDay: 90, seed: 53,
+    { id: 'Lms2Store001', name: 'متجر لمسة للعطور', domain: 'lamsa.store', currency: window.LT.t('sar'), cpc: 2.2, perDay: 90, seed: 53,
       keywords: ['عطور رجالية', 'عطر عود', 'عطور نسائية فخمة', 'بخور'], campaigns: ['متجر — بحث', 'متجر — تسوق'] },
   ];
 
+  var T = window.LT.t;
   var REASONS = {
-    dc: 'جاي من شبكة سيرفرات (داتا سنتر)، مش بيت ولا موبايل',
-    vpn: 'مستخدم VPN بيخبّي مكانه الحقيقي',
-    repeat: 'ضغط على الإعلان {n} مرات في {m} دقيقة',
-    fast: 'قفل الصفحة بعد {s} ثانية من غير ما يتحرك',
-    nomove: 'مافيش أي لمس أو تمرير على الصفحة',
-    far: 'المكان برّه المناطق اللي الإعلان مستهدفها',
-    samedev: 'نفس الجهاز جه بـ{k} عناوين IP مختلفة',
-    bot: 'المتصفح شغّال آلياً (بوت)',
-    comp: 'زار صفحة الأسعار {k} مرات في يومين ومابيتواصلش (منافس محتمل)',
+    dc: T('dm.r.dc'), vpn: T('dm.r.vpn'), repeat: T('dm.r.repeat'), fast: T('dm.r.fast'), nomove: T('dm.r.nomove'),
+    far: T('dm.r.far'), samedev: T('dm.r.samedev'), bot: T('dm.r.bot'), comp: T('dm.r.comp'),
   };
   var fmtR = function (t, o) { return t.replace(/\{(\w)\}/g, function (_, k) { return o[k]; }); };
 
@@ -63,21 +57,21 @@
         var src = isAttack ? 'google_ads' : wpick(r, [['google_ads', 68], ['google_organic', 14], ['google_maps', 9], ['direct', 6], ['social', 3]]);
         var place = pick(r, PLACES), city = place[0], district = pick(r, place[1]);
         var net = isAttack ? wpick(r, [['dc', 5], ['vpn', 3], ['mobile', 2]]) : wpick(r, [['mobile', 70], ['home', 26], ['vpn', 3], ['dc', 1]]);
-        var dev = wpick(r, [['موبايل', 82], ['كمبيوتر', 15], ['تابلت', 3]]);
-        var os = dev === 'كمبيوتر' ? pick(r, ['Windows', 'macOS']) : wpick(r, [['iOS', 55], ['Android', 45]]);
+        var dev = wpick(r, [[T('dm.dev.mobile'), 82], [T('dm.dev.pc'), 15], [T('dm.dev.tablet'), 3]]);
+        var os = dev === T('dm.dev.pc') ? pick(r, ['Windows', 'macOS']) : wpick(r, [['iOS', 55], ['Android', 45]]);
         var reasons = [], score;
         if (isAttack || net === 'dc' || net === 'vpn') {
           if (net === 'dc') reasons.push(REASONS.dc);
           if (net === 'vpn') reasons.push(REASONS.vpn);
-          if (isAttack) reasons.push(fmtR(REASONS.repeat, { n: 3 + Math.floor(r() * 4), m: 2 + Math.floor(r() * 6) }));
-          if (r() < 0.6) reasons.push(fmtR(REASONS.fast, { s: 1 + Math.floor(r() * 4) }));
+          if (isAttack) reasons.push(fmtR(REASONS.repeat, { n: window.LT.n(3 + Math.floor(r() * 4), 'time'), m: window.LT.n(2 + Math.floor(r() * 6), 'minute') }));
+          if (r() < 0.6) reasons.push(fmtR(REASONS.fast, { s: window.LT.n(1 + Math.floor(r() * 4), 'second') }));
           if (r() < 0.4) reasons.push(REASONS.nomove);
           if (r() < 0.25) reasons.push(fmtR(REASONS.samedev, { k: 3 + Math.floor(r() * 5) }));
           if (isAttack && r() < 0.15) reasons.push(REASONS.bot);
           score = 70 + Math.floor(r() * 29);
         } else if (r() < 0.07) {
           reasons.push(r() < 0.5 ? REASONS.far : fmtR(REASONS.comp, { k: 3 + Math.floor(r() * 3) }));
-          if (r() < 0.5) reasons.push(fmtR(REASONS.fast, { s: 2 + Math.floor(r() * 5) }));
+          if (r() < 0.5) reasons.push(fmtR(REASONS.fast, { s: window.LT.n(2 + Math.floor(r() * 5), 'second') }));
           score = 45 + Math.floor(r() * 25);
         } else score = Math.floor(r() * 30);
         var status = score >= 80 ? 'blocked' : score >= 45 ? 'suspicious' : 'real';
@@ -112,27 +106,27 @@
   function journey(r, v, t, site) {
     var ev = [], at = t;
     var push = function (dt, kind, text) { at += dt * 1000; ev.push({ at: new Date(at).toISOString(), kind: kind, text: text }); };
-    push(0, 'ad', v.src === 'google_ads' ? 'ضغط على إعلان جوجل' + (v.kw ? ' — «' + v.kw + '»' : '') : v.src === 'google_maps' ? 'جه من خرائط جوجل' : v.src === 'google_organic' ? 'جه من بحث جوجل (من غير إعلان)' : v.src === 'social' ? 'جه من السوشيال' : 'دخل مباشر');
-    push(1, 'page', 'فتح الصفحة الرئيسية');
-    if (v.status !== 'real') { push(Math.max(1, v.dur), 'exit', 'قفل الصفحة'); return ev; }
-    var paths = ['البرامج والأسعار', 'من نحن', 'المدونة', 'تواصل معنا', 'الباقات'];
-    for (var i = 1; i < v.pages; i++) push(8 + Math.floor(r() * 50), 'page', 'فتح «' + pick(r, paths) + '»');
-    if (v.scroll > 60) push(5 + Math.floor(r() * 30), 'scroll', 'نزل لآخر الصفحة (' + v.scroll + '%)');
-    if (v.contact) push(4 + Math.floor(r() * 30), 'contact', v.contact === 'wa' ? 'ضغط واتساب' : 'ضغط اتصال');
-    push(5 + Math.floor(r() * 40), 'exit', 'خرج من الموقع');
+    push(0, 'ad', v.src === 'google_ads' ? T('dm.j.ad') + (v.kw ? ' — «' + v.kw + '»' : '') : T(v.src === 'google_maps' ? 'dm.j.maps' : v.src === 'google_organic' ? 'dm.j.organic' : v.src === 'social' ? 'dm.j.social' : 'dm.j.direct'));
+    push(1, 'page', T('dm.j.home'));
+    if (v.status !== 'real') { push(Math.max(1, v.dur), 'exit', T('dm.j.closed')); return ev; }
+    var paths = T('dm.paths').split('|');
+    for (var i = 1; i < v.pages; i++) push(8 + Math.floor(r() * 50), 'page', T('j.page', { t: pick(r, paths) }));
+    if (v.scroll > 60) push(5 + Math.floor(r() * 30), 'scroll', T('j.s90') + ' (' + v.scroll + '%)');
+    if (v.contact) push(4 + Math.floor(r() * 30), 'contact', T(v.contact === 'wa' ? 'j.wa' : 'j.call'));
+    push(5 + Math.floor(r() * 40), 'exit', T('dm.j.left'));
     return ev;
   }
 
   function protection(r, site, visits) {
     var bad = visits.filter(function (v) { return v.status !== 'real'; });
     var pending = bad.filter(function (v) { return v.status === 'suspicious'; }).slice(0, site.seed === 7 ? 4 : Math.floor(r() * 4)).map(function (v) {
-      return { id: 'p' + v.id, kind: v.net === 'dc' ? 'نطاق IP' : 'جهاز', value: v.ip, score: v.score, reasons: v.reasons, clicks: 2 + Math.floor(r() * 5), cost: Math.round(site.cpc * (2 + r() * 5)), city: v.city };
+      return { id: 'p' + v.id, kind: v.net === 'dc' ? T('dm.k.range') : T('dm.k.device'), value: v.ip, score: v.score, reasons: v.reasons, clicks: 2 + Math.floor(r() * 5), cost: Math.round(site.cpc * (2 + r() * 5)), city: v.city };
     });
     var blocked = bad.filter(function (v) { return v.status === 'blocked'; }).slice(0, 8).map(function (v, i) {
-      return { id: 'b' + v.id, kind: v.net === 'dc' ? 'نطاق IP' : v.net === 'vpn' ? 'VPN' : 'جهاز', value: v.ip, where: i % 3 === 0 ? 'الموقع + جوجل' : 'جوجل', at: v.at, expires_days: 30 - Math.floor(r() * 25), reasons: v.reasons };
+      return { id: 'b' + v.id, kind: v.net === 'dc' ? T('dm.k.range') : v.net === 'vpn' ? 'VPN' : T('dm.k.device'), value: v.ip, where: i % 3 === 0 ? T('dm.where.both') : T('dm.where.google'), at: v.at, expires_days: 30 - Math.floor(r() * 25), reasons: v.reasons };
     });
     return { mode: 'active', strict: 'balanced', pending: pending, blocked: blocked,
-      own: [{ label: 'موبايل صاحب الشغل', at: new Date(NOW - 12 * DAY).toISOString() }, { label: 'لابتوب المكتب', at: new Date(NOW - 5 * DAY).toISOString() }] };
+      own: [{ label: T('dm.own.phone'), at: new Date(NOW - 12 * DAY).toISOString() }, { label: T('dm.own.laptop'), at: new Date(NOW - 5 * DAY).toISOString() }] };
   }
 
   var cache = {};
@@ -210,18 +204,18 @@
     alerts: function () {
       return Promise.resolve({
         rules: [
-          { id: 'attack', name: 'هجوم ضغطات', desc: 'لو المشبوه زاد عن 25% في ساعة', on: true, ch: ['tg', 'push'] },
-          { id: 'overspend', name: 'صرف زايد', desc: 'لو صرف النهارده عدّى 130% من متوسط آخر 7 أيام', on: true, ch: ['tg', 'push'] },
-          { id: 'disapproved', name: 'إعلان اترفض', desc: 'أول ما جوجل يرفض إعلان أو يحدّه', on: true, ch: ['tg', 'push', 'email'] },
-          { id: 'stopped', name: 'حملة وقفت', desc: 'حملة شغالة ومافيش ولا ضغطة لمدة 3 ساعات في وقت شغلها', on: true, ch: ['tg'] },
-          { id: 'tracking', name: 'التتبع وقف', desc: 'لو الموقع بطّل يبعت أحداث، أو التوصيل نزل عن 99%', on: true, ch: ['tg', 'email'] },
-          { id: 'weekly', name: 'ملخص الأسبوع', desc: 'كل سبت الصبح: الحماية والعملاء والتوفير', on: false, ch: ['email'] },
+          { id: 'attack', name: T('dm.al.attack'), desc: T('dm.al.attack.d'), on: true, ch: ['tg', 'push'] },
+          { id: 'overspend', name: T('dm.al.overspend'), desc: T('dm.al.overspend.d'), on: true, ch: ['tg', 'push'] },
+          { id: 'disapproved', name: T('dm.al.disapproved'), desc: T('dm.al.disapproved.d'), on: true, ch: ['tg', 'push', 'email'] },
+          { id: 'stopped', name: T('dm.al.stopped'), desc: T('dm.al.stopped.d'), on: true, ch: ['tg'] },
+          { id: 'tracking', name: T('dm.al.tracking'), desc: T('dm.al.tracking.d'), on: true, ch: ['tg', 'email'] },
+          { id: 'weekly', name: T('dm.al.weekly'), desc: T('dm.al.weekly.d'), on: false, ch: ['email'] },
         ],
         log: [
-          { at: new Date(NOW - 4 * DAY - 3 * 3600e3).toISOString(), rule: 'هجوم ضغطات', text: '27 ضغطة مشبوهة في 40 دقيقة من شبكات سيرفرات، واتحظروا', level: 'bad' },
-          { at: new Date(NOW - 6 * DAY).toISOString(), rule: 'إعلان اترفض', text: 'إعلان «عمرة رمضان» محدود بسبب السياسة (ادعاء سعر)', level: 'warn' },
-          { at: new Date(NOW - 9 * DAY - 5 * 3600e3).toISOString(), rule: 'هجوم ضغطات', text: '31 ضغطة من VPN في ساعة، واتحظروا', level: 'bad' },
-          { at: new Date(NOW - 12 * DAY).toISOString(), rule: 'صرف زايد', text: 'صرف النهارده 410 ر.س (متوسطك 290)', level: 'warn' },
+          { at: new Date(NOW - 4 * DAY - 3 * 3600e3).toISOString(), rule: T('dm.al.attack'), text: T('dm.log.1'), level: 'bad' },
+          { at: new Date(NOW - 6 * DAY).toISOString(), rule: T('dm.al.disapproved'), text: T('dm.log.2'), level: 'warn' },
+          { at: new Date(NOW - 9 * DAY - 5 * 3600e3).toISOString(), rule: T('dm.al.attack'), text: T('dm.log.3'), level: 'bad' },
+          { at: new Date(NOW - 12 * DAY).toISOString(), rule: T('dm.al.overspend'), text: T('dm.log.4'), level: 'warn' },
         ] });
     },
     setup: function () {

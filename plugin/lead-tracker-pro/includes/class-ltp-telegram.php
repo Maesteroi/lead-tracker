@@ -28,7 +28,7 @@ class LTP_Telegram {
 
     private static function call($event, $extra = []) {
         $url = LTP_Core::get('webhook_url');
-        if (!$url || !LTP_Pair::is_paired()) return ['ok' => false, 'error' => 'الموقع لسه مش مربوط بالشيت'];
+        if (!$url || !LTP_Pair::is_paired()) return ['ok' => false, 'error' => 'الموقع غير مربوط بالجدول بعد'];
         $r = wp_remote_post($url, [
             'timeout' => 15, 'redirection' => 3,
             'headers' => ['Content-Type' => 'application/json'],
@@ -42,12 +42,12 @@ class LTP_Telegram {
         ]);
         if (is_wp_error($r)) return ['ok' => false, 'error' => $r->get_error_message()];
         $j = json_decode((string) wp_remote_retrieve_body($r), true);
-        if (!is_array($j)) return ['ok' => false, 'error' => 'كود الشيت محتاج تحديث (v3.3) — الرد: ' . mb_substr(trim((string) wp_remote_retrieve_body($r)), 0, 40)];
+        if (!is_array($j)) return ['ok' => false, 'error' => 'شيفرة الجدول تحتاج إلى تحديث (v3.3) — الرد: ' . mb_substr(trim((string) wp_remote_retrieve_body($r)), 0, 40)];
         return $j;
     }
 
     public function invite() {
-        if (!current_user_can('manage_options')) wp_die('ممنوع');
+        if (!current_user_can('manage_options')) wp_die('غير مسموح');
         check_admin_referer('ltp_tg_invite');
         $token = strtolower(wp_generate_password(10, false, false));
         $exp   = time() + self::TTL;
@@ -64,7 +64,7 @@ class LTP_Telegram {
     }
 
     public function remove() {
-        if (!current_user_can('manage_options')) wp_die('ممنوع');
+        if (!current_user_can('manage_options')) wp_die('غير مسموح');
         check_admin_referer('ltp_tg_remove');
         $chat = preg_replace('/[^0-9\-]/', '', (string) ($_POST['chat'] ?? ''));
         $res  = $chat !== '' ? self::call('tg_remove', ['chat' => $chat]) : ['ok' => false];
@@ -85,38 +85,38 @@ class LTP_Telegram {
         $chats = !empty($list['ok']) && is_array($list['chats'] ?? null) ? $list['chats'] : null;
         ?>
         <div class="ltp-card" id="ltp-tg">
-            <h3>🔔 إشعارات تليجرام</h3>
+            <h3>🔔 إشعارات تيليجرام</h3>
             <?php if (isset($_GET['tg'])): $t = sanitize_key($_GET['tg']); ?>
                 <div class="notice <?php echo $t === 'err' ? 'notice-error' : 'notice-success'; ?> inline"><p>
-                    <?php echo $t === 'ok' ? '✅ اتعمل لينك جديد' : ($t === 'removed' ? '✅ الشات اتفصل' : '❌ ' . esc_html(sanitize_text_field(wp_unslash($_GET['tgm'] ?? 'ماقدرناش نوصل لكود الشيت')))); ?>
+                    <?php echo $t === 'ok' ? '✅ أُنشئ رابط جديد' : ($t === 'removed' ? '✅ فُصلت المحادثة' : '❌ ' . esc_html(sanitize_text_field(wp_unslash($_GET['tgm'] ?? 'تعذّر الوصول إلى شيفرة الجدول')))); ?>
                 </p></div>
             <?php endif; ?>
-            <p class="description">ابعت اللينك لصاحب الموقع (أو موظف المبيعات): يفتحه ويدوس «Start» في البوت، وبعدها توصله تنبيهات الموقع ده بس. اللينك بيشتغل <strong>مرة واحدة</strong> ولمدة <strong>7 أيام</strong> — لكل شخص لينك.</p>
+            <p class="description">أرسل الرابط إلى صاحب الموقع (أو موظف المبيعات): يفتحه وينقر «Start» في البوت، وبعدها تصله تنبيهات هذا الموقع فقط. يعمل الرابط <strong>مرة واحدة</strong> ولمدة <strong>7 أيام</strong> — لكل شخص رابط.</p>
 
             <?php if ($valid): ?>
                 <p>
                     <input type="text" readonly class="large-text code" dir="ltr" id="ltp-tg-link" value="<?php echo esc_attr($inv['link']); ?>" onclick="this.select();">
                 </p>
                 <p>
-                    <button type="button" class="button" onclick="var i=document.getElementById('ltp-tg-link');i.select();try{navigator.clipboard.writeText(i.value);}catch(e){document.execCommand('copy');}this.textContent='✅ اتنسخ';">📋 نسخ اللينك</button>
-                    <span class="description">بينتهي <?php echo esc_html(wp_date('Y-m-d H:i', (int) $inv['exp'])); ?></span>
+                    <button type="button" class="button" onclick="var i=document.getElementById('ltp-tg-link');i.select();try{navigator.clipboard.writeText(i.value);}catch(e){document.execCommand('copy');}this.textContent='✅ نُسخ';">📋 نسخ اللينك</button>
+                    <span class="description">ينتهي <?php echo esc_html(wp_date('Y-m-d H:i', (int) $inv['exp'])); ?></span>
                 </p>
             <?php endif; ?>
 
             <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="margin:8px 0 14px;">
                 <input type="hidden" name="action" value="ltp_tg_invite">
                 <?php wp_nonce_field('ltp_tg_invite'); ?>
-                <button type="submit" class="button button-primary">🔗 <?php echo $valid ? 'لينك جديد لشخص تاني' : 'اعمل لينك إشعارات'; ?></button>
+                <button type="submit" class="button button-primary">🔗 <?php echo $valid ? 'رابط جديد لشخص آخر' : 'أنشئ رابط إشعارات'; ?></button>
             </form>
 
-            <h4 style="margin:10px 0 6px;">الشاتات المربوطة</h4>
+            <h4 style="margin:10px 0 6px;">المحادثات المربوطة</h4>
             <?php if ($chats === null): ?>
-                <p class="description">⚠️ مش قادرين نقرا القايمة<?php echo !empty($list['error']) ? ': ' . esc_html($list['error']) : ''; ?>.</p>
+                <p class="description">⚠️ تعذّرت قراءة القائمة<?php echo !empty($list['error']) ? ': ' . esc_html($list['error']) : ''; ?>.</p>
             <?php elseif (!$chats): ?>
-                <p class="description">لسه مفيش حد مربوط.</p>
+                <p class="description">لا يوجد أحد مربوط بعد.</p>
             <?php else: ?>
                 <table class="ltp-table widefat striped">
-                    <thead><tr><th>الاسم</th><th>Chat ID</th><th>اتربط</th><th></th></tr></thead>
+                    <thead><tr><th>الاسم</th><th>Chat ID</th><th>تاريخ الربط</th><th></th></tr></thead>
                     <tbody>
                     <?php foreach ($chats as $c): ?>
                         <tr>
@@ -124,7 +124,7 @@ class LTP_Telegram {
                             <td dir="ltr"><code><?php echo esc_html($c['id'] ?? ''); ?></code></td>
                             <td><?php echo esc_html($c['at'] ?? '—'); ?></td>
                             <td>
-                                <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" onsubmit="return confirm('فصل الشات ده عن إشعارات الموقع؟');">
+                                <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" onsubmit="return confirm('فصل هذه المحادثة عن إشعارات الموقع؟');">
                                     <input type="hidden" name="action" value="ltp_tg_remove">
                                     <input type="hidden" name="chat" value="<?php echo esc_attr($c['id'] ?? ''); ?>">
                                     <?php wp_nonce_field('ltp_tg_remove'); ?>

@@ -10,18 +10,18 @@ import { audit } from './auth.js';
 import { isPlatform, notFound } from './sites.js';
 
 export const PERMS = [
-  ['orgs_view', 'يشوف الحسابات وأرقامها'],
+  ['orgs_view', 'يرى الحسابات وأرقامها'],
   ['orgs_status', 'يغيّر حالة الحساب (تجربة · مفعّل · متأخر)'],
-  ['orgs_suspend', 'يوقف حساب'],
-  ['orgs_trial', 'يمد التجربة'],
+  ['orgs_suspend', 'يوقف الحساب'],
+  ['orgs_trial', 'يمدّد التجربة'],
   ['orgs_plan', 'حد المواقع والخطة'],
   ['orgs_policy', 'سياسة الأحداث وأيام السماح'],
   ['orgs_notes', 'الملاحظات'],
-  ['orgs_replay', 'تسجيل الزيارات كفيديو'],
+  ['orgs_replay', 'تسجيل الزيارات'],
   ['dash_view', 'يفتح لوحات العملاء (مشاهدة)'],
-  ['dash_act', 'يسجّل نتايج ويحكم على الزيارات في لوحات العملاء'],
-  ['telegram', 'تحويل بوت تليجرام'],
-  ['audit', 'يشوف سجل التغييرات'],
+  ['dash_act', 'يسجّل النتائج ويحكم على الزيارات في لوحات العملاء'],
+  ['telegram', 'تحويل بوت تيليجرام'],
+  ['audit', 'يرى سجل التغييرات'],
 ];
 const PERM_SET = new Set(PERMS.map((p) => p[0]));
 const INVITE_DAYS = 7;

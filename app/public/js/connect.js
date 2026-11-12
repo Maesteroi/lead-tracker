@@ -6,7 +6,7 @@
   var NONCE_RE = /^[A-Za-z0-9_-]{16,64}$/;
   var view = document.getElementById('view');
   var lastOrg = '';
-  var el = LT.el, clear = LT.clear;
+  var el = LT.el, clear = LT.clear, T = LT.t;
 
   function show(nodes) { clear(view); nodes.forEach(function (n) { if (n) view.appendChild(n); }); }
   function h1(t) { return el('h1', { text: t }); }
@@ -34,59 +34,59 @@
 
   // ── الشاشات ──
   function noLink() {
-    show([h1('افتح الصفحة دي من ووردبريس'),
-      p('صفحة الربط بتتفتح من زرار «اربط بـ Maestro LT» جوه لوحة ووردبريس، علشان نعرف أنهي موقع هتربطه.'),
+    show([h1(T('cn.nolink')),
+      p(T('cn.nolink.p')),
       el('ol', { class: 'steps' }, [
-        el('li', { text: 'نزّل بلجن Lead Tracker Pro وفعّله على موقعك.' }),
-        el('li', { text: 'اضغط «اربط بـ Maestro LT» اللي هيظهر لك فوق.' }),
-        el('li', { text: 'هترجع هنا وتأكد.' })])]);
+        el('li', { text: T('cn.step1') }),
+        el('li', { text: T('cn.step2') }),
+        el('li', { text: T('cn.step3') })])]);
   }
   function expired() {
     forget();
-    show([h1('الرابط انتهى'), p('رابط الربط صالح 15 دقيقة. ارجع لووردبريس واضغط «اربط بـ Maestro LT» تاني.', 'muted')]);
+    show([h1(T('cn.expired')), p(T('cn.expired.p'), 'muted')]);
   }
   function signin(d) {
-    show([h1('هتربط موقعك'), el('span', { class: 'domain', text: hostOf(d.c) }),
-      p('سجّل دخولك بحساب جوجل علشان نكمل. أول دخول بيفتح لك حساب جديد بتجربة مجانية 14 يوم.', 'muted'),
-      btn('الدخول بحساب جوجل', 'block', function () { location.assign(LT.loginUrl('/connect')); })]);
+    show([h1(T('cn.signin')), el('span', { class: 'domain', text: hostOf(d.c) }),
+      p(T('cn.signin.p'), 'muted'),
+      btn(T('login.google'), 'block', function () { location.assign(LT.loginUrl('/connect')); })]);
   }
   function confirmCard(d, m) {
     var manage = (m.orgs || []).filter(function (o) { return o.role === 'owner' || o.role === 'admin'; });
     if (!manage.length) {
-      show([h1('مفيش صلاحية'), notice('حسابك مش «مالك» ولا «مدير» في أي حساب، فمقدرش تربط مواقع. اطلب من مالك الحساب.', 'warn'),
-        btn('تسجيل خروج', 'ghost', function () { LT.logout().then(function () { location.reload(); }); })]);
+      show([h1(T('cn.norole')), notice(T('cn.norole.p'), 'warn'),
+        btn(T('cn.logout'), 'ghost', function () { LT.logout().then(function () { location.reload(); }); })]);
       return;
     }
     var select = null, orgBox = null;
     if (manage.length > 1) {
       select = el('select', { id: 'org' }, manage.map(function (o) { return el('option', { value: o.id, text: o.name }); }));
-      orgBox = el('div', {}, [el('label', { for: 'org', text: 'على أنهي حساب؟' }), select]);
+      orgBox = el('div', {}, [el('label', { for: 'org', text: T('cn.which') }), select]);
     }
-    var go = btn('نعم، اربط', 'block', function () { send(d, select ? select.value : manage[0].id, go); });
+    var go = btn(T('cn.yes'), 'block', function () { send(d, select ? select.value : manage[0].id, go); });
     var who = (m.user && (m.user.email || m.user.name)) || '';
-    show([h1('تربط الموقع ده بحسابك؟'), el('span', { class: 'domain', text: hostOf(d.c) }),
-      p('هنفعّل التتبع على الموقع ده ونبعت له مفتاح الربط. تأكد إن الدومين فوق هو موقعك فعلاً.', 'muted'),
-      orgBox, el('div', { class: 'row' }, [go, btn('إلغاء', 'ghost', function () { forget(); show([h1('تم الإلغاء'), p('ما اتربطش أي حاجة. تقدر ترجع لووردبريس.', 'muted')]); })]),
-      who ? p('داخل بحساب: ' + who, 'hint') : null]);
+    show([h1(T('cn.confirm')), el('span', { class: 'domain', text: hostOf(d.c) }),
+      p(T('cn.confirm.p'), 'muted'),
+      orgBox, el('div', { class: 'row' }, [go, btn(T('cancel'), 'ghost', function () { forget(); show([h1(T('cn.cancelled')), p(T('cn.cancelled.p'), 'muted')]); })]),
+      who ? p(T('cn.who', { w: who }), 'hint') : null]);
   }
-  function working() { show([h1('بنربط موقعك…'), p('ثواني. بنأكد مع موقعك إن الربط تمام.', 'muted'), el('p', {}, [el('span', { class: 'spinner' })])]); }
+  function working() { show([h1(T('cn.working')), p(T('cn.working.p'), 'muted'), el('p', {}, [el('span', { class: 'spinner' })])]); }
 
   var FAIL = {
-    400: ['الرابط ناقص أو قديم', 'ارجع لووردبريس واضغط «اربط بـ Maestro LT» تاني.'],
-    402: ['التجربة المجانية انتهت', 'فعّل الاشتراك علشان تضيف مواقع جديدة.'],
-    403: ['مفيش صلاحية', 'حسابك مش «مالك» ولا «مدير». اطلب من مالك الحساب.'],
-    409: ['وصلت الحد الأقصى', 'التجربة المجانية فيها لحد 3 مواقع.'],
-    429: ['محاولات كتير', 'استنى ساعة وحاول تاني، أو اتواصل معانا.'],
-    502: ['مقدرناش نوصل لموقعك', 'السيرفر حاول يأكد الربط مع موقعك وما قدرش. غالباً بلجن أمان أو جدار حماية بيقفل REST API. اسمح بالمسار /wp-json/lt/v1/pair-confirm وحاول تاني، أو استخدم «كود الربط» من البلجن.']
+    400: [T('cn.e400'), T('cn.e400.p')],
+    402: [T('cn.e402'), T('cn.e402.p')],
+    403: [T('cn.norole'), T('cn.e403.p')],
+    409: [T('cn.e409'), T('cn.e409.p')],
+    429: [T('cn.e429'), T('cn.e429.p')],
+    502: [T('cn.e502'), T('cn.e502.p')]
   };
   var FAIL_BY_ERR = {
-    domain_exists: ['الدومين ده مربوط بحساب تاني', 'لو ده موقعك، تواصل معانا علشان ننقله.'],
-    site_off: ['الموقع ده موقوف', 'فعّله من اللوحة وبعدين اربطه.'],
+    domain_exists: [T('cn.taken'), T('cn.taken.p')],
+    site_off: [T('cn.off'), T('cn.off.p')],
     plan_inactive: FAIL[402], site_limit: FAIL[409], too_many: FAIL[429], site_unreachable: FAIL[502]
   };
   function failed(d, r, goBtn) {
-    var f = FAIL_BY_ERR[r.body.error] || FAIL[r.status] || ['حصلت مشكلة', 'جرّب تاني بعد شوية.'];
-    var retry = (r.status === 502 || r.status === 0 || r.status >= 500) ? btn('حاول تاني', 'block', function () { send(d, lastOrg, {}); }) : null;
+    var f = FAIL_BY_ERR[r.body.error] || FAIL[r.status] || [T('cn.err'), T('cn.err.p')];
+    var retry = (r.status === 502 || r.status === 0 || r.status >= 500) ? btn(T('cn.retry'), 'block', function () { send(d, lastOrg, {}); }) : null;
     show([h1(f[0]), notice(f[1], 'bad'), retry]);
   }
 
@@ -102,11 +102,11 @@
   function done(b) {
     forget();
     var back = b.return_url && /^https:\/\//.test(b.return_url) ? b.return_url : '';
-    show([el('div', { class: 'notice ok', role: 'status', text: '✅ اتربط' }), h1(b.created ? 'الموقع اتضاف واتربط' : 'الموقع اتربط تاني'),
+    show([el('div', { class: 'notice ok', role: 'status', text: T('cn.ok') }), h1(b.created ? T('cn.ok.new') : T('cn.ok.again')),
       el('span', { class: 'domain', text: (b.site && b.site.domains && b.site.domains[0]) || '' }),
-      p('بدأ التتبع. أول زيارة هتظهر في اللوحة خلال دقايق.', 'muted'),
-      back ? btn('ارجع لووردبريس', 'block', function () { location.assign(back); }, 'button') : p('ارجع لوحة ووردبريس وحدّث الصفحة.', 'hint'),
-      el('p', {}, [el('a', { href: '/' , text: 'افتح لوحة Maestro' })])]);
+      p(T('cn.ok.p'), 'muted'),
+      back ? btn(T('cn.back'), 'block', function () { location.assign(back); }, 'button') : p(T('cn.back.p'), 'hint'),
+      el('p', {}, [el('a', { href: '/' , text: T('cn.open') })])]);
     if (back) setTimeout(function () { location.assign(back); }, 2500);
   }
 

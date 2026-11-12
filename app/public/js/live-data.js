@@ -4,7 +4,7 @@
   'use strict';
   var LT = window.LT, me = null;
   var get = function (path) { return LT.api(path).then(function (r) { if (r.status === 401) { location.replace('/login?next=' + encodeURIComponent(location.pathname)); throw new Error('auth'); } if (!r.ok) throw new Error('http ' + r.status); return r.body; }); };
-  var q = function (site, range) { return '?site=' + encodeURIComponent(site) + (range ? '&range=' + range : ''); };
+  var q = function (site, range) { return '?site=' + encodeURIComponent(site) + (range ? '&range=' + range : '') + (LT.lang && LT.lang !== 'ar' ? '&lang=' + LT.lang : ''); };   // لغة أسباب الحماية والفحوصات من السيرفر
   var cache = {};
   function overviewRaw(site, range) { var k = site + '|' + range; return cache[k] || (cache[k] = get('/v1/dash/overview' + q(site, range)).finally(function () { setTimeout(function () { delete cache[k]; }, 30000); })); }
 
@@ -16,7 +16,7 @@
     if (!o.status.ads) actions.push({ kind: 'ads' });
     if (o.status.delivery != null && o.status.delivery < 99.5) actions.push({ kind: 'delivery', pct: o.status.delivery });
     return {
-      live: o.live, currency: 'ر.س', scoring: sc,
+      live: o.live, currency: LT.t('sar'), scoring: sc,
       kpi: { billed: null, sessions: k.sessions, real: sc ? k.real : k.sessions, suspicious: sc ? k.suspicious : null, high: sc ? k.high : null, blocked: null, saved: null, cost: null,
         leads: k.leads, contacts: k.contacts, won: k.won, open: k.open, cpl: null, pageviews: k.pageviews, ad_sessions: k.ad_sessions, ad_bad: k.ad_bad, pending: k.pending || 0, outside: k.outside || 0, outside_leads: k.outside_leads || 0 },
       prev: { real: o.prev.sessions, contacts: o.prev.contacts },
@@ -26,10 +26,10 @@
     };
   }
   function mapVisit(s) {
-    return { id: s.id, at: s.at, city: s.city || 'مكان مش معروف', district: s.region || '', src: s.source, kw: s.detail || '', campaign: '',
+    return { id: s.id, at: s.at, city: s.city || LT.t('place.unknown'), district: s.region || '', src: s.source, kw: s.detail || '', campaign: '',
       device: s.device || '—', os: s.os || '', net: null, isp: s.isp || '', pages: s.pages, dur: s.seconds == null ? null : Math.round(s.seconds), scroll: s.scroll,
       contact: s.contact ? s.contact.split(',')[0] : '', code: s.code, score: s.score == null ? null : s.score, status: s.status || 'none', reasons: s.reasons || [], verdict: s.verdict || null,
-      ad: !!s.ad, outside: !!s.outside, country: s.country || '', repeats: s.repeats || 0, replay: !!s.replay, visit_no: s.visit_no, landing: s.landing, automation: s.automation, journey: null, live: true };
+      ad: !!s.ad, outside: !!s.outside, country: s.country_ar || s.country || '', repeats: s.repeats || 0, replay: !!s.replay, checks: s.checks || [], visit_no: s.visit_no, landing: s.landing, automation: s.automation, journey: null, live: true };
   }
 
   window.LTData = {
@@ -37,18 +37,19 @@
     init: function () { return LT.me().then(function (m) { me = m; return m; }); },
     me: function () { return me; },
     agency: null,
-    sites: function () { return get('/v1/sites').then(function (b) { return (b.sites || []).map(function (s) { return { id: s.id, name: s.name, domain: (s.domains || [])[0] || '', currency: 'ر.س', org: b.all ? (s.org_name || '') : '', org_id: s.org_id }; }); }); },
+    sites: function () { return get('/v1/sites').then(function (b) { return (b.sites || []).map(function (s) { return { id: s.id, name: s.name, domain: (s.domains || [])[0] || '', currency: LT.t('sar'), org: b.all ? (s.org_name || '') : '', org_id: s.org_id }; }); }); },
     overview: function (site, range) { return overviewRaw(site, range).then(mapOverview); },
     statement: function () { return Promise.resolve({ unavailable: 'ads' }); },
     visits: function (site, range) { return get('/v1/dash/visits' + q(site, range)).then(function (b) { return (b.sessions || []).map(mapVisit); }); },
     session: function (site, sid) {
       return get('/v1/dash/session' + q(site) + '&sid=' + encodeURIComponent(sid)).then(function (b) {
         return (b.events || []).map(function (e) {
-          var kind = e.event === 'page_view' ? 'page' : e.event === 'click' ? (e.click_type === 'wa' || e.click_type === 'call' ? 'contact' : 'click') : e.event === 'exit' ? 'exit' : e.event.indexOf('scroll') === 0 ? 'scroll' : 'other';
-          var text = e.event === 'page_view' ? 'فتح «' + (e.title || e.path || 'صفحة') + '»'
-            : e.event === 'click' ? (e.click_type === 'wa' ? 'ضغط واتساب' : e.click_type === 'call' ? 'ضغط اتصال' : 'ضغط زرار') + (e.btn_text ? ' — «' + e.btn_text + '»' : '')
-            : e.event === 'exit' ? 'خرج من الصفحة' + (e.seconds ? ' بعد ' + e.seconds + ' ثانية' : '')
-            : e.event === 'scroll_50' ? 'نزل لنص الصفحة' : e.event === 'scroll_90' ? 'نزل لآخر الصفحة' : e.event === 'fp_update' ? 'اتعرف الجهاز' : e.event;
+          var kind = e.event === 'contact_return' ? 'contact' : e.event === 'page_view' ? 'page' : e.event === 'click' ? (e.click_type === 'wa' || e.click_type === 'call' ? 'contact' : 'click') : e.event === 'exit' ? 'exit' : e.event.indexOf('scroll') === 0 ? 'scroll' : 'other';
+          var T = LT.t;
+          var text = e.event === 'page_view' ? T('j.page', { t: e.title || e.path || T('j.page.none') })
+            : e.event === 'click' ? T(e.click_type === 'wa' ? 'j.wa' : e.click_type === 'call' ? 'j.call' : 'j.click') + (e.btn_text ? ' — «' + e.btn_text + '»' : '')
+            : e.event === 'exit' ? T('j.exit') + (e.seconds ? ' ' + T('j.after', { t: LT.n(e.seconds, 'second') }) : '')
+            : e.event === 'contact_return' ? T('j.return') : e.event === 'scroll_50' ? T('j.s50') : e.event === 'scroll_90' ? T('j.s90') : e.event === 'fp_update' ? T('j.fp') : e.event;
           return { at: e.at, kind: kind, text: text };
         }).filter(function (e) { return e.kind !== 'other' || e.text; });
       });
@@ -61,19 +62,20 @@
     verdict: function (site, sid, v) { return LT.api('/v1/dash/verdict', { method: 'POST', body: { site: site, sid: sid, verdict: v } }).then(function (r) { if (!r.ok) throw new Error(r.status === 403 ? 'role' : 'http'); return r.body; }); },
     leads: function (site, range) {
       return get('/v1/dash/leads' + q(site, range)).then(function (b) {
-        return { currency: 'ر.س', cost: null, list: (b.leads || []).map(function (l) { return { id: l.code || l.at, at: l.at, type: l.type, code: l.code || '—', src: l.source, kw: l.detail || '', city: l.city || '—', district: l.region || '', outcome: l.outcome, session: l.session, outside: !!l.outside, outside_note: l.outside_note || '' }; }) };
+        return { currency: LT.t('sar'), cost: null, list: (b.leads || []).map(function (l) { return { id: l.code || l.at, at: l.at, type: l.type, code: l.code || '—', src: l.source, kw: l.detail || '', city: l.city || '—', district: l.region || '', outcome: l.outcome, session: l.session, outside: !!l.outside, outside_note: l.outside_note || '', strength: l.strength || null }; }) };
       });
     },
     setOutcome: function (site, code, value) { return LT.api('/v1/dash/outcome', { method: 'POST', body: { site: site, code: code, value: value } }).then(function (r) { if (!r.ok) throw new Error(r.body.error || 'http'); return r.body; }); },
     alerts: function () {
       var adm = me && me.user && me.user.platform_admin;
+      var T = LT.t;
       return Promise.resolve({ live: true, rules: [
-        { id: 'session', name: 'تنبيه لكل زيارة فيها تواصل (تليجرام)', desc: 'رسالة لكل جلسة بتتحدّث مع كل صفحة وضغطة، وعليها زراير النتيجة.', on: !!adm, soon: !adm, ch: ['tg'] },
-        { id: 'delivery', name: 'تقرير التوصيل كل يوم الصبح', desc: 'هل كل الأحداث وصلت من موقعك امبارح (المعيار 99.5%).', on: !!adm, soon: !adm, ch: ['tg'] },
-        { id: 'attack', name: 'هجوم ضغطات', desc: 'لو المشبوه زاد فجأة.', on: false, soon: true, ch: ['tg', 'push'] },
-        { id: 'overspend', name: 'صرف زايد', desc: 'بعد ربط جوجل أدز.', on: false, soon: true, ch: ['tg', 'push'] },
-        { id: 'disapproved', name: 'إعلان اترفض أو حملة وقفت', desc: 'بعد ربط جوجل أدز.', on: false, soon: true, ch: ['tg', 'push', 'email'] },
-        { id: 'weekly', name: 'ملخص الأسبوع', desc: 'كل سبت الصبح بالإيميل.', on: false, soon: true, ch: ['email'] },
+        { id: 'session', name: T('alerts.r.session'), desc: T('alerts.r.session.d'), on: !!adm, soon: !adm, ch: ['tg'] },
+        { id: 'delivery', name: T('alerts.r.delivery'), desc: T('alerts.r.delivery.d'), on: !!adm, soon: !adm, ch: ['tg'] },
+        { id: 'attack', name: T('alerts.r.attack'), desc: T('alerts.r.attack.d'), on: false, soon: true, ch: ['tg', 'push'] },
+        { id: 'overspend', name: T('alerts.r.overspend'), desc: T('alerts.r.after_ads'), on: false, soon: true, ch: ['tg', 'push'] },
+        { id: 'disapproved', name: T('alerts.r.disapproved'), desc: T('alerts.r.after_ads'), on: false, soon: true, ch: ['tg', 'push', 'email'] },
+        { id: 'weekly', name: T('alerts.r.weekly'), desc: T('alerts.r.weekly.d'), on: false, soon: true, ch: ['email'] },
       ], log: [] });
     },
     setup: function () {
@@ -93,7 +95,7 @@
         return Promise.all(sites.map(function (s) {
           return overviewRaw(s.id, range).then(function (o) {
             var bad = o.status.scoring ? (o.kpi.suspicious || 0) + (o.kpi.high || 0) : null;
-            return { id: s.id, name: s.name, domain: s.domain, currency: 'ر.س', billed: null, cost: null, saved: null, bad: bad, visits: o.kpi.sessions, bad_pct: bad == null || !o.kpi.sessions ? null : Math.round((bad / o.kpi.sessions) * 1000) / 10, bad_pct_prev: null,
+            return { id: s.id, name: s.name, domain: s.domain, currency: LT.t('sar'), billed: null, cost: null, saved: null, bad: bad, visits: o.kpi.sessions, bad_pct: bad == null || !o.kpi.sessions ? null : Math.round((bad / o.kpi.sessions) * 1000) / 10, bad_pct_prev: null,
               leads: o.kpi.leads, won: o.kpi.won, cpl: null, pending: o.kpi.pending || 0, delivery: o.status.delivery, ads: o.status.ads, template: null, open: o.kpi.open };
           });
         }));

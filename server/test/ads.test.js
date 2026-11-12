@@ -226,7 +226,7 @@ test('alert: an enabled campaign that did not show yesterday', async () => {
   assert.equal(s.g.telegram.length, 1);
   const msg = s.g.telegram[0];
   assert.equal(msg.chat_id, '111');                                                               // لمحمود بس
-  assert.match(msg.text, /روضة/); assert.match(msg.text, /«عمرة طيران» شغالة وماظهرتش امبارح خالص \(فيها إعلان مرفوض\)/);
+  assert.match(msg.text, /روضة/); assert.match(msg.text, /«عمرة طيران» مفعّلة ولم تظهر أمس إطلاقًا \(فيها إعلان مرفوض\)/);
   assert.match(msg.text, /⛔ «عمرة طيران»: 1 إعلان مرفوض/);
   assert.ok(!/عمرة باصات/.test(msg.text) && !/قديمة/.test(msg.text));                             // اللي ظهرت والموقوفة مابيتنبّهش عليهم
   assert.deepEqual([s.fs.t.ads_account_health[0].alerts.length, s.fs.t.ads_account_health[0].alert_sent], [2, true]);
@@ -237,7 +237,7 @@ test('alert: every enabled campaign silent → payment or account status (the Ra
   s.g.accounts[CID].days['2026-11-09'] = { campaigns: {}, terms: [], clicks: [] };
   await s.tick();
   assert.equal(s.g.telegram.length, 1);
-  assert.match(s.g.telegram[0].text, /كل الحملات الشغالة \(2\) ماظهرتش امبارح خالص ← غالباً الدفع أو حالة الحساب/);
+  assert.match(s.g.telegram[0].text, /كل الحملات المفعّلة \(2\) لم تظهر أمس إطلاقًا ← غالبًا بسبب الدفع أو حالة الحساب/);
   assert.equal(s.fs.t.ads_pull_runs[0].ok, true);                                                 // يوم فاضي مش فشل
 });
 
@@ -262,7 +262,7 @@ test('API failure: logged, alerted, retried, and stops after 3 attempts in a day
   assert.ok(runs.every((r) => r.operations > 0));                                                 // الفاشل بيتحسب في العداد
   const about9 = s.g.telegram.filter((m) => /2026-11-09/.test(m.text));
   assert.equal(about9.length, 2);                                                                 // أول محاولة وآخر محاولة
-  assert.match(about9[0].text, /محاولة 1 من 3/); assert.match(about9[1].text, /دي آخر محاولة النهارده/);
+  assert.match(about9[0].text, /المحاولة 1 من 3/); assert.match(about9[1].text, /هذه آخر محاولة اليوم/);
   assert.match(s.fs.t.ads_credentials[0].last_error, /ads 500/);
   assert.ok(logs.some((l) => /ads pull/.test(l)));
   s.g.fail = null;
@@ -275,7 +275,7 @@ test('revoked link (invalid_grant): account marked for re-link, alert sent, pull
   delete s.g.tokens[RT];
   await captureConsole(() => s.tick());
   assert.equal(s.fs.t.ads_credentials[0].status, 'reauth');
-  assert.match(s.g.telegram[0].text, /محتاج إعادة ربط الحساب/);
+  assert.match(s.g.telegram[0].text, /يجب إعادة ربط الحساب/);
   assert.deepEqual(await s.tick(), { idle: true, accounts: 0 });
   assert.equal(s.g.calls.length, 0);                                                              // مفيش عملية اتحسبت
 });
