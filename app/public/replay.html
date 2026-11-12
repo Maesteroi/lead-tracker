@@ -18,16 +18,18 @@
 <header class="rp-top">
   <a class="btn ghost sm" id="back" href="/#/visits">‹ رجوع للزيارات</a>
   <div class="rp-title"><h1 id="rp-h">شوف الزيارة</h1><span class="dim" id="rp-sub"></span></div>
+  <div class="seg rp-level" id="level" role="group" aria-label="مستوى العرض"></div>
 </header>
 <main class="rp-main" id="rp-main">
   <section class="rp-stage panel-card">
+    <p class="simple-only simple-line" id="rp-story"></p>
     <div id="player" class="rp-player" aria-label="تسجيل الزيارة"><div class="loading"><span class="spinner"></span>بنحمّل التسجيل…</div></div>
     <p class="hint rp-note">بنعيد صفحة موقعك الحقيقية والزائر بيتحرك فيها. أي حاجة الزائر كتبها في الخانات متخبية، والتسجيل بيتمسح بعد 30 يوم.</p>
   </section>
   <aside class="rp-side">
     <section class="panel-card" id="rp-verdict"></section>
-    <section class="panel-card"><div class="sec-head"><h2>اللحظات المهمة</h2></div><p class="hint">دوس على أي لحظة والفيديو يروح لها.</p><ol class="rp-marks" id="rp-marks"></ol></section>
-    <section class="panel-card"><div class="sec-head"><h2>التفاصيل</h2></div><dl class="facts" id="rp-facts"></dl></section>
+    <section class="panel-card pro-only"><div class="sec-head"><h2>اللحظات المهمة</h2></div><p class="hint">دوس على أي لحظة والفيديو يروح لها.</p><ol class="rp-marks" id="rp-marks"></ol></section>
+    <section class="panel-card pro-only"><div class="sec-head"><h2>التفاصيل</h2></div><dl class="facts" id="rp-facts"></dl></section>
   </aside>
 </main>
 <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
