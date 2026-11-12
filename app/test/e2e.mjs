@@ -748,6 +748,49 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
   t('super admin: no console errors or CSP violations', pg.errors.length === 0 && pg.csp.length === 0);
   await pg.context().close(); }
 
+// 20) الإنجليزي (قرار محمود 12 نوفمبر: «بلغتين عربي وإنجليزي»): الكوكي lt_lang=en ← الصفحة من الشمال لليمين وكل النصوص إنجليزي
+{ const api = fakeApi(); const pg = await page(api, { viewport: { width: 1440, height: 900 }, locale: 'en-US' });
+  await pg.context().addCookies([{ name: 'lt_lang', value: 'en', domain: 'app.maestrolt.com', path: '/', secure: true }]);
+  await pg.goto('https://app.maestrolt.com/demo');
+  await pg.waitForSelector('.answers .ans');
+  const AR = /[؀-ۿ]/;
+  t('english: the page turns left-to-right with lang=en', (await pg.evaluate(() => document.documentElement.dir + '|' + document.documentElement.lang)) === 'ltr|en');
+  t('english: menu, title and the simple answers are in English (no Arabic UI text)', (await pg.locator('#page-title').innerText()) === 'Summary' && !AR.test(await pg.locator('.side-nav').innerText()) && !AR.test((await pg.locator('.ans .q').allInnerTexts()).join(' ')) && /Is your ad protected\?/.test(await pg.locator('.answers').innerText()));
+  t('english: counts read naturally (no raw keys like "units.")', !/units\.|\b[a-z]+\.[a-z]+\.[a-z]+\b/.test(await pg.locator('#view').innerText()));
+  await shot(pg, 'en-demo-simple');
+  await pg.locator('#level').getByRole('button', { name: 'Professional' }).click();
+  await pg.waitForSelector('.kpis .kpi');
+  t('english: professional view KPIs and the chart are in English, the chart axis on the left', !AR.test((await pg.locator('.kpis .kpi .k-label, .kpis .kpi .k-sub').allInnerTexts()).join(' ')) && (await pg.locator('svg.svg text.tick[text-anchor="end"]').count()) >= 4);
+  await shot(pg, 'en-demo-overview');
+  await pg.locator('.side-nav a[data-r="visits"]').click();
+  await pg.waitForSelector('#view .tbl tbody tr');
+  await pg.locator('#view .tbl tbody tr').first().click();
+  await pg.waitForSelector('#d-body .verdict');
+  t('english: the visit drawer (score, why, journey, buttons) is in English', /of 100/.test(await pg.locator('#d-body .verdict').innerText()) && !AR.test(await pg.locator('#d-body .legend').allInnerTexts().then((x) => x.join(' '))) && !AR.test(await pg.locator('#d-foot').innerText()));
+  await shot(pg, 'en-demo-visit');
+  await pg.keyboard.press('Escape');
+  await pg.locator('.side .lang-switch').click();
+  await pg.waitForFunction(() => document.documentElement.dir === 'rtl');
+  t('english: the «العربية» switch brings Arabic back (and remembers it)', (await pg.evaluate(() => document.documentElement.lang)) === 'ar' && /lt_lang=ar/.test(await pg.evaluate(() => document.cookie)));
+  t('english: no console errors, no CSP violations', pg.errors.length === 0 && pg.csp.length === 0);
+  if (pg.errors.length || pg.csp.length) console.log(pg.errors, pg.csp);
+  await pg.context().close(); }
+
+{ const api = fakeApi({ signedIn: true, sites: [{ id: 'SiteId123456', name: 'Rawda', domains: ['rawda.site'], paired: true }] }); const pg = await page(api, { viewport: { width: 1440, height: 900 } });
+  await pg.context().addCookies([{ name: 'lt_lang', value: 'en', domain: 'app.maestrolt.com', path: '/', secure: true }]);
+  await pg.goto('https://app.maestrolt.com/');
+  await pg.waitForSelector('.answers .ans');
+  t('english live: the server is asked for English reasons and checks (lang=en)', (api.dashCalls || []).some((c) => c.startsWith('/v1/dash/overview?') && /[?&]lang=en\b/.test(c)));
+  t('english live: the simple answers count in English', /60 visits/.test(await pg.locator('.answers').innerText()));
+  await pg.context().close(); }
+{ const api = fakeApi(); const pg = await page(api, { viewport: { width: 390, height: 780 } });
+  await pg.goto('https://app.maestrolt.com/login');
+  await pg.locator('.lang-switch').click();
+  await pg.waitForFunction(() => document.documentElement.dir === 'ltr');
+  t('english: the login page has the switch and turns English', (await pg.locator('h1').innerText()) === 'Sign in' && /Sign in with Google/.test(await pg.locator('#go').innerText()));
+  await shot(pg, 'en-login');
+  await pg.context().close(); }
+
 await browser.close();
 console.log(`\n${ok} passed, ${bad} failed`);
 process.exit(bad ? 1 : 0);

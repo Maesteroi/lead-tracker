@@ -22,16 +22,18 @@
     var max = niceMax(Math.max.apply(null, rows.map(function (r) { return series.reduce(function (a, sr) { return a + (r[sr.key] || 0); }, 0); }).concat([1])));
     var svg = s('svg', { viewBox: '0 0 ' + W + ' ' + H, class: 'svg', role: 'img', 'aria-label': opts.label || '' });
     var plotW = W - padS - 8, plotH = H - padT - padB;
+    // العربي: أقدم يوم يمين والمحور يمين · الإنجليزي (LTR): نفس الرسم معكوس
+    var LTR = window.LT.dir === 'ltr', X = function (x) { return LTR ? W - x : x; };
     for (var g = 0; g <= 3; g++) {
       var y = padT + plotH - (plotH * g) / 3;
-      svg.appendChild(s('line', { x1: 8, x2: W - padS, y1: y, y2: y, class: g ? 'grid' : 'axis' }));
-      var t = s('text', { x: W - padS + 6, y: y + 4, class: 'tick', 'text-anchor': 'start' }); t.textContent = fmt(Math.round((max * g) / 3)); svg.appendChild(t);
+      svg.appendChild(s('line', { x1: X(8), x2: X(W - padS), y1: y, y2: y, class: g ? 'grid' : 'axis' }));
+      var t = s('text', { x: X(W - padS + 6), y: y + 4, class: 'tick', 'text-anchor': LTR ? 'end' : 'start' }); t.textContent = fmt(Math.round((max * g) / 3)); svg.appendChild(t);
     }
     var n = rows.length, slot = plotW / n, bw = Math.max(3, Math.min(22, slot * 0.62));
     var tip = el('div', { class: 'tip', hidden: '' });
     rows.forEach(function (r, i) {
       // RTL: أقدم يوم يمين، وأحدث يوم شمال
-      var cx = W - padS - slot * (i + 0.5), yb = padT + plotH, total = 0;
+      var cx = X(W - padS - slot * (i + 0.5)), yb = padT + plotH, total = 0;
       var segs = series.filter(function (sr) { return (r[sr.key] || 0) > 0; });
       segs.forEach(function (sr, j) {
         var v = r[sr.key], h = (plotH * v) / max, gap = j < segs.length - 1 ? 2 : 0;

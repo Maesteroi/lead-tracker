@@ -122,7 +122,7 @@
         el('td', { 'data-l': T('adm.h.delivery') }, [deliveryPill(orgDelivery(o))]),
         el('td', { 'data-l': T('adm.h.last'), class: 'dim', text: ago(o.last_at) }),
         el('td', { 'data-l': T('adm.h.plan') }, [el('div', { text: o.plan ? PLAN[o.plan] || o.plan : '—' }), trial ? el('div', { class: 'dim', text: trial }) : null]),
-        el('td', { class: 'last' }, [el('span', { class: 'go', text: T('adm.h.manage') + ' ‹' })])
+        el('td', { class: 'last' }, [el('span', { class: 'go', text: T('adm.h.manage') + ' ' + T('arrow') })])
       ]);
       var open = function () { openDrawer(o, tr); };
       tr.addEventListener('click', open);

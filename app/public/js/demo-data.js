@@ -19,20 +19,20 @@
     ['الدمام', ['الفيصلية', 'الشاطئ']],
   ];
   var SITES = [
-    { id: 'uEpXTJ6JhbdN', name: 'روضة الصالحين للعمرة', domain: 'rawda.site', currency: 'ر.س', cpc: 4.6, perDay: 62, seed: 7,
+    { id: 'uEpXTJ6JhbdN', name: 'روضة الصالحين للعمرة', domain: 'rawda.site', currency: window.LT.t('sar'), cpc: 4.6, perDay: 62, seed: 7,
       keywords: ['برنامج عمرة', 'عمرة من الرياض', 'رحلات عمرة باص', 'عمرة رخيصة', 'حملة عمرة', 'عمرة رمضان'],
       campaigns: ['عمرة — بحث', 'عمرة — خرائط'] },
-    { id: 'KzFeD6ZXsbYH', name: 'الإنجاز السريع', domain: 'enjaz.biz', currency: 'ر.س', cpc: 6.2, perDay: 38, seed: 11,
+    { id: 'KzFeD6ZXsbYH', name: 'الإنجاز السريع', domain: 'enjaz.biz', currency: window.LT.t('sar'), cpc: 6.2, perDay: 38, seed: 11,
       keywords: ['معقب', 'تعقيب معاملات', 'معقب الرياض', 'استخراج تصريح', 'نقل كفالة', 'تجديد إقامة'],
       campaigns: ['خدمات التعقيب — بحث'] },
     // عملاء تانيين للوكالة (شاشة «كل العملاء» والتقارير)
-    { id: 'Nkb7Clinic01', name: 'عيادات النخبة للأسنان', domain: 'nokhba-dental.sa', currency: 'ر.س', cpc: 9.4, perDay: 44, seed: 23,
+    { id: 'Nkb7Clinic01', name: 'عيادات النخبة للأسنان', domain: 'nokhba-dental.sa', currency: window.LT.t('sar'), cpc: 9.4, perDay: 44, seed: 23,
       keywords: ['تقويم أسنان', 'زراعة أسنان', 'تبييض أسنان', 'عيادة أسنان قريبة', 'ابتسامة هوليود'], campaigns: ['التقويم — بحث', 'الزراعة — بحث'] },
-    { id: 'Afq9Cool0001', name: 'مؤسسة الأفق للتكييف', domain: 'ofoq-ac.com', currency: 'ر.س', cpc: 3.8, perDay: 70, seed: 31,
+    { id: 'Afq9Cool0001', name: 'مؤسسة الأفق للتكييف', domain: 'ofoq-ac.com', currency: window.LT.t('sar'), cpc: 3.8, perDay: 70, seed: 31,
       keywords: ['صيانة مكيفات', 'تنظيف مكيفات', 'فني تكييف', 'تركيب مكيف سبليت', 'شحن فريون'], campaigns: ['صيانة — بحث', 'صيانة — خرائط'] },
-    { id: 'Nql4Movers01', name: 'نقل عفش جدة', domain: 'jeddah-movers.com', currency: 'ر.س', cpc: 5.1, perDay: 55, seed: 41,
+    { id: 'Nql4Movers01', name: 'نقل عفش جدة', domain: 'jeddah-movers.com', currency: window.LT.t('sar'), cpc: 5.1, perDay: 55, seed: 41,
       keywords: ['نقل عفش جدة', 'شركة نقل اثاث', 'نقل عفش مع التغليف', 'دينا نقل عفش'], campaigns: ['نقل عفش — بحث'] },
-    { id: 'Lms2Store001', name: 'متجر لمسة للعطور', domain: 'lamsa.store', currency: 'ر.س', cpc: 2.2, perDay: 90, seed: 53,
+    { id: 'Lms2Store001', name: 'متجر لمسة للعطور', domain: 'lamsa.store', currency: window.LT.t('sar'), cpc: 2.2, perDay: 90, seed: 53,
       keywords: ['عطور رجالية', 'عطر عود', 'عطور نسائية فخمة', 'بخور'], campaigns: ['متجر — بحث', 'متجر — تسوق'] },
   ];
 

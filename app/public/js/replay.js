@@ -131,7 +131,7 @@
       if (!m) { location.replace(LT.loginUrl(location.pathname + location.search)); return; }
       var stored = null; try { stored = sessionStorage.getItem('lt_level'); } catch (e) { /* عادي */ }
       if (!stored) { level = (m.orgs || []).some(function (o) { return o.type === 'agency'; }) ? 'detailed' : 'simple'; applyLevel(); }
-      return LT.api('/v1/dash/replay?site=' + encodeURIComponent(site) + '&sid=' + encodeURIComponent(sid)).then(function (r) {
+      return LT.api('/v1/dash/replay?site=' + encodeURIComponent(site) + '&sid=' + encodeURIComponent(sid) + (LT.lang !== 'ar' ? '&lang=' + LT.lang : '')).then(function (r) {
         if (r.status === 401) { location.replace(LT.loginUrl(location.pathname + location.search)); return; }
         if (r.status === 404) { fail(T(r.body && r.body.error === 'no_replay' ? 'rp.fail.none' : 'rp.fail.notyours')); return; }
         if (!r.ok) { fail(T('rp.fail.load')); return; }

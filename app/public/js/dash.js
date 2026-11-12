@@ -85,6 +85,8 @@
     var sw = el('button', { class: 'more-link', type: 'button' }, [icon('more'), el('span', { text: T(state.level === 'simple' ? 'level.to_detailed' : 'level.to_simple') })]);
     sw.addEventListener('click', function () { closeDrawer(); setLevel(state.level === 'simple' ? 'detailed' : 'simple'); });
     body.appendChild(sw);
+    var ls = LT.i18n.switcher();
+    if (ls) { ls.className = 'more-link'; body.appendChild(ls); }
     openDrawer();
   }
   function buildTop() {
@@ -154,7 +156,7 @@
           : a.kind === 'outcome' ? ['leads', 'info', T('act.outcome', { n: LT.n(a.n, 'contact') }), T('d.act.outcome.sub'), T('act.outcome.go')]
           : a.kind === 'refund' ? ['protection', 'ok', T('d.act.refund', { m: money(a.amount, cur) }), T('d.act.refund.sub'), T('d.act.refund.go')]
           : ['sites', 'warn', T('d.act.suffix'), T('d.act.suffix.sub'), T('d.act.suffix.go')];
-        acts.appendChild(el('a', { class: 'act ' + m[1], href: '#/' + m[0] }, [el('b', { text: m[2] }), el('span', { text: m[3] }), el('em', { text: m[4] + ' ‹' })]));
+        acts.appendChild(el('a', { class: 'act ' + m[1], href: '#/' + m[0] }, [el('b', { text: m[2] }), el('span', { text: m[3] }), el('em', { text: m[4] + ' ' + T('arrow') })]));
       });
       if (d.actions.length) view.appendChild(card(T('act.title'), [acts]));
       // جودة الزيارات
@@ -201,7 +203,7 @@
           : a.kind === 'outcome' ? ['leads', 'info', T('act.outcome.simple', { n: LT.n(a.n, 'contact') }), T('act.outcome.sub'), T('act.outcome.go')]
           : a.kind === 'refund' ? ['protection', 'ok', T('d.sact.refund', { m: money(a.amount, cur) }), T('d.sact.refund.sub'), T('d.sact.refund.go')]
           : ['sites', 'warn', T('d.sact.suffix'), T('d.act.suffix.sub'), T('steps.how')];
-        acts.appendChild(el('a', { class: 'act ' + m[1], href: '#/' + m[0] }, [el('b', { text: m[2] }), el('span', { text: m[3] }), el('em', { text: m[4] + ' ‹' })]));
+        acts.appendChild(el('a', { class: 'act ' + m[1], href: '#/' + m[0] }, [el('b', { text: m[2] }), el('span', { text: m[3] }), el('em', { text: m[4] + ' ' + T('arrow') })]));
       });
       if (d.actions.length) view.appendChild(card(T('act.title'), [acts]));
       // حمايتك كاملة؟
@@ -626,7 +628,7 @@
       var sorted = function () {
         var l = list.slice();
         if (state.sort === 'attention') l.sort(function (a, b) { return issues(b).length - issues(a).length || b.bad_pct - a.bad_pct; });
-        else l.sort(function (a, b) { var x = a[state.sort], y = b[state.sort]; if (typeof x === 'string') return x.localeCompare(y, 'ar'); return (y == null ? -1 : y) - (x == null ? -1 : x); });
+        else l.sort(function (a, b) { var x = a[state.sort], y = b[state.sort]; if (typeof x === 'string') return x.localeCompare(y, LT.lang); return (y == null ? -1 : y) - (x == null ? -1 : x); });
         return l;
       };
       var draw = function () {
@@ -772,7 +774,7 @@
   }
   function actionsCard(list, simple) {
     var acts = el('div', { class: 'actions' });
-    list.forEach(function (a) { var m = liveAction(a, simple); acts.appendChild(el('a', { class: 'act ' + m[1], href: '#/' + m[0] }, [el('b', { text: m[2] }), el('span', { text: m[3] }), el('em', { text: m[4] + ' ‹' })])); });
+    list.forEach(function (a) { var m = liveAction(a, simple); acts.appendChild(el('a', { class: 'act ' + m[1], href: '#/' + m[0] }, [el('b', { text: m[2] }), el('span', { text: m[3] }), el('em', { text: m[4] + ' ' + T('arrow') })])); });
     return card(T('act.title'), [acts]);
   }
   function lOverview(view) {

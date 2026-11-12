@@ -72,3 +72,16 @@ test('i18n: every key used by the screens exists in the Arabic file, and the Ara
   for (const w of ['مش', 'مفيش', 'دلوقتي', 'إزاي', 'ليه', 'بتاع', 'عايز', 'لسه', 'بره', 'كمان', 'بنحمّل', 'مقدرناش', 'النهارده', 'شوف', 'اتسجل', 'جاي', 'بيتفعّل', 'هيظهر'])
     assert.ok(!new RegExp('(^|[\\s«"(،.:])' + w + '($|[\\s»"),.،؟:])').test(text), 'colloquial word in ar.js: ' + w);
 });
+
+test('i18n: the English file has exactly the same keys as the Arabic one, with the same {placeholders} and no Arabic text', () => {
+  const ctx = { window: {} }; vm.createContext(ctx); vm.runInContext(read('js/lang/ar.js'), ctx); vm.runInContext(read('js/lang/en.js'), ctx);
+  const AR = ctx.window.LT_LANG.ar, EN = ctx.window.LT_LANG.en;
+  assert.deepEqual(Object.keys(EN).filter((k) => !(k in AR)), [], 'keys in en.js but not ar.js');
+  assert.deepEqual(Object.keys(AR).filter((k) => !(k in EN)), [], 'keys missing from en.js');
+  const ph = (v) => (String(v).match(/\{\w+(?::nom)?\}/g) || []).map((x) => x.replace(':nom', '')).sort().join();
+  for (const k of Object.keys(AR)) {
+    if (Array.isArray(AR[k])) { assert.ok(Array.isArray(EN[k]) && EN[k].length === 2, 'units must be [one, many]: ' + k); continue; }
+    assert.equal(ph(EN[k]), ph(AR[k]), 'placeholders differ: ' + k);
+    assert.ok(!/[\u0600-\u06FF]/.test(EN[k]) || k === 'app.name', 'Arabic text in en.js: ' + k);
+  }
+});

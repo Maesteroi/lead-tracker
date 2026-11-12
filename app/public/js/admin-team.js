@@ -108,7 +108,7 @@
     team.members.forEach(function (m) {
       var sel = el('select', { 'aria-label': T('adm.m.role') }, team.roles.map(function (r) { return el('option', { value: r.id, text: r.name }); })); sel.value = m.role_id;
       sel.addEventListener('change', function () { api('/v1/platform/members', { user_id: m.user_id, role_id: sel.value }).then(function (r) { toast(r.ok ? T('adm.m.role_changed') : T('adm.m.not_changed'), !r.ok); if (r.ok) reload(); }); });
-      var scopeBtn = el('button', { class: 'linkish', type: 'button', text: scopeText(m.scope_org_ids, m.scope_site_ids) + ' ‹' });
+      var scopeBtn = el('button', { class: 'linkish', type: 'button', text: scopeText(m.scope_org_ids, m.scope_site_ids) + ' ' + T('arrow') });
       var rm = el('button', { class: 'btn ghost sm danger-text', type: 'button', text: T('adm.m.remove') });
       rm.addEventListener('click', function () {
         if (rm.getAttribute('data-sure') !== '1') { rm.setAttribute('data-sure', '1'); rm.textContent = T('adm.m.sure'); return; }

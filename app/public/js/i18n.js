@@ -5,7 +5,8 @@
 (function () {
   'use strict';
   var LT = window.LT, D = window.LT_LANG || {};
-  var ENABLED = ['ar'];
+  var ENABLED = ['ar', 'en'];
+  var NAMES = { ar: 'العربية', en: 'English' };   // اسم كل لغة بلغتها هي
   var m = /(?:^|; )lt_lang=([a-z]{2})/.exec(document.cookie || '');
   var lang = m && ENABLED.indexOf(m[1]) >= 0 && D[m[1]] ? m[1] : 'ar';
   function t(key, v) {
@@ -35,9 +36,29 @@
     Array.prototype.forEach.call(r.querySelectorAll('[data-i18n-title]'), function (e) { e.setAttribute('title', t(e.getAttribute('data-i18n-title'))); });
     Array.prototype.forEach.call(r.querySelectorAll('[data-i18n-aria]'), function (e) { e.setAttribute('aria-label', t(e.getAttribute('data-i18n-aria'))); });
   }
+  // اختيار اللغة: كوكي سنة على app.maestrolt.com (مش تخزين المتصفح)، وبعدين إعادة تحميل الصفحة
+  function setLang(l) {
+    if (ENABLED.indexOf(l) < 0) return;
+    document.cookie = 'lt_lang=' + l + '; path=/; max-age=31536000; samesite=lax' + (location.protocol === 'https:' ? '; secure' : '');
+    location.reload();
+  }
+  // زرار «English / العربية»: بيتحط في أي عنصر عليه data-lang-switch
+  function switcher() {
+    var other = ENABLED.filter(function (x) { return x !== lang; })[0];
+    if (!other || !D[other]) return null;
+    var b = document.createElement('button');
+    b.type = 'button'; b.className = 'linkish lang-switch'; b.lang = other; b.dir = other === 'ar' ? 'rtl' : 'ltr';
+    b.textContent = NAMES[other] || other;
+    b.addEventListener('click', function () { setLang(other); });
+    return b;
+  }
+  function mountSwitch(root) {
+    Array.prototype.forEach.call((root || document).querySelectorAll('[data-lang-switch]'), function (e) { if (!e.firstChild) { var b = switcher(); if (b) e.appendChild(b); } });
+  }
   document.documentElement.lang = lang;
   document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
   LT.t = t; LT.n = n; LT.lang = lang; LT.locale = lang === 'ar' ? 'ar-EG-u-nu-latn' : lang;   // التواريخ والأوقات بلغة الصفحة (أرقام غربية)
-  LT.dir = document.documentElement.dir; LT.i18n = { apply: apply, enabled: ENABLED.slice() };
+  LT.dir = document.documentElement.dir; LT.i18n = { apply: apply, enabled: ENABLED.slice(), set: setLang, switcher: switcher };
   apply();
+  mountSwitch();
 })();

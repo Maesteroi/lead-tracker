@@ -4,7 +4,7 @@
   'use strict';
   var LT = window.LT, me = null;
   var get = function (path) { return LT.api(path).then(function (r) { if (r.status === 401) { location.replace('/login?next=' + encodeURIComponent(location.pathname)); throw new Error('auth'); } if (!r.ok) throw new Error('http ' + r.status); return r.body; }); };
-  var q = function (site, range) { return '?site=' + encodeURIComponent(site) + (range ? '&range=' + range : ''); };
+  var q = function (site, range) { return '?site=' + encodeURIComponent(site) + (range ? '&range=' + range : '') + (LT.lang && LT.lang !== 'ar' ? '&lang=' + LT.lang : ''); };   // لغة أسباب الحماية والفحوصات من السيرفر
   var cache = {};
   function overviewRaw(site, range) { var k = site + '|' + range; return cache[k] || (cache[k] = get('/v1/dash/overview' + q(site, range)).finally(function () { setTimeout(function () { delete cache[k]; }, 30000); })); }
 
