@@ -238,5 +238,70 @@
     return tbl;
   }
 
-  window.LTCharts = { stacked: stacked, hbars: hbars, fmt: fmt, area: area, donut: donut, ring: ring, spark: spark, heat: heat };
+  // خريطة الزيارات: الدول اللي جت منها زيارات ملوّنة (أخضر جوه النطاق المستهدف · أحمر برّه · أزرق لو مفيش نطاق محدد)
+  // والمدن نقط حجمها بعدد الزيارات. الخريطة بتقرّب لوحدها على المنطقة اللي فيها الزيارات.
+  // countries [{code, name, n, out, bad}] · cities [{name, cc, n, out, bad}] · opts.targets ['SA', …]
+  function geoXY(lat, lon) {
+    var W = window.LT_WORLD, k = W.p.k, l = lon * Math.PI / 180, p = lat * Math.PI / 180, p2 = p * p, p4 = p2 * p2;
+    var x = l * (0.8707 - 0.131979 * p2 + p4 * (-0.013791 + p4 * (0.003971 * p2 - 0.001529 * p4)));
+    var y = p * (1.007226 + p2 * (0.015085 + p4 * (-0.044475 + 0.028874 * p2 - 0.005916 * p4)));
+    return [W.p.tx + k * x, W.p.ty - k * y];
+  }
+  function cityKey(n) { return String(n || '').toLowerCase().replace(/\s+(city|governorate|province|region)$/, '').replace(/^(مدينة|محافظة)\s+/, '').trim(); }
+  function bboxOf(d) {
+    var nums = d.match(/-?\d+(\.\d+)?/g) || [], b = [Infinity, Infinity, -Infinity, -Infinity];
+    for (var i = 0; i + 1 < nums.length; i += 2) { var x = +nums[i], y = +nums[i + 1]; if (x < b[0]) b[0] = x; if (y < b[1]) b[1] = y; if (x > b[2]) b[2] = x; if (y > b[3]) b[3] = y; }
+    return b;
+  }
+  function geoMap(box, countries, cities, opts) {
+    opts = opts || {};
+    var W = window.LT_WORLD; if (!W) return null;
+    var targets = (opts.targets || []).map(function (c) { return String(c).toUpperCase(); }), hasT = targets.length > 0;
+    var tone = function (x) { return !hasT ? 'g-vis' : x.out * 2 > x.n ? 'g-out' : 'g-in'; };
+    var byCode = {}; (countries || []).forEach(function (c) { if (c.code) byCode[String(c.code).toUpperCase()] = c; });
+    var svg = s('svg', { class: 'geo', role: 'img', 'aria-label': opts.label || '' });
+    var land = s('g', { class: 'g-land' }), hot = s('g', {}), dots = s('g', { class: 'g-dots' });
+    svg.appendChild(land); svg.appendChild(hot); svg.appendChild(dots);
+    var bb = [Infinity, Infinity, -Infinity, -Infinity], grow = function (b) { bb = [Math.min(bb[0], b[0]), Math.min(bb[1], b[1]), Math.max(bb[2], b[2]), Math.max(bb[3], b[3])]; };
+    Object.keys(W.c).forEach(function (code) {
+      var c = byCode[code], path = s('path', { d: W.c[code], class: c ? 'g-c ' + tone(c) : 'g-c' });
+      if (c) {
+        var t = s('title', {}); t.textContent = (c.name || code) + ': ' + fmt(c.n) + (hasT && c.out ? ' · ' + (opts.outLabel || '') + ' ' + fmt(c.out) : '') + (c.bad ? ' · ' + (opts.badLabel || '') + ' ' + fmt(c.bad) : '');
+        path.appendChild(t); hot.appendChild(path);
+        var b = bboxOf(W.c[code]); if (b[2] - b[0] < 300) grow(b); else if (W.ctr[code]) grow([W.ctr[code][0] - 40, W.ctr[code][1] - 30, W.ctr[code][0] + 40, W.ctr[code][1] + 30]);
+      } else land.appendChild(path);
+    });
+    var max = 1; (cities || []).forEach(function (c) { if (c.n > max) max = c.n; });
+    var placed = 0;
+    (cities || []).slice().sort(function (a, b) { return b.n - a.n; }).forEach(function (c) {
+      var ll = W.cities[cityKey(c.key || c.name)] || W.cities[cityKey(c.name)]; if (!ll) return;
+      var xy = geoXY(ll[0], ll[1]), cc = String(c.cc || '').toUpperCase();
+      var cls = !hasT ? 'g-vis' : (cc ? (targets.indexOf(cc) < 0 ? 'g-out' : 'g-in') : tone(c));
+      var dot = s('circle', { cx: xy[0].toFixed(1), cy: xy[1].toFixed(1), class: 'g-dot ' + cls }); dot._r = 3 + 8 * Math.sqrt(c.n / max);
+      dot.style.animationDelay = (placed * 0.06) + 's';
+      var t = s('title', {}); t.textContent = c.name + ': ' + fmt(c.n) + (c.bad ? ' · ' + (opts.badLabel || '') + ' ' + fmt(c.bad) : ''); dot.appendChild(t);
+      dots.appendChild(dot); placed++; grow([xy[0] - 12, xy[1] - 12, xy[0] + 12, xy[1] + 12]);
+    });
+    // التقريب: مربع الزيارات + هامش، وبحد أدنى للحجم علشان الدولة الواحدة ماتبقاش مكبّرة زيادة · بنسبة عرض الخريطة
+    if (!isFinite(bb[0])) bb = [0, 0, W.w, W.h];
+    var pad = 0.18, bw = bb[2] - bb[0], bh = bb[3] - bb[1];
+    bb = [bb[0] - bw * pad, bb[1] - bh * pad, bb[2] + bw * pad, bb[3] + bh * pad]; bw = bb[2] - bb[0]; bh = bb[3] - bb[1];
+    var ratio = 1.7, minW = 220;
+    if (bw < minW) { bb[0] -= (minW - bw) / 2; bw = minW; }
+    if (bw / bh < ratio) { var nw = bh * ratio; bb[0] -= (nw - bw) / 2; bw = nw; } else { var nh = bw / ratio; bb[1] -= (nh - bh) / 2; bh = nh; }
+    if (bw > W.w) { bw = W.w; bh = bw / ratio; bb[0] = 0; }
+    bb[0] = Math.max(0, Math.min(W.w - bw, bb[0])); bb[1] = Math.max(0, Math.min(W.h - bh, bb[1]));
+    svg.setAttribute('viewBox', bb[0].toFixed(0) + ' ' + bb[1].toFixed(0) + ' ' + bw.toFixed(0) + ' ' + bh.toFixed(0));
+    // حجم النقط ثابت على الشاشة مهما اتقربت الخريطة (نص قطر بالبكسل على عرض ~700)
+    [].forEach.call(dots.childNodes, function (d) { d.setAttribute('r', (d._r * bw / 700).toFixed(2)); });
+    var legend = el('div', { class: 'geo-legend', role: 'list' }, hasT ? [
+      el('span', { class: 'lg', role: 'listitem' }, [el('i', { class: 'sw g-in' }), document.createTextNode(opts.inLabel || '')]),
+      el('span', { class: 'lg', role: 'listitem' }, [el('i', { class: 'sw g-out' }), document.createTextNode(opts.outLabel || '')]),
+    ] : [el('span', { class: 'lg', role: 'listitem' }, [el('i', { class: 'sw g-vis' }), document.createTextNode(opts.noTargetLabel || '')])]);
+    var wrap = el('div', { class: 'geo-wrap' }, [svg, legend]);
+    box.appendChild(wrap);
+    return wrap;
+  }
+
+  window.LTCharts = { stacked: stacked, hbars: hbars, fmt: fmt, area: area, donut: donut, ring: ring, spark: spark, heat: heat, geoMap: geoMap, geoXY: geoXY };
 })();

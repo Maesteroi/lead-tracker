@@ -23,7 +23,7 @@
       days: o.days.map(function (d) { return sc ? { day: d.day, sessions: d.sessions, real: d.real, suspicious: d.suspicious, high: d.high, contacts: d.contacts } : { day: d.day, sessions: d.sessions, real: d.sessions, suspicious: 0, high: 0, contacts: d.contacts }; }),
       status: { protection: sc ? 'monitor' : 'soon', delivery: o.status.delivery, ads: o.status.ads, tracking_template: null, paired: o.status.paired, scoring: sc },
       actions: actions, suspicious: (o.suspicious || []).map(mapVisit), places: o.places, sources: o.sources, devices: o.devices,
-      period: o.period || null, countries: o.countries || [], reasons: o.reasons || [], hours: o.hours || null, landing: o.landing || [], recent: (o.recent || []).map(mapVisit),
+      period: o.period || null, countries: o.countries || [], cities: o.cities || [], sources_conv: o.sources_conv || [], targets: o.targets || [], reasons: o.reasons || [], hours: o.hours || null, landing: o.landing || [], recent: (o.recent || []).map(mapVisit),
     };
   }
   function mapVisit(s) {

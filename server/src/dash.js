@@ -13,7 +13,7 @@ import { loadSite, notFound, roleFor, visibleSites } from './sites.js';
 import { deliveryRows, riyadhDay } from './health.js';
 import { OUTCOMES } from './notify.js';
 import { audit } from './auth.js';
-import { scoreSession, reasonGroup, outsideTarget, contactStrength } from './score.js';
+import { scoreSession, reasonGroup, outsideTarget, contactStrength, targetCountries } from './score.js';
 import { tr, countryName, langOf } from './i18n.js';
 import { replaySet, loadReplay } from './replay.js';
 import { adsState } from './adslink.js';
@@ -93,12 +93,28 @@ export async function dashOverview(req, env, db, sess, url) {
     places: tally(sessions, (s) => s.city || null).slice(0, 6),
     devices: tally(sessions, (s) => s.device || null).slice(0, 4),
     // للرئيسية الاحترافية: البلاد · أسباب الاشتباه · أوقات الزيارات (يوم × ساعة بتوقيت الرياض) · أول صفحة · آخر الزيارات
-    countries: tally(sessions, (s) => s.country_code || null).slice(0, 6).map((c) => ({ code: c.name, name: countryName(lang, c.name), n: c.n })),
+    countries: geoTally(sessions, (s) => s.country_code || null).slice(0, 12).map((c) => Object.assign(c, { code: c.key, name: countryName(lang, c.key) })),
+    cities: geoTally(sessions, (s) => (s.city ? s.city + '|' + (s.country_code || '') : null)).slice(0, 15).map((c) => Object.assign(c, { name: c.key.split('|')[0], cc: c.key.split('|')[1] || '' })),
+    sources_conv: sourcesConv(sessions, leads),
+    targets: [...new Set(sessions.flatMap((s) => targetCountries(s.target_geo)))].slice(0, 20),
     reasons: reasonsOf(sessions, lang),
     hours: hoursOf(sessions),
     landing: tally(sessions, (s) => s.landing_title || null).slice(0, 5),
     recent: sessions.slice().sort((a, b) => Date.parse(b.started_at) - Date.parse(a.started_at)).slice(0, 6).map(sessionView),
   });
+}
+// لكل بلد أو مدينة: الزيارات · منها خارج النطاق المستهدف · المشبوهة (للخريطة: أخضر جوه الاستهداف، أحمر برّه)
+function geoTally(list, key) {
+  const m = new Map();
+  for (const x of list) { const k = key(x); if (!k) continue; const c = m.get(k) || { key: k, n: 0, out: 0, bad: 0 }; c.n++; if (x.outside) c.out++; if (x.status !== 'real') c.bad++; m.set(k, c); }
+  return [...m.values()].sort((a, b) => b.n - a.n);
+}
+// المصادر والتحويل: لكل منصة الزيارات · اللي تواصلوا · نسبة التحويل · اللي تم الاتفاق معاهم · المشبوهة
+function sourcesConv(sessions, leads) {
+  const m = new Map(), get = (k) => { if (!m.has(k)) m.set(k, { source: k, visits: 0, contacted: 0, won: 0, bad: 0 }); return m.get(k); };
+  for (const s of sessions) { const c = get(s.source_fine || s.source || 'direct'); c.visits++; if (s.contacts) c.contacted++; if (s.status !== 'real') c.bad++; }
+  for (const l of leads) if (l.outcome === 'تم') get(l.source_fine || l.source || 'direct').won++;
+  return [...m.values()].map((c) => Object.assign(c, { rate: c.visits ? Math.round((c.contacted / c.visits) * 1000) / 10 : 0 })).sort((a, b) => b.visits - a.visits).slice(0, 10);
 }
 function reasonsOf(list, lang) {
   const m = new Map();

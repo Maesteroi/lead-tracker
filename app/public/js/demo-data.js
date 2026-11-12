@@ -249,7 +249,23 @@
     o.hours = hours;
     o.sources = tallyBy(vis, function (v) { return v.src; }).slice(0, 6);
     o.devices = tallyBy(vis, function (v) { return v.device; }).slice(0, 3);
-    o.countries = [{ code: 'SA', name: T('dm.sa'), n: vis.length }];
+    // الخريطة: الإعلان بيستهدف السعودية، وشوية زيارات مشبوهة من برّه (شبكات خوادم وVPN)
+    var abroad = [{ code: 'AE', city: 'Dubai', name: T('dm.ae'), cityName: T('dm.dubai') }, { code: 'DE', city: 'Frankfurt', name: T('dm.de'), cityName: T('dm.frankfurt') }, { code: 'US', city: 'Ashburn', name: T('dm.us'), cityName: T('dm.ashburn') }];
+    var cc = function (v, i) { return v.net === 'dc' || v.net === 'vpn' ? abroad[i % 3] : null; };
+    var cTally = {}, ciTally = {};
+    vis.forEach(function (v, i) {
+      var a = cc(v, i), code = a ? a.code : 'SA', cname = a ? a.name : T('dm.sa'), city = a ? a.city : v.city, cityName = a ? a.cityName : v.city, out = !!a, bad = v.status !== 'real';
+      var c = cTally[code] = cTally[code] || { code: code, name: cname, n: 0, out: 0, bad: 0 }; c.n++; if (out) c.out++; if (bad) c.bad++;
+      var k = city + '|' + code, ci = ciTally[k] = ciTally[k] || { name: cityName, key: city, cc: code, n: 0, out: 0, bad: 0 }; ci.n++; if (out) ci.out++; if (bad) ci.bad++;
+    });
+    var byN = function (a, b) { return b.n - a.n; };
+    o.countries = Object.keys(cTally).map(function (k) { return cTally[k]; }).sort(byN);
+    o.cities = Object.keys(ciTally).map(function (k) { return ciTally[k]; }).sort(byN).slice(0, 15);
+    o.targets = ['SA'];
+    var conv = {};
+    vis.forEach(function (v) { var c = conv[v.src] = conv[v.src] || { source: v.src, visits: 0, contacted: 0, won: 0, bad: 0 }; c.visits++; if (v.contact) c.contacted++; if (v.status !== 'real') c.bad++; });
+    leads.forEach(function (l) { var c = conv[l.src]; if (c && l.outcome === 'تم') c.won++; });
+    o.sources_conv = Object.keys(conv).map(function (k) { var c = conv[k]; c.rate = c.visits ? Math.round((c.contacted / c.visits) * 1000) / 10 : 0; return c; }).sort(function (a, b) { return b.visits - a.visits; });
     o.places = tallyBy(vis, function (v) { return v.city; }).slice(0, 5);
     var bad = vis.filter(function (v) { return v.status !== 'real'; });
     o.reasons = tallyBy([].concat.apply([], bad.map(function (v) { return v.reasons.map(function (r) { return r.replace(/\d+/g, 'N'); }); })), function (r) { return r; }).slice(0, 5).map(function (x) { var ex = [].concat.apply([], bad.map(function (v) { return v.reasons; })).filter(function (r) { return r.replace(/\d+/g, 'N') === x.name; })[0]; return { name: ex || x.name, n: x.n }; });

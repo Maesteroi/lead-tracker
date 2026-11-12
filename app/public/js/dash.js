@@ -865,6 +865,7 @@
       if (d.sources.length) C.donut(srcBox, d.sources.map(function (x, i) { return { label: srcName(x.name), value: x.n, cls: SRC_CLS[i] || 'c-mute' }; }), { caption: T('ov.donut.cap'), label: T('ov.sources') });
       else srcBox.appendChild(el('p', { class: 'muted', text: T('ov.no_visits') }));
       view.appendChild(el('div', { class: 'grid-ov' }, [panel(T('ov.traffic'), T('ov.traffic.i'), [ch]), panel(T('ov.sources'), T('ov.sources.i'), [srcBox])]));
+      if ((d.sources_conv || []).length) view.appendChild(convPanel(d.sources_conv, sc));
       // ٤) آخر الزيارات (كروت بفحوصاتها) + أسباب الاشتباه
       var vc = el('div', { class: 'vcards' });
       (d.recent || []).forEach(function (v) { vc.appendChild(visitCard(v, function () { lOverview(view); })); });
@@ -873,26 +874,59 @@
       if (sc && (d.reasons || []).length) C.hbars(rs, d.reasons.map(function (r) { return { label: r.name, value: r.n, cls: 'c-sus' }; }), { compact: true });
       else rs.appendChild(el('p', { class: 'muted', text: T(sc ? 'ov.reasons.none' : 'prot.soon.title') }));
       view.appendChild(el('div', { class: 'grid-ov' }, [panel(T('ov.recent'), T('ov.recent.i'), [vc, el('a', { class: 'linkish', href: '#/visits', text: T('d.all_visits') })]), panel(T('ov.reasons'), T('ov.reasons.i'), [rs, sc && bad ? el('a', { class: 'linkish', href: '#/protection', text: T('ov.all_suspicious') }) : null])]));
-      // ٥) أوقات الزيارات (خريطة حرارية) + البلاد والمدن
+      // ٥) أوقات الزيارات (خريطة حرارية) + أول صفحة
+      var land = el('div');
+      if ((d.landing || []).length) C.hbars(land, d.landing.map(function (x) { return { label: x.name, value: x.n, cls: 'c-data' }; }), { compact: true });
+      else land.appendChild(el('p', { class: 'muted', text: T('ov.no_visits') }));
       var hm = el('div');
       if (d.hours) {
         C.heat(hm, d.hours, { days: [0, 1, 2, 3, 4, 5, 6].map(function (i) { return T('dow.' + i); }), badLabel: T('ov.bad'), label: T('ov.hours') });
         hm.appendChild(el('div', { class: 'heat-legend' }, [el('span', {}, [el('i', { class: 'lo' }), document.createTextNode(T('ov.h.lo'))]), el('span', {}, [el('i', { class: 'hi' }), document.createTextNode(T('ov.h.hi'))]), sc ? el('span', {}, [el('i', { class: 'rk' }), document.createTextNode(T('ov.h.risky'))]) : null]));
       }
-      var geo = el('div');
-      if ((d.countries || []).length) C.hbars(geo, d.countries.map(function (x) { return { label: x.name, value: x.n, cls: 'c-real' }; }), { compact: true });
-      if (d.places.length) { geo.appendChild(el('h3', { class: 'legend', text: T('ov.cities') })); C.hbars(geo, d.places.map(function (x) { return { label: x.name, value: x.n, cls: 'c-data' }; }), { compact: true }); }
-      if (!(d.countries || []).length && !d.places.length) geo.appendChild(el('p', { class: 'muted', text: T('ov.no_places') }));
-      view.appendChild(el('div', { class: 'grid-ov' }, [panel(T('ov.hours'), T('ov.hours.i'), [hm]), panel(T('ov.places'), T('ov.places.i'), [geo])]));
-      // ٦) الأجهزة + أول صفحة
+      view.appendChild(el('div', { class: 'grid-ov' }, [panel(T('ov.hours'), T('ov.hours.i'), [hm]), panel(T('ov.landing'), T('ov.landing.i'), [land])]));
+      // ٦) خريطة الزيارات: أخضر جوه النطاق المستهدف وأحمر برّه، وجنبها الأرقام
+      view.appendChild(mapPanel(d, sc));
+      // ٧) الأجهزة
       var dev = el('div');
       if ((d.devices || []).length) C.donut(dev, d.devices.map(function (x, i) { return { label: x.name, value: x.n, cls: ['c-real', 'c-data', 'c-ok', 'c-mute'][i] }; }), { caption: T('ov.donut.cap'), label: T('ov.devices') });
-      var land = el('div');
-      if ((d.landing || []).length) C.hbars(land, d.landing.map(function (x) { return { label: x.name, value: x.n, cls: 'c-data' }; }), { compact: true });
-      else land.appendChild(el('p', { class: 'muted', text: T('ov.no_visits') }));
-      view.appendChild(el('div', { class: 'grid-ov' }, [panel(T('ov.landing'), T('ov.landing.i'), [land]), panel(T('ov.devices'), '', [dev])]));
+      else dev.appendChild(el('p', { class: 'muted', text: T('ov.no_visits') }));
+      view.appendChild(panel(T('ov.devices'), '', [dev]));
       if (!d.status.ads) view.appendChild(soonCard(T('ov.soon.title'), [T('ov.soon.1'), T('ov.soon.2'), T('ov.soon.3')]));
     });
+  }
+  // المصادر والتحويل: لكل منصة الزيارات · تواصلوا · نسبة التحويل · تم الاتفاق · المشبوهة
+  function convPanel(rows, sc) {
+    var best = rows.filter(function (r) { return r.visits >= 3; }).sort(function (a, b) { return b.rate - a.rate; })[0];
+    var maxRate = Math.max.apply(null, rows.map(function (r) { return r.rate; }).concat([1]));
+    var head = [T('ov.conv.src'), T('ov.conv.visits'), T('ov.conv.contacted'), T('ov.conv.rate'), T('ov.conv.won')].concat(sc ? [T('ov.conv.bad')] : []);
+    var tb = el('tbody');
+    rows.forEach(function (r) {
+      var bar = el('i'); bar.style.width = Math.round((r.rate / maxRate) * 60) + 'px';
+      tb.appendChild(el('tr', { class: best && r === best && r.rate > 0 ? 'conv-best' : '' }, [
+        el('td', {}, [el('b', { text: srcName(r.source) })]),
+        el('td', { class: 'n', text: fmt(r.visits) }),
+        el('td', { class: 'n', text: fmt(r.contacted) }),
+        el('td', { class: 'n' }, [el('span', { class: 'rate' }, [bar, el('b', { text: r.rate + '%' })])]),
+        el('td', { class: 'n', text: fmt(r.won) }),
+        sc ? el('td', { class: 'n', text: pct(r.bad, r.visits) + '%' }) : null,
+      ]));
+    });
+    var table = el('div', { class: 'conv' }, [el('table', { class: 'mini' }, [el('thead', {}, [el('tr', {}, head.map(function (h, i) { return el('th', { class: i ? 'n' : '', text: h }); }))]), tb])]);
+    return panel(T('ov.conv'), T('ov.conv.i'), [best && best.rate > 0 ? el('p', { class: 'muted', text: T('ov.conv.best', { s: srcName(best.source), r: best.rate }) }) : null, table]);
+  }
+  // خريطة الزيارات وجنبها الأرقام (الدول والمدن، ولون كل صف بنفس لون الخريطة)
+  function mapPanel(d, sc) {
+    var countries = d.countries || [], cities = (d.cities || []).length ? d.cities : (d.places || []).map(function (x) { return { name: x.name, n: x.n, out: 0, bad: 0 }; }), targets = d.targets || [], hasT = targets.length > 0;
+    var tone = function (x) { return !hasT ? 'g-vis' : x.out * 2 > x.n ? 'g-out' : 'g-in'; };
+    var cTone = function (c) { return !hasT ? 'g-vis' : c.cc ? (targets.indexOf(String(c.cc).toUpperCase()) < 0 ? 'g-out' : 'g-in') : tone(c); };
+    if (!countries.length && !cities.length) return panel(T('ov.map'), T('ov.map.i'), [el('p', { class: 'muted', text: T('ov.no_places') })]);
+    var mapBox = el('div');
+    if (window.LT_WORLD) C.geoMap(mapBox, countries, cities, { targets: targets, label: T('ov.map'), inLabel: T('ov.map.in'), outLabel: T('ov.map.out'), noTargetLabel: T('ov.map.none'), badLabel: sc ? T('ov.bad') : '' });
+    var nums = el('div', { class: 'geo-nums' });
+    var sub = function (x) { var p = []; if (hasT && x.out) p.push(T('ov.map.out_n', { n: fmt(x.out) })); if (sc && x.bad) p.push(T('ov.map.bad_n', { n: fmt(x.bad) })); return p.join(' · '); };
+    if (countries.length) { nums.appendChild(el('h3', { class: 'legend', text: T('ov.countries') })); C.hbars(nums, countries.slice(0, 6).map(function (x) { return { label: x.name, sub: sub(x), value: x.n, cls: tone(x) }; }), { compact: true }); }
+    if (cities.length) { nums.appendChild(el('h3', { class: 'legend', text: T('ov.cities') })); C.hbars(nums, cities.slice(0, 6).map(function (x) { return { label: x.name, sub: sub(x), value: x.n, cls: cTone(x) }; }), { compact: true }); }
+    return panel(T('ov.map'), T('ov.map.i'), [el('div', { class: 'map-grid' }, [mapBox, nums])]);
   }
   // بطاقة بعنوان وعلامة ⓘ («اتحسب إزاي»)
   function panel(title, info, kids) {
