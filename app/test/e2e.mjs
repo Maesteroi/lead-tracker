@@ -640,19 +640,19 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
   await pg.goto('https://app.maestrolt.com/#/team');
   await pg.waitForFunction(() => document.getElementById('page-title').textContent === 'الفريق' && document.querySelector('#view .tbl tbody tr'));
   t('client team: who has access, with roles and sites; the owner cannot be changed', (await pg.locator('#view .tbl tbody tr').count()) === 2 && /المالك/.test(await pg.locator('#view .tbl').innerText()) && /روضة الصالحين/.test(await pg.locator('#view .tbl tr', { hasText: 'أحمد' }).innerText()) && (await pg.locator('#view .tbl tr', { hasText: 'محمود' }).locator('select').count()) === 0);
-  const inv = pg.locator('#view .panel-card', { hasText: 'ادعي حد' });
+  const inv = pg.locator('#view .panel-card', { hasText: 'ادعُ شخصًا' });
   await inv.locator('input[type="email"]').fill('client@gmail.com');
-  await inv.locator('.opt', { hasText: 'مشاهد' }).locator('input').check();
-  await inv.locator('.ck-in', { hasText: 'مواقع معيّنة' }).locator('input').check();
+  await inv.locator('.opt', { hasText: 'مشاهِد' }).locator('input').check();
+  await inv.locator('.ck-in', { hasText: 'مواقع محددة' }).locator('input').check();
   await inv.locator('.scope-list .ck-in', { hasText: 'روضة جدة' }).locator('input').check();
-  await inv.getByRole('button', { name: 'ادعيه' }).click();
+  await inv.getByRole('button', { name: 'أرسل الدعوة' }).click();
   await pg.waitForSelector('#view .invite-result:not([hidden]) .msg-box');
   const c = (api.custCalls || []).find((x) => x.p === '/v1/team/invite');
   t('client team: invite a viewer for one site by Google email (with CSRF), and a message to send on WhatsApp', c && c.b.org === 'org1' && c.b.email === 'client@gmail.com' && c.b.role === 'viewer' && c.b.site_ids.join() === 'SiteId654321' && c.csrf === 'csrf-token-123' && /روضة الصالحين/.test(await pg.locator('.invite-result .msg-box').innerText()));
   t('client team: the owner can make admins (option shown)', (await inv.locator('.opt', { hasText: 'مدير' }).count()) === 1);
   await shot(pg, 'live-team');
   await pg.locator('#view .tbl tr', { hasText: 'أحمد' }).locator('select').selectOption('viewer');
-  await pg.waitForFunction(() => /اتغيّر الدور/.test(document.getElementById('toast').textContent));
+  await pg.waitForFunction(() => /تغيّر الدور/.test(document.getElementById('toast').textContent));
   t('client team: changing a role is sent', api.custCalls.some((x) => x.p === '/v1/team/member' && x.b.user_id === 'u5' && x.b.role === 'viewer'));
   t('client team: no console errors and no CSP violations', pg.errors.length === 0 && pg.csp.length === 0);
   if (pg.errors.length || pg.csp.length) console.log(pg.errors, pg.csp);
@@ -661,7 +661,7 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
   const pg2 = await page(api2, { viewport: { width: 1280, height: 900 } });
   await pg2.goto('https://app.maestrolt.com/#/team');
   await pg2.waitForFunction(() => document.getElementById('page-title').textContent === 'الفريق' && !document.querySelector('#view .loading'));
-  t('client team: staff/viewers see a plain explanation instead of the tools', /للمالك والمدير بس/.test(await pg2.locator('#view').innerText()));
+  t('client team: staff/viewers see a plain explanation instead of the tools', /للمالك والمدير فقط/.test(await pg2.locator('#view').innerText()));
   await pg2.context().close(); }
 
 // 17) «▶ شوف الزيارة»: تسجيل حقيقي بـ rrweb (نفس ملف البلجن) ← المشغّل بصفحة الموقع الحقيقية، والكتابة متخبية

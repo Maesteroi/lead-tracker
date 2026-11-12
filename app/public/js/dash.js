@@ -912,68 +912,68 @@
     });
   }
   // ════════ الفريق (G-29): مين يدخل حسابك وبيعمل إيه ════════
-  var ROLE_AR = { owner: ['المالك', 'كل حاجة، ومحدش يقدر يشيله'], admin: ['مدير', 'يدير المواقع والفريق (ماعدا المالك)'], staff: ['موظف', 'يشوف ويسجّل النتايج ويحكم على الزيارات'], viewer: ['مشاهد', 'يشوف بس'] };
+  var ROLE_AR = {}; ['owner', 'admin', 'staff', 'viewer'].forEach(function (r) { ROLE_AR[r] = [T('team.role.' + r), T('team.role.' + r + '.d')]; });
   function vTeam(view) {
     clear(view);
-    if (!DATA.team) { view.appendChild(card('الفريق', [el('p', { text: 'في لوحتك الحقيقية تقدر تدعو موظفينك أو عميلك بإيميل جوجل، وتحدد كل واحد يشوف أنهي موقع ويعمل إيه.' })])); return Promise.resolve(); }
+    if (!DATA.team) { view.appendChild(card(T('nav.team'), [el('p', { text: T('team.demo') })])); return Promise.resolve(); }
     var site = state.sites.filter(function (x) { return x.id === state.site; })[0];
-    if (!site || !site.org_id) { view.appendChild(card('الفريق', [el('p', { class: 'muted', text: 'اختار موقع الأول.' })])); return Promise.resolve(); }
+    if (!site || !site.org_id) { view.appendChild(card(T('nav.team'), [el('p', { class: 'muted', text: T('team.pick_site') })])); return Promise.resolve(); }
     return DATA.team(site.org_id).then(function (t) {
       clear(view);
-      if (t.forbidden) { view.appendChild(card('الفريق', [el('p', { text: 'إدارة الفريق للمالك والمدير بس. لو محتاج حد يتضاف، كلّم مالك الحساب.' })])); return; }
+      if (t.forbidden) { view.appendChild(card(T('nav.team'), [el('p', { text: T('team.forbidden') })])); return; }
       var redraw = function () { vTeam(view); };
-      var post = function (path, body, ok) { return DATA.teamPost(path, Object.assign({ org: t.org.id }, body)).then(function (r) { if (!r.ok) { toast(r.status === 403 ? 'مالكش صلاحية على ده' : r.body.error === 'already_member' ? 'ده في الفريق أصلاً' : r.body.error === 'email' ? 'الإيميل مش مظبوط' : 'مااتحفظش. جرّب تاني.'); return null; } if (ok) toast(ok); return r.body; }); };
-      var sitesText = function (ids) { return !ids ? 'كل المواقع' : ids.map(function (id) { var c = t.sites.filter(function (x) { return x.id === id; })[0]; return c ? c.name : id; }).join('، '); };
-      view.appendChild(el('p', { class: 'simple-line', text: 'الفريق بتاع «' + t.org.name + '»: ' + t.members.length + (t.members.length === 1 ? ' شخص' : ' أشخاص') + (t.invites.length ? '، و' + t.invites.length + ' دعوة مستنية.' : '.') }));
+      var post = function (path, body, ok) { return DATA.teamPost(path, Object.assign({ org: t.org.id }, body)).then(function (r) { if (!r.ok) { toast(T(r.status === 403 ? 'team.err.role' : r.body.error === 'already_member' ? 'team.err.member' : r.body.error === 'email' ? 'team.err.email' : 'err.save')); return null; } if (ok) toast(ok); return r.body; }); };
+      var sitesText = function (ids) { return !ids ? T('team.all_sites') : ids.map(function (id) { var c = t.sites.filter(function (x) { return x.id === id; })[0]; return c ? c.name : id; }).join(T('list.sep')); };
+      view.appendChild(el('p', { class: 'simple-line', text: T('team.line', { o: t.org.name, n: LT.n(t.members.length, 'person') }) + (t.invites.length ? T('team.line.inv', { n: LT.n(t.invites.length, 'invite') }) : '.') }));
       // الأعضاء
       var tb = el('tbody');
       t.members.forEach(function (m) {
         var manage = m.role !== 'owner' && !(m.role === 'admin' && t.my_role !== 'owner');
-        var roleCell = manage ? el('select', { 'aria-label': 'الدور' }, ['admin', 'staff', 'viewer'].filter(function (r) { return r !== 'admin' || t.my_role === 'owner'; }).map(function (r) { return el('option', { value: r, text: ROLE_AR[r][0] }); })) : pill(ROLE_AR[m.role][0], m.role === 'owner' ? 'ok' : '');
-        if (manage) { roleCell.value = m.role; roleCell.addEventListener('change', function () { post('member', { user_id: m.user_id, role: roleCell.value }, 'اتغيّر الدور ✓').then(redraw); }); }
-        var rm = manage ? el('button', { class: 'btn ghost sm', type: 'button', text: 'شيل' }) : null;
-        if (rm) rm.addEventListener('click', function () { if (rm.getAttribute('data-sure') !== '1') { rm.setAttribute('data-sure', '1'); rm.textContent = 'متأكد؟'; return; } post('member', { user_id: m.user_id, remove: true }, 'اتشال من الفريق').then(redraw); });
-        var sitesCell = el('td', { 'data-l': 'المواقع' }, [document.createTextNode(m.role === 'owner' ? 'كل المواقع' : sitesText(m.site_ids))]);
-        if (manage && t.sites.length > 1) { var ed = el('button', { class: 'linkish', type: 'button', text: ' تعديل' }); ed.addEventListener('click', function () { var p = sitePicker(t.sites, m.site_ids), ok = el('button', { class: 'btn sm', type: 'button', text: 'حفظ' }); ok.addEventListener('click', function () { var v = p.value(); if (v === false) { toast('اختار موقع واحد على الأقل'); return; } post('member', { user_id: m.user_id, site_ids: v }, 'اتحفظ ✓').then(redraw); }); clear(sitesCell).appendChild(el('div', {}, [p, ok])); }); sitesCell.appendChild(ed); }
-        tb.appendChild(el('tr', {}, [el('td', { class: 'first' }, [el('b', { text: m.name || m.email }), el('div', { class: 'dim', dir: 'ltr', text: m.email + (m.you ? ' (انت)' : '') })]), el('td', { 'data-l': 'الدور' }, [roleCell]), sitesCell, el('td', { class: 'last' }, [rm])]));
+        var roleCell = manage ? el('select', { 'aria-label': T('team.h.role') }, ['admin', 'staff', 'viewer'].filter(function (r) { return r !== 'admin' || t.my_role === 'owner'; }).map(function (r) { return el('option', { value: r, text: ROLE_AR[r][0] }); })) : pill(ROLE_AR[m.role][0], m.role === 'owner' ? 'ok' : '');
+        if (manage) { roleCell.value = m.role; roleCell.addEventListener('change', function () { post('member', { user_id: m.user_id, role: roleCell.value }, T('team.role.changed')).then(redraw); }); }
+        var rm = manage ? el('button', { class: 'btn ghost sm', type: 'button', text: T('team.remove') }) : null;
+        if (rm) rm.addEventListener('click', function () { if (rm.getAttribute('data-sure') !== '1') { rm.setAttribute('data-sure', '1'); rm.textContent = T('team.sure'); return; } post('member', { user_id: m.user_id, remove: true }, T('team.removed')).then(redraw); });
+        var sitesCell = el('td', { 'data-l': T('team.h.sites') }, [document.createTextNode(m.role === 'owner' ? T('team.all_sites') : sitesText(m.site_ids))]);
+        if (manage && t.sites.length > 1) { var ed = el('button', { class: 'linkish', type: 'button', text: T('team.edit') }); ed.addEventListener('click', function () { var p = sitePicker(t.sites, m.site_ids), ok = el('button', { class: 'btn sm', type: 'button', text: T('save') }); ok.addEventListener('click', function () { var v = p.value(); if (v === false) { toast(T('team.pick_one')); return; } post('member', { user_id: m.user_id, site_ids: v }, T('saved')).then(redraw); }); clear(sitesCell).appendChild(el('div', {}, [p, ok])); }); sitesCell.appendChild(ed); }
+        tb.appendChild(el('tr', {}, [el('td', { class: 'first' }, [el('b', { text: m.name || m.email }), el('div', { class: 'dim', dir: 'ltr', text: m.email + (m.you ? ' ' + T('team.you') : '') })]), el('td', { 'data-l': T('team.h.role') }, [roleCell]), sitesCell, el('td', { class: 'last' }, [rm])]));
       });
-      view.appendChild(card('مين يدخل حسابك', [el('div', { class: 'tbl-wrap' }, [el('table', { class: 'tbl static' }, [el('thead', {}, [el('tr', {}, ['الشخص', 'الدور', 'المواقع', ''].map(function (h) { return el('th', { text: h }); }))]), tb])])]));
+      view.appendChild(card(T('team.who'), [el('div', { class: 'tbl-wrap' }, [el('table', { class: 'tbl static' }, [el('thead', {}, [el('tr', {}, [T('team.h.person'), T('team.h.role'), T('team.h.sites'), ''].map(function (h) { return el('th', { text: h }); }))]), tb])])]));
       // دعوة
       var email = el('input', { type: 'email', dir: 'ltr', placeholder: 'name@gmail.com', autocomplete: 'off' });
       var roles = ['staff', 'viewer'].concat(t.my_role === 'owner' ? ['admin'] : []);
-      var roleSel = el('div', { class: 'opts', role: 'radiogroup', 'aria-label': 'الدور' }), chosen = 'staff';
+      var roleSel = el('div', { class: 'opts', role: 'radiogroup', 'aria-label': T('team.h.role') }), chosen = 'staff';
       roles.forEach(function (r) { var i = el('input', { type: 'radio', name: 'tm-role', value: r }); i.checked = r === chosen; i.addEventListener('change', function () { chosen = r; }); roleSel.appendChild(el('label', { class: 'opt' }, [i, el('span', {}, [el('b', { text: ROLE_AR[r][0] }), el('small', { text: ROLE_AR[r][1] })])])); });
-      var picker = sitePicker(t.sites, null), send = el('button', { class: 'btn', type: 'button', text: 'ادعيه' }), result = el('div', { class: 'invite-result', hidden: '' });
+      var picker = sitePicker(t.sites, null), send = el('button', { class: 'btn', type: 'button', text: T('team.invite.send') }), result = el('div', { class: 'invite-result', hidden: '' });
       send.addEventListener('click', function () {
         var v = picker.value();
-        if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.value.trim())) { toast('اكتب إيميل جوجل صح'); return; }
-        if (v === false) { toast('اختار موقع واحد على الأقل'); return; }
+        if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.value.trim())) { toast(T('team.err.email2')); return; }
+        if (v === false) { toast(T('team.pick_one')); return; }
         send.disabled = true;
         post('invite', { email: email.value.trim(), role: chosen, site_ids: v }).then(function (b) {
           send.disabled = false; if (!b) return;
-          if (b.added) { toast('اتضاف على طول (عنده حساب عندنا) ✓'); redraw(); return; }
-          var msg = 'اتضفت لفريق «' + t.org.name + '» على Maestro LT. افتح ' + location.origin + '/login وادخل بحساب جوجل ' + email.value.trim() + ' (الدعوة صالحة 7 أيام).';
+          if (b.added) { toast(T('team.added_now')); redraw(); return; }
+          var msg = T('team.msg', { o: t.org.name, url: location.origin + '/login', e: email.value.trim() });
           clear(result); result.hidden = false;
-          var cp = el('button', { class: 'btn ghost sm', type: 'button', text: 'انسخ الرسالة' });
-          cp.addEventListener('click', function () { if (navigator.clipboard) navigator.clipboard.writeText(msg).then(function () { toast('الرسالة اتنسخت، ابعتها له'); }); });
-          result.appendChild(el('p', { text: 'ابعتله الرسالة دي على الواتساب (مابنبعتش إيميلات من عندنا):' })); result.appendChild(el('p', { class: 'msg-box', text: msg })); result.appendChild(cp);
-          toast('الدعوة اتسجلت ✓'); email.value = '';
+          var cp = el('button', { class: 'btn ghost sm', type: 'button', text: T('team.copy') });
+          cp.addEventListener('click', function () { if (navigator.clipboard) navigator.clipboard.writeText(msg).then(function () { toast(T('team.copied')); }); });
+          result.appendChild(el('p', { text: T('team.send_it') })); result.appendChild(el('p', { class: 'msg-box', text: msg })); result.appendChild(cp);
+          toast(T('team.invited')); email.value = '';
         });
       });
-      view.appendChild(card('ادعي حد', [el('label', { class: 'fld' }, [el('span', { text: 'إيميل جوجل' }), email]), el('div', { class: 'fld' }, [el('span', { text: 'الدور' }), roleSel]), t.sites.length > 1 ? el('div', { class: 'fld' }, [el('span', { text: 'يشوف أنهي مواقع' }), picker]) : null, el('div', { class: 'row-btns' }, [send]), result,
-        el('p', { class: 'hint', text: 'لازم يدخل بنفس إيميل جوجل ده. الدعوة صالحة 7 أيام ومرة واحدة.' })]));
+      view.appendChild(card(T('team.invite'), [el('label', { class: 'fld' }, [el('span', { text: T('team.email') }), email]), el('div', { class: 'fld' }, [el('span', { text: T('team.h.role') }), roleSel]), t.sites.length > 1 ? el('div', { class: 'fld' }, [el('span', { text: T('team.which_sites') }), picker]) : null, el('div', { class: 'row-btns' }, [send]), result,
+        el('p', { class: 'hint', text: T('team.invite.hint') })]));
       // دعوات مستنية
       if (t.invites.length) {
         var ul = el('ul', { class: 'team-list' });
-        t.invites.forEach(function (i) { var c = el('button', { class: 'btn ghost sm', type: 'button', text: 'إلغاء' }); c.addEventListener('click', function () { post('invite/cancel', { id: i.id }, 'الدعوة اتلغت').then(redraw); }); ul.appendChild(el('li', {}, [el('div', {}, [el('b', { dir: 'ltr', text: i.email }), el('span', { class: 'dim', text: ' · ' + ROLE_AR[i.role][0] + ' · ' + sitesText(i.site_ids) + (i.expired ? ' · انتهت' : '') })]), c])); });
-        view.appendChild(card('دعوات مستنية', [ul]));
+        t.invites.forEach(function (i) { var c = el('button', { class: 'btn ghost sm', type: 'button', text: T('cancel') }); c.addEventListener('click', function () { post('invite/cancel', { id: i.id }, T('team.inv_cancelled')).then(redraw); }); ul.appendChild(el('li', {}, [el('div', {}, [el('b', { dir: 'ltr', text: i.email }), el('span', { class: 'dim', text: ' · ' + ROLE_AR[i.role][0] + ' · ' + sitesText(i.site_ids) + (i.expired ? ' · ' + T('team.expired') : '') })]), c])); });
+        view.appendChild(card(T('team.pending'), [ul]));
       }
     });
   }
   // كل المواقع ولا مواقع معيّنة. value(): null = كل المواقع · [ids] · false لو اختار «معيّنة» ومااختارش
   function sitePicker(sites, init) {
     var mode = init ? 'some' : 'all', picked = (init || []).slice(), list = el('div', { class: 'scope-list' }), nm = 'sp' + Math.random().toString(36).slice(2, 7);
-    var modes = el('div', { class: 'scope-modes' }, [['all', 'كل المواقع'], ['some', 'مواقع معيّنة']].map(function (x) { var r = el('input', { type: 'radio', name: nm, value: x[0] }); r.checked = mode === x[0]; r.addEventListener('change', function () { mode = x[0]; draw(); }); return el('label', { class: 'ck-in' }, [r, el('span', { text: x[1] })]); }));
+    var modes = el('div', { class: 'scope-modes' }, [['all', T('team.all_sites')], ['some', T('team.some_sites')]].map(function (x) { var r = el('input', { type: 'radio', name: nm, value: x[0] }); r.checked = mode === x[0]; r.addEventListener('change', function () { mode = x[0]; draw(); }); return el('label', { class: 'ck-in' }, [r, el('span', { text: x[1] })]); }));
     function draw() { clear(list); list.hidden = mode === 'all'; sites.forEach(function (c) { var k = el('input', { type: 'checkbox', value: c.id }); k.checked = picked.indexOf(c.id) >= 0; k.addEventListener('change', function () { var i = picked.indexOf(c.id); if (k.checked && i < 0) picked.push(c.id); if (!k.checked && i >= 0) picked.splice(i, 1); }); list.appendChild(el('label', { class: 'ck-in' }, [k, el('span', { text: c.name + (c.domain ? ' · ' + c.domain : '') })])); }); }
     var box = el('div', { class: 'scope' }, [modes, list]); draw();
     box.value = function () { return mode === 'all' ? null : picked.length ? picked.slice() : false; };
