@@ -192,7 +192,7 @@ export async function dashLeads(req, env, db, sess, url) {
   // قوة التواصل (تقديري): آخر «رجع للصفحة» لكل كود
   const rets = (await db.select('raw_events?client_id=' + eq(site.id) + '&event=eq.contact_return&received_at=gte.' + encodeURIComponent(since) + '&select=match_code,payload,received_at&order=received_at.asc&limit=2000').catch(() => [])) || [];
   const strength = new Map();
-  for (const r of rets) if (r.match_code) strength.set(r.match_code, contactStrength((r.payload || {}).away_seconds, (r.payload || {}).app_opened, langOf(url.searchParams.get('lang'))));
+  for (const r of rets) if (r.match_code) strength.set(r.match_code, contactStrength((r.payload || {}).away_seconds, (r.payload || {}).app_opened, langOf(url.searchParams.get('lang')), (r.payload || {}).click_type || (r.payload || {}).ct));
   return json({ ok: true, leads: list.map((l) => ({ strength: l.match_code && strength.has(l.match_code) ? strength.get(l.match_code) : null, outside: l.outside, outside_note: l.outside_note || '', at: l.at, time: l.event_time, type: l.click_type, code: l.match_code || null, btn: l.btn_text || '', source: l.source_fine || l.source || 'direct', detail: l.source_detail || '', city: l.city || '', region: l.region || '', session: l.session_id || null, outcome: l.outcome || '', outcome_at: l.outcome_at || null })) });
 }
 
