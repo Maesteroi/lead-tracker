@@ -330,7 +330,7 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
   t('demo simple: "install on your phone" explains iPhone and Android', /آيفون/.test(await pg.locator('#d-body').innerText()) && /أندرويد/.test(await pg.locator('#d-body').innerText()));
   await pg.keyboard.press('Escape');
   await shot(pg, 'demo-0-simple');
-  await pg.locator('#level').getByRole('button', { name: 'تفصيلي' }).click();
+  await pg.locator('#level').getByRole('button', { name: 'احترافي' }).click();
   await pg.waitForSelector('.kpis .kpi');
   t('demo: switching to detailed shows the full menu (9)', (await pg.locator('.side-nav a').count()) === 9);
   t('demo: overview shows the 6 KPI cards, the status strip and the action cards', (await pg.locator('.kpis .kpi').count()) === 6 && /الحماية شغالة/.test(await pg.locator('.status-strip').innerText()) && (await pg.locator('.act').count()) >= 2);
@@ -382,7 +382,7 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
   await pg.waitForFunction(() => document.getElementById('page-title').textContent === 'المواقع والتركيب');
   t('demo mobile: "more" opens the other screens', await pg.locator('#drawer').isHidden() && (await pg.locator('.checks').count()) === 6);
   await pg.locator('.bottom-nav .more').click();
-  await pg.locator('.more-link', { hasText: 'اعرض التفاصيل' }).click();
+  await pg.locator('.more-link', { hasText: 'العرض الاحترافي' }).click();
   await pg.waitForFunction(() => document.querySelectorAll('.bottom-nav a').length === 4 && document.querySelector('.bottom-nav a[data-r="statement"]'));
   t('demo mobile: "show details" switches the bottom bar to the detailed screens', true);
   await pg.goto('https://app.maestrolt.com/demo#/overview'); await pg.waitForSelector('.kpis .kpi');
@@ -403,7 +403,7 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
   await pg.goto('https://app.maestrolt.com/demo');
   await pg.waitForSelector('.answers .ans');
   t('agency: simple level hides the agency screens from the menu', (await pg.locator('.side-nav a[data-r="clients"], .side-nav a[data-r="reports"]').count()) === 0);
-  await pg.locator('#level').getByRole('button', { name: 'تفصيلي' }).click();
+  await pg.locator('#level').getByRole('button', { name: 'احترافي' }).click();
   await pg.locator('.side-nav a[data-r="clients"]').click();
   await pg.waitForFunction(() => document.getElementById('page-title').textContent === 'كل العملاء' && document.querySelector('#view .tbl tbody tr'));
   t('clients: every client in one table (6) with totals, site picker hidden', (await pg.locator('#view .tbl tbody tr').count()) === 6 && (await pg.locator('.kpis .kpi').count()) === 6 && await pg.locator('#site').isHidden());
@@ -434,7 +434,7 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
   t('reports: the agency name and logo show in the report (logo stays in the browser)', (await pg.locator('.rd-logo').getAttribute('src')).startsWith('data:image/png;base64,'));
   await pg.locator('.ck-in', { hasText: 'كشف الحساب' }).locator('input').uncheck();
   t('reports: unticking a section removes it from the report', !(await pg.locator('.report-doc h3').allInnerTexts()).includes('كشف الحساب'));
-  await pg.locator('.rep-form').getByRole('button', { name: 'تفصيلي', exact: true }).click();
+  await pg.locator('.rep-form').getByRole('button', { name: 'احترافي', exact: true }).click();
   await pg.waitForFunction(() => document.querySelectorAll('.rd-kpis > div').length === 6);
   t('reports: the detailed report shows more numbers (6 vs 3)', true);
   await pg.getByRole('button', { name: 'ابعته أوتوماتيك' }).click();
@@ -459,7 +459,7 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
   t('live: the checklist marks what is coming as "قريباً"', (await pg.locator('.steps-check li.soon').count()) >= 2);
   t('live: the dashboard calls the real endpoints with the site', (api.dashCalls || []).some((c) => c.startsWith('/v1/dash/overview?site=SiteId123456')));
   await shot(pg, 'live-simple');
-  await pg.locator('#level').getByRole('button', { name: 'تفصيلي' }).click();
+  await pg.locator('#level').getByRole('button', { name: 'احترافي' }).click();
   await pg.waitForSelector('.kpis .kpi');
   t('live detailed: visits, contacts, conversion, customers, delivery KPIs and a single-series chart', /60/.test(await pg.locator('.kpis').innerText()) && /99.8%/.test(await pg.locator('.kpis').innerText()) && (await pg.locator('.chart-legend .lg').count()) === 1);
   t('live detailed: sources and cities come from the server', /إعلان جوجل/.test(await pg.locator('#view').innerText()) && /Riyadh/.test(await pg.locator('#view').innerText()));
@@ -499,7 +499,7 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
   await pg.waitForSelector('.answers .ans');
   t('scoring simple: the owner is told how many visits look fake, in plain words', /10 زيارة مشبوهة/.test(await pg.locator('.answers').innerText()) && /2 مستنيين رأيك/.test(await pg.locator('.answers').innerText()));
   const actTxt = await pg.locator('.actions').innerText(); t('scoring simple: the first thing to do is to review the suspicious visits', /2 زيارات مشبوهة مستنية رأيك/.test(actTxt)); if (!/2 زيارات مشبوهة/.test(actTxt)) console.log(actTxt);
-  await pg.locator('#level').getByRole('button', { name: 'تفصيلي' }).click();
+  await pg.locator('#level').getByRole('button', { name: 'احترافي' }).click();
   await pg.waitForSelector('.kpis .kpi');
   t('scoring overview: real / suspicious KPIs and a 3-series quality chart (real · suspicious · high risk)', /حقيقي/.test(await pg.locator('.kpis').innerText()) && /4 منهم خطر عالي/.test(await pg.locator('.kpis').innerText()) && (await pg.locator('.chart-legend .lg').count()) === 3);
   t('scoring overview: the most suspicious visits show their reasons in Arabic', /متصفح شغّال آلياً/.test(await pg.locator('#view').innerText()));
@@ -535,6 +535,28 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
   if (pg.errors.length || pg.csp.length) console.log(pg.errors, pg.csp);
   await pg.context().close(); }
 
+// 16ب) نفس الشاشات في العرض المبسّط: جملة واضحة فوق، والتفاصيل مستخبية (محمود 12 نوفمبر)
+{ const api = fakeApi({ signedIn: true, scoring: true, sites: [{ id: 'SiteId123456', name: 'شادو', domains: ['shado.example'], paired: true }] });
+  const pg = await page(api, { viewport: { width: 1440, height: 900 } });
+  await pg.goto('https://app.maestrolt.com/#/protection');
+  await pg.waitForFunction(() => document.getElementById('page-title').textContent === 'الحماية' && document.querySelector('#view .q-item'));
+  t('simple protection: one plain sentence, no KPI grid, no reasons chart, no decided list', /من 60 زيارة، 10 شكلها مش طبيعي/.test(await pg.locator('.simple-line').innerText()) && await pg.locator('#view .kpis').isHidden() && await pg.locator('#view .callout').isHidden() && (await pg.locator('#view .q-item').count()) === 2);
+  t('simple protection: one reason per suspicious visit (the rest in the professional view)', (await pg.locator('#view .q-item').first().locator('.why li:visible').count()) === 1);
+  await shot(pg, 'live-protection-simple');
+  await pg.locator('#level').getByRole('button', { name: 'احترافي' }).click();
+  await pg.waitForSelector('#view .kpis .kpi');
+  t('professional protection: KPIs and all reasons back, sentence hidden', await pg.locator('#view .kpis').isVisible() && await pg.locator('#view .simple-line').isHidden() && (await pg.locator('#view .q-item').first().locator('.why li:visible').count()) === 2);
+  await pg.locator('#level').getByRole('button', { name: 'مبسّط' }).click();
+  await pg.goto('https://app.maestrolt.com/#/leads');
+  await pg.waitForFunction(() => document.getElementById('page-title').textContent === 'العملاء الحقيقيين' && document.querySelector('#view .tbl tbody tr'));
+  t('simple leads: one sentence (contacts · agreed · waiting · outside), no KPI grid, no source column', /كلّمك 1 \(2 واتساب/.test(await pg.locator('.simple-line').innerText()) && /بره البلد/.test(await pg.locator('.simple-line').innerText()) && await pg.locator('#view .kpis').isHidden() && await pg.locator('#view .tbl th', { hasText: 'المصدر' }).isHidden());
+  await shot(pg, 'live-leads-simple');
+  await pg.goto('https://app.maestrolt.com/#/visits');
+  await pg.waitForFunction(() => document.getElementById('page-title').textContent === 'الزيارات' && document.querySelector('#view .tbl tbody tr'));
+  t('simple visits: device, network and score columns hidden', await pg.locator('#view .tbl th', { hasText: 'الشبكة' }).isHidden() && await pg.locator('#view .tbl th', { hasText: 'الدرجة' }).isHidden() && await pg.locator('#view .tbl th', { hasText: 'الحالة' }).isVisible());
+  t('simple views: no console errors and no CSP violations', pg.errors.length === 0 && pg.csp.length === 0);
+  await pg.context().close(); }
+
 // 17) «▶ شوف الزيارة»: تسجيل حقيقي بـ rrweb (نفس ملف البلجن) ← المشغّل بصفحة الموقع الحقيقية، والكتابة متخبية
 { const rec = await browser.newContext({ viewport: { width: 390, height: 700 } }); const rp = await rec.newPage();
   const RR = fs.readFileSync(path.join(PUB, '../../plugin/lead-tracker-pro/assets/rrweb-record.min.js'), 'utf8');
@@ -560,6 +582,9 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
   t('replay page: the player rebuilds the real page of the site (its heading) inside the frame', (await frame.locator('#h').count()) === 1 && /شادو ديزاين للديكور/.test(await frame.locator('#h').innerText()));
   t('replay page: the typed text is not in the replay', !(await pg.content()).includes('secret-0555') && (await frame.locator('#name').inputValue().catch(() => '')) !== 'secret-0555');
   t('replay page: the verdict and the Arabic reasons sit beside the video', /خطر عالي/.test(await pg.locator('#rp-verdict').innerText()) && /بوت/.test(await pg.locator('#rp-verdict').innerText()));
+  t('replay page, simple view (business account): the visit told in one plain sentence; moments and details hidden', await pg.locator('#rp-story').isVisible() && /زائر من Santa Clara جه من إعلان جوجل، قعد \d+ ثانية وضغط \d+ (مرة|مرات)، وماكلّمكش\./.test(await pg.locator('#rp-story').innerText()) && await pg.locator('#rp-marks').isHidden() && await pg.locator('#rp-facts').isHidden());
+  await pg.locator('#level').getByRole('button', { name: 'احترافي' }).click();
+  t('replay page: switching to the professional view shows the moments and details and hides the sentence', await pg.locator('#rp-marks').isVisible() && await pg.locator('#rp-facts').isVisible() && await pg.locator('#rp-story').isHidden());
   t('replay page: key moments (page opened · clicks) listed from the recording itself', (await pg.locator('#rp-marks .rp-mark').count()) >= 2 && /فتح صفحة الرئيسية/.test(await pg.locator('#rp-marks').innerText()) && /ضغط/.test(await pg.locator('#rp-marks').innerText()));
   await pg.locator('#rp-marks .rp-mark.k-click').last().click();
   await pg.waitForTimeout(400);
@@ -571,6 +596,9 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
   t('replay page: the verdict can be given from beside the video', api.verdictCalls.length === 1 && api.verdictCalls[0].sid === 'BOT1' && api.verdictCalls[0].verdict === 'fraud');
   t('replay page: no console errors and no CSP violations', pg.errors.length === 0 && pg.csp.length === 0);
   if (pg.errors.length || pg.csp.length) console.log(pg.errors, pg.csp);
+  await pg.goto('https://app.maestrolt.com/?site=SiteId123456#/visits');
+  await pg.waitForSelector('#level [aria-pressed="true"]');
+  t('the choice is shared: back on the dashboard it is still the professional view', (await pg.locator('#level [aria-pressed="true"]').innerText()) === 'احترافي');
   await pg.goto('https://app.maestrolt.com/replay?site=SiteId123456&sid=NOPE1234');
   await pg.waitForSelector('#player .callout');
   t('replay page: a visit with no recording says so plainly', /مفيش تسجيل للزيارة دي/.test(await pg.locator('#player').innerText()));

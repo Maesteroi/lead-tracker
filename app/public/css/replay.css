@@ -30,3 +30,5 @@
 
 .rp-player .rr-controller__btns { direction: ltr; }
 .rp-player .rr-controller__btns .switch label { font-size: 12px; }
+.rp-level { margin-inline-start: auto; }
+.rp-stage .simple-line { margin: 0 0 12px; }

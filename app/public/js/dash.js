@@ -85,7 +85,7 @@
       a.addEventListener('click', closeDrawer);
       body.appendChild(a);
     });
-    var sw = el('button', { class: 'more-link', type: 'button' }, [icon('more'), el('span', { text: state.level === 'simple' ? 'اعرض التفاصيل (للمتخصصين والوكالات)' : 'ارجع للعرض البسيط' })]);
+    var sw = el('button', { class: 'more-link', type: 'button' }, [icon('more'), el('span', { text: state.level === 'simple' ? 'العرض الاحترافي (كل الأرقام والجداول)' : 'العرض المبسّط (الخلاصة بس)' })]);
     sw.addEventListener('click', function () { closeDrawer(); setLevel(state.level === 'simple' ? 'detailed' : 'simple'); });
     body.appendChild(sw);
     openDrawer();
@@ -99,7 +99,7 @@
     sel.value = state.site;
     sel.onchange = function () { state.site = sel.value; render(); };
     var lvl = clear($('level'));
-    [['simple', 'بسيط'], ['detailed', 'تفصيلي']].forEach(function (x) {
+    [['simple', 'مبسّط'], ['detailed', 'احترافي']].forEach(function (x) {
       var b = el('button', { type: 'button', 'aria-pressed': String(state.level === x[0]), text: x[1], title: x[0] === 'simple' ? 'الخلاصة بس، بكلام بسيط' : 'كل الأرقام والجداول (للمتخصصين والوكالات)' });
       b.addEventListener('click', function () { if (state.level !== x[0]) setLevel(x[0]); });
       lvl.appendChild(b);
@@ -114,6 +114,8 @@
   function route() { var h = (location.hash || '').replace(/^#\//, ''); return ROUTES.some(function (r) { return r[0] === h; }) ? h : 'overview'; }
   function render() {
     var r = route(), view = clear($('view'));
+    document.body.classList.toggle('level-simple', state.level === 'simple');
+    document.body.classList.toggle('level-detailed', state.level !== 'simple');
     Array.prototype.forEach.call(document.querySelectorAll('[data-r]'), function (a) { if (a.getAttribute('data-r') === r) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
     var title = ROUTES.filter(function (x) { return x[0] === r; })[0][1];
     $('page-title').textContent = title;
@@ -318,10 +320,10 @@
           var tr = el('tr', { tabindex: '0' }, [
             el('td', { class: 'first' }, [el('div', { class: 'acc-name', text: placeOf(v) }), el('span', { class: 'dim', text: timeAr(v.at) }), v.replay ? replayLink(v) : null]),
             el('td', { 'data-l': 'المصدر' }, [el('div', { text: srcName(v.src) }), v.kw ? el('span', { class: 'dim', text: '«' + v.kw + '»' }) : null]),
-            el('td', { 'data-l': 'الجهاز', text: v.device + (v.os ? ' · ' + v.os : '') }),
-            el('td', { 'data-l': 'الشبكة', text: v.net ? NET[v.net] : shortIsp(v.isp) }),
+            el('td', { 'data-l': 'الجهاز', class: 'pro-only', text: v.device + (v.os ? ' · ' + v.os : '') }),
+            el('td', { 'data-l': 'الشبكة', class: 'pro-only', text: v.net ? NET[v.net] : shortIsp(v.isp) }),
             el('td', { 'data-l': 'التفاعل', text: v.pages + ' صفحة' + (v.dur == null ? '' : ' · ' + (v.dur < 60 ? v.dur + 'ث' : Math.round(v.dur / 60) + 'د')) + (v.contact ? ' · ' + (v.contact === 'wa' ? '💬' : '📞') : '') }),
-            el('td', { 'data-l': 'الدرجة' }, [v.score == null ? el('span', { class: 'dim', text: '—', title: 'التقييم بيشتغل مع الحماية' }) : scoreBadge(v)]),
+            el('td', { 'data-l': 'الدرجة', class: 'pro-only' }, [v.score == null ? el('span', { class: 'dim', text: '—', title: 'التقييم بيشتغل مع الحماية' }) : scoreBadge(v)]),
             el('td', { 'data-l': 'الحالة' }, [v.live ? livePill(v) : pill(STATUS[v.status][0], STATUS[v.status][1])]),
           ]);
           tr.addEventListener('click', function () { openVisit(v); });
@@ -334,7 +336,7 @@
       draw();
       view.appendChild(el('div', { class: 'status-strip' }, [el('span', { class: 'st live-now' }, [el('i', { class: 'dot live' }), document.createTextNode(live + ' زيارة في آخر 10 دقايق')]), el('span', { class: 'hint', text: 'دوس على أي زيارة تشوف رحلتها بالثانية، وليه اتحكم عليها كده.' })]));
       view.appendChild(card('', [el('div', { class: 'sec-head' }, [el('h2', { text: 'كل زيارة' }), tools]),
-        el('div', { class: 'tbl-wrap' }, [el('table', { class: 'tbl' }, [el('thead', {}, [el('tr', {}, ['المكان والوقت', 'المصدر', 'الجهاز', 'الشبكة', 'التفاعل', 'الدرجة', 'الحالة'].map(function (h) { return el('th', { text: h }); }))]), tbody])]), moreBtn]));
+        el('div', { class: 'tbl-wrap' }, [el('table', { class: 'tbl' }, [el('thead', {}, [el('tr', {}, ['المكان والوقت', 'المصدر', 'الجهاز', 'الشبكة', 'التفاعل', 'الدرجة', 'الحالة'].map(function (h) { return el('th', { text: h, class: h === 'الجهاز' || h === 'الشبكة' || h === 'الدرجة' ? 'pro-only' : '' }); }))]), tbody])]), moreBtn]));
     });
   }
   // حالة الزيارة الحقيقية: حكمك الأول، بعدين الدرجة، بعدين «بره النطاق»، بعدين التواصل
@@ -479,7 +481,9 @@
     return DATA.leads(state.site, state.range).then(function (d) {
       clear(view);
       var L = d.list, won = L.filter(function (l) { return l.outcome === 'تم'; }).length, open = L.filter(function (l) { return !l.outcome && !l.outside; }).length;
-      view.appendChild(el('div', { class: 'kpis four' }, [
+      var wa = L.filter(function (l) { return l.type === 'wa'; }).length, out = L.filter(function (l) { return l.outside; }).length;
+      view.appendChild(el('p', { class: 'simple-only simple-line' }, [document.createTextNode('كلّمك '), el('b', { text: fmt(L.length - out) }), document.createTextNode(' (' + fmt(wa) + ' واتساب · ' + fmt(L.length - wa) + ' اتصال)، و'), el('b', { text: fmt(won) }), document.createTextNode(' اتفقوا معاك.' + (open ? ' فاضل ' + fmt(open) + ' مستنيين تسجيل النتيجة تحت.' : '') + (out ? ' و' + fmt(out) + ' من بره البلد اللي بتستهدفه.' : ''))]));
+      view.appendChild(el('div', { class: 'kpis four pro-only' }, [
         kpi('تواصل', fmt(L.length), fmt(L.filter(function (l) { return l.type === 'wa'; }).length) + ' واتساب · ' + fmt(L.filter(function (l) { return l.type === 'call'; }).length) + ' اتصال', 'info'),
         kpi('اتفقوا', fmt(won), pct(won, L.length) + '% من التواصل', 'ok'),
         kpi('تكلفة العميل الحقيقي', won && d.cost != null ? money(d.cost / won, d.currency) : '—', d.cost == null ? 'بعد ربط جوجل أدز' : 'الصرف ÷ اللي اتفقوا', 'ok'),
@@ -505,7 +509,7 @@
         });
         tb.appendChild(el('tr', {}, [
           el('td', { class: 'first' }, [el('b', { text: (l.type === 'wa' ? '💬 واتساب' : '📞 اتصال') + ' · كود #' + l.code }), el('div', { class: 'dim', text: timeAr(l.at) })]),
-          el('td', { 'data-l': 'المصدر' }, [el('div', { text: srcName(l.src) }), l.kw ? el('span', { class: 'dim', text: '«' + l.kw + '»' }) : null]),
+          el('td', { 'data-l': 'المصدر', class: 'pro-only' }, [el('div', { text: srcName(l.src) }), l.kw ? el('span', { class: 'dim', text: '«' + l.kw + '»' }) : null]),
           el('td', { 'data-l': 'المكان', text: l.city + (l.district ? ' · ' + l.district : '') }),
           el('td', { 'data-l': 'النتيجة' }, [sel]),
         ]));
@@ -513,11 +517,11 @@
       };
       moreL.addEventListener('click', function () { shownL += 25; drawL(); });
       drawL();
-      view.appendChild(el('div', { class: 'grid-2' }, [
+      view.appendChild(el('div', { class: 'grid-2 pro-only' }, [
         card('النتايج', [ch, el('p', { class: 'hint', text: 'النتيجة بتتسجل بضغطة من رسالة تليجرام اللي بتوصلك مع كل تواصل.' })]),
         card('ليه ده مهم', [el('p', { text: 'المنافسين بيعدّوا الضغطات. إحنا بنعدّ العملاء اللي اتفقوا فعلاً، فتعرف كل كلمة جابتلك كام عميل حقيقي، وبكام.' })]),
       ]));
-      view.appendChild(card('كل تواصل', [el('div', { class: 'tbl-wrap' }, [el('table', { class: 'tbl static' }, [el('thead', {}, [el('tr', {}, ['التواصل', 'المصدر', 'المكان', 'النتيجة'].map(function (h) { return el('th', { text: h }); }))]), tb])]), moreL]));
+      view.appendChild(card('كل تواصل', [el('div', { class: 'tbl-wrap' }, [el('table', { class: 'tbl static' }, [el('thead', {}, [el('tr', {}, ['التواصل', 'المصدر', 'المكان', 'النتيجة'].map(function (h) { return el('th', { text: h, class: h === 'المصدر' ? 'pro-only' : '' }); }))]), tb])]), moreL]));
     });
   }
 
@@ -565,7 +569,7 @@
           extra.push(b, out);
         }
         view.appendChild(card(s.name, [el('p', { class: 'acc-sub', text: s.domain }), el('ul', { class: 'checks' }, rows.map(function (r) { return el('li', { class: r[1] === null ? 'soon' : r[1] ? 'ok' : 'warn' }, [el('i', { class: 'ck', text: r[1] === null ? '…' : r[1] ? '✓' : '!' }), el('b', { text: r[0] }), el('span', { text: r[2] })]); })),
-          s.delivery.length ? el('details', { class: 'more-d' }, [el('summary', { text: 'التوصيل يوم بيوم' }), spark]) : null].concat(extra)));
+          s.delivery.length ? el('details', { class: 'more-d pro-only' }, [el('summary', { text: 'التوصيل يوم بيوم' }), spark]) : null].concat(extra)));
       });
       var add = el('button', { class: 'btn', type: 'button', text: '+ أضف موقع' }); add.addEventListener('click', function () { toast('افتح البلجن على موقعك واضغط «اربط بـ Maestro LT»، والموقع هيظهر هنا'); });
       view.appendChild(add);
@@ -680,7 +684,7 @@
     var drawSegs = function () {
       clear(segR); clear(segL);
       [[7, 'أسبوعي'], [30, 'شهري']].forEach(function (x) { var b = el('button', { type: 'button', 'aria-pressed': String(rep.range === x[0]), text: x[1] }); b.addEventListener('click', function () { rep.range = x[0]; drawSegs(); redraw(); }); segR.appendChild(b); });
-      [['simple', 'بسيط (لصاحب البزنس)'], ['detailed', 'تفصيلي']].forEach(function (x) { var b = el('button', { type: 'button', 'aria-pressed': String(rep.level === x[0]), text: x[1] }); b.addEventListener('click', function () { rep.level = x[0]; drawSegs(); redraw(); }); segL.appendChild(b); });
+      [['simple', 'مبسّط (لصاحب البزنس)'], ['detailed', 'احترافي']].forEach(function (x) { var b = el('button', { type: 'button', 'aria-pressed': String(rep.level === x[0]), text: x[1] }); b.addEventListener('click', function () { rep.level = x[0]; drawSegs(); redraw(); }); segL.appendChild(b); });
     };
     drawSegs();
     var name = el('input', { type: 'text', maxlength: '60' }); name.value = rep.name; name.addEventListener('input', function () { rep.name = name.value; redraw(); });
@@ -809,7 +813,7 @@
     open.addEventListener('click', function () { openLiveVisit(v, done); });
     var why = v.reasons.filter(function (r) { return r.indexOf('انت ') !== 0; });
     return el('div', { class: 'q-item' }, [
-      el('div', { class: 'q-main' }, [el('div', {}, [el('b', { text: placeOf(v) }), el('span', { class: 'dim', text: ' · ' + timeAr(v.at) + ' · ' + srcName(v.src) + (v.dur != null ? ' · ' + v.dur + 'ث' : '') })]), el('ul', { class: 'why sm' }, why.slice(0, 3).map(function (r) { return el('li', { text: r }); }))]),
+      el('div', { class: 'q-main' }, [el('div', {}, [el('b', { text: placeOf(v) }), el('span', { class: 'dim', text: ' · ' + timeAr(v.at) + ' · ' + srcName(v.src) + (v.dur != null ? ' · ' + v.dur + 'ث' : '') })]), el('ul', { class: 'why sm' }, why.slice(0, 3).map(function (r, i) { return el('li', { text: r, class: i ? 'pro-only' : '' }); }))]),
       el('div', { class: 'q-act' }, [scoreBadge(v), v.verdict ? livePill(v) : null, v.verdict ? null : real, v.verdict ? null : bad, v.replay ? replayLink(v) : null, open]),
     ]);
   }
@@ -863,8 +867,9 @@
         return;
       }
       var st = p.stats, bad = st.suspicious + st.high;
-      view.appendChild(el('div', { class: 'callout' }, [el('b', { text: 'الحماية بتراقب كل زيارة (آخر 7 أيام)' }), el('span', { text: 'مابنحظرش حد لوحدنا: كل زيارة مشبوهة بتستنى رأيك. لما تربط جوجل أدز، اللي تأكد إنه مشبوه هيتمنع من إعلانك جوه جوجل نفسه.' })]));
-      view.appendChild(el('div', { class: 'kpis four' }, [
+      view.appendChild(el('p', { class: 'simple-only simple-line' }, [document.createTextNode('آخر 7 أيام: من '), el('b', { text: fmt(st.all) }), document.createTextNode(' زيارة، '), el('b', { text: fmt(bad) }), document.createTextNode(bad ? ' شكلها مش طبيعي.' : ' مشبوهة. كله طبيعي ✓'), document.createTextNode(p.pending.length ? ' قولنا رأيك في ' + (p.pending.length === 1 ? 'الزيارة اللي تحت' : 'الزيارات اللي تحت') + ': زبون حقيقي ولا مشبوه؟' : '')]));
+      view.appendChild(el('div', { class: 'callout pro-only' }, [el('b', { text: 'الحماية بتراقب كل زيارة (آخر 7 أيام)' }), el('span', { text: 'مابنحظرش حد لوحدنا: كل زيارة مشبوهة بتستنى رأيك. لما تربط جوجل أدز، اللي تأكد إنه مشبوه هيتمنع من إعلانك جوه جوجل نفسه.' })]));
+      view.appendChild(el('div', { class: 'kpis four pro-only' }, [
         kpi('زيارات اتراجعت', fmt(st.all), 'كل زيارة خدت درجة من 100', 'info'),
         kpi('مشبوه', fmt(bad), fmt(st.high) + ' منهم خطر عالي', bad ? 'warn' : 'mute'),
         kpi('من الإعلان', fmt(st.ad_sessions), st.ad_sessions ? fmt(st.ad_bad) + ' مشبوهة (' + pct(st.ad_bad, st.ad_sessions) + '%)' : 'مفيش زيارات من إعلان', st.ad_bad ? 'warn' : 'ok'),
@@ -872,12 +877,15 @@
       ]));
       if (p.reasons.length) {
         var rc = el('div'); C.hbars(rc, p.reasons.map(function (r) { return { label: r.name, value: r.n, cls: 'c-sus' }; }), { compact: true });
-        view.appendChild(card('ليه اشتبهنا (أكتر الأسباب)', [rc]));
+        view.appendChild(card('ليه اشتبهنا (أكتر الأسباب)', [rc], 'pro-only'));
       }
       var redraw = function () { lProtection(view); };
       var q = el('div', { class: 'queue' });
       if (!p.pending.length) q.appendChild(el('p', { class: 'muted', text: 'مفيش حاجة مستنية رأيك. ✓' }));
-      p.pending.forEach(function (v) { q.appendChild(suspectItem(v, redraw)); });
+      // المبسّط: أهم 5 بس، والباقي بزرار
+      var simple = state.level === 'simple', firstN = simple ? 5 : p.pending.length;
+      p.pending.slice(0, firstN).forEach(function (v) { q.appendChild(suspectItem(v, redraw)); });
+      if (p.pending.length > firstN) { var more = el('button', { class: 'btn ghost sm more-rows', type: 'button', text: 'اعرض الباقي (' + fmt(p.pending.length - firstN) + ')' }); more.addEventListener('click', function () { more.remove(); p.pending.slice(firstN).forEach(function (v) { q.appendChild(suspectItem(v, redraw)); }); }); q.appendChild(more); }
       view.appendChild(card('مستنيين رأيك', [el('p', { class: 'hint', text: 'كل زيارة معاها الأسباب. «ده زبون حقيقي» بيعلّم النظام، و«مشبوه أكيد» بيجهّزها للحظر لما جوجل أدز يتربط.' }), q]));
       if (p.decided.length) {
         var dq = el('div', { class: 'queue' });
@@ -886,9 +894,9 @@
           back.addEventListener('click', function () { setVerdict(v, null, redraw); });
           dq.appendChild(el('div', { class: 'q-item' }, [el('div', { class: 'q-main' }, [el('b', { text: placeOf(v) }), el('span', { class: 'dim', text: ' · ' + timeAr(v.at) + ' · ' + srcName(v.src) })]), el('div', { class: 'q-act' }, [livePill(v), back])]));
         });
-        view.appendChild(card('اللي حكمت عليه', [dq]));
+        view.appendChild(card('اللي حكمت عليه', [dq], 'pro-only'));
       }
-      view.appendChild(soonCard('جاي مع ربط جوجل أدز', ['«اعتمد لجوجل»: الجهاز المشبوه مايشوفش إعلانك تاني', 'أجهزتك (ضغطاتك مابتتحسبش)', 'ملف الاسترداد من جوجل بالأدلة']));
+      var sc = soonCard('جاي مع ربط جوجل أدز', ['«اعتمد لجوجل»: الجهاز المشبوه مايشوفش إعلانك تاني', 'أجهزتك (ضغطاتك مابتتحسبش)', 'ملف الاسترداد من جوجل بالأدلة']); sc.classList.add('pro-only'); view.appendChild(sc);
     });
   }
   var LIVE_VIEWS = { overview: lOverview, statement: lStatement, protection: lProtection };

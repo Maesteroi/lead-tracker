@@ -287,3 +287,7 @@ button.switch[aria-checked="true"]::after { inset-inline-start: 21px; }
 .rp-link:hover, .rp-link:focus-visible { text-decoration: underline; }
 .rp-cta { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 14px; }
 .rp-open { text-decoration: none; }
+/* العرض المبسّط / الاحترافي (محمود 12 نوفمبر): نفس الشاشة، والتفاصيل بتستخبى في المبسّط */
+body.level-simple .pro-only, body.level-detailed .simple-only { display: none !important; }
+.simple-line { font-size: 17px; line-height: 1.8; margin: 0 0 14px; }
+.simple-line b { font-family: var(--font-head); }

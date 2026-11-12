@@ -95,11 +95,37 @@
     } catch (e) { fail('مقدرناش نشغّل التسجيل'); }
   }
 
+  // مبسّط / احترافي: نفس اختيار اللوحة (sessionStorage، نفس المفتاح)
+  var level = 'simple';
+  try { var lv = sessionStorage.getItem('lt_level'); if (lv === 'simple' || lv === 'detailed') level = lv; } catch (e) { /* عادي */ }
+  function applyLevel() {
+    document.body.classList.toggle('level-simple', level === 'simple');
+    document.body.classList.toggle('level-detailed', level !== 'simple');
+    var seg = clear($('level'));
+    [['simple', 'مبسّط'], ['detailed', 'احترافي']].forEach(function (x) {
+      var b = el('button', { type: 'button', 'aria-pressed': String(level === x[0]), text: x[1] });
+      b.addEventListener('click', function () { level = x[0]; try { sessionStorage.setItem('lt_level', level); } catch (e) { /* عادي */ } applyLevel(); });
+      seg.appendChild(b);
+    });
+  }
+  // الحكاية في سطر (للمبسّط)
+  function story(v, d) {
+    var dur = d.events.length > 1 ? Math.round((d.events[d.events.length - 1].timestamp - d.events[0].timestamp) / 1000) : 0;
+    var who = v && v.city ? 'زائر من ' + v.city : 'زائر';
+    var from = v ? (SRC[v.source] || 'مصدر تاني') + (v.detail ? ' (بكلمة «' + v.detail + '»)' : '') : '';
+    var clicks = d.events.filter(function (e) { return e.type === 3 && e.data && e.data.source === 2 && (e.data.type === 2 || e.data.type === 9); }).length;
+    var txt = who + (from ? ' جه من ' + from : '') + '، قعد ' + (dur < 60 ? dur + ' ثانية' : Math.round(dur / 60) + ' دقيقة') + (clicks ? ' وضغط ' + clicks + (clicks === 1 ? ' مرة' : ' مرات') : ' ومالمسش حاجة') + (v && v.contact ? '، وكلّمك ' + (v.contact.indexOf('wa') >= 0 ? 'واتساب' : 'اتصال') + '.' : '، وماكلّمكش.');
+    $('rp-story').textContent = txt;
+  }
+
   function start() {
+    applyLevel();
     if (!/^[A-Za-z0-9]{6,20}$/.test(site) || !/^[A-Za-z0-9_-]{4,64}$/.test(sid)) { fail('رابط الزيارة مش مظبوط'); return; }
     $('back').setAttribute('href', '/?site=' + encodeURIComponent(site) + '#/visits');
     LT.me().then(function (m) {
       if (!m) { location.replace(LT.loginUrl(location.pathname + location.search)); return; }
+      var stored = null; try { stored = sessionStorage.getItem('lt_level'); } catch (e) { /* عادي */ }
+      if (!stored) { level = (m.orgs || []).some(function (o) { return o.type === 'agency'; }) ? 'detailed' : 'simple'; applyLevel(); }
       return LT.api('/v1/dash/replay?site=' + encodeURIComponent(site) + '&sid=' + encodeURIComponent(sid)).then(function (r) {
         if (r.status === 401) { location.replace(LT.loginUrl(location.pathname + location.search)); return; }
         if (r.status === 404) { fail(r.body && r.body.error === 'no_replay' ? 'مفيش تسجيل للزيارة دي' : 'الزيارة دي مش في حسابك'); return; }
@@ -108,7 +134,7 @@
         var v = data.visit;
         $('rp-h').textContent = v ? ([v.city, v.region].filter(Boolean).join(' · ') || 'زيارة') : 'زيارة';
         $('rp-sub').textContent = (data.site ? data.site.name + ' · ' : '') + (function () { try { return new Date(data.started_at).toLocaleString('ar-EG-u-nu-latn', { weekday: 'short', day: 'numeric', month: 'long', hour: 'numeric', minute: '2-digit' }); } catch (e) { return ''; } })();
-        drawVerdict(v); drawFacts(v, data); drawMarks(data.events); play(data);
+        drawVerdict(v); drawFacts(v, data); drawMarks(data.events); story(v, data); play(data);
       });
     }).catch(function () { fail('مقدرناش نحمّل التسجيل'); });
   }
