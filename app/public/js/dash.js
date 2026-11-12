@@ -601,10 +601,25 @@
     DATA.adsAccounts(site, n).then(function (accs) {
       clear(list);
       if (!accs.length) { list.appendChild(el('p', { class: 'muted', text: T('ads.pick.none') })); return; }
+      // بحث بالاسم أو الرقم لما الحسابات كتير (حساب إداري فيه عشرات الحسابات)
+      var rows = [];
+      if (accs.length > 8) {
+        var q = el('input', { type: 'search', class: 'pick-q', placeholder: T('ads.pick.search'), 'aria-label': T('ads.pick.search') });
+        var none = el('p', { class: 'muted', text: T('ads.pick.nomatch'), hidden: '' });
+        q.addEventListener('input', function () {
+          var v = q.value.trim().toLowerCase(), d = v.replace(/\D/g, ''), shown = 0;
+          rows.forEach(function (x) { var hit = !v || String(x.a.name || '').toLowerCase().indexOf(v) >= 0 || (d.length >= 3 && String(x.a.id).indexOf(d) >= 0); x.row.hidden = !hit; if (hit) shown++; });
+          none.hidden = shown > 0;
+        });
+        list.appendChild(q); list.appendChild(none);
+        list.appendChild(el('p', { class: 'hint', text: T('ads.pick.count', { n: accs.length }) }));
+      }
       accs.forEach(function (a, i) {
         var r = el('input', { type: 'radio', name: 'ads-acc', value: a.id });
         r.addEventListener('change', function () { chosen = a.id; ok.disabled = false; });
-        list.appendChild(el('label', { class: 'opt' }, [r, el('span', {}, [el('b', { text: a.name || fmtCid(a.id) }), el('small', { text: '\u2066' + fmtCid(a.id) + '\u2069' + (a.currency ? ' · ' + a.currency : '') + (a.via ? ' · ' + T('ads.pick.via', { m: '\u2066' + fmtCid(a.via) + '\u2069' }) : '') + (a.test ? ' · ' + T('ads.pick.test') : '') })])]));
+        var off = a.status && a.status !== 'ENABLED';
+        var row = el('label', { class: 'opt' + (off ? ' off' : '') }, [r, el('span', {}, [el('b', { text: a.name || fmtCid(a.id) }), el('small', { text: '\u2066' + fmtCid(a.id) + '\u2069' + (a.currency ? ' · ' + a.currency : '') + (a.via ? ' · ' + T('ads.pick.via', { m: '\u2066' + fmtCid(a.via) + '\u2069' }) : '') + (a.test ? ' · ' + T('ads.pick.test') : '') + (off ? ' · ' + T('ads.pick.off') : '') })])]);
+        rows.push({ a: a, row: row }); list.appendChild(row);
         if (accs.length === 1 && i === 0) { r.checked = true; chosen = a.id; ok.disabled = false; }
       });
     }, function (e) { clear(list); list.appendChild(el('p', { class: 'muted', text: T(e.message === 'expired' ? 'ads.pick.expired' : 'ads.pick.fail') })); });

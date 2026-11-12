@@ -425,3 +425,7 @@ svg.geo { width: 100%; height: auto; aspect-ratio: 1.7; display: block; backgrou
 .conv .rate i { display: inline-block; height: 6px; border-radius: 4px; background: var(--growth); min-width: 2px; }
 .conv tr.conv-best td:first-child b::after { content: " ★"; color: var(--growth); }
 @media (prefers-reduced-motion: reduce) { .geo .g-dot { animation: none; } }
+/* اختيار حساب الإعلانات: بحث + الحسابات الموقوفة باهتة */
+.opt[hidden] { display: none; }
+.pick-q { width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; font: inherit; background: var(--card); color: inherit; }
+.opt.off { opacity: .62; }

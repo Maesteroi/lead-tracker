@@ -13,7 +13,9 @@ import { audit } from './auth.js';
 export const LINK_TTL_S = 15 * 60;        // نفس حد لينك الربط في خدمة الربط
 const SAVE_SKEW_S = 5 * 60;               // التوكن لازم يوصل خلال 5 دقايق من توقيعه
 const PENDING_MS = 30 * 60 * 1000;        // وقت اختيار الحساب بعد الموافقة
-const MAX_ACCOUNTS = 20;                  // أقصى حسابات نعرضها (وكل حساب = عملية API)
+const MAX_DIRECT = 50;                    // أقصى حسابات مباشرة نسأل عنها (كل حساب مباشر = عملية API)
+const MAX_ACCOUNTS = 1000;                // أقصى حسابات نعرضها (اللي تحت حساب إداري بتيجي كلها في عملية واحدة)
+const STATUS_ORDER = { ENABLED: 0, '': 1, SUSPENDED: 2, CANCELED: 3, CLOSED: 4 };
 const BACKFILL_DAYS = 30;                 // أول سحب: آخر 30 يوم
 const AUTH_ORIGIN = (env) => String(env.ADS_AUTH_ORIGIN || 'https://auth.maestrolt.com').replace(/\/+$/, '');
 const CID_RE = /^[0-9]{6,12}$/;
@@ -84,7 +86,7 @@ export async function listAccounts(env, refresh, fetchImpl) {
   const res = await f('https://googleads.googleapis.com/' + ver + '/customers:listAccessibleCustomers', { headers: { Authorization: 'Bearer ' + access } });
   const body = await res.json().catch(() => ({}));
   if (!res.ok) { const e = new Error('ads ' + res.status); e.status = res.status; throw e; }
-  const ids = (body.resourceNames || []).map((r) => String(r).split('/').pop()).filter((x) => CID_RE.test(x)).slice(0, MAX_ACCOUNTS);
+  const ids = (body.resourceNames || []).map((r) => String(r).split('/').pop()).filter((x) => CID_RE.test(x)).slice(0, MAX_DIRECT);
   const out = []; let ops = 1;
   for (const id of ids) {
     if (out.length >= MAX_ACCOUNTS) break;
@@ -96,7 +98,8 @@ export async function listAccounts(env, refresh, fetchImpl) {
     if (c.manager) {
       const sub = adsClient({ env, access, customerId: id, loginCustomerId: id, fetchImpl });
       try {
-        for (const r of await sub.query('SELECT customer_client.id, customer_client.descriptive_name, customer_client.currency_code, customer_client.time_zone, customer_client.manager, customer_client.status FROM customer_client WHERE customer_client.level = 1')) {
+        // كل الحسابات اللي تحت الحساب الإداري بكل المستويات (مش الأول بس): حساب إداري جوه حساب إداري بيظهر اللي تحته
+        for (const r of await sub.query('SELECT customer_client.id, customer_client.descriptive_name, customer_client.currency_code, customer_client.time_zone, customer_client.manager, customer_client.status, customer_client.level FROM customer_client WHERE customer_client.level >= 1')) {
           const k = r.customerClient || {};
           if (k.manager || !CID_RE.test(String(k.id)) || out.some((x) => x.id === String(k.id))) continue;
           out.push({ id: String(k.id), name: k.descriptiveName || '', currency: k.currencyCode || '', timezone: k.timeZone || '', status: k.status || '', via: id });
@@ -109,6 +112,8 @@ export async function listAccounts(env, refresh, fetchImpl) {
     if (out.some((x) => x.id === String(c.id || id))) continue;
     out.push({ id: String(c.id || id), name: c.descriptiveName || '', currency: c.currencyCode || '', timezone: c.timeZone || '', status: c.status || '', test: !!c.testAccount, via: null });
   }
+  // الشغالة الأول، وبعدين بالاسم · الموقوفة والملغية في الآخر
+  out.sort((a, b) => ((STATUS_ORDER[a.status] ?? 1) - (STATUS_ORDER[b.status] ?? 1)) || String(a.name).localeCompare(String(b.name), 'ar', { numeric: true }));
   return { accounts: out, ops };
 }
 

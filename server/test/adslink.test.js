@@ -66,6 +66,24 @@ test('the connect service hands over the token: only signed and fresh; it is sto
   assert.equal(await openToken(s.w.env, row.refresh_token_enc, 'pending:' + row.id), RT);
 });
 
+test('a big MCC (Mahmoud: Shado was missing): every account under it at every level is listed, not only the first 20; working accounts first', async () => {
+  const s = await setup();
+  const kids = [];
+  for (let i = 10; i < 45; i++) kids.push({ id: String(6000000000 + i), descriptiveName: 'Z' + i, currencyCode: 'USD', manager: false, status: i % 3 ? 'ENABLED' : 'CANCELED', level: 1 });
+  kids.push({ id: '1110004444', descriptiveName: 'مدير فرعي', manager: true, level: 1 });
+  kids.push({ id: '8880005555', descriptiveName: 'شادو ديزاين', currencyCode: 'EGP', manager: false, status: 'ENABLED', level: 2 });
+  s.w.g.accounts['9990001111'].children = kids;
+  const nonce = (await (await s.save(s.signed(s.site.id, nowS()))).json()).nonce;
+  const a = (await get(s.w, s.owner, '/v1/dash/ads/accounts?site=' + s.site.id + '&n=' + nonce)).body.accounts;
+  assert.equal(a.length, 37, 'Rawda + 35 Z accounts + Shado (level 2), no managers');
+  const shado = a.find((x) => x.id === '8880005555');
+  assert.ok(shado && shado.via === '9990001111', 'the nested account is reached through the top MCC');
+  const firstCancelled = a.findIndex((x) => x.status === 'CANCELED');
+  assert.ok(firstCancelled > 0 && a.slice(firstCancelled).every((x) => x.status === 'CANCELED'), 'cancelled accounts at the end');
+  const c = await post(s.w, s.owner, '/v1/dash/ads/choose', { site: s.site.id, n: nonce, customer_id: '8880005555' });
+  assert.equal(c.status, 200);
+});
+
 test('after Google: the accounts list (direct + under an MCC), then choosing one links the site and starts a 30-day backfill', async () => {
   const s = await setup();
   const nonce = (await (await s.save(s.signed(s.site.id, nowS()))).json()).nonce;
