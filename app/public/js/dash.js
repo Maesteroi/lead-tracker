@@ -539,11 +539,11 @@
   function vAlerts(view) {
     return DATA.alerts(state.site).then(function (d) {
       clear(view);
-      var CH = { tg: 'تليجرام', push: 'إشعار الموبايل', email: 'إيميل' };
+      var CH = { tg: T('alerts.ch.tg'), push: T('alerts.ch.push'), email: T('alerts.ch.email') };
       var list = el('div', { class: 'rules' });
       d.rules.forEach(function (r) {
-        var sw = r.soon ? pill('قريباً', '') : el('button', { class: 'switch', type: 'button', role: 'switch', 'aria-checked': String(r.on), 'aria-label': r.name });
-        if (!r.soon) sw.addEventListener('click', function () { if (DATA.live) { toast('التحكم في التنبيهات من هنا جاي قريباً'); return; } r.on = !r.on; sw.setAttribute('aria-checked', String(r.on)); demoAct((r.on ? 'اتفعّل: ' : 'اتقفل: ') + r.name); });
+        var sw = r.soon ? pill(T('soon'), '') : el('button', { class: 'switch', type: 'button', role: 'switch', 'aria-checked': String(r.on), 'aria-label': r.name });
+        if (!r.soon) sw.addEventListener('click', function () { if (DATA.live) { toast(T('alerts.soon_toggle')); return; } r.on = !r.on; sw.setAttribute('aria-checked', String(r.on)); demoAct(T(r.on ? 'alerts.on' : 'alerts.off', { n: r.name })); });
         var chips = el('div', { class: 'chips' }, Object.keys(CH).map(function (c) {
           var b = el('button', { class: 'chip' + (r.ch.indexOf(c) >= 0 ? ' on' : ''), type: 'button', 'aria-pressed': String(r.ch.indexOf(c) >= 0), text: CH[c] });
           b.addEventListener('click', function () { var i = r.ch.indexOf(c); if (i >= 0) r.ch.splice(i, 1); else r.ch.push(c); b.classList.toggle('on'); b.setAttribute('aria-pressed', String(i < 0)); });
@@ -553,7 +553,7 @@
       });
       if (!d.log.length) d.log = [];
       var log = el('ul', { class: 'feed' }, d.log.map(function (x) { return el('li', {}, [el('span', { class: 'pill ' + x.level, text: x.rule }), el('div', {}, [el('span', { text: x.text })]), el('time', { text: timeAr(x.at) })]); }));
-      view.appendChild(el('div', { class: 'grid-2' }, [card('التنبيهات', [list]), card('آخر التنبيهات', [d.log.length ? log : el('p', { class: 'muted', text: 'سجل التنبيهات بيظهر هنا أول ما تنبيهات العملاء تشتغل.' })])]));
+      view.appendChild(el('div', { class: 'grid-2' }, [card(T('nav.alerts'), [list]), card(T('alerts.last'), [d.log.length ? log : el('p', { class: 'muted', text: T('alerts.log.empty') })])]));
     });
   }
 
@@ -561,27 +561,27 @@
   function vSites(view) {
     return DATA.setup().then(function (list) {
       clear(view);
-      if (!list.length) view.appendChild(card('لسه مفيش مواقع', [el('p', { text: 'افتح موقعك على ووردبريس، فعّل بلجن Lead Tracker Pro، واضغط «اربط بـ Maestro LT». الموقع هيظهر هنا على طول.' })]));
+      if (!list.length) view.appendChild(card(T('sites.none'), [el('p', { text: T('sites.none.text') })]));
       list.forEach(function (s) {
         var avg = s.delivery.length ? Math.round(s.delivery.reduce(function (a, b) { return a + b; }, 0) / s.delivery.length * 10) / 10 : null;
-        var spark = el('div'); C.hbars(spark, s.delivery.map(function (v, i) { return { label: i === s.delivery.length - 1 ? 'امبارح' : 'قبل ' + (s.delivery.length - 1 - i) + ' يوم', value: v, text: v + '%', cls: v >= 99.5 ? 'c-ok' : 'c-sus' }; }).reverse(), { max: 100, compact: true });
+        var spark = el('div'); C.hbars(spark, s.delivery.map(function (v, i) { return { label: i === s.delivery.length - 1 ? T('sites.yesterday') : T('sites.ago', { n: LT.n(s.delivery.length - 1 - i, 'day') }), value: v, text: v + '%', cls: v >= 99.5 ? 'c-ok' : 'c-sus' }; }).reverse(), { max: 100, compact: true });
         var rows = [
-          ['الكود متركب', s.installed, s.installed ? (s.plugin ? 'بلجن ' + s.plugin : 'البلجن شغال') + ' · آخر حدث ' + timeAr(s.last_event) : (s.paired ? 'مربوط ومستني أول زيارة' : 'لسه مااتربطش')],
-          ['التوصيل (آخر 7 أيام)', avg == null ? null : avg >= 99.5, avg == null ? 'أول قياس بعد تحديث البلجن لـ2.12.2 (التحديثات ← تحقق مرة أخرى)' : avg + '% من الأحداث وصلت'],
-          ['جوجل أدز', s.ads ? true : DATA.live ? null : false, s.ads ? 'متربط' + (s.account ? ' · \u2066' + s.account + '\u2069' : '') : DATA.live ? 'الربط من اللوحة جاي قريباً' : 'اربط حسابك'],
-          ['لاحقة التتبع', s.template == null ? null : s.template, s.template == null ? 'بعد ربط جوجل أدز' : s.template ? 'موجودة' : 'ناقصة: من غيرها مش هنعرف كلمة كل ضغطة'],
-          ['أجهزتك المعفية', s.own ? true : DATA.live ? null : true, s.own ? s.own + ' أجهزة' : 'جاية مع الحماية'],
+          [T('sites.r.installed'), s.installed, s.installed ? (s.plugin ? T('sites.plugin', { v: s.plugin }) : T('sites.plugin.on')) + ' · ' + T('sites.last', { t: timeAr(s.last_event) }) : T(s.paired ? 'sites.paired_wait' : 'sites.not_paired')],
+          [T('sites.r.delivery'), avg == null ? null : avg >= 99.5, avg == null ? T('sites.delivery.none') : T('sites.delivery', { p: avg })],
+          [T('sites.r.ads'), s.ads ? true : DATA.live ? null : false, s.ads ? T('sites.ads.on') + (s.account ? ' · \u2066' + s.account + '\u2069' : '') : T(DATA.live ? 'sites.ads.soon' : 'sites.ads.link')],
+          [T('sites.r.suffix'), s.template == null ? null : s.template, s.template == null ? T('sites.suffix.after') : T(s.template ? 'sites.suffix.ok' : 'sites.suffix.missing')],
+          [T('sites.r.own'), s.own ? true : DATA.live ? null : true, s.own ? LT.n(s.own, 'device') : T('sites.own.soon')],
         ];
         var extra = [];
         if (DATA.pairCode && !s.paired) {
-          var out = el('div', { class: 'hint' }), b = el('button', { class: 'btn ghost sm', type: 'button', text: 'كود ربط (بديل للزرار)' });
-          b.addEventListener('click', function () { b.disabled = true; DATA.pairCode(s.id).then(function (r) { b.disabled = false; clear(out); out.appendChild(el('div', { class: 'code', text: r.code })); out.appendChild(document.createTextNode('اكتبه في البلجن (إعدادات Lead Tracker ← عندي كود ربط). صالح ' + r.valid_minutes + ' دقيقة ومرة واحدة.')); }, function (e) { b.disabled = false; clear(out); out.appendChild(document.createTextNode(e.message === 'role' ? 'محتاج صلاحية مالك أو مدير.' : 'ما قدرناش نطلّع كود. جرّب تاني.')); }); });
+          var out = el('div', { class: 'hint' }), b = el('button', { class: 'btn ghost sm', type: 'button', text: T('sites.paircode') });
+          b.addEventListener('click', function () { b.disabled = true; DATA.pairCode(s.id).then(function (r) { b.disabled = false; clear(out); out.appendChild(el('div', { class: 'code', text: r.code })); out.appendChild(document.createTextNode(T('sites.paircode.hint', { m: LT.n(r.valid_minutes, 'minute') }))); }, function (e) { b.disabled = false; clear(out); out.appendChild(document.createTextNode(T(e.message === 'role' ? 'sites.paircode.role' : 'sites.paircode.fail'))); }); });
           extra.push(b, out);
         }
         view.appendChild(card(s.name, [el('p', { class: 'acc-sub', text: s.domain }), el('ul', { class: 'checks' }, rows.map(function (r) { return el('li', { class: r[1] === null ? 'soon' : r[1] ? 'ok' : 'warn' }, [el('i', { class: 'ck', text: r[1] === null ? '…' : r[1] ? '✓' : '!' }), el('b', { text: r[0] }), el('span', { text: r[2] })]); })),
-          s.delivery.length ? el('details', { class: 'more-d pro-only' }, [el('summary', { text: 'التوصيل يوم بيوم' }), spark]) : null].concat(extra)));
+          s.delivery.length ? el('details', { class: 'more-d pro-only' }, [el('summary', { text: T('sites.daily') }), spark]) : null].concat(extra)));
       });
-      var add = el('button', { class: 'btn', type: 'button', text: '+ أضف موقع' }); add.addEventListener('click', function () { toast('افتح البلجن على موقعك واضغط «اربط بـ Maestro LT»، والموقع هيظهر هنا'); });
+      var add = el('button', { class: 'btn', type: 'button', text: T('sites.add') }); add.addEventListener('click', function () { toast(T('sites.add.hint')); });
       view.appendChild(add);
     });
   }

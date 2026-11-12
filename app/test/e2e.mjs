@@ -226,14 +226,14 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
 // 10) الصفحة الرئيسية
 { const api = fakeApi(); const pg = await page(api); await pg.goto('https://app.maestrolt.com/'); await pg.waitForURL('https://app.maestrolt.com/login');
   t('home page without a session goes to /login', true);
-  api.signedIn = true; api.sites = []; await pg.goto('https://app.maestrolt.com/'); await pg.waitForSelector('text=لسه مفيش مواقع');
+  api.signedIn = true; api.sites = []; await pg.goto('https://app.maestrolt.com/'); await pg.waitForSelector('text=لا توجد مواقع بعد');
   t('home page with no sites explains how to connect', /اربط بـ Maestro LT/.test(await pg.locator('#view').innerText())); await shot(pg, 'home-empty');
   api.sites = [{ id: 'SiteId123456', name: 'روضة الصالحين', domains: ['rawda.site'] }]; await pg.goto('https://app.maestrolt.com/#/sites'); await pg.reload(); await pg.waitForSelector('.checks');
-  t('home page lists the site with its status and a pair code for unpaired sites', /rawda\.site/.test(await pg.locator('#view').innerText()) && /لسه مااتربطش/.test(await pg.locator('#view').innerText()));
-  await pg.getByRole('button', { name: 'كود ربط (بديل للزرار)' }).click();
+  t('home page lists the site with its status and a pair code for unpaired sites', /rawda\.site/.test(await pg.locator('#view').innerText()) && /لم يُربط بعد/.test(await pg.locator('#view').innerText()));
+  await pg.getByRole('button', { name: 'رمز ربط (بديل للزر)' }).click();
   await pg.waitForSelector('.code');
   t('home page: the pair code shows (K7M2-QX9P)', /K7M2-QX9P/.test(await pg.locator('.code').innerText()));
-  t('home page: logout goes back to /login', await (async () => { await pg.getByRole('button', { name: 'خروج' }).click(); await pg.waitForURL('https://app.maestrolt.com/login'); return true; })());
+  t('home page: logout goes back to /login', await (async () => { await pg.getByRole('button', { name: 'تسجيل الخروج' }).click(); await pg.waitForURL('https://app.maestrolt.com/login'); return true; })());
   t('home: no CSP violations', pg.csp.length === 0 && pg.errors.length === 0); await pg.context().close(); }
 
 // 11) 404 ومظهر داكن

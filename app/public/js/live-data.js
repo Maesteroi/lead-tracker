@@ -67,13 +67,14 @@
     setOutcome: function (site, code, value) { return LT.api('/v1/dash/outcome', { method: 'POST', body: { site: site, code: code, value: value } }).then(function (r) { if (!r.ok) throw new Error(r.body.error || 'http'); return r.body; }); },
     alerts: function () {
       var adm = me && me.user && me.user.platform_admin;
+      var T = LT.t;
       return Promise.resolve({ live: true, rules: [
-        { id: 'session', name: 'تنبيه لكل زيارة فيها تواصل (تليجرام)', desc: 'رسالة لكل جلسة بتتحدّث مع كل صفحة وضغطة، وعليها زراير النتيجة.', on: !!adm, soon: !adm, ch: ['tg'] },
-        { id: 'delivery', name: 'تقرير التوصيل كل يوم الصبح', desc: 'هل كل الأحداث وصلت من موقعك امبارح (المعيار 99.5%).', on: !!adm, soon: !adm, ch: ['tg'] },
-        { id: 'attack', name: 'هجوم ضغطات', desc: 'لو المشبوه زاد فجأة.', on: false, soon: true, ch: ['tg', 'push'] },
-        { id: 'overspend', name: 'صرف زايد', desc: 'بعد ربط جوجل أدز.', on: false, soon: true, ch: ['tg', 'push'] },
-        { id: 'disapproved', name: 'إعلان اترفض أو حملة وقفت', desc: 'بعد ربط جوجل أدز.', on: false, soon: true, ch: ['tg', 'push', 'email'] },
-        { id: 'weekly', name: 'ملخص الأسبوع', desc: 'كل سبت الصبح بالإيميل.', on: false, soon: true, ch: ['email'] },
+        { id: 'session', name: T('alerts.r.session'), desc: T('alerts.r.session.d'), on: !!adm, soon: !adm, ch: ['tg'] },
+        { id: 'delivery', name: T('alerts.r.delivery'), desc: T('alerts.r.delivery.d'), on: !!adm, soon: !adm, ch: ['tg'] },
+        { id: 'attack', name: T('alerts.r.attack'), desc: T('alerts.r.attack.d'), on: false, soon: true, ch: ['tg', 'push'] },
+        { id: 'overspend', name: T('alerts.r.overspend'), desc: T('alerts.r.after_ads'), on: false, soon: true, ch: ['tg', 'push'] },
+        { id: 'disapproved', name: T('alerts.r.disapproved'), desc: T('alerts.r.after_ads'), on: false, soon: true, ch: ['tg', 'push', 'email'] },
+        { id: 'weekly', name: T('alerts.r.weekly'), desc: T('alerts.r.weekly.d'), on: false, soon: true, ch: ['email'] },
       ], log: [] });
     },
     setup: function () {
