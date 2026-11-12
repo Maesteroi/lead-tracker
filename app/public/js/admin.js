@@ -2,35 +2,35 @@
 // كل النصوص بتتكتب كنص (textContent)، مفيش HTML من السيرفر.
 (function () {
   'use strict';
-  var LT = window.LT, el = LT.el, clear = LT.clear;
+  var LT = window.LT, el = LT.el, clear = LT.clear, T = LT.t;
   var $ = function (id) { return document.getElementById(id); };
   var data = null, filter = 'all', query = '', current = null, draft = null, lastFocus = null, confirming = false, ME = null;
   // صلاحيات صاحب الجلسة (G-29): السوبر أدمن = كل حاجة
   function can(p) { return !!ME && (ME.owner || (ME.perms || []).indexOf(p) >= 0); }
 
   var STATUS = {
-    trial: { t: 'تجربة', c: 'info' }, active: { t: 'مفعّل', c: 'ok' },
-    past_due: { t: 'متأخر في الدفع', c: 'warn' }, off: { t: 'موقوف', c: 'bad' }
+    trial: { t: T('adm.st.trial'), c: 'info' }, active: { t: T('adm.st.active'), c: 'ok' },
+    past_due: { t: T('adm.st.past_due'), c: 'warn' }, off: { t: T('adm.st.off'), c: 'bad' }
   };
-  var PLAN = { trial: 'تجربة', basic: 'أساسية', pro: 'احترافية', agency: 'وكالة', internal: 'داخلي' };
-  var FILTERS = [['all', 'الكل'], ['active', 'مفعّل'], ['trial', 'تجربة'], ['attention', 'محتاج انتباه']];
+  var PLAN = { trial: T('adm.plan.trial'), basic: T('adm.plan.basic'), pro: T('adm.plan.pro'), agency: T('adm.plan.agency'), internal: T('adm.plan.internal_s') };
+  var FILTERS = [['all', T('adm.f.all')], ['active', T('adm.st.active')], ['trial', T('adm.st.trial')], ['attention', T('adm.f.attention')]];
 
   // ── أدوات ──
   var fmt = function (n) { return Number(n || 0).toLocaleString('en-US'); };
   function dateAr(iso) {
     if (!iso) return '—';
-    try { return new Date(iso).toLocaleDateString('ar-EG-u-nu-latn', { day: 'numeric', month: 'long', year: 'numeric' }); } catch (e) { return iso.slice(0, 10); }
+    try { return new Date(iso).toLocaleDateString(LT.locale, { day: 'numeric', month: 'long', year: 'numeric' }); } catch (e) { return iso.slice(0, 10); }
   }
   function ago(iso) {
-    if (!iso) return 'مفيش نشاط في آخر 7 أيام';
+    if (!iso) return T('adm.ago.none');
     var s = Math.max(0, (Date.now() - Date.parse(iso)) / 1000);
-    if (s < 90) return 'دلوقتي';
-    var m = Math.round(s / 60); if (m < 60) return 'من ' + m + ' دقيقة';
-    var h = Math.round(m / 60); if (h < 24) return h === 1 ? 'من ساعة' : h === 2 ? 'من ساعتين' : 'من ' + h + ' ساعات';
-    var d = Math.round(h / 24); return d === 1 ? 'من يوم' : d === 2 ? 'من يومين' : 'من ' + d + ' أيام';
+    if (s < 90) return T('adm.ago.now');
+    var m = Math.round(s / 60); if (m < 60) return T('adm.ago', { t: LT.n(m, 'minute') });
+    var h = Math.round(m / 60); if (h < 24) return T('adm.ago', { t: LT.n(h, 'hour') });
+    return T('adm.ago', { t: LT.n(Math.round(h / 24), 'day') });
   }
   function daysLeft(iso) { return iso ? Math.ceil((Date.parse(iso) - Date.now()) / 864e5) : null; }
-  function statusOf(o) { return o.trial_expired ? { t: 'التجربة خلصت', c: 'warn' } : (STATUS[o.status] || { t: o.status, c: '' }); }
+  function statusOf(o) { return o.trial_expired ? { t: T('adm.st.trial_over'), c: 'warn' } : (STATUS[o.status] || { t: o.status, c: '' }); }
   function limitOf(o) { return o.max_sites != null ? o.max_sites : (o.status === 'trial' ? data.defaults.trial_max_sites : null); }
   function attention(o) { return o.status === 'past_due' || o.status === 'off' || o.trial_expired; }
   function bar(pct, full) { var i = el('i'); i.style.width = pct + '%'; return el('div', { class: 'bar' + (full ? ' full' : '') }, [i]); }   // CSSOM (الـCSP بيمنع style="")
@@ -43,8 +43,8 @@
     return rows[0];
   }
   function deliveryPill(d) {
-    if (!d) return el('span', { class: 'dim', text: 'لسه مفيش تقرير' });
-    return el('span', { class: 'pill ' + (d.ok ? 'ok' : 'warn'), title: d.day + ' · زيارات ' + d.server_pv + '/' + d.local_pv + ' · ضغطات ' + d.server_click + '/' + d.local_click, text: d.pv_pct + '%' + (d.server_click < d.local_click ? ' · ضغطات ناقصة' : '') });
+    if (!d) return el('span', { class: 'dim', text: T('adm.del.none') });
+    return el('span', { class: 'pill ' + (d.ok ? 'ok' : 'warn'), title: d.day + ' · ' + T('adm.del.counts', { a: d.server_pv + '/' + d.local_pv, b: d.server_click + '/' + d.local_click }), text: d.pv_pct + '%' + (d.server_click < d.local_click ? ' · ' + T('adm.del.missing') : '') });
   }
   function pill(s) { return el('span', { class: 'pill ' + s.c, text: s.t }); }
   function toast(msg, bad) {
@@ -58,13 +58,13 @@
     return Promise.all([LT.api('/v1/platform/overview'), LT.api('/v1/platform/telegram')]).then(function (r) {
       $('refresh').disabled = false;
       if (r[0].status === 404) return showDenied();
-      if (!r[0].ok) { toast('مقدرناش نحمّل البيانات. جرّب تاني.', true); return; }
+      if (!r[0].ok) { toast(T('adm.load.fail'), true); return; }
       data = r[0].body;
       ME = data.me || { owner: true, perms: ['*'] };
       $('loading').hidden = true; $('app').hidden = false;
-      $('updated').textContent = 'آخر تحديث ' + new Date().toLocaleTimeString('ar-EG-u-nu-latn', { hour: 'numeric', minute: '2-digit' });
+      $('updated').textContent = T('adm.updated') + ' ' + new Date().toLocaleTimeString(LT.locale, { hour: 'numeric', minute: '2-digit' });
       renderKpis(); renderFilter(); renderRows(); $('tg').hidden = r[1].status === 404; if (r[1].status !== 404) renderTg(r[1].ok ? r[1].body : null);
-      $('role-eyebrow').textContent = ME.owner ? 'سوبر أدمن' : 'فريق المنصة · ' + (ME.role || '') + (ME.scoped ? ' (حسابات معيّنة)' : '');
+      $('role-eyebrow').textContent = ME.owner ? T('adm.role') : T('adm.role.team') + ' · ' + (ME.role || '') + (ME.scoped ? ' ' + T('adm.role.scoped') : '');
       $('tab-btn-team').hidden = !ME.owner; $('tab-btn-audit').hidden = !(ME.owner || can('audit'));
       if (current) { var o = find(current.id); if (o) { current = o; renderDrawerInfo(); } }
     });
@@ -75,9 +75,9 @@
   // ── الأرقام ──
   function renderKpis() {
     var t = data.totals, box = clear($('kpis'));
-    [['الحسابات', t.orgs, '', 'info'], ['مفعّل', t.active, 'بيدفع أو داخلي', 'ok'], ['في التجربة', t.trial, 'لسه شغالة', 'info'],
-     ['محتاج انتباه', t.attention, 'موقوف · متأخر · تجربة خلصت', t.attention ? 'warn' : 'mute'], ['المواقع', t.sites, 'متربطة بحسابات', 'info'],
-     ['أحداث آخر 24 ساعة', t.ev_24h, fmt(t.ev_7d) + ' في 7 أيام', 'ok']].forEach(function (k) {
+    [[T('adm.accounts'), t.orgs, '', 'info'], [T('adm.st.active'), t.active, T('adm.k.active'), 'ok'], [T('adm.k.trial'), t.trial, T('adm.k.trial.sub'), 'info'],
+     [T('adm.f.attention'), t.attention, T('adm.k.att.sub'), t.attention ? 'warn' : 'mute'], [T('adm.h.sites'), t.sites, T('adm.k.sites.sub'), 'info'],
+     [T('adm.k.ev'), t.ev_24h, T('adm.k.ev.sub', { n: fmt(t.ev_7d) }), 'ok']].forEach(function (k) {
       box.appendChild(el('div', { class: 'kpi ' + k[3] }, [el('div', { class: 'k-label', text: k[0] }), el('div', { class: 'k-val', text: fmt(k[1]) }), k[2] ? el('div', { class: 'k-sub', text: k[2] }) : null]));
     });
   }
@@ -112,17 +112,17 @@
     $('empty').hidden = list.length > 0;
     list.forEach(function (o) {
       var lim = limitOf(o), pct = lim ? Math.min(100, Math.round(o.site_count / lim * 100)) : 0;
-      var trial = o.status === 'trial' && o.trial_ends_at ? (daysLeft(o.trial_ends_at) > 0 ? 'فاضل ' + daysLeft(o.trial_ends_at) + ' يوم' : 'خلصت ' + dateAr(o.trial_ends_at)) : '';
-      var tr = el('tr', { tabindex: '0', 'aria-label': 'إدارة ' + o.name }, [
-        el('td', { class: 'first' }, [el('div', { class: 'acc-name', text: o.name }), el('span', { class: 'acc-sub', text: o.owner ? (o.owner.email || '') : 'من غير مالك' })]),
-        el('td', { 'data-l': 'الحالة' }, [pill(statusOf(o))]),
-        el('td', { 'data-l': 'المواقع' }, [el('div', {}, [el('span', { class: 'num', text: String(o.site_count) }), el('span', { class: 'dim', text: lim == null ? ' · من غير حد' : ' من ' + lim })]),
+      var trial = o.status === 'trial' && o.trial_ends_at ? (daysLeft(o.trial_ends_at) > 0 ? T('adm.trial.left', { n: LT.n(daysLeft(o.trial_ends_at), 'day') }) : T('adm.trial.ended', { d: dateAr(o.trial_ends_at) })) : '';
+      var tr = el('tr', { tabindex: '0', 'aria-label': T('adm.h.manage') + ' ' + o.name }, [
+        el('td', { class: 'first' }, [el('div', { class: 'acc-name', text: o.name }), el('span', { class: 'acc-sub', text: o.owner ? (o.owner.email || '') : T('adm.no_owner') })]),
+        el('td', { 'data-l': T('adm.h.status') }, [pill(statusOf(o))]),
+        el('td', { 'data-l': T('adm.h.sites') }, [el('div', {}, [el('span', { class: 'num', text: String(o.site_count) }), el('span', { class: 'dim', text: lim == null ? ' · ' + T('adm.no_limit') : ' ' + T('adm.of', { n: lim }) })]),
           lim ? bar(pct, o.site_count >= lim) : null]),
-        el('td', { 'data-l': 'الأحداث' }, [el('div', {}, [el('span', { class: 'num', text: fmt(o.ev_24h) }), el('span', { class: 'dim', text: ' اليوم · ' + fmt(o.ev_7d) + ' أسبوع' })])]),
-        el('td', { 'data-l': 'التوصيل' }, [deliveryPill(orgDelivery(o))]),
-        el('td', { 'data-l': 'آخر نشاط', class: 'dim', text: ago(o.last_at) }),
-        el('td', { 'data-l': 'التجربة / الخطة' }, [el('div', { text: o.plan ? PLAN[o.plan] || o.plan : '—' }), trial ? el('div', { class: 'dim', text: trial }) : null]),
-        el('td', { class: 'last' }, [el('span', { class: 'go', text: 'إدارة ‹' })])
+        el('td', { 'data-l': T('adm.h.events') }, [el('div', {}, [el('span', { class: 'num', text: fmt(o.ev_24h) }), el('span', { class: 'dim', text: ' ' + T('adm.ev.line', { w: fmt(o.ev_7d) }) })])]),
+        el('td', { 'data-l': T('adm.h.delivery') }, [deliveryPill(orgDelivery(o))]),
+        el('td', { 'data-l': T('adm.h.last'), class: 'dim', text: ago(o.last_at) }),
+        el('td', { 'data-l': T('adm.h.plan') }, [el('div', { text: o.plan ? PLAN[o.plan] || o.plan : '—' }), trial ? el('div', { class: 'dim', text: trial }) : null]),
+        el('td', { class: 'last' }, [el('span', { class: 'go', text: T('adm.h.manage') + ' ‹' })])
       ]);
       var open = function () { openDrawer(o, tr); };
       tr.addEventListener('click', open);
@@ -135,19 +135,19 @@
   function renderTg(t) {
     var p = $('tg-pill'), d = $('tg-desc'), m = $('tg-meta'), bs = $('tg-server'), bh = $('tg-sheet');
     bs.hidden = bh.hidden = true; m.textContent = '';
-    if (!t || !t.configured) { p.className = 'pill'; p.textContent = 'مش متظبط'; d.textContent = 'توكن البوت مش موجود على السيرفر.'; return; }
-    if (t.error) { p.className = 'pill warn'; p.textContent = 'مش واضح'; d.textContent = 'تليجرام ماردش دلوقتي. جرّب «تحديث».'; return; }
+    if (!t || !t.configured) { p.className = 'pill'; p.textContent = T('adm.tg.unset'); d.textContent = T('adm.tg.unset.d'); return; }
+    if (t.error) { p.className = 'pill warn'; p.textContent = T('adm.tg.unknown'); d.textContent = T('adm.tg.unknown.d'); return; }
     var MODES = {
-      server: ['ok', 'على السيرفر', 'الزراير والأوامر بتوصل للسيرفر. اللي يخص الشيت (مواقع الشيت · /start · زراير الإعلانات) السيرفر بيعدّيه للشيت زي ما هو.'],
-      sheet: ['info', 'على الشيت', 'البوت لسه بيكلّم الشيت. زراير النتيجة على رسايل السيرفر مش هتشتغل غير لما تحوّله للسيرفر.'],
-      none: ['warn', 'مش متوصل', 'البوت مش متوصل بأي عنوان، فالزراير والأوامر مش بتوصل لحد.'],
-      other: ['warn', 'عنوان تاني', 'البوت متوصل بعنوان مش السيرفر ولا الشيت.']
+      server: ['ok', T('adm.tg.on_server'), T('adm.tg.on_server.d')],
+      sheet: ['info', T('adm.tg.on_sheet'), T('adm.tg.on_sheet.d')],
+      none: ['warn', T('adm.tg.none'), T('adm.tg.none.d')],
+      other: ['warn', T('adm.tg.other'), T('adm.tg.other.d')]
     };
     var md = MODES[t.mode] || MODES.other;
     p.className = 'pill ' + md[0]; p.textContent = md[1]; d.textContent = md[2];
     var meta = [];
-    if (t.pending) meta.push(fmt(t.pending) + ' تحديث مستني');
-    if (t.last_error) meta.push('آخر خطأ: ' + t.last_error + (t.last_error_at ? ' (' + ago(t.last_error_at) + ')' : ''));
+    if (t.pending) meta.push(T('adm.tg.pending', { n: fmt(t.pending) }));
+    if (t.last_error) meta.push(T('adm.tg.last_err') + ' ' + t.last_error + (t.last_error_at ? ' (' + ago(t.last_error_at) + ')' : ''));
     m.textContent = meta.join(' · ');
     bs.hidden = t.mode === 'server';
     bh.hidden = t.mode === 'sheet' || !t.sheet_ready;
@@ -156,8 +156,8 @@
     btn.disabled = true;
     LT.api('/v1/platform/telegram', { method: 'POST', body: { target: target } }).then(function (r) {
       btn.disabled = false;
-      if (!r.ok) { toast('تليجرام رفض التحويل' + (r.body.detail ? ': ' + r.body.detail : ''), true); return; }
-      renderTg(r.body); toast(target === 'server' ? 'البوت بقى على السيرفر ✓' : 'البوت رجع للشيت ✓');
+      if (!r.ok) { toast(T('adm.tg.refused') + (r.body.detail ? ': ' + r.body.detail : ''), true); return; }
+      renderTg(r.body); toast(T(target === 'server' ? 'adm.tg.moved_server' : 'adm.tg.moved_sheet'));
     });
   }
 
@@ -178,28 +178,28 @@
   function renderDrawerInfo() {
     var o = current;
     $('d-name').textContent = o.name;
-    $('d-owner').textContent = o.owner ? ((o.owner.name ? o.owner.name + ' · ' : '') + (o.owner.email || '')) : 'من غير مالك';
-    $('d-since').textContent = 'من ' + dateAr(o.created_at) + (o.owner && o.owner.last_login_at ? ' · آخر دخول ' + ago(o.owner.last_login_at).replace('مفيش نشاط في آخر 7 أيام', '—') : '');
+    $('d-owner').textContent = o.owner ? ((o.owner.name ? o.owner.name + ' · ' : '') + (o.owner.email || '')) : T('adm.no_owner');
+    $('d-since').textContent = T('adm.since', { d: dateAr(o.created_at) }) + (o.owner && o.owner.last_login_at ? ' · ' + T('adm.last_login', { t: ago(o.owner.last_login_at) }) : '');
     var st = clear($('d-state')), ev = o.events || {};
-    var line = ev.state === 'rejecting' ? ['bad', 'أحداث مواقعه مرفوضة دلوقتي (السيرفر مش بيسجّلها).']
-      : ev.state === 'grace' ? ['warn', 'فترة سماح: الأحداث بتتسجل لحد ' + dateAr(ev.until) + '، وبعدها هتترفض.']
-      : ['ok', 'أحداث مواقعه بتتسجل عادي.'];
+    var line = ev.state === 'rejecting' ? ['bad', T('adm.ev.rejecting')]
+      : ev.state === 'grace' ? ['warn', T('adm.ev.grace', { d: dateAr(ev.until) })]
+      : ['ok', T('adm.ev.ok')];
     st.appendChild(el('div', { class: 'notice ' + line[0], text: line[1] }));
     var ul = clear($('d-sites'));
-    if (!o.sites.length) ul.appendChild(el('li', {}, [el('span', { class: 'dim', text: 'لسه مفيش مواقع.' })]));
+    if (!o.sites.length) ul.appendChild(el('li', {}, [el('span', { class: 'dim', text: T('adm.no_sites') })]));
     o.sites.forEach(function (s) {
       ul.appendChild(el('li', {}, [
-        el('div', {}, [el('span', { class: 's-name', text: s.name }), el('span', { class: 's-dom', text: s.domains.join(' · ') }), el('a', { class: 'open-dash', href: '/?site=' + encodeURIComponent(s.id) + '#/overview', text: 'افتح لوحته ‹' })]),
-        el('div', { class: 's-num' }, [el('b', { text: fmt(s.ev_24h) }), document.createTextNode(' اليوم · '), el('b', { text: fmt(s.ev_7d) }), document.createTextNode(' أسبوع'), el('div', { text: s.paired ? ago(s.last_at) : 'مااتربطش لسه' })])
+        el('div', {}, [el('span', { class: 's-name', text: s.name }), el('span', { class: 's-dom', text: s.domains.join(' · ') }), el('a', { class: 'open-dash', href: '/?site=' + encodeURIComponent(s.id) + '#/overview', text: T('adm.open_dash') })]),
+        el('div', { class: 's-num' }, [el('b', { text: fmt(s.ev_24h) }), document.createTextNode(' ' + T('adm.today') + ' · '), el('b', { text: fmt(s.ev_7d) }), document.createTextNode(' ' + T('adm.week')), el('div', { text: s.paired ? ago(s.last_at) : T('adm.not_paired') })])
       ]));
       (s.delivery || []).forEach(function (d) {
         var o2 = d.out || {}, bits = [];
-        if (o2.failed_first) bits.push('فشل أول مرة ' + o2.failed_first);
-        if (o2.queued) bits.push('في الطابور ' + o2.queued);
-        if (o2.rejected) bits.push('اترفض ' + o2.rejected);
+        if (o2.failed_first) bits.push(T('adm.d.failed_first', { n: o2.failed_first }));
+        if (o2.queued) bits.push(T('adm.d.queued', { n: o2.queued }));
+        if (o2.rejected) bits.push(T('adm.d.rejected', { n: o2.rejected }));
         ul.appendChild(el('li', { class: 'dl' }, [
-          el('div', {}, [el('span', { class: 'dim', text: 'التوصيل ' + d.day }), bits.length ? el('span', { class: 's-dom', text: bits.join(' · ') }) : null]),
-          el('div', { class: 's-num' }, [deliveryPill(d), el('div', { text: 'زيارات ' + d.server_pv + '/' + d.local_pv + ' · ضغطات ' + d.server_click + '/' + d.local_click })])
+          el('div', {}, [el('span', { class: 'dim', text: T('adm.h.delivery') + ' ' + d.day }), bits.length ? el('span', { class: 's-dom', text: bits.join(' · ') }) : null]),
+          el('div', { class: 's-num' }, [deliveryPill(d), el('div', { text: T('adm.del.counts', { a: d.server_pv + '/' + d.local_pv, b: d.server_click + '/' + d.local_click }) })])
         ]));
       });
     });
@@ -215,14 +215,14 @@
       b.addEventListener('click', function () { draft.status = k; confirming = false; renderDrawerForm(); });
       seg.appendChild(b);
     });
-    $('d-status-hint').textContent = draft.status !== o.status ? 'هتتغيّر من «' + STATUS[o.status].t + '» لـ«' + STATUS[draft.status].t + '» بعد الحفظ.' : '';
+    $('d-status-hint').textContent = draft.status !== o.status ? T('adm.d.st_change', { a: STATUS[o.status].t, b: STATUS[draft.status].t }) : '';
     // التجربة
     var end = o.trial_ends_at ? Date.parse(o.trial_ends_at) : null;
     var base = Math.max(Date.now(), end || 0), newEnd = draft.extend ? new Date(base + draft.extend * 864e5).toISOString() : null;
-    $('d-trial').textContent = newEnd ? 'هتخلص ' + dateAr(newEnd) + ' (بعد الحفظ)' : end ? (end > Date.now() ? 'بتخلص ' + dateAr(o.trial_ends_at) + ' · فاضل ' + daysLeft(o.trial_ends_at) + ' يوم' : 'خلصت ' + dateAr(o.trial_ends_at)) : 'مفيش تاريخ نهاية';
+    $('d-trial').textContent = newEnd ? T('adm.trial.will_end', { d: dateAr(newEnd) }) : end ? (end > Date.now() ? T('adm.trial.ends', { d: dateAr(o.trial_ends_at) }) + ' · ' + T('adm.trial.left', { n: LT.n(daysLeft(o.trial_ends_at), 'day') }) : T('adm.trial.ended', { d: dateAr(o.trial_ends_at) })) : T('adm.trial.no_end');
     Array.prototype.forEach.call(document.querySelectorAll('[data-extend]'), function (c) { c.classList.toggle('on', Number(c.getAttribute('data-extend')) === draft.extend); });
     // حد المواقع
-    $('d-lim-plan').textContent = draft.status === 'trial' ? 'التجربة: ' + data.defaults.trial_max_sites + ' مواقع' : 'من غير حد';
+    $('d-lim-plan').textContent = draft.status === 'trial' ? T('adm.lim.trial', { n: LT.n(data.defaults.trial_max_sites, 'site') }) : T('adm.no_limit');
     setRadio('lim', draft.limMode); $('d-max').value = draft.max; $('d-max').disabled = draft.limMode !== 'custom';
     $('lim-minus').disabled = $('lim-plus').disabled = draft.limMode !== 'custom';
     $('d-plan').value = draft.plan;
@@ -236,10 +236,10 @@
     var c = $('d-confirm'), save = $('d-save');
     var risky = draft.status !== current.status && (draft.status === 'off' || draft.status === 'past_due');
     if (confirming && risky) {
-      var p = draft.policy === 'keep' ? 'أحداث مواقعه هتفضل تتسجل.' : draft.policy === 'reject' ? 'أحداث مواقعه هتترفض من دلوقتي.' : 'أحداث مواقعه هتتسجل ' + draft.grace + ' يوم وبعدين هتترفض.';
-      c.textContent = 'متأكد؟ الحساب هيبقى «' + STATUS[draft.status].t + '»: مش هيقدر يضيف مواقع، و' + p;
-      c.hidden = false; save.textContent = 'أيوه، ' + (draft.status === 'off' ? 'أوقف الحساب' : 'سجّله متأخر'); save.className = 'btn danger';
-    } else { c.hidden = true; save.textContent = 'حفظ التغييرات'; save.className = 'btn'; }
+      var p = draft.policy === 'keep' ? T('adm.c.keep') : draft.policy === 'reject' ? T('adm.c.reject') : T('adm.c.grace', { n: LT.n(draft.grace, 'day') });
+      c.textContent = T('adm.c.sure', { s: STATUS[draft.status].t }) + ' ' + p;
+      c.hidden = false; save.textContent = T(draft.status === 'off' ? 'adm.c.yes_off' : 'adm.c.yes_late'); save.className = 'btn danger';
+    } else { c.hidden = true; save.textContent = T('adm.save'); save.className = 'btn'; }
   }
   function changes() {
     var o = current, b = {};
@@ -262,8 +262,8 @@
     var btn = $('d-save'); btn.disabled = true;
     LT.api('/v1/platform/orgs/' + current.id, { method: 'POST', body: b }).then(function (r) {
       btn.disabled = false;
-      if (!r.ok) { toast(r.body.error && r.body.error.indexOf('bad_') === 0 ? 'قيمة مش مظبوطة. راجع الخانات.' : 'مااتحفظش. جرّب تاني.', true); return; }
-      toast('اتحفظ ✓ «' + current.name + '»');
+      if (!r.ok) { toast(r.body.error && r.body.error.indexOf('bad_') === 0 ? T('adm.save.bad') : T('adm.save.fail'), true); return; }
+      toast(T('adm.saved', { n: current.name }));
       closeDrawer(); load();
     });
   }

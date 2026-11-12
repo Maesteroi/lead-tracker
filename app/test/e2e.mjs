@@ -246,7 +246,7 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
 { const api = fakeApi({ signedIn: true }); const pg = await page(api);
   await pg.goto('https://app.maestrolt.com/admin');
   await pg.waitForSelector('#denied:not([hidden])');
-  t('admin: a normal user sees "not available" and nothing else', await pg.locator('#app').isHidden() && /مش متاحة/.test(await pg.locator('#denied').innerText()));
+  t('admin: a normal user sees "not available" and nothing else', await pg.locator('#app').isHidden() && /غير متاحة/.test(await pg.locator('#denied').innerText()));
   await pg.goto('https://app.maestrolt.com/');
   await pg.waitForSelector('#view .panel-card, #view .answers');
   t('admin: the main page hides the admin link from a normal user', await pg.locator('#admin-link').isHidden());
@@ -259,16 +259,16 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
   t('admin: the main page shows the admin link to the platform admin', true);
   await pg.goto('https://app.maestrolt.com/admin');
   await pg.waitForSelector('#rows tr');
-  t('admin: KPIs show the totals', /1,284/.test(await pg.locator('#kpis').innerText()) && /8,031 في 7 أيام/.test(await pg.locator('#kpis').innerText()));
+  t('admin: KPIs show the totals', /1,284/.test(await pg.locator('#kpis').innerText()) && /8,031 خلال 7 أيام/.test(await pg.locator('#kpis').innerText()));
   t('admin: all 4 accounts listed, the ones needing attention first', (await pg.locator('#rows tr').count()) === 4 && /عيادات النخبة|متجر لمسة/.test(await pg.locator('#rows tr').first().innerText()));
-  t('admin: an expired trial is labelled as such, and a stopped account as stopped', /التجربة خلصت/.test(await pg.locator('#rows').innerText()) && /موقوف/.test(await pg.locator('#rows').innerText()));
-  t('admin: delivery column shows the worst site of the account (Rawda 95%) and "no report yet" for others', /95%/.test(await pg.locator('#rows tr', { hasText: 'Digital Avenue' }).innerText()) && /لسه مفيش تقرير/.test(await pg.locator('#rows tr', { hasText: 'متجر لمسة' }).innerText()));
-  t('admin: telegram card says the bot is on the sheet with 3 waiting, and offers to move it', /على الشيت/.test(await pg.locator('#tg-pill').innerText()) && /3 تحديث مستني/.test(await pg.locator('#tg-meta').innerText()) && await pg.locator('#tg-server').isVisible());
+  t('admin: an expired trial is labelled as such, and a stopped account as stopped', /انتهت التجربة/.test(await pg.locator('#rows').innerText()) && /موقوف/.test(await pg.locator('#rows').innerText()));
+  t('admin: delivery column shows the worst site of the account (Rawda 95%) and "no report yet" for others', /95%/.test(await pg.locator('#rows tr', { hasText: 'Digital Avenue' }).innerText()) && /لا يوجد تقرير بعد/.test(await pg.locator('#rows tr', { hasText: 'متجر لمسة' }).innerText()));
+  t('admin: telegram card says the bot is on the sheet with 3 waiting, and offers to move it', /على الجدول/.test(await pg.locator('#tg-pill').innerText()) && /3 تحديث بالانتظار/.test(await pg.locator('#tg-meta').innerText()) && await pg.locator('#tg-server').isVisible());
   await shot(pg, 'admin-1-desktop');
   await pg.locator('#q').fill('ofoq');
   t('admin: search by domain filters the table', (await pg.locator('#rows tr').count()) === 1);
   await pg.locator('#q').fill('');
-  await pg.getByRole('button', { name: /محتاج انتباه/ }).click();
+  await pg.getByRole('button', { name: /يحتاج إلى انتباه/ }).click();
   t('admin: the "needs attention" filter shows only stopped / expired accounts', (await pg.locator('#rows tr').count()) === 2);
   await pg.getByRole('button', { name: /^الكل/ }).click();
 
@@ -297,7 +297,7 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
   await pg.locator('input[name="pol"][value="grace"]').check();
   await pg.locator('#d-grace').fill('3');
   await pg.locator('#d-save').click();
-  t('admin drawer: stopping an account asks to confirm first (nothing sent yet) and explains what happens to events', api.orgCalls.length === 1 && /متأكد/.test(await pg.locator('#d-confirm').innerText()) && /3 يوم/.test(await pg.locator('#d-confirm').innerText()));
+  t('admin drawer: stopping an account asks to confirm first (nothing sent yet) and explains what happens to events', api.orgCalls.length === 1 && /متأكد/.test(await pg.locator('#d-confirm').innerText()) && /3 أيام/.test(await pg.locator('#d-confirm').innerText()));
   await shot(pg, 'admin-3-confirm');
   await pg.locator('#d-save').click();
   await pg.waitForSelector('#toast:not([hidden])');
@@ -317,7 +317,7 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
 
   await pg.locator('#tg-server').click();
   await pg.waitForSelector('#tg-pill.ok');
-  t('admin: moving the bot to the server calls the API and updates the card', api.tgCalls.length === 1 && api.tgCalls[0].target === 'server' && /على السيرفر/.test(await pg.locator('#tg-pill').innerText()) && await pg.locator('#tg-sheet').isVisible());
+  t('admin: moving the bot to the server calls the API and updates the card', api.tgCalls.length === 1 && api.tgCalls[0].target === 'server' && /على الخادم/.test(await pg.locator('#tg-pill').innerText()) && await pg.locator('#tg-sheet').isVisible());
   t('admin: no console errors and no CSP violations', pg.errors.length === 0 && pg.csp.length === 0);
   if (pg.errors.length || pg.csp.length) console.log(pg.errors, pg.csp);
   await pg.context().close(); }
@@ -587,7 +587,7 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
   const pg = await page(api, { viewport: { width: 1440, height: 900 } });
   await pg.goto('https://app.maestrolt.com/admin');
   await pg.waitForSelector('#rows tr');
-  t('admin (super admin): tabs for accounts, team and the change log', await pg.locator('#tab-btn-team').isVisible() && await pg.locator('#tab-btn-audit').isVisible() && /سوبر أدمن/.test(await pg.locator('#role-eyebrow').innerText()));
+  t('admin (super admin): tabs for accounts, team and the change log', await pg.locator('#tab-btn-team').isVisible() && await pg.locator('#tab-btn-audit').isVisible() && /المدير العام/.test(await pg.locator('#role-eyebrow').innerText()));
   await pg.locator('#tab-btn-team').click();
   await pg.waitForSelector('#tab-team .role-row');
   t('team tab: super admins, roles with their permissions, members with their scope', /محمود/.test(await pg.locator('#tab-team').innerText()) && /دعم فني/.test(await pg.locator('#tab-team .role-row').innerText()) && /يمد التجربة/.test(await pg.locator('#tab-team .role-row').innerText()) && /Digital Avenue/.test(await pg.locator('#tab-team').innerText()));
@@ -598,18 +598,18 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
   await pg.waitForFunction(() => document.querySelectorAll('#tab-team .role-row').length === 2);
   const rc = api.teamCalls.find((c) => c.p === '/v1/platform/roles');
   t('team: a new role with ticked permissions is saved (with CSRF)', rc && rc.b.name === 'مشرف السعودية' && rc.b.perms.includes('dash_view') && rc.b.perms.includes('orgs_view') && rc.csrf === 'csrf-token-123');
-  const inviteCard = pg.locator('#tab-team .panel-card', { hasText: 'ادعي عضو' });
+  const inviteCard = pg.locator('#tab-team .panel-card', { hasText: 'ادعُ عضوًا' });
   await inviteCard.locator('input[type="email"]').fill('ali@gmail.com');
-  await inviteCard.locator('.ck-in', { hasText: 'حسابات معيّنة' }).locator('input').check();
+  await inviteCard.locator('.ck-in', { hasText: 'حسابات محددة' }).locator('input').check();
   await inviteCard.locator('.scope-list .ck-in', { hasText: 'مؤسسة الأفق' }).locator('input').check();
-  await inviteCard.getByRole('button', { name: 'ادعيه' }).click();
+  await inviteCard.getByRole('button', { name: 'ادعُه' }).click();
   await pg.waitForSelector('.invite-result:not([hidden]) .msg-box');
   const ic = api.teamCalls.find((c) => c.p === '/v1/platform/invites');
   t('team: invite by Google email with a scope (one account), and a ready message to send', ic && ic.b.email === 'ali@gmail.com' && ic.b.scope_org_ids.length === 1 && ic.b.scope_org_ids[0] === 'o-ac' && ic.b.scope_site_ids === null && /ali@gmail.com/.test(await pg.locator('.invite-result .msg-box').innerText()));
-  t('team: no emails are sent by us — the message says to send it yourself', /مابنبعتش إيميلات/.test(await pg.locator('.invite-result').innerText()));
+  t('team: no emails are sent by us — the message says to send it yourself', /لا نرسل رسائل بريد/.test(await pg.locator('.invite-result').innerText()));
   await shot(pg, 'admin-team');
   await pg.locator('#tab-team tr', { hasText: 'سارة' }).locator('select').selectOption('role-1');
-  await pg.waitForFunction(() => /اتغيّر الدور/.test(document.getElementById('toast').textContent));
+  await pg.waitForFunction(() => /تغيّر الدور/.test(document.getElementById('toast').textContent));
   t('team: changing a member role is sent', api.teamCalls.some((c) => c.p === '/v1/platform/members' && c.b.user_id === 'u9' && c.b.role_id === 'role-1'));
   await pg.locator('#tab-btn-audit').click();
   await pg.waitForSelector('#tab-audit tbody tr');
