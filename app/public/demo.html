@@ -14,13 +14,13 @@
 <link rel="stylesheet" href="/css/dash.css">
 </head>
 <body class="dash">
-<a class="skip" href="#view">انتقل للمحتوى</a>
-<aside class="side" aria-label="القائمة">
+<a class="skip" href="#view" data-i18n="frame.skip">انتقل إلى المحتوى</a>
+<aside class="side" aria-label="القائمة" data-i18n-aria="frame.menu">
   <a class="side-logo" href="#/overview"><picture><source srcset="/img/logo-dark.webp" media="(prefers-color-scheme: dark)"><img src="/img/logo.webp" alt="Maestro LT — Leads Tracker" width="132" height="80"></picture></a>
   <nav class="side-nav" id="side-nav"></nav>
   <div class="side-foot">
-    <span class="pill warn">لوحة تجريبية · بيانات وهمية</span>
-    <a class="linkish" href="/login">ادخل لوحتك الحقيقية ‹</a>
+    <span class="pill warn" data-i18n="frame.demo_side">لوحة تجريبية · بيانات وهمية</span>
+    <a class="linkish" href="/login" data-i18n="frame.demo_login">ادخل إلى لوحتك الحقيقية ‹</a>
   </div>
 </aside>
 
@@ -28,25 +28,25 @@
   <header class="topbar">
     <div class="tb-title">
       <a class="tb-logo" href="#/overview"><img src="/img/logo-icon.png" alt="Maestro LT" width="36" height="36"></a>
-      <h1 id="page-title">الرئيسية</h1>
-      <span class="pill warn demo-pill">تجريبية</span>
+      <h1 id="page-title" data-i18n="nav.overview">الرئيسية</h1>
+      <span class="pill warn demo-pill" data-i18n="frame.demo_badge">تجريبية</span>
     </div>
     <div class="tb-tools">
-      <div class="seg level" id="level" role="group" aria-label="مستوى العرض"></div>
-      <label class="site-pick"><span class="sr">الموقع</span><select id="site" aria-label="الموقع"></select></label>
-      <div class="seg" id="range" role="group" aria-label="الفترة"></div>
+      <div class="seg level" id="level" role="group" aria-label="طريقة العرض" data-i18n-aria="frame.level"></div>
+      <label class="site-pick"><span class="sr" data-i18n="frame.site">الموقع</span><select id="site" aria-label="الموقع" data-i18n-aria="frame.site"></select></label>
+      <div class="seg" id="range" role="group" aria-label="الفترة" data-i18n-aria="frame.range"></div>
     </div>
   </header>
   <main class="view" id="view" tabindex="-1"></main>
 </div>
 
-<nav class="bottom-nav" id="bottom-nav" aria-label="التنقل"></nav>
+<nav class="bottom-nav" id="bottom-nav" aria-label="التنقل" data-i18n-aria="frame.nav"></nav>
 
 <div class="scrim" id="scrim" hidden></div>
 <aside class="drawer" id="drawer" role="dialog" aria-modal="true" aria-labelledby="d-title" hidden>
   <header class="d-head">
     <div><h2 id="d-title"></h2><p class="hint" id="d-sub"></p></div>
-    <button class="icon-btn" id="d-close" type="button" aria-label="قفل">×</button>
+    <button class="icon-btn" id="d-close" type="button" aria-label="إغلاق" data-i18n-aria="frame.close">×</button>
   </header>
   <div class="d-body" id="d-body"></div>
   <footer class="d-foot" id="d-foot" hidden></footer>
@@ -54,6 +54,8 @@
 <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 
 <script src="/js/common.js"></script>
+<script src="/js/lang/ar.js"></script>
+<script src="/js/i18n.js"></script>
 <script src="/js/charts.js"></script>
 <script src="/js/demo-data.js"></script>
 <script src="/js/dash.js"></script>

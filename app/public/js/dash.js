@@ -30,10 +30,8 @@
     var p = document.createElementNS(NS, 'path'); p.setAttribute('d', ICONS[name]); svg.appendChild(p); return svg;
   }
 
-  var ROUTES = [
-    ['overview', 'الرئيسية'], ['clients', 'كل العملاء'], ['statement', 'كشف الحساب'], ['visits', 'الزيارات'], ['protection', 'الحماية'],
-    ['leads', 'العملاء الحقيقيين'], ['alerts', 'التنبيهات'], ['reports', 'التقارير'], ['sites', 'المواقع والتركيب'], ['team', 'الفريق'],
-  ];
+  var T = LT.t;   // النصوص من ملف اللغة (js/lang/*.js)
+  var ROUTES = ['overview', 'clients', 'statement', 'visits', 'protection', 'leads', 'alerts', 'reports', 'sites', 'team'].map(function (k) { return [k, T('nav.' + k)]; });
   var NAV = { simple: ['overview', 'leads', 'protection', 'alerts', 'sites', 'team'], detailed: ROUTES.map(function (r) { return r[0]; }) };
   var BOTTOMS = { simple: ['overview', 'leads', 'protection', 'alerts'], detailed: ['overview', 'statement', 'visits', 'protection'] };
   var BOTTOM = BOTTOMS.detailed;
@@ -73,20 +71,20 @@
     ROUTES.filter(function (r) { return NAV[state.level].indexOf(r[0]) >= 0; }).forEach(function (r) {
       side.appendChild(el('a', { href: '#/' + r[0], 'data-r': r[0] }, [icon(r[0]), el('span', { text: r[1] })]));
     });
-    BOTTOM.forEach(function (k) { var r = ROUTES.filter(function (x) { return x[0] === k; })[0]; bottom.appendChild(el('a', { href: '#/' + k, 'data-r': k }, [icon(k), el('span', { text: k === 'statement' ? 'الكشف' : k === 'leads' ? 'العملاء' : r[1] })])); });
-    var more = el('button', { type: 'button', class: 'more', 'aria-haspopup': 'true' }, [icon('more'), el('span', { text: 'المزيد' })]);
+    BOTTOM.forEach(function (k) { var r = ROUTES.filter(function (x) { return x[0] === k; })[0]; bottom.appendChild(el('a', { href: '#/' + k, 'data-r': k }, [icon(k), el('span', { text: k === 'statement' ? T('nav.statement.short') : k === 'leads' ? T('nav.leads.short') : r[1] })])); });
+    var more = el('button', { type: 'button', class: 'more', 'aria-haspopup': 'true' }, [icon('more'), el('span', { text: T('frame.more') })]);
     more.addEventListener('click', openMore);
     bottom.appendChild(more);
   }
   function openMore() {
     var body = clear($('d-body'));
-    $('d-title').textContent = 'المزيد'; $('d-sub').textContent = '';
+    $('d-title').textContent = T('frame.more'); $('d-sub').textContent = '';
     ROUTES.filter(function (r) { return BOTTOM.indexOf(r[0]) < 0 && NAV[state.level].indexOf(r[0]) >= 0; }).forEach(function (r) {
       var a = el('a', { class: 'more-link', href: '#/' + r[0] }, [icon(r[0]), el('span', { text: r[1] })]);
       a.addEventListener('click', closeDrawer);
       body.appendChild(a);
     });
-    var sw = el('button', { class: 'more-link', type: 'button' }, [icon('more'), el('span', { text: state.level === 'simple' ? 'العرض الاحترافي (كل الأرقام والجداول)' : 'العرض المبسّط (الخلاصة بس)' })]);
+    var sw = el('button', { class: 'more-link', type: 'button' }, [icon('more'), el('span', { text: T(state.level === 'simple' ? 'level.to_detailed' : 'level.to_simple') })]);
     sw.addEventListener('click', function () { closeDrawer(); setLevel(state.level === 'simple' ? 'detailed' : 'simple'); });
     body.appendChild(sw);
     openDrawer();
@@ -100,13 +98,14 @@
     sel.value = state.site;
     sel.onchange = function () { state.site = sel.value; render(); };
     var lvl = clear($('level'));
-    [['simple', 'مبسّط'], ['detailed', 'احترافي']].forEach(function (x) {
-      var b = el('button', { type: 'button', 'aria-pressed': String(state.level === x[0]), text: x[1], title: x[0] === 'simple' ? 'الخلاصة بس، بكلام بسيط' : 'كل الأرقام والجداول (للمتخصصين والوكالات)' });
+    ['simple', 'detailed'].forEach(function (k) {
+      var x = [k, T('level.' + k)];
+      var b = el('button', { type: 'button', 'aria-pressed': String(state.level === x[0]), text: x[1], title: T('level.' + k + '.tip') });
       b.addEventListener('click', function () { if (state.level !== x[0]) setLevel(x[0]); });
       lvl.appendChild(b);
     });
     var seg = clear($('range'));
-    [[1, 'النهارده'], [7, '7 أيام'], [30, '30 يوم']].forEach(function (r) {
+    [1, 7, 30].map(function (d) { return [d, T('range.' + d)]; }).forEach(function (r) {
       var b = el('button', { type: 'button', 'aria-pressed': String(state.range === r[0]), text: r[1] });
       b.addEventListener('click', function () { state.range = r[0]; buildTop(); render(); });
       seg.appendChild(b);
@@ -120,12 +119,12 @@
     Array.prototype.forEach.call(document.querySelectorAll('[data-r]'), function (a) { if (a.getAttribute('data-r') === r) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
     var title = ROUTES.filter(function (x) { return x[0] === r; })[0][1];
     $('page-title').textContent = title;
-    document.title = title + ' · Maestro LT' + (DATA.demo ? ' (تجريبية)' : '');
+    document.title = title + ' · ' + T('app.name') + (DATA.demo ? T('frame.demo_suffix') : '');
     $('range').hidden = r === 'protection' || r === 'alerts' || r === 'sites' || r === 'reports' || r === 'team' || (r === 'overview' && state.level === 'simple');
     $('site').parentNode.hidden = r === 'clients';
-    if (r === 'overview' && state.level === 'simple') $('page-title').textContent = 'الخلاصة';
+    if (r === 'overview' && state.level === 'simple') $('page-title').textContent = T('nav.overview.simple');
     if (state.level === 'simple' && NAV.simple.indexOf(r) < 0) { /* شاشة تفصيلية من رابط: بتتفتح عادي */ }
-    view.appendChild(el('div', { class: 'loading' }, [el('span', { class: 'spinner' }), document.createTextNode('بنحمّل…')]));
+    view.appendChild(el('div', { class: 'loading' }, [el('span', { class: 'spinner' }), document.createTextNode(T('frame.loading'))]));
     (r === 'overview' && state.level === 'simple' ? (DATA.live ? lSimple : vSimple) : (DATA.live && LIVE_VIEWS[r]) || VIEWS[r])(view).then(function () { var l = view.querySelector('.loading'); if (l) l.remove(); window.scrollTo(0, 0); });
   }
 
@@ -1010,7 +1009,7 @@
         if (!s.length && DATA.live) { location.hash = '#/sites'; }
         render();
       });
-    }).catch(function () { var v = clear($('view')); v.appendChild(card('مقدرناش نحمّل لوحتك', [el('p', { text: 'جرّب تعمل تحديث للصفحة.' })])); });
+    }).catch(function () { var v = clear($('view')); v.appendChild(card(T('frame.load_fail'), [el('p', { text: T('frame.load_fail_hint') })])); });
   }
   start();
 })();

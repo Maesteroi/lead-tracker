@@ -358,10 +358,10 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
   await pg.getByRole('button', { name: 'عرض كجدول' }).click();
   t('demo: "show as table" swaps the chart for a table', await pg.locator('.tview').isVisible() && await pg.locator('.plot').isHidden());
   await shot(pg, 'demo-1-overview');
-  await pg.getByRole('button', { name: '30 يوم' }).click();
+  await pg.getByRole('button', { name: '30 يومًا' }).click();
   await pg.waitForFunction(() => document.querySelectorAll('svg .hit').length === 30);
   t('demo: switching to 30 days redraws with 30 days', true);
-  for (const [r, title] of [['statement', 'كشف الحساب'], ['visits', 'الزيارات'], ['protection', 'الحماية'], ['leads', 'العملاء الحقيقيين'], ['alerts', 'التنبيهات'], ['sites', 'المواقع والتركيب']]) {
+  for (const [r, title] of [['statement', 'كشف الحساب'], ['visits', 'الزيارات'], ['protection', 'الحماية'], ['leads', 'العملاء الحقيقيون'], ['alerts', 'التنبيهات'], ['sites', 'المواقع والتثبيت']]) {
     await pg.locator('.side-nav a[data-r="' + r + '"]').click();
     await pg.waitForFunction((x) => document.getElementById('page-title').textContent === x && !document.querySelector('.view .loading'), title);
     t('demo: ' + r + ' opens and its menu item is marked current', (await pg.locator('.side-nav a[aria-current="page"]').getAttribute('data-r')) === r);
@@ -396,8 +396,8 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
   t('demo mobile: sidebar hidden, bottom bar with 5 items, no sideways scrolling', await pg.locator('.side').isHidden() && (await pg.locator('.bottom-nav > *').count()) === 5 && await pg.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1));
   await shot(pg, 'demo-mobile-simple');
   await pg.locator('.bottom-nav .more').click();
-  await pg.locator('.more-link', { hasText: 'المواقع والتركيب' }).click();
-  await pg.waitForFunction(() => document.getElementById('page-title').textContent === 'المواقع والتركيب');
+  await pg.locator('.more-link', { hasText: 'المواقع والتثبيت' }).click();
+  await pg.waitForFunction(() => document.getElementById('page-title').textContent === 'المواقع والتثبيت');
   t('demo mobile: "more" opens the other screens', await pg.locator('#drawer').isHidden() && (await pg.locator('.checks').count()) === 6);
   await pg.locator('.bottom-nav .more').click();
   await pg.locator('.more-link', { hasText: 'العرض الاحترافي' }).click();
@@ -494,7 +494,7 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
   await shot(pg, 'live-visit');
   await pg.keyboard.press('Escape');
   await pg.locator('.side-nav a[data-r="leads"]').click();
-  await pg.waitForFunction(() => document.getElementById('page-title').textContent === 'العملاء الحقيقيين' && document.querySelector('#view .tbl select'));
+  await pg.waitForFunction(() => document.getElementById('page-title').textContent === 'العملاء الحقيقيون' && document.querySelector('#view .tbl select'));
   await pg.locator('#view .tbl select').first().selectOption('تم');
   await pg.waitForFunction(() => /اتسجلت/.test(document.getElementById('toast').textContent));
   t('live leads: choosing an outcome saves it to the server with the CSRF token', (api.outcomeCalls || []).length === 1 && api.outcomeCalls[0].code === 'AB12' && api.outcomeCalls[0].value === 'تم' && api.outcomeCalls[0].site === 'SiteId123456' && api.outcomeCalls[0].csrf === 'csrf-token-123');
@@ -548,7 +548,7 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
   await shot(pg, 'live-visit-scored');
   await pg.keyboard.press('Escape');
   await pg.locator('.side-nav a[data-r="leads"]').click();
-  await pg.waitForFunction(() => document.getElementById('page-title').textContent === 'العملاء الحقيقيين' && document.querySelector('#view .tbl tbody tr'));
+  await pg.waitForFunction(() => document.getElementById('page-title').textContent === 'العملاء الحقيقيون' && document.querySelector('#view .tbl tbody tr'));
   t('leads: contact strength (estimate) shown under the contact', /تواصل قوي/.test(await pg.locator('#view .tbl').innerText()) && /3د 20ث/.test(await pg.locator('#view .tbl').innerText()) && /تقديري/.test(await pg.locator('#view .tbl').innerText()));
   t('leads: a contact from outside the target country is marked «بره النطاق» with a note and no outcome to pick', /بره النطاق/.test(await pg.locator('#view .tbl').innerText()) && /ليبيا/.test(await pg.locator('#view .tbl').innerText()) && (await pg.locator('#view .tbl select').count()) === 1);
   t('scoring: no console errors and no CSP violations', pg.errors.length === 0 && pg.csp.length === 0);
@@ -568,7 +568,7 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
   t('professional protection: KPIs and all reasons back, sentence hidden', await pg.locator('#view .kpis').isVisible() && await pg.locator('#view .simple-line').isHidden() && (await pg.locator('#view .q-item').first().locator('.why li:visible').count()) === 2);
   await pg.locator('#level').getByRole('button', { name: 'مبسّط' }).click();
   await pg.goto('https://app.maestrolt.com/#/leads');
-  await pg.waitForFunction(() => document.getElementById('page-title').textContent === 'العملاء الحقيقيين' && document.querySelector('#view .tbl tbody tr'));
+  await pg.waitForFunction(() => document.getElementById('page-title').textContent === 'العملاء الحقيقيون' && document.querySelector('#view .tbl tbody tr'));
   t('simple leads: one sentence (contacts · agreed · waiting · outside), no KPI grid, no source column', /كلّمك 1 \(2 واتساب/.test(await pg.locator('.simple-line').innerText()) && /بره البلد/.test(await pg.locator('.simple-line').innerText()) && await pg.locator('#view .kpis').isHidden() && await pg.locator('#view .tbl th', { hasText: 'المصدر' }).isHidden());
   await shot(pg, 'live-leads-simple');
   await pg.goto('https://app.maestrolt.com/#/visits');
