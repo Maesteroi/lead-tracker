@@ -187,3 +187,15 @@ test('dash overview (pro home): countries, reasons, hours heatmap (Riyadh time),
   const past = (await s.gc(s.owner, '/v1/dash/overview?site=' + s.site.id + '&from=' + y + '&to=' + y)).body;
   assert.equal(past.period.days, 1); assert.equal(past.live, 0); assert.equal(past.kpi.real + past.kpi.suspicious + past.kpi.high, 0, "yesterday has none of today's visits");
 });
+
+test('dash overview: the map data (countries and cities with how many are outside the target) and the sources-and-conversion table', async () => {
+  const s = await setup();
+  const b = (await s.gc(s.owner, '/v1/dash/overview?site=' + s.site.id + '&range=7')).body;
+  assert.ok(Array.isArray(b.countries) && b.countries.every((c) => c.code && 'out' in c && 'n' in c));
+  assert.ok(b.cities.length >= 1 && b.cities[0].name && 'cc' in b.cities[0] && 'out' in b.cities[0]);
+  const row = b.sources_conv.find((x) => x.visits > 0);
+  assert.ok(row && 'contacted' in row && 'won' in row && 'rate' in row && 'bad' in row);
+  const all = b.sources_conv.reduce((a, x) => a + x.visits, 0);
+  assert.equal(all, b.kpi.real + b.kpi.suspicious + b.kpi.high, 'every visit counted once');
+  assert.ok(Array.isArray(b.targets));
+});

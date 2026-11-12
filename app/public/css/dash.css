@@ -86,7 +86,7 @@ body.dash { background: var(--bg); }
 
 /* الرسوم */
 .chart-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 6px; }
-.chart-legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 13.5px; color: var(--muted); font-weight: 700; }
+.chart-legend, .geo-legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 13.5px; color: var(--muted); font-weight: 700; }
 .lg { display: inline-flex; align-items: center; gap: 6px; }
 .sw { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
 .plot { position: relative; }
@@ -399,3 +399,29 @@ body.level-simple .pro-only, body.level-detailed .simple-only { display: none !i
 .range-pop .custom label { display: grid; grid-template-columns: 36px 1fr; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
 .range-pop .custom input { padding: 8px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); font: 500 14px var(--font-body); }
 @media (prefers-reduced-motion: reduce) { .draw, .a-in, .d-seg, .r-bar, .h-cell, .ov-hero, .kpis.pro .kpi, .grid-ov > .card, .range-pop { animation: none !important; opacity: 1; stroke-dashoffset: 0; } }
+/* خريطة الزيارات: أخضر جوه النطاق المستهدف · أحمر برّه · أزرق لو مفيش نطاق محدد */
+:root { --g-in: #1f9d55; --g-out: #d92d20; --g-vis: var(--c-real); --g-land: #dfe6f1; --g-edge: #ffffff; --g-sea: #f3f7fd; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --g-in: #3fcf7f; --g-out: #ff6b5e; --g-land: #22304d; --g-edge: #101a2e; --g-sea: #0d1527; } }
+:root[data-theme="dark"] { --g-in: #3fcf7f; --g-out: #ff6b5e; --g-land: #22304d; --g-edge: #101a2e; --g-sea: #0d1527; }
+.map-grid { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+@media (max-width: 900px) { .map-grid { grid-template-columns: 1fr; } }
+.geo-wrap { display: grid; gap: 10px; }
+svg.geo { width: 100%; height: auto; aspect-ratio: 1.7; display: block; background: var(--g-sea); border-radius: 12px; }
+.geo .g-c { fill: var(--g-land); stroke: var(--g-edge); stroke-width: .5; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.geo .g-c.g-in { fill: color-mix(in srgb, var(--g-in) 62%, var(--g-land)); }
+.geo .g-c.g-out { fill: color-mix(in srgb, var(--g-out) 62%, var(--g-land)); }
+.geo .g-c.g-vis { fill: color-mix(in srgb, var(--g-vis) 55%, var(--g-land)); }
+.geo .g-c.g-in:hover, .geo .g-c.g-out:hover, .geo .g-c.g-vis:hover { filter: brightness(1.08); }
+.geo .g-dot { stroke: var(--card); vector-effect: non-scaling-stroke; stroke-width: 1.5; fill-opacity: .9; animation: g-pop .5s ease-out both; transform-box: fill-box; transform-origin: center; }
+.geo .g-dot.g-in { fill: var(--g-in); } .geo .g-dot.g-out { fill: var(--g-out); } .geo .g-dot.g-vis { fill: var(--g-vis); }
+@keyframes g-pop { from { transform: scale(0); } to { transform: scale(1); } }
+.sw.g-in, .f.g-in { background: var(--g-in); } .sw.g-out, .f.g-out { background: var(--g-out); } .sw.g-vis, .f.g-vis { background: var(--g-vis); }
+.geo-nums h3 { margin: 0 0 8px; }
+.geo-nums h3 + .hbars { margin-bottom: 16px; }
+/* جدول المصادر والتحويل */
+.conv { overflow-x: auto; }
+.conv table.mini td.n, .conv table.mini th.n { text-align: end; }
+.conv .rate { display: inline-flex; align-items: center; gap: 8px; min-width: 110px; justify-content: flex-end; }
+.conv .rate i { display: inline-block; height: 6px; border-radius: 4px; background: var(--growth); min-width: 2px; }
+.conv tr.conv-best td:first-child b::after { content: " ★"; color: var(--growth); }
+@media (prefers-reduced-motion: reduce) { .geo .g-dot { animation: none; } }
