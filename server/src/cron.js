@@ -6,6 +6,7 @@ import { geoBackfill } from './geo.js';
 import { cleanupSessions } from './notify.js';
 import { cleanupReplays } from './replay.js';
 import { dailyDeliveryReport } from './health.js';
+import { cleanPending, adsLinkReady } from './adslink.js';
 
 const H = 3600 * 1000;
 const ago = (ms) => new Date(Date.now() - ms).toISOString();
@@ -100,6 +101,8 @@ export async function runScheduled(env, db, opts) {
   try { out.geo = await geoBackfill(env, db, opts && opts.fetchImpl, 20); } catch (e) { out.geo = { error: String(e && e.message || e).slice(0, 80) }; }
   // تقرير التوصيل الصبح (مرة في اليوم): مستقل
   try { out.delivery = await dailyDeliveryReport(env, db, opts && opts.fetchImpl); } catch (e) { out.delivery = { error: String(e && e.message || e).slice(0, 80) }; }
+  // طلبات ربط جوجل أدز اللي ماكملتش (مرة في الساعة، ولو الربط متظبّط بس): مستقل
+  if (new Date().getUTCMinutes() < 5 && adsLinkReady(env)) { try { await cleanPending(db); } catch (e) { /* مايوقفش حاجة */ } }
   // سحب جوجل أدز مستقل: عطل في اللي فوق مايوقفوش، وعطله مايوقفش اللي فوق. مقفول لحد ما ADS_PULL_ENABLED = "1"
   out.ads = await adsTick(env, db, opts);
   if (failed) throw failed;

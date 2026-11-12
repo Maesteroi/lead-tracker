@@ -169,6 +169,7 @@ button.switch[aria-checked="true"]::after { inset-inline-start: 21px; }
 .ck { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; font-style: normal; font-weight: 800; font-size: 13px; }
 .checks .ok .ck { background: var(--ok-bg); color: var(--ok); } .checks .warn .ck { background: var(--warn-bg); color: var(--warn); }
 .checks span { color: var(--muted); }
+.checks li > button { grid-column: 3; justify-self: start; }
 .more-d summary { cursor: pointer; color: var(--accent); font-weight: 700; margin-bottom: 8px; }
 
 /* ── شريط الموبايل ── */
@@ -193,6 +194,7 @@ button.switch[aria-checked="true"]::after { inset-inline-start: 21px; }
   .hb { grid-template-columns: minmax(96px, 40%) 1fr auto; }
   .checks li { grid-template-columns: 26px 1fr; }
   .checks li span { grid-column: 2; }
+  .checks li > button { grid-column: 2; }
   .seg.wide3 { grid-template-columns: 1fr; }
   .timeline::before { inset-inline-start: 56px; } .timeline li::after { inset-inline-start: 51px; } .timeline li { grid-template-columns: 48px 1fr; }
 }

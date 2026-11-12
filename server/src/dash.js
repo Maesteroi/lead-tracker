@@ -16,6 +16,7 @@ import { audit } from './auth.js';
 import { scoreSession, reasonGroup, outsideTarget, contactStrength } from './score.js';
 import { tr, countryName, langOf } from './i18n.js';
 import { replaySet, loadReplay } from './replay.js';
+import { adsState } from './adslink.js';
 
 const RANGES = new Set([1, 7, 30]);
 const SID_RE = /^[A-Za-z0-9_-]{4,64}$/;
@@ -170,7 +171,7 @@ export async function dashSetup(req, env, db, sess) {
     const last = await db.one('raw_events?client_id=' + eq(c.id) + '&select=received_at&order=received_at.desc');
     const d = deliv.filter((r) => r.client_id === c.id);
     out.push({ id: c.id, name: c.name, domains: c.domains || [], status: c.status, paired: !!c.paired_at, installed: !!last, last_event: last ? last.received_at : null,
-      plugin: d[0] ? d[0].plugin_version : null, delivery: d.map((r) => ({ day: r.day, pct: r.pv_pct, ok: r.ok })), ads: await adsLinked(db, c.id) });
+      plugin: d[0] ? d[0].plugin_version : null, delivery: d.map((r) => ({ day: r.day, pct: r.pv_pct, ok: r.ok })), ads: await adsLinked(db, c.id), ads_state: await adsState(db, c.id), role: roleFor(sess, c.org_id, c.id) });
   }
   return json({ ok: true, sites: out });
 }

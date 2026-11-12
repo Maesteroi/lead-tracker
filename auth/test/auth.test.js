@@ -115,3 +115,56 @@ test('callback saves the token to Apps Script signed with HMAC(site_id:refresh_t
     assert.equal(saved.signature, hmac('hmac-secret', 'abc123:RT-SECRET-123'));
   } finally { globalThis.fetch = f0; }
 });
+
+// ── ربط جوجل أدز من اللوحة (12 نوفمبر): التوكن بيروح للسيرفر بس، والعميل بيرجع للوحة يختار الحساب ──
+const apiLink = (site, exp, secret) => '/connect?site_id=' + site + '&exp=' + exp + '&to=api&sig=' + createHmac('sha256', secret || 'link-secret').update('connect:' + site + ':' + exp + ':api').digest('hex');
+
+test('dashboard link: signed with the «:api» suffix; a sheet signature with to=api (or the reverse) is rejected', async () => {
+  const exp = nowS() + 600;
+  const ok = await get(apiLink('abc123', exp));
+  assert.equal(ok.status, 302);
+  const st = new URL(ok.headers.get('Location')).searchParams.get('state');
+  assert.equal(JSON.parse(Buffer.from(st.split('.')[0], 'base64url').toString()).to, 'api');
+  assert.equal((await get(link('abc123', exp) + '&to=api')).status, 403);          // توقيع الشيت مايفتحش لينك اللوحة
+  assert.equal((await get(apiLink('abc123', exp).replace('&to=api', ''))).status, 403);   // ولا العكس
+});
+
+test('dashboard callback: the token goes to the API (signed, never to the sheet, never shown) and the browser goes back to the dashboard', async () => {
+  const mk = (o) => { const p = Buffer.from(JSON.stringify(o)).toString('base64url'); return p + '.' + hmac('hmac-secret', 'state:' + p); };
+  const state = mk({ s: 'abc123', n: 'nonce1', t: Date.now(), to: 'api' });
+  const calls = []; const f0 = globalThis.fetch;
+  globalThis.fetch = async (url, init) => {
+    calls.push({ url: String(url), body: init.body });
+    if (String(url).includes('oauth2.googleapis.com')) return new Response(JSON.stringify({ access_token: 'at', refresh_token: 'RT-SECRET-123' }), { status: 200 });
+    return new Response(JSON.stringify({ ok: true, nonce: 'a'.repeat(48) }), { status: 200 });
+  };
+  try {
+    const res = await get('/callback?code=c&state=' + state, ENV, { Cookie: 'lt_oauth=nonce1' });
+    assert.equal(res.status, 302);
+    assert.equal(res.headers.get('Location'), 'https://app.maestrolt.com/?site=abc123&ads=' + 'a'.repeat(48) + '#/sites');
+    assert.ok(!res.headers.get('Location').includes('RT-SECRET'));
+    assert.equal(calls.length, 2);
+    assert.equal(calls[1].url, 'https://api.maestrolt.com/v1/ads/oauth-save');
+    assert.ok(!calls.some((c) => c.url.includes('script.example')));
+    const b = JSON.parse(calls[1].body);
+    assert.equal(b.signature, hmac('link-secret', 'save:abc123:' + b.ts + ':RT-SECRET-123'));
+  } finally { globalThis.fetch = f0; }
+});
+
+test('dashboard callback: if the API refuses, the visitor sees a plain error and nothing is saved anywhere else', async () => {
+  const mk = (o) => { const p = Buffer.from(JSON.stringify(o)).toString('base64url'); return p + '.' + hmac('hmac-secret', 'state:' + p); };
+  const state = mk({ s: 'abc123', n: 'nonce1', t: Date.now(), to: 'api' });
+  const calls = []; const f0 = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    calls.push(String(url));
+    if (String(url).includes('oauth2.googleapis.com')) return new Response(JSON.stringify({ access_token: 'at', refresh_token: 'RT-SECRET-123' }), { status: 200 });
+    return new Response(JSON.stringify({ ok: false, error: 'signature' }), { status: 403 });
+  };
+  try {
+    const res = await get('/callback?code=c&state=' + state, ENV, { Cookie: 'lt_oauth=nonce1' });
+    assert.equal(res.status, 502);
+    const t = await res.text();
+    assert.ok(!t.includes('RT-SECRET') && /لوحة التحكم/.test(t));
+    assert.ok(!calls.some((c) => c.includes('script.example')));
+  } finally { globalThis.fetch = f0; }
+});

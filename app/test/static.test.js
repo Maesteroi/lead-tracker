@@ -73,6 +73,12 @@ test('i18n: every key used by the screens exists in the Arabic file, and the Ara
     assert.ok(!new RegExp('(^|[\\s«"(،.:])' + w + '($|[\\s»"),.،؟:])').test(text), 'colloquial word in ar.js: ' + w);
 });
 
+test('i18n: no wording copied from the competitor (Mahmoud, 12 November: «ما ينفع نفس لفظ المنافس»)', () => {
+  const ar = read('js/lang/ar.js');
+  for (const w of ['اعفي أجهزتك', 'اعفِ', 'اعتمد لجوجل', 'اعتمد في جوجل', 'فلوس اتحمت', 'نركّبه لك', 'حد بيضغط على إعلانك', 'قعد في التطبيق'])
+    assert.ok(!ar.includes(w), 'competitor wording in ar.js: ' + w);
+});
+
 test('i18n: the English file has exactly the same keys as the Arabic one, with the same {placeholders} and no Arabic text', () => {
   const ctx = { window: {} }; vm.createContext(ctx); vm.runInContext(read('js/lang/ar.js'), ctx); vm.runInContext(read('js/lang/en.js'), ctx);
   const AR = ctx.window.LT_LANG.ar, EN = ctx.window.LT_LANG.en;

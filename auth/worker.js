@@ -11,6 +11,10 @@
 //                         &exp=<unix seconds>&sig=HMAC(LINK_SECRET, "connect:" + site_id + ":" + exp)
 //                         The link is valid until exp, and exp may be at most 15 minutes ahead (G-01).
 //                         Links are generated in Apps Script (adsConnectLink_ in oauth.js).
+//                         Dashboard links (12 Nov, server only): &to=api and sig=HMAC(LINK_SECRET, "connect:" + site_id + ":" + exp + ":api").
+//                         Their token goes to the Maestro API (POST /v1/ads/oauth-save, signed with LINK_SECRET), never to the sheet,
+//                         and the visitor is sent back to the dashboard to pick the ad account.
+//   API_ORIGIN / APP_ORIGIN (variables, optional) default https://api.maestrolt.com and https://app.maestrolt.com
 
 const enc = new TextEncoder();
 const dec = new TextDecoder();
@@ -107,7 +111,8 @@ async function connect(url, env) {
   }
   const exp = (url.searchParams.get('exp') || '').trim();
   const sig = (url.searchParams.get('sig') || '').trim();
-  const expected = await hmacHex(linkSecret, 'connect:' + siteId + ':' + exp);
+  const to = url.searchParams.get('to') === 'api' ? 'api' : '';
+  const expected = await hmacHex(linkSecret, 'connect:' + siteId + ':' + exp + (to ? ':api' : ''));
   if (!/^\d{9,11}$/.test(exp) || !safeEqual(sig, expected)) {
     return page('❌ لينك غير صالح', '<p>اطلب لينك ربط جديد من فريقنا.</p>', 403);
   }
@@ -116,7 +121,7 @@ async function connect(url, env) {
   if (Number(exp) > nowS + LINK_TTL_S + LINK_SKEW_S) return page('❌ لينك غير صالح', '<p>اطلب لينك ربط جديد من فريقنا.</p>', 403);
 
   const nonce = randomHex(16);
-  const payload = b64uEncode(JSON.stringify({ s: siteId, n: nonce, t: Date.now() }));
+  const payload = b64uEncode(JSON.stringify(to ? { s: siteId, n: nonce, t: Date.now(), to } : { s: siteId, n: nonce, t: Date.now() }));
   const state = payload + '.' + (await hmacHex(env.HMAC_SECRET, 'state:' + payload));
 
   const auth = new URL('https://accounts.google.com/o/oauth2/v2/auth');
@@ -187,6 +192,9 @@ async function callback(url, request, env) {
     );
   }
 
+  // Dashboard link: the token goes to our server only, and the visitor goes back to pick the ad account
+  if (st.to === 'api') return await saveToApi(env, siteId, tokens.refresh_token);
+
   // Same signature format the Apps Script already verifies: HMAC-SHA256(site_id + ':' + refresh_token)
   const signature = await hmacHex(env.HMAC_SECRET, siteId + ':' + tokens.refresh_token);
   const saveRes = await fetch(env.APPS_SCRIPT_URL, {
@@ -204,6 +212,24 @@ async function callback(url, request, env) {
   }
 
   return page('✅ تم الربط بنجاح!', '<p>تم ربط موقعك بحساب Google Ads.</p><p>تقدر تقفل الصفحة وترجع للموقع.</p>', 200, true);
+}
+
+async function saveToApi(env, siteId, refreshToken) {
+  const api = String(env.API_ORIGIN || 'https://api.maestrolt.com').replace(/\/+$/, '');
+  const app = String(env.APP_ORIGIN || 'https://app.maestrolt.com').replace(/\/+$/, '');
+  const ts = Math.floor(Date.now() / 1000);
+  const signature = await hmacHex(String(env.LINK_SECRET || '').trim(), 'save:' + siteId + ':' + ts + ':' + refreshToken);
+  let out = {};
+  try {
+    const res = await fetch(api + '/v1/ads/oauth-save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ site_id: siteId, refresh_token: refreshToken, ts, signature }) });
+    out = await res.json().catch(() => ({}));
+    if (!res.ok || !out.ok || !/^[a-f0-9]{48}$/.test(String(out.nonce || ''))) throw new Error('api ' + res.status + ' ' + String(out.error || ''));
+  } catch (e) {
+    console.error('save to api failed: ' + String(e.message).slice(0, 80));
+    return page('❌ خطأ', '<p>تم الربط مع جوجل، لكن تعذّر حفظه عندنا. ارجع للوحة التحكم وحاول مرة أخرى.</p>', 502, true);
+  }
+  const back = app + '/?site=' + encodeURIComponent(siteId) + '&ads=' + out.nonce + '#/sites';
+  return new Response(null, { status: 302, headers: { Location: back, 'Set-Cookie': `${COOKIE}=; Max-Age=0; Path=/; HttpOnly; Secure; SameSite=Lax`, 'Cache-Control': 'no-store' } });
 }
 
 export default {

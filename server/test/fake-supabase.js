@@ -26,10 +26,11 @@ const DEFAULTS = {
   platform_invites: () => ({ scope_org_ids: null, scope_site_ids: null, created_at: new Date().toISOString(), used_at: null, used_by: null }),
   org_invites: () => ({ site_ids: null, created_at: new Date().toISOString(), used_at: null, used_by: null }),
   sessions: () => ({ last_seen_at: null }),
+  ads_link_pending: () => ({ accounts: null, created_at: new Date().toISOString() }),
   ads_credentials: () => ({ status: 'on', login_customer_id: null, campaign_ids: null, currency: null, timezone: null, backfill_from: null, last_pull_at: null, last_ok_day: null, last_error: null }),
 };
 const UNIQUE = {
-  clients: [['id']], devices: [['token_hash']], pair_codes: [['code']],
+  clients: [['id']], ads_link_pending: [['id']], devices: [['token_hash']], pair_codes: [['code']],
   site_pair_codes: [['code_hash']], site_health: [['client_id', 'day']], protection_verdicts: [['client_id', 'session_id']], replay_sessions: [['client_id', 'session_id']], daily_reports: [['kind', 'day']], ip_geo: [['ip']], tg_sessions: [['client_id', 'session_id', 'chat_id']], users: [['google_sub']], memberships: [['user_id', 'org_id']], platform_members: [['user_id']], platform_roles: [['name']], sessions: [['token_hash']],
   raw_events: [['client_id', 'dedupe_key']], contact_clicks: [['client_id', 'match_code', 'type']],
   persons: [['client_id', 'phone_e164']], messages: [['conversation_id', 'dedupe_key']],
