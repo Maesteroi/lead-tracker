@@ -37,16 +37,34 @@ function fakeApi(over) {
     const j = (status, body) => route.fulfill({ status, headers: Object.assign({ 'content-type': 'application/json' }, cors), body: JSON.stringify(body) });
     if (req.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: cors });
     if (p === '/v1/auth/google/start') { st.loginStarted++; st.signedIn = true; st.loginNext = u.searchParams.get('next'); return route.fulfill({ status: 200, contentType: 'text/html', body: '<script>location.replace(' + JSON.stringify('https://app.maestrolt.com' + (st.loginNext || '/')) + ')</script>' }); }   // مكان التحويل 302 (Playwright مابيعترضش الخطوة التانية بعد 302 متحاكي)
-    if (p === '/v1/me') return st.signedIn ? j(200, { ok: true, user: { id: 'u1', email: 'mahmoud@example.com', name: 'محمود', platform_admin: !!st.platformAdmin }, orgs: st.orgs, csrf: 'csrf-token-123' }) : j(401, { ok: false, error: 'unauthenticated' });
+    if (p === '/v1/me') return st.signedIn ? j(200, { ok: true, user: { id: 'u1', email: 'mahmoud@example.com', name: 'محمود', platform_admin: !!st.platformAdmin && !st.member }, platform: st.member ? { owner: false, role: st.member.role, perms: st.member.perms, scoped: true } : st.platformAdmin ? { owner: true, perms: ['*'] } : null, orgs: st.orgs, csrf: 'csrf-token-123' }) : j(401, { ok: false, error: 'unauthenticated' });
     if (p.startsWith('/v1/platform/')) {
       if (!st.platformAdmin) return j(404, { ok: false, error: 'not_found' });
-      if (p === '/v1/platform/overview') return j(200, st.overview);
+      if (p === '/v1/platform/overview') return j(200, Object.assign({}, st.overview, { me: st.member ? { owner: false, role: st.member.role, perms: st.member.perms, scoped: true } : { owner: true, perms: ['*'] } }));
+      if (st.member && (p === '/v1/platform/telegram' || p === '/v1/platform/team' || p.startsWith('/v1/platform/roles') || p.startsWith('/v1/platform/invites') || p === '/v1/platform/members')) return j(404, { ok: false });
+      if (p === '/v1/platform/team') return j(200, st.team);
+      if (p === '/v1/platform/audit') return j(200, { ok: true, events: [{ at: new Date().toISOString(), kind: 'platform_role_create', ok: true, reason: 'دعم: orgs_view', who: 'محمود' }, { at: new Date().toISOString(), kind: 'verdict_set', ok: true, reason: 'SiteId BOT1 fraud', who: 'سارة' }] });
+      if (p.startsWith('/v1/platform/roles') || p.startsWith('/v1/platform/invites') || p === '/v1/platform/members') {
+        const b = JSON.parse(req.postData() || '{}'); st.teamCalls.push({ p, b, csrf: req.headers()['x-csrf-token'] });
+        if (p === '/v1/platform/roles') { const r = { id: 'role-' + st.team.roles.length, name: b.name, perms: b.perms }; st.team.roles.push(r); return j(201, { ok: true, role: r }); }
+        if (p === '/v1/platform/invites') { const i = { id: 'inv-1', email: b.email, role_id: b.role_id, scope_org_ids: b.scope_org_ids, scope_site_ids: b.scope_site_ids, expires_at: new Date(Date.now() + 7 * 864e5).toISOString() }; st.team.invites.push(i); return j(201, { ok: true, invite: i }); }
+        if (p === '/v1/platform/invites/cancel') { st.team.invites = st.team.invites.filter((x) => x.id !== b.id); return j(200, { ok: true }); }
+        if (p === '/v1/platform/members') { const m = st.team.members.find((x) => x.user_id === b.user_id); if (b.remove) st.team.members = st.team.members.filter((x) => x !== m); else Object.assign(m, b); return j(200, { ok: true }); }
+        return j(200, { ok: true });
+      }
       if (p === '/v1/platform/telegram' && req.method() === 'GET') return j(200, st.tg);
       if (p === '/v1/platform/telegram') { const b = JSON.parse(req.postData()); st.tgCalls.push(b); st.tg = Object.assign({}, st.tg, { mode: b.target }); return j(200, st.tg); }
       const m = /^\/v1\/platform\/orgs\/(.+)$/.exec(p);
       if (m && req.method() === 'POST') { const b = JSON.parse(req.postData()); st.orgCalls.push({ id: m[1], body: b, csrf: req.headers()['x-csrf-token'] }); const o = st.overview.orgs.find((x) => x.id === m[1]); Object.assign(o, b); return j(200, { ok: true, org: o, changed: Object.keys(b) }); }
     }
     if (p === '/v1/connect' && req.method() === 'POST') { st.calls.push({ body: JSON.parse(req.postData()), csrf: req.headers()['x-csrf-token'], origin: req.headers()['origin'] }); return j(st.connect.status, st.connect.body); }
+    if (p === '/v1/team' || p.startsWith('/v1/team/')) {
+      if (p === '/v1/team') return st.custTeam ? j(200, st.custTeam) : j(403, { ok: false, error: 'forbidden' });
+      const b = JSON.parse(req.postData() || '{}'); st.custCalls = (st.custCalls || []).concat([{ p, b, csrf: req.headers()['x-csrf-token'] }]);
+      if (p === '/v1/team/invite') { const i = { id: 'ci-' + st.custCalls.length, email: b.email, role: b.role, site_ids: b.site_ids, expires_at: new Date(Date.now() + 7 * 864e5).toISOString() }; st.custTeam.invites.push(i); return j(201, { ok: true, invite: i }); }
+      if (p === '/v1/team/invite/cancel') { st.custTeam.invites = st.custTeam.invites.filter((x) => x.id !== b.id); return j(200, { ok: true }); }
+      if (p === '/v1/team/member') { const m = st.custTeam.members.find((x) => x.user_id === b.user_id); if (b.remove) st.custTeam.members = st.custTeam.members.filter((x) => x !== m); else Object.assign(m, b); return j(200, { ok: true }); }
+    }
     if (p === '/v1/sites') return j(200, Object.assign({ ok: true, sites: st.sites }, st.sitesAll ? { all: true } : {}));
     if (p.startsWith('/v1/dash/')) {
       st.dashCalls = (st.dashCalls || []).concat([p + u.search]);
@@ -322,7 +340,7 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
   const apiCalls = []; pg.on('request', (r) => { if (r.url().startsWith('https://api.maestrolt.com')) apiCalls.push(r.url()); });
   await pg.goto('https://app.maestrolt.com/demo');
   await pg.waitForSelector('.answers .ans');
-  t('demo simple (default): 3 big answers, a short menu (5), no tables or charts', (await pg.locator('.answers .ans').count()) === 3 && (await pg.locator('.side-nav a').count()) === 5 && (await pg.locator('#view table, #view svg.svg').count()) === 0 && (await pg.locator('#page-title').innerText()) === 'الخلاصة');
+  t('demo simple (default): 3 big answers, a short menu (6, with the team), no tables or charts', (await pg.locator('.answers .ans').count()) === 3 && (await pg.locator('.side-nav a').count()) === 6 && (await pg.locator('#view table, #view svg.svg').count()) === 0 && (await pg.locator('#page-title').innerText()) === 'الخلاصة');
   t('demo simple: "is your ad protected?" answers in words, at most 3 action cards', /محمي/.test(await pg.locator('.ans').first().innerText()) && (await pg.locator('.act').count()) <= 3);
   t('demo simple: the checklist counts the done steps and offers how-to for the missing ones', /\d من 6/.test(await pg.locator('.progress').innerText()) && (await pg.locator('.steps-check li').count()) === 6);
   t('demo simple: the week summary reads as a sentence', /جالك .* زائر حقيقي/.test(await pg.locator('.story').innerText()));
@@ -332,7 +350,7 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
   await shot(pg, 'demo-0-simple');
   await pg.locator('#level').getByRole('button', { name: 'احترافي' }).click();
   await pg.waitForSelector('.kpis .kpi');
-  t('demo: switching to detailed shows the full menu (9)', (await pg.locator('.side-nav a').count()) === 9);
+  t('demo: switching to detailed shows the full menu (10)', (await pg.locator('.side-nav a').count()) === 10);
   t('demo: overview shows the 6 KPI cards, the status strip and the action cards', (await pg.locator('.kpis .kpi').count()) === 6 && /الحماية شغالة/.test(await pg.locator('.status-strip').innerText()) && (await pg.locator('.act').count()) >= 2);
   t('demo: the quality chart draws stacked bars with a legend (3 series)', (await pg.locator('svg .mk').count()) > 10 && (await pg.locator('.chart-legend .lg').count()) === 3);
   await pg.locator('svg .hit').nth(2).hover();
@@ -557,6 +575,93 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
   t('simple views: no console errors and no CSP violations', pg.errors.length === 0 && pg.csp.length === 0);
   await pg.context().close(); }
 
+// 18) الأدوار والفرق (G-29)
+{ const perms = [['orgs_view', 'يشوف الحسابات وأرقامها'], ['orgs_status', 'يغيّر حالة الحساب'], ['orgs_suspend', 'يوقف حساب'], ['orgs_trial', 'يمد التجربة'], ['orgs_plan', 'حد المواقع والخطة'], ['orgs_policy', 'سياسة الأحداث'], ['orgs_notes', 'الملاحظات'], ['orgs_replay', 'تسجيل الزيارات'], ['dash_view', 'يفتح لوحات العملاء'], ['dash_act', 'يسجّل نتايج ويحكم'], ['telegram', 'بوت تليجرام'], ['audit', 'سجل التغييرات']].map(([key, label]) => ({ key, label }));
+  const ov = overviewData();
+  const team = { ok: true, perms, owners: [{ id: 'u1', email: 'mahmoud@example.com', name: 'محمود', you: true }, { id: 'u2', email: 'may@example.com', name: 'مي' }], roles: [{ id: 'role-0', name: 'دعم فني', perms: ['orgs_view', 'orgs_trial'] }],
+    members: [{ user_id: 'u9', role_id: 'role-0', scope_org_ids: ['o-da'], scope_site_ids: null, user: { email: 'sara@maestro.example', name: 'سارة' } }], invites: [],
+    orgs: ov.orgs.map((o) => ({ id: o.id, name: o.name, sites: o.sites.map((c) => ({ id: c.id, name: c.name })) })) };
+  const api = fakeApi({ signedIn: true, platformAdmin: true, overview: ov, tg: { ok: true, configured: true, mode: 'server', sheet_ready: true, pending: 0 }, tgCalls: [], orgCalls: [], team, teamCalls: [] });
+  const pg = await page(api, { viewport: { width: 1440, height: 900 } });
+  await pg.goto('https://app.maestrolt.com/admin');
+  await pg.waitForSelector('#rows tr');
+  t('admin (super admin): tabs for accounts, team and the change log', await pg.locator('#tab-btn-team').isVisible() && await pg.locator('#tab-btn-audit').isVisible() && /سوبر أدمن/.test(await pg.locator('#role-eyebrow').innerText()));
+  await pg.locator('#tab-btn-team').click();
+  await pg.waitForSelector('#tab-team .role-row');
+  t('team tab: super admins, roles with their permissions, members with their scope', /محمود/.test(await pg.locator('#tab-team').innerText()) && /دعم فني/.test(await pg.locator('#tab-team .role-row').innerText()) && /يمد التجربة/.test(await pg.locator('#tab-team .role-row').innerText()) && /Digital Avenue/.test(await pg.locator('#tab-team').innerText()));
+  await pg.getByRole('button', { name: '+ دور جديد' }).click();
+  await pg.locator('.role-edit input[type="text"]').fill('مشرف السعودية');
+  await pg.locator('.role-edit .ck-in', { hasText: 'يفتح لوحات العملاء' }).locator('input').check();
+  await pg.locator('.role-edit').getByRole('button', { name: 'أضف الدور' }).click();
+  await pg.waitForFunction(() => document.querySelectorAll('#tab-team .role-row').length === 2);
+  const rc = api.teamCalls.find((c) => c.p === '/v1/platform/roles');
+  t('team: a new role with ticked permissions is saved (with CSRF)', rc && rc.b.name === 'مشرف السعودية' && rc.b.perms.includes('dash_view') && rc.b.perms.includes('orgs_view') && rc.csrf === 'csrf-token-123');
+  const inviteCard = pg.locator('#tab-team .panel-card', { hasText: 'ادعي عضو' });
+  await inviteCard.locator('input[type="email"]').fill('ali@gmail.com');
+  await inviteCard.locator('.ck-in', { hasText: 'حسابات معيّنة' }).locator('input').check();
+  await inviteCard.locator('.scope-list .ck-in', { hasText: 'مؤسسة الأفق' }).locator('input').check();
+  await inviteCard.getByRole('button', { name: 'ادعيه' }).click();
+  await pg.waitForSelector('.invite-result:not([hidden]) .msg-box');
+  const ic = api.teamCalls.find((c) => c.p === '/v1/platform/invites');
+  t('team: invite by Google email with a scope (one account), and a ready message to send', ic && ic.b.email === 'ali@gmail.com' && ic.b.scope_org_ids.length === 1 && ic.b.scope_org_ids[0] === 'o-ac' && ic.b.scope_site_ids === null && /ali@gmail.com/.test(await pg.locator('.invite-result .msg-box').innerText()));
+  t('team: no emails are sent by us — the message says to send it yourself', /مابنبعتش إيميلات/.test(await pg.locator('.invite-result').innerText()));
+  await shot(pg, 'admin-team');
+  await pg.locator('#tab-team tr', { hasText: 'سارة' }).locator('select').selectOption('role-1');
+  await pg.waitForFunction(() => /اتغيّر الدور/.test(document.getElementById('toast').textContent));
+  t('team: changing a member role is sent', api.teamCalls.some((c) => c.p === '/v1/platform/members' && c.b.user_id === 'u9' && c.b.role_id === 'role-1'));
+  await pg.locator('#tab-btn-audit').click();
+  await pg.waitForSelector('#tab-audit tbody tr');
+  t('audit tab: who did what and when, in Arabic', /دور جديد/.test(await pg.locator('#tab-audit').innerText()) && /حكم على زيارة/.test(await pg.locator('#tab-audit').innerText()) && /سارة/.test(await pg.locator('#tab-audit').innerText()));
+  t('team/audit: no console errors and no CSP violations', pg.errors.length === 0 && pg.csp.length === 0);
+  if (pg.errors.length || pg.csp.length) console.log(pg.errors, pg.csp);
+  await pg.context().close();
+  // عضو بدور «دعم فني» (يشوف + يمد التجربة): مفيش تبويب فريق ولا تليجرام، والدرج فيه التجربة بس
+  const api2 = fakeApi({ signedIn: true, platformAdmin: true, member: { role: 'دعم فني', perms: ['orgs_view', 'orgs_trial'] }, overview: overviewData(), tg: { ok: true }, tgCalls: [], orgCalls: [] });
+  const pg2 = await page(api2, { viewport: { width: 1440, height: 900 } });
+  await pg2.goto('https://app.maestrolt.com/admin');
+  await pg2.waitForSelector('#rows tr');
+  t('member admin: role shown, no team tab, no telegram card, no audit tab without the permission', /دعم فني/.test(await pg2.locator('#role-eyebrow').innerText()) && await pg2.locator('#tab-btn-team').isHidden() && await pg2.locator('#tab-btn-audit').isHidden() && await pg2.locator('#tg').isHidden());
+  await pg2.locator('#rows tr', { hasText: 'مؤسسة الأفق' }).click();
+  t('member admin drawer: only the parts allowed (trial), status/plan/notes hidden', await pg2.locator('[data-perm="orgs_trial"]').isVisible() && await pg2.locator('[data-perm="orgs_status"]').isHidden() && await pg2.locator('[data-perm="orgs_plan"]').first().isHidden() && await pg2.locator('[data-perm="orgs_notes"]').isHidden());
+  await pg2.locator('[data-extend="7"]').click(); await pg2.locator('#d-save').click();
+  await pg2.waitForSelector('#toast:not([hidden])');
+  t('member admin: extending the trial sends only that', api2.orgCalls.length === 1 && Object.keys(api2.orgCalls[0].body).join() === 'extend_trial_days');
+  await shot(pg2, 'admin-member');
+  await pg2.context().close(); }
+
+// 19) فريق العميل جوه حسابه
+{ const custTeam = { ok: true, org: { id: 'org1', name: 'روضة الصالحين' }, my_role: 'owner',
+    members: [{ user_id: 'u1', email: 'mahmoud@example.com', name: 'محمود', role: 'owner', site_ids: null, you: true }, { user_id: 'u5', email: 'emp@rawda.example', name: 'أحمد', role: 'staff', site_ids: ['SiteId123456'] }],
+    invites: [], sites: [{ id: 'SiteId123456', name: 'روضة الصالحين', domain: 'rawda.site' }, { id: 'SiteId654321', name: 'روضة جدة', domain: 'jed.rawda.site' }] };
+  const api = fakeApi({ signedIn: true, custTeam, sites: [{ id: 'SiteId123456', name: 'روضة الصالحين', domains: ['rawda.site'], paired: true, org_id: 'org1' }, { id: 'SiteId654321', name: 'روضة جدة', domains: ['jed.rawda.site'], paired: true, org_id: 'org1' }] });
+  const pg = await page(api, { viewport: { width: 1280, height: 900 } });
+  await pg.goto('https://app.maestrolt.com/#/team');
+  await pg.waitForFunction(() => document.getElementById('page-title').textContent === 'الفريق' && document.querySelector('#view .tbl tbody tr'));
+  t('client team: who has access, with roles and sites; the owner cannot be changed', (await pg.locator('#view .tbl tbody tr').count()) === 2 && /المالك/.test(await pg.locator('#view .tbl').innerText()) && /روضة الصالحين/.test(await pg.locator('#view .tbl tr', { hasText: 'أحمد' }).innerText()) && (await pg.locator('#view .tbl tr', { hasText: 'محمود' }).locator('select').count()) === 0);
+  const inv = pg.locator('#view .panel-card', { hasText: 'ادعي حد' });
+  await inv.locator('input[type="email"]').fill('client@gmail.com');
+  await inv.locator('.opt', { hasText: 'مشاهد' }).locator('input').check();
+  await inv.locator('.ck-in', { hasText: 'مواقع معيّنة' }).locator('input').check();
+  await inv.locator('.scope-list .ck-in', { hasText: 'روضة جدة' }).locator('input').check();
+  await inv.getByRole('button', { name: 'ادعيه' }).click();
+  await pg.waitForSelector('#view .invite-result:not([hidden]) .msg-box');
+  const c = (api.custCalls || []).find((x) => x.p === '/v1/team/invite');
+  t('client team: invite a viewer for one site by Google email (with CSRF), and a message to send on WhatsApp', c && c.b.org === 'org1' && c.b.email === 'client@gmail.com' && c.b.role === 'viewer' && c.b.site_ids.join() === 'SiteId654321' && c.csrf === 'csrf-token-123' && /روضة الصالحين/.test(await pg.locator('.invite-result .msg-box').innerText()));
+  t('client team: the owner can make admins (option shown)', (await inv.locator('.opt', { hasText: 'مدير' }).count()) === 1);
+  await shot(pg, 'live-team');
+  await pg.locator('#view .tbl tr', { hasText: 'أحمد' }).locator('select').selectOption('viewer');
+  await pg.waitForFunction(() => /اتغيّر الدور/.test(document.getElementById('toast').textContent));
+  t('client team: changing a role is sent', api.custCalls.some((x) => x.p === '/v1/team/member' && x.b.user_id === 'u5' && x.b.role === 'viewer'));
+  t('client team: no console errors and no CSP violations', pg.errors.length === 0 && pg.csp.length === 0);
+  if (pg.errors.length || pg.csp.length) console.log(pg.errors, pg.csp);
+  await pg.context().close();
+  const api2 = fakeApi({ signedIn: true, sites: [{ id: 'SiteId123456', name: 'روضة', domains: ['rawda.site'], paired: true, org_id: 'org1' }] });
+  const pg2 = await page(api2, { viewport: { width: 1280, height: 900 } });
+  await pg2.goto('https://app.maestrolt.com/#/team');
+  await pg2.waitForFunction(() => document.getElementById('page-title').textContent === 'الفريق' && !document.querySelector('#view .loading'));
+  t('client team: staff/viewers see a plain explanation instead of the tools', /للمالك والمدير بس/.test(await pg2.locator('#view').innerText()));
+  await pg2.context().close(); }
+
 // 17) «▶ شوف الزيارة»: تسجيل حقيقي بـ rrweb (نفس ملف البلجن) ← المشغّل بصفحة الموقع الحقيقية، والكتابة متخبية
 { const rec = await browser.newContext({ viewport: { width: 390, height: 700 } }); const rp = await rec.newPage();
   const RR = fs.readFileSync(path.join(PUB, '../../plugin/lead-tracker-pro/assets/rrweb-record.min.js'), 'utf8');
@@ -614,7 +719,7 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
   const pg = await page(api, { viewport: { width: 1440, height: 900 } });
   await pg.goto('https://app.maestrolt.com/');
   await pg.waitForSelector('.kpis .kpi');
-  t('live agency: an agency account opens on the detailed level', (await pg.locator('.side-nav a').count()) === 9);
+  t('live agency: an agency account opens on the detailed level', (await pg.locator('.side-nav a').count()) === 10);
   await pg.locator('.side-nav a[data-r="clients"]').click();
   await pg.waitForFunction(() => document.querySelectorAll('#view .tbl tbody tr').length === 2);
   t('live agency: all clients with real visits/contacts/customers', /60/.test(await pg.locator('#view .tbl').innerText()) && /تواصل من غير نتيجة/.test(await pg.locator('#view .tbl').innerText()));

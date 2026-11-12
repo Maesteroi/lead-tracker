@@ -171,3 +171,30 @@ input.mini { width: 56px; padding: 2px 6px; text-align: center; font-weight: 800
 }
 
 .open-dash { display: inline-block; margin-top: 2px; font-size: 13px; font-weight: 700; color: var(--accent); text-decoration: none; }
+
+/* ── الفريق والأدوار (G-29): لوحة الإدارة وشاشة «الفريق» عند العميل ── */
+.adm-tabs { margin: 0 0 18px; }
+.adm-tabs button[aria-selected="true"] { background: var(--card); color: var(--ink); box-shadow: 0 1px 3px rgba(9, 18, 36, .12); }
+.fld { display: grid; gap: 6px; margin: 0 0 14px; }
+.fld > span { font-weight: 700; font-size: 14px; color: var(--muted); }
+.fld input[type="text"], .fld input[type="email"], .fld select { width: 100%; }
+.ck-in { display: flex; gap: 8px; align-items: center; margin: 0 0 8px; cursor: pointer; }
+.ck-in input { accent-color: var(--accent); width: 17px; height: 17px; flex: none; }
+.row-btns { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.team-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.team-list li { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; }
+.role-row { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 12px; border: 1px solid var(--line); border-radius: 12px; margin-bottom: 10px; }
+.role-row .chips { margin-top: 8px; }
+.role-edit { padding: 14px; border: 1px dashed var(--line); border-radius: 12px; margin-bottom: 10px; }
+.perm-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 2px 16px; margin: 6px 0 12px; }
+.scope-modes { display: flex; gap: 16px; flex-wrap: wrap; }
+.scope-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 0 16px; max-height: 260px; overflow: auto; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; margin-top: 4px; }
+.scope-org { grid-column: 1 / -1; margin: 6px 0 4px; font-weight: 700; color: var(--muted); font-size: 13px; }
+.invite-result { margin-top: 14px; padding: 12px 14px; border-radius: 12px; background: var(--info-bg); }
+.msg-box { padding: 10px 12px; border-radius: 10px; background: var(--card); border: 1px solid var(--line); user-select: all; }
+.danger-text { color: var(--bad); }
+.legend { margin: 6px 0; font-weight: 700; font-size: 14px; color: var(--muted); }
+.role-desc { font-size: 13px; color: var(--muted); }
+.linkish { background: none; border: 0; padding: 0; font: inherit; font-weight: 700; color: var(--accent); cursor: pointer; text-decoration: none; }
+.linkish:hover, .linkish:focus-visible { text-decoration: underline; }
+td .linkish { margin-inline-start: 8px; }
