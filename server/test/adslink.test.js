@@ -103,3 +103,20 @@ test('another account cannot use someone else\'s pending token; expired ones are
   assert.equal((await post(s.w, s.owner, '/v1/dash/ads/unlink', { site: s.site.id })).status, 200);
   assert.equal(s.w.fs.t.ads_credentials[0].status, 'off');
 });
+
+test('the hourly cleanup removes expired pending tokens only when connecting is configured (ads off = no ads table touched)', async () => {
+  const { runScheduled } = await import('../src/cron.js');
+  const { Db } = await import('../src/db.js');
+  const s = await setup();
+  await s.save(s.signed(s.site.id, nowS()));
+  s.w.fs.t.ads_link_pending[0].expires_at = '2026-11-12T11:00:00.000Z';   // قبل الوقت المتحاكي
+  const realNow = Date; const at = new realNow('2026-11-12T12:01:00Z');   // أول 5 دقايق في الساعة
+  globalThis.Date = class extends realNow { constructor(...a) { super(...(a.length ? a : [at.getTime()])); } static now() { return at.getTime(); } };
+  try {
+    const off = Object.assign({}, s.w.env, { LINK_SECRET: '' });
+    await runScheduled(off, new Db(off, s.w.f), { fetchImpl: s.w.f }).catch(() => {});
+    assert.equal(s.w.fs.t.ads_link_pending.length, 1, 'not configured: untouched');
+    await runScheduled(s.w.env, new Db(s.w.env, s.w.f), { fetchImpl: s.w.f }).catch(() => {});
+    assert.equal(s.w.fs.t.ads_link_pending.length, 0, 'configured: expired request removed');
+  } finally { globalThis.Date = realNow; }
+});
