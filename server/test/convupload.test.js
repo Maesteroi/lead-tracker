@@ -106,3 +106,11 @@ test('conv: only the owner or an admin chooses and sends; staff see the list; no
   assert.equal((await u.gc(u.owner, '/v1/dash/conv?site=' + u.site.id)).body.linked, false);
   assert.equal((await u.pc(u.owner, '/v1/dash/conv/send', { site: u.site.id, codes: ['AB12'] })).status, 409);
 });
+
+test('conv: Google\'s full refusal (type, message and the rejected field) is kept, so the cause is known from the first try', async () => {
+  const { googleError } = await import('../src/convupload.js');
+  const e = googleError({ error: { code: 400, status: 'INVALID_ARGUMENT', message: 'Request contains an invalid argument.', details: [{ '@type': 'type.googleapis.com/google.rpc.BadRequest', fieldViolations: [{ field: 'events[0].event_timestamp', description: 'Timestamp is before the click.' }] }] } }, 400);
+  assert.match(e, /INVALID_ARGUMENT \| Request contains an invalid argument\. \| events\[0\]\.event_timestamp Timestamp is before the click\./);
+  assert.match(googleError([{ error: { status: 'PERMISSION_DENIED' } }], 403), /^PERMISSION_DENIED/);
+  assert.equal(googleError({}, 500), 'HTTP 500');
+});

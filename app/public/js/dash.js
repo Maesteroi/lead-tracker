@@ -556,7 +556,7 @@
           list.appendChild(el('label', { class: 'opt' }, [cb, el('span', {}, [
             el('b', { text: (r.type === 'wa' ? '💬 ' + T('wa') : '📞 ' + T('call')) + ' · ' + T('leads.code', { c: r.code }) }),
             el('small', { text: timeAr(r.outcome_at || r.at) + (r.city ? ' · ' + r.city : '') + ' · ' + srcName(r.source) }),
-            r.failed ? el('small', { class: 'danger-text', text: T('conv.failed_before') }) : null,
+            r.failed ? el('small', { class: 'danger-text', text: T('conv.failed_before') + ' (' + String(r.failed).slice(0, 140) + ')' }) : null,
           ])]));
         });
         body.appendChild(list);

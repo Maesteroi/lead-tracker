@@ -33,6 +33,18 @@ async function logOps(db, siteId, ops, kind, ok) {
   await db.insert('ads_pull_runs', [{ client_id: siteId, source: 'server', ok: !!ok, operations: ops, rows: { kind }, at: new Date().toISOString() }], { returning: false }).catch(() => {});
 }
 
+// رسالة جوجل كاملة (النوع · الرسالة · الحقول المرفوضة وسببها) علشان نعرف السبب من أول مرة. مفيش فيها أسرار.
+export function googleError(j, status) {
+  const e0 = ((Array.isArray(j) ? j[0] : j) || {}).error || {};
+  const parts = [e0.status || 'HTTP ' + status, e0.message || ''];
+  for (const d of e0.details || []) {
+    for (const v of d.fieldViolations || []) parts.push((v.field || '') + ' ' + (v.description || v.reason || ''));
+    if (d.reason) parts.push(d.reason);
+    for (const er of d.errors || []) parts.push(JSON.stringify(er.errorCode || er.reason || '') + ' ' + (er.message || ''));
+  }
+  return parts.filter(Boolean).join(' | ').replace(/\s+/g, ' ').slice(0, 600);
+}
+
 // العملاء المؤكدين الجاهزين للرفع (ومعاهم الـgclid من الزيارة نفسها)
 export async function candidates(db, site, now) {
   const since = new Date((now || Date.now()) - WINDOW_DAYS * 864e5).toISOString();
@@ -149,7 +161,7 @@ export async function dashConvSend(req, env, db, sess, fetchImpl) {
     const access = await tokenOf(env, Object.assign({ _site: site.id }, cred), fetchImpl);
     const res = await (fetchImpl || fetch)(DM_URL, { method: 'POST', headers: { Authorization: 'Bearer ' + access, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     status = res.status; j = await res.json().catch(() => ({}));
-    if (!res.ok) { const e0 = (Array.isArray(j) ? j[0] : j).error || {}; err = String(e0.status || e0.message || 'error ' + res.status).slice(0, 160); }
+    if (!res.ok) { err = googleError(j, res.status); console.error('conv send: ' + err); }
   } catch (e) { err = short(e); }
   // صلاحية datamanager مش موجودة في الربط الحالي ← العميل يعيد الربط
   const scope = status === 403 && /SCOPE|scope/.test(JSON.stringify(j));

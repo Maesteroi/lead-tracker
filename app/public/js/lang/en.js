@@ -1206,7 +1206,7 @@ window.LT_LANG.en = {
   'conv.pick.none': "Your account has no action of this type",
   'conv.pick.use': "Use it",
   'conv.pick.create': "Create the «Maestro LT» conversion action",
-  'conv.pick.create.hint': "It is created in your account and counts toward your campaigns' conversions, so Smart Bidding learns from it.",
+  'conv.pick.create.hint': "It is created in your account and counts toward your campaigns' conversions, so Smart Bidding learns from it. Google accepts conversions on it about 6 hours after it is created.",
   'conv.pick.create.sure': "Press again to create it in your account",
   'conv.action.set': "Customers will be sent to «{a}»",
   'ads.k.missing': "Clicks that never reached your site",
