@@ -12,13 +12,13 @@ import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 
 const CV_SEGMENTS = new Set(['segments.date', 'segments.device', 'segments.ad_network_type', 'segments.ad_sub_network_type', 'segments.click_type', 'segments.slot', 'segments.month_of_year']);
-const RESOURCES = new Set(['customer', 'campaign', 'search_term_view', 'click_view', 'ad_group_ad', 'geo_target_constant']);
+const RESOURCES = new Set(['customer', 'customer_client', 'campaign', 'search_term_view', 'click_view', 'ad_group_ad', 'geo_target_constant']);
 
 export function fakeGoogle(opts) {
   opts = opts || {};
   const g = {
     now: opts.now || new Date(), clientId: 'cid', clientSecret: 'csecret',
-    tokens: {}, accounts: {}, calls: [], oauthCalls: 0, telegram: [], telegramDown: false, fail: null, devTokenSeen: false,
+    tokens: {}, accounts: {}, accessible: {}, calls: [], oauthCalls: 0, telegram: [], telegramDown: false, fail: null, devTokenSeen: false,
   };
   const issued = new Set();
   const resp = (status, body) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
@@ -56,6 +56,7 @@ export function fakeGoogle(opts) {
     const camp = (id) => (acct.campaigns || []).find((c) => String(c.id) === String(id)) || { id, name: '' };
     let results = [];
     if (p.from === 'customer') results = [{ customer: acct.customer }];
+    else if (p.from === 'customer_client') results = (acct.children || []).map((c) => ({ customerClient: c }));
     else if (p.from === 'geo_target_constant') {
       const want = /IN \((.+)\)/.exec(q)[1].split(',').map((x) => x.trim().replace(/'/g, ''));
       results = want.filter((n) => (acct.geo || {})[n.split('/')[1]]).map((n) => { const x = acct.geo[n.split('/')[1]]; return { geoTargetConstant: { resourceName: n, id: n.split('/')[1], name: x.name, targetType: x.type, countryCode: x.cc } }; });
@@ -116,6 +117,13 @@ export function fakeGoogle(opts) {
       return resp(200, { access_token: access, expires_in: 3599, token_type: 'Bearer' });
     }
     if (u.hostname === 'googleads.googleapis.com') {
+      // الحسابات اللي التوكن يوصلها (accessible[access token] = ['123', ...])
+      if (/^\/v\d+\/customers:listAccessibleCustomers$/.test(u.pathname)) {
+        g.calls.push({ list: true });
+        const tok = String(headers.Authorization || '').replace(/^Bearer /, '');
+        if (!issued.has(tok)) return apiErr(401, 'UNAUTHENTICATED', 'invalid credentials');
+        return resp(200, { resourceNames: (g.accessible[tok] || []).map((id) => 'customers/' + id) });
+      }
       const m = /^\/(v\d+)\/customers\/(\d+)\/googleAds:searchStream$/.exec(u.pathname);
       const query = JSON.parse(init.body || '{}').query || '';
       if (Object.keys(headers).some((h) => h.toLowerCase() === 'developer-token')) g.devTokenSeen = true;

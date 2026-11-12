@@ -82,13 +82,19 @@
       return get('/v1/dash/setup').then(function (b) {
         return (b.sites || []).map(function (s) {
           return { id: s.id, name: s.name, domain: (s.domains || [])[0] || '', installed: s.installed, paired: s.paired, plugin: s.plugin || null,
-            delivery: s.delivery.slice().reverse().map(function (d) { return d.pct; }), ads: s.ads, account: '', template: null, own: 0, last_event: s.last_event };
+            delivery: s.delivery.slice().reverse().map(function (d) { return d.pct; }), ads: s.ads, ads_state: s.ads_state || null, role: s.role || null,
+            account: s.ads_state && s.ads_state.account ? s.ads_state.account.replace(/^(\d{3})(\d{3})(\d+)$/, '$1-$2-$3') : '', template: null, own: 0, last_event: s.last_event };
         });
       });
     },
     // فريق الحساب (G-29): المالك والمدير بيدعوا ويعدّلوا
     team: function (org) { return LT.api('/v1/team?org=' + encodeURIComponent(org)).then(function (r) { if (r.status === 403) return { forbidden: true }; if (!r.ok) throw new Error('http'); return r.body; }); },
     teamPost: function (path, body) { return LT.api('/v1/team/' + path, { method: 'POST', body: body }).then(function (r) { return r; }); },
+    // ربط جوجل أدز من اللوحة (adslink.js على السيرفر): لينك موقّع ← موافقة جوجل ← اختيار الحساب
+    adsLink: function (site) { return LT.api('/v1/dash/ads/link', { method: 'POST', body: { site: site } }).then(function (r) { if (!r.ok) throw new Error(r.body && r.body.error || 'http'); return r.body.url; }); },
+    adsAccounts: function (site, n) { return LT.api('/v1/dash/ads/accounts?site=' + encodeURIComponent(site) + '&n=' + encodeURIComponent(n)).then(function (r) { if (!r.ok) throw new Error(r.body && r.body.error || 'http'); return r.body.accounts || []; }); },
+    adsChoose: function (site, n, cid) { return LT.api('/v1/dash/ads/choose', { method: 'POST', body: { site: site, n: n, customer_id: cid } }).then(function (r) { if (!r.ok) throw new Error(r.body && r.body.error || 'http'); return r.body; }); },
+    adsUnlink: function (site) { return LT.api('/v1/dash/ads/unlink', { method: 'POST', body: { site: site } }).then(function (r) { if (!r.ok) throw new Error(r.body && r.body.error || 'http'); return r.body; }); },
     pairCode: function (site) { return LT.api('/v1/sites/' + encodeURIComponent(site) + '/pair-code', { method: 'POST' }).then(function (r) { if (r.status !== 201) throw new Error(r.status === 403 ? 'role' : 'http'); return r.body; }); },
     clients: function (range) {
       return window.LTData.sites().then(function (sites) {

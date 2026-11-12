@@ -570,8 +570,8 @@
         var rows = [
           [T('sites.r.installed'), s.installed, s.installed ? (s.plugin ? T('sites.plugin', { v: s.plugin }) : T('sites.plugin.on')) + ' · ' + T('sites.last', { t: timeAr(s.last_event) }) : T(s.paired ? 'sites.paired_wait' : 'sites.not_paired')],
           [T('sites.r.delivery'), avg == null ? null : avg >= 99.5, avg == null ? T('sites.delivery.none') : T('sites.delivery', { p: avg })],
-          [T('sites.r.ads'), s.ads ? true : DATA.live ? null : false, s.ads ? T('sites.ads.on') + (s.account ? ' · \u2066' + s.account + '\u2069' : '') : T(DATA.live ? 'sites.ads.soon' : 'sites.ads.link')],
-          [T('sites.r.suffix'), s.template == null ? null : s.template, s.template == null ? T('sites.suffix.after') : T(s.template ? 'sites.suffix.ok' : 'sites.suffix.missing')],
+          adsRow(s),
+          [T('sites.r.suffix'), s.template == null ? null : s.template, s.template == null ? T(s.ads ? 'sites.suffix.optional' : 'sites.suffix.after') : T(s.template ? 'sites.suffix.ok' : 'sites.suffix.missing')],
           [T('sites.r.own'), s.own ? true : DATA.live ? null : true, s.own ? LT.n(s.own, 'device') : T('sites.own.soon')],
         ];
         var extra = [];
@@ -580,11 +580,50 @@
           b.addEventListener('click', function () { b.disabled = true; DATA.pairCode(s.id).then(function (r) { b.disabled = false; clear(out); out.appendChild(el('div', { class: 'code', text: r.code })); out.appendChild(document.createTextNode(T('sites.paircode.hint', { m: LT.n(r.valid_minutes, 'minute') }))); }, function (e) { b.disabled = false; clear(out); out.appendChild(document.createTextNode(T(e.message === 'role' ? 'sites.paircode.role' : 'sites.paircode.fail'))); }); });
           extra.push(b, out);
         }
-        view.appendChild(card(s.name, [el('p', { class: 'acc-sub', text: s.domain }), el('ul', { class: 'checks' }, rows.map(function (r) { return el('li', { class: r[1] === null ? 'soon' : r[1] ? 'ok' : 'warn' }, [el('i', { class: 'ck', text: r[1] === null ? '…' : r[1] ? '✓' : '!' }), el('b', { text: r[0] }), el('span', { text: r[2] })]); })),
+        view.appendChild(card(s.name, [el('p', { class: 'acc-sub', text: s.domain }), el('ul', { class: 'checks' }, rows.map(function (r) { return el('li', { class: r[1] === null ? 'soon' : r[1] ? 'ok' : 'warn' }, [el('i', { class: 'ck', text: r[1] === null ? '…' : r[1] ? '✓' : '!' }), el('b', { text: r[0] }), el('span', { text: r[2] }), r[3] || null]); })),
           s.delivery.length ? el('details', { class: 'more-d pro-only' }, [el('summary', { text: T('sites.daily') }), spark]) : null].concat(extra)));
       });
       var add = el('button', { class: 'btn', type: 'button', text: T('sites.add') }); add.addEventListener('click', function () { toast(T('sites.add.hint')); });
       view.appendChild(add);
+      // راجع من موافقة جوجل: اختيار حساب الإعلانات
+      if (state.adsNonce && DATA.adsAccounts) { var n = state.adsNonce; state.adsNonce = null; openAdsPicker(state.site, n); }
+    });
+  }
+  // صف «جوجل أدز» في المواقع والتثبيت: مربوط · انتهى الربط · اربط (المالك والمدير بس)
+  function adsRow(s) {
+    if (!DATA.live) return [T('sites.r.ads'), !!s.ads, s.ads ? T('sites.ads.on') + (s.account ? ' · \u2066' + s.account + '\u2069' : '') : T('sites.ads.link')];
+    var st = s.ads_state || {}, manage = s.role === 'owner' || s.role === 'admin', btn = null;
+    var go = function (b) { b.disabled = true; DATA.adsLink(s.id).then(function (url) { location.assign(url); }, function (e) { b.disabled = false; toast(T(e.message === 'role' ? 'ads.err.role' : e.message === 'not_configured' ? 'ads.err.config' : 'err.save')); }); };
+    if (st.linked) {
+      if (manage) { btn = el('button', { class: 'linkish', type: 'button', text: T('ads.unlink') }); btn.addEventListener('click', function () { if (btn.getAttribute('data-sure') !== '1') { btn.setAttribute('data-sure', '1'); btn.textContent = T('ads.unlink.sure'); return; } DATA.adsUnlink(s.id).then(function () { toast(T('ads.unlinked')); render(); }, function () { toast(T('err.save')); }); }); }
+      return [T('sites.r.ads'), true, T('ads.linked', { a: '\u2066' + s.account + '\u2069' }) + (st.last_ok_day ? ' · ' + T('ads.last_day', { d: st.last_ok_day }) : ' · ' + T('ads.first_pull')), btn];
+    }
+    if (manage) { btn = el('button', { class: 'btn sm', type: 'button', text: T(st.reauth ? 'ads.relink' : 'ads.link') }); btn.addEventListener('click', function () { go(btn); }); }
+    return [T('sites.r.ads'), st.reauth ? false : null, T(st.reauth ? 'ads.reauth' : manage ? 'ads.not_linked' : 'ads.ask_owner'), btn];
+  }
+  function fmtCid(id) { return String(id).replace(/^(\d{3})(\d{3})(\d+)$/, '$1-$2-$3'); }
+  function openAdsPicker(site, n) {
+    var body = clear($('d-body'));
+    $('d-title').textContent = T('ads.pick.title'); $('d-sub').textContent = T('ads.pick.sub');
+    var list = el('div', { class: 'opts' }, [el('p', {}, [el('span', { class: 'spinner' }), el('span', { text: T('ads.pick.loading') })])]);
+    var ok = el('button', { class: 'btn', type: 'button', text: T('ads.pick.go'), disabled: '' });
+    body.appendChild(list); body.appendChild(el('p', { class: 'hint', text: T('ads.pick.hint') }));
+    setFoot(el('div', { class: 'd-foot-act' }, [ok]));
+    openDrawer();
+    var chosen = null;
+    DATA.adsAccounts(site, n).then(function (accs) {
+      clear(list);
+      if (!accs.length) { list.appendChild(el('p', { class: 'muted', text: T('ads.pick.none') })); return; }
+      accs.forEach(function (a, i) {
+        var r = el('input', { type: 'radio', name: 'ads-acc', value: a.id });
+        r.addEventListener('change', function () { chosen = a.id; ok.disabled = false; });
+        list.appendChild(el('label', { class: 'opt' }, [r, el('span', {}, [el('b', { text: a.name || fmtCid(a.id) }), el('small', { text: '\u2066' + fmtCid(a.id) + '\u2069' + (a.currency ? ' · ' + a.currency : '') + (a.via ? ' · ' + T('ads.pick.via', { m: '\u2066' + fmtCid(a.via) + '\u2069' }) : '') + (a.test ? ' · ' + T('ads.pick.test') : '') })])]));
+        if (accs.length === 1 && i === 0) { r.checked = true; chosen = a.id; ok.disabled = false; }
+      });
+    }, function (e) { clear(list); list.appendChild(el('p', { class: 'muted', text: T(e.message === 'expired' ? 'ads.pick.expired' : 'ads.pick.fail') })); });
+    ok.addEventListener('click', function () {
+      if (!chosen) return; ok.disabled = true;
+      DATA.adsChoose(site, n, chosen).then(function (r) { closeDrawer(); toast(T('ads.done', { a: r.name || fmtCid(r.customer_id) })); render(); }, function (e) { ok.disabled = false; toast(T(e.message === 'expired' ? 'ads.pick.expired' : 'err.save')); });
     });
   }
 
@@ -1011,6 +1050,9 @@
         state.sites = s; state.site = s[0] && s[0].id;
         var want = null; try { want = new URLSearchParams(location.search).get('site'); } catch (e) { /* عادي */ }
         if (want && s.some(function (x) { return x.id === want; })) state.site = want;      // من «افتح لوحته» في لوحة الإدارة
+        // راجع من موافقة جوجل أدز (خدمة الربط): ?site=…&ads=<رقم الطلب> ← اختيار الحساب في المواقع والتثبيت، والعنوان بيتنضف
+        var adsN = null; try { adsN = new URLSearchParams(location.search).get('ads'); } catch (e) { /* عادي */ }
+        if (adsN && /^[a-f0-9]{48}$/.test(adsN) && DATA.adsAccounts) { state.adsNonce = adsN; try { history.replaceState(null, '', location.pathname + '#/sites'); } catch (e) { /* عادي */ } location.hash = '#/sites'; }
         buildNav(); buildTop();
         if (!s.length && DATA.live) { location.hash = '#/sites'; }
         render();

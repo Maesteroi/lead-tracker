@@ -86,7 +86,11 @@ function fakeApi(over) {
       if (p === '/v1/dash/visits') return j(200, { ok: true, sessions: [{ id: 'SES1', at: new Date().toISOString(), last_at: new Date().toISOString(), pages: 2, seconds: 70, scroll: 80, contact: 'wa', code: 'AB12', source: 'google_ads', detail: '', utm: '', gclid: true, device: 'موبايل', os: 'iOS', browser: 'Safari', city: 'Riyadh', region: 'Riyadh Region', country: 'Saudi Arabia', isp: 'Saudi Telecom Company JSC', visit_no: 1, landing: 'الرئيسية', automation: false }, { id: 'SES2', at: new Date(Date.now() - 3600e3).toISOString(), last_at: new Date(Date.now() - 3500e3).toISOString(), pages: 1, seconds: 12, scroll: null, contact: '', code: null, source: 'google_organic', detail: '', device: 'كمبيوتر', os: 'Windows', browser: 'Chrome', city: 'Jeddah', region: '', country: 'Saudi Arabia', isp: 'Mobily', visit_no: 2, landing: 'الأسعار', automation: false }] });
       if (p === '/v1/dash/session') return j(200, { ok: true, events: [{ at: new Date().toISOString(), event: 'page_view', title: 'الرئيسية' }, { at: new Date().toISOString(), event: 'click', click_type: 'wa', btn_text: 'واتساب' }] });
       if (p === '/v1/dash/leads') return j(200, { ok: true, leads: [{ at: new Date().toISOString(), type: 'wa', code: 'AB12', btn: 'واتساب', source: 'google_ads', detail: '', city: 'Riyadh', region: '', session: 'SES1', outcome: '' }] });
-      if (p === '/v1/dash/setup') return j(200, { ok: true, sites: st.sites.map((x) => ({ id: x.id, name: x.name, domains: x.domains, status: 'on', paired: !!x.paired, installed: !!x.paired, last_event: x.paired ? new Date().toISOString() : null, plugin: x.paired ? '2.12.2' : null, delivery: x.paired ? [{ day: today, pct: 99.8, ok: true }] : [], ads: false })) });
+      if (p === '/v1/dash/setup') return j(200, { ok: true, sites: st.sites.map((x) => ({ id: x.id, name: x.name, domains: x.domains, status: 'on', paired: !!x.paired, installed: !!x.paired, last_event: x.paired ? new Date().toISOString() : null, plugin: x.paired ? '2.12.2' : null, delivery: x.paired ? [{ day: today, pct: 99.8, ok: true }] : [], ads: !!st.adsLinked, ads_state: st.adsLinked ? { linked: true, account: '4440003333', last_ok_day: null } : null, role: x.role || 'owner' })) });
+      if (p === '/v1/dash/ads/link') { st.adsLinkCalls = (st.adsLinkCalls || 0) + 1; return j(200, { ok: true, url: 'https://auth.maestrolt.com/connect?site_id=' + JSON.parse(req.postData()).site + '&exp=1&to=api&sig=x', valid_minutes: 15 }); }
+      if (p === '/v1/dash/ads/accounts') return u.searchParams.get('n') === 'b'.repeat(48) ? j(410, { ok: false, error: 'expired' }) : j(200, { ok: true, accounts: [{ id: '5826734507', name: 'روضة الصالحين', currency: 'SAR', via: null }, { id: '4440003333', name: 'شادو', currency: 'EGP', via: '9990001111' }] });
+      if (p === '/v1/dash/ads/choose') { const b = JSON.parse(req.postData()); st.adsChoose = Object.assign({ csrf: req.headers()['x-csrf-token'] }, b); st.adsLinked = true; return j(200, { ok: true, customer_id: b.customer_id, name: 'شادو' }); }
+      if (p === '/v1/dash/ads/unlink') { st.adsLinked = false; st.adsUnlinked = true; return j(200, { ok: true }); }
       if (p === '/v1/dash/outcome') { const b = JSON.parse(req.postData()); st.outcomeCalls = (st.outcomeCalls || []).concat([Object.assign({ csrf: req.headers()['x-csrf-token'] }, b)]); return j(200, { ok: true, code: b.code, value: b.value }); }
     }
     if (p.endsWith('/install-status')) return j(200, { ok: true, status: 'waiting', paired: true });
@@ -746,6 +750,42 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
   await pg.locator('#rows tr', { hasText: 'Digital Avenue' }).click();
   t('super admin: the admin drawer links each site to its dashboard', (await pg.locator('#d-sites .open-dash').first().getAttribute('href')).startsWith('/?site=RAgH4vV49gjd'));
   t('super admin: no console errors or CSP violations', pg.errors.length === 0 && pg.csp.length === 0);
+  await pg.context().close(); }
+
+// 21) ربط جوجل أدز من اللوحة (12 نوفمبر): زرار ← خدمة الربط ← الرجوع واختيار الحساب ← مربوط
+{ const api = fakeApi({ signedIn: true, sites: [{ id: 'SiteId123456', name: 'روضة الصالحين', domains: ['rawda.site'], paired: true }] }); const pg = await page(api, { viewport: { width: 1200, height: 860 } });
+  await pg.context().route('https://auth.maestrolt.com/**', (r) => r.fulfill({ status: 200, contentType: 'text/html; charset=utf-8', body: '<title>auth</title><p>Google consent</p>' }));
+  await pg.goto('https://app.maestrolt.com/#/sites');
+  await pg.waitForSelector('#view .checks');
+  t('ads connect: the owner sees «اربط جوجل أدز» with a plain note (no manager access asked)', /لا نطلب صلاحية مدير/.test(await pg.locator('#view .checks').innerText()) && (await pg.getByRole('button', { name: 'اربط جوجل أدز' }).count()) === 1);
+  await pg.getByRole('button', { name: 'اربط جوجل أدز' }).click();
+  await pg.waitForURL(/auth\.maestrolt\.com\/connect/);
+  t('ads connect: the button asks the server for a signed link and goes to the connect service', api.adsLinkCalls === 1 && /to=api/.test(pg.url()));
+  // الرجوع من جوجل
+  await pg.goto('https://app.maestrolt.com/?site=SiteId123456&ads=' + 'a'.repeat(48) + '#/sites');
+  await pg.waitForSelector('#d-body .opt input[type="radio"]');
+  t('ads connect: back from Google, the accounts appear (with the manager account noted) and the address is cleaned', (await pg.locator('#d-body .opt').count()) === 2 && /عبر الحساب الإداري \u2066?999-000-1111/.test(await pg.locator('#d-body').innerText()) && !/ads=/.test(pg.url()));
+  await shot(pg, 'ads-pick');
+  await pg.locator('#d-body .opt', { hasText: 'شادو' }).locator('input').check();
+  await pg.getByRole('button', { name: 'اربط هذا الحساب' }).click();
+  await pg.waitForFunction(() => /رُبط الحساب/.test(document.getElementById('toast').textContent));
+  await pg.waitForFunction(() => /مربوط بالحساب \u2066?444-000-3333/.test(document.getElementById('view').innerText));
+  t('ads connect: choosing sends the account with the CSRF token, and the site shows «مربوط»', api.adsChoose.customer_id === '4440003333' && api.adsChoose.n === 'a'.repeat(48) && api.adsChoose.csrf === 'csrf-token-123');
+  await shot(pg, 'ads-linked');
+  await pg.getByRole('button', { name: 'افصل الربط' }).click();
+  await pg.getByRole('button', { name: /هل أنت متأكد/ }).click();
+  await pg.waitForFunction(() => /اربط جوجل أدز/.test(document.getElementById('view').innerText));
+  t('ads connect: disconnecting asks once more, then turns it off', api.adsUnlinked === true);
+  await pg.goto('https://app.maestrolt.com/?site=SiteId123456&ads=' + 'b'.repeat(48) + '#/sites');
+  await pg.waitForFunction(() => /انتهت مهلة الاختيار/.test(document.getElementById('d-body').innerText));
+  t('ads connect: an expired choice says so plainly', true);
+  t('ads connect: no console errors, no CSP violations', pg.errors.length === 0 && pg.csp.length === 0);
+  if (pg.errors.length || pg.csp.length) console.log(pg.errors, pg.csp);
+  await pg.context().close(); }
+{ const api = fakeApi({ signedIn: true, sites: [{ id: 'SiteId123456', name: 'روضة الصالحين', domains: ['rawda.site'], paired: true, role: 'staff' }] }); const pg = await page(api);
+  await pg.goto('https://app.maestrolt.com/#/sites');
+  await pg.waitForSelector('#view .checks');
+  t('ads connect: staff see who can connect, and no button', /يربطه مالك الحساب أو المدير/.test(await pg.locator('#view .checks').innerText()) && (await pg.getByRole('button', { name: 'اربط جوجل أدز' }).count()) === 0);
   await pg.context().close(); }
 
 // 20) الإنجليزي (قرار محمود 12 نوفمبر: «بلغتين عربي وإنجليزي»): الكوكي lt_lang=en ← الصفحة من الشمال لليمين وكل النصوص إنجليزي

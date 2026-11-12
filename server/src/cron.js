@@ -6,6 +6,7 @@ import { geoBackfill } from './geo.js';
 import { cleanupSessions } from './notify.js';
 import { cleanupReplays } from './replay.js';
 import { dailyDeliveryReport } from './health.js';
+import { cleanPending } from './adslink.js';
 
 const H = 3600 * 1000;
 const ago = (ms) => new Date(Date.now() - ms).toISOString();
@@ -94,7 +95,7 @@ export async function runScheduled(env, db, opts) {
   try {
     out.conversations = await analyzeConversations(env, db, 20);
     out.recordings = await processRecordings(env, db, 5);
-    if (new Date().getUTCMinutes() < 5) { out.retention = await retention(env, db); try { out.tg_sessions = await cleanupSessions(db); } catch (e) { out.tg_sessions = { error: true }; } try { out.replays = await cleanupReplays(db); } catch (e) { out.replays = { error: true }; } }   // مرة في الساعة
+    if (new Date().getUTCMinutes() < 5) { out.retention = await retention(env, db); try { out.tg_sessions = await cleanupSessions(db); } catch (e) { out.tg_sessions = { error: true }; } try { out.replays = await cleanupReplays(db); } catch (e) { out.replays = { error: true }; } await cleanPending(db); }   // مرة في الساعة
   } catch (e) { failed = e; }
   // المكان التقريبي للأحداث اللي فاتها البحث الفوري (G-28): مستقل، وعطله مايوقفش حاجة
   try { out.geo = await geoBackfill(env, db, opts && opts.fetchImpl, 20); } catch (e) { out.geo = { error: String(e && e.message || e).slice(0, 80) }; }
