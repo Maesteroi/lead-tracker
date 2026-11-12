@@ -41,3 +41,16 @@ test('helpers: target countries and datacenter detection', () => {
   assert.equal(isDatacenter('Saudi Telecom Company JSC', 'AS25019'), false);
   assert.equal(isDatacenter('', 'AS14061'), true); assert.equal(isDatacenter('Hetzner Online GmbH', ''), true);
 });
+
+test('checks card: each check ✓/✗/— agrees with the score signals', () => {
+  const ok = scoreSession(human).checks;
+  const by = (c, k) => c.find((x) => x.k === k);
+  assert.ok(ok.every((c) => c.ok === true), JSON.stringify(ok));
+  assert.equal(by(ok, 'geo').detail, 'السعودية'); assert.equal(by(ok, 'repeat').detail, 'أول مرة');
+  const bot = scoreSession(Object.assign({}, human, { automation: true, isp: 'Amazon.com, Inc.', asn: 'AS16509', country_code: 'US', seconds: 1, interactions: 0, scroll: 0, mouse_moves: 0, fp_ad_sessions: 4 })).checks;
+  for (const k of ['human', 'network', 'geo', 'engaged', 'repeat']) assert.equal(by(bot, k).ok, false, k);
+  assert.equal(by(bot, 'ad').ok, true);
+  const org = scoreSession({ source_fine: 'google_organic', seconds: 40, scroll: 30 }).checks;
+  assert.equal(by(org, 'ad').ok, null); assert.equal(by(org, 'network').ok, null); assert.equal(by(org, 'geo').ok, null); assert.equal(by(org, 'repeat'), undefined);
+  assert.equal(by(scoreSession(Object.assign({}, human, { contacts: 'wa' })).checks, 'contact').detail, 'واتساب');
+});

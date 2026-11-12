@@ -96,9 +96,9 @@ function sessionView(s) {
   return {
     id: s.session_id, at: s.started_at, last_at: s.last_at, time: s.first_time, pages: num(s.pages), seconds: s.seconds == null ? null : num(s.seconds), scroll: s.scroll == null ? null : num(s.scroll),
     contact: s.contacts || '', code: s.match_code || null, source: s.source_fine || s.source || 'direct', detail: s.source_detail || '', utm: s.utm || '', gclid: !!s.has_gclid,
-    device: s.device || '', os: s.os || '', browser: s.browser || '', city: s.city || '', region: s.region || '', country: s.country || '', country_code: s.country_code || '', isp: s.isp || '',
+    device: s.device || '', os: s.os || '', browser: s.browser || '', city: s.city || '', region: s.region || '', country: s.country || '', country_code: s.country_code || '', country_ar: s.country_code || s.country ? countryAr(s.country_code, s.country) : '', isp: s.isp || '',
     visit_no: num(s.visit_no) || 1, landing: s.landing_title || '', automation: !!s.automation,
-    score: s.score, status: s.status, reasons: s.reasons || [], ad: !!s.ad, verdict: s.verdict || null, repeats: num(s.fp_ad_sessions), outside: !!s.outside, replay: !!s.replay,
+    score: s.score, status: s.status, reasons: s.reasons || [], ad: !!s.ad, verdict: s.verdict || null, repeats: num(s.fp_ad_sessions), outside: !!s.outside, replay: !!s.replay, checks: s.checks || [],
   };
 }
 

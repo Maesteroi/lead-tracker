@@ -46,6 +46,10 @@
       el('div', { class: 'vd-score' }, [el('b', { text: v.score == null ? '—' : String(v.score) }), el('small', { text: 'من 100' })]),
       el('div', {}, [el('b', { text: title }), el('span', { text: v.verdict ? 'ده حكمك.' : v.status === 'real' ? 'مفيش حاجة غريبة كفاية نشك فيه.' : 'الأسباب تحت.' })]),
     ]));
+    if (v.checks && v.checks.length) box.appendChild(el('ul', { class: 'checks vchecks' }, v.checks.map(function (c) {
+      var cls = c.ok === true ? 'ok' : c.ok === false ? 'bad' : 'soon';
+      return el('li', { class: cls }, [el('i', { class: 'ck', text: c.ok === true ? '✓' : c.ok === false ? '✗' : '—' }), el('b', { text: c.label }), el('span', { text: c.detail })]);
+    })));
     var why = (v.reasons || []).filter(function (r) { return r.indexOf('انت ') !== 0; });
     if (why.length) box.appendChild(el('ul', { class: 'why' }, why.map(function (r) { return el('li', { text: r }); })));
     if (v.outside) box.appendChild(el('p', { class: 'hint', text: 'الزيارة دي من بره البلد اللي موقعك مستهدفه.' }));

@@ -50,8 +50,28 @@ export function scoreSession(s, verdict) {
   if (inter != null && inter >= 20) score -= 10;
 
   score = Math.max(0, Math.min(100, Math.round(score)));
+  const checks = sessionChecks(s, { ad, secs, inter, moves, scroll, cc, targets, rep });
   let status = score >= 70 ? 'high' : score >= 40 ? 'suspicious' : 'real';
   if (verdict === 'real') { status = 'real'; reasons.unshift('انت قلت إنه زبون حقيقي'); }
   if (verdict === 'fraud') { status = 'high'; score = Math.max(score, 90); reasons.unshift('انت أكدت إنه مشبوه'); }
-  return { score, status, reasons, codes, ad };
+  return { score, status, reasons, codes, ad, checks };
+}
+
+// كارت «الزيارة دي عدّت على إيه» (خطة توصيات 12 نوفمبر، بشكلنا): كل فحص ✓ أو ✗ أو «—» (مش بينطبق / مش معروف)، بجملة قصيرة.
+// نفس الإشارات اللي الدرجة بتتحسب منها، فالكارت والدرجة مايتناقضوش.
+function sessionChecks(s, x) {
+  const out = [];
+  const add = (k, ok, label, detail) => out.push({ k, ok, label, detail: detail || '' });
+  add('human', !s.automation, 'إنسان مش بوت', s.automation ? 'المتصفح شغّال آلياً' : 'متصفح عادي');
+  const dc = isDatacenter(s.isp, s.asn);
+  add('network', s.isp || s.asn ? !dc : null, 'شبكة بيت أو موبايل', s.isp ? String(s.isp).slice(0, 40) : 'الشبكة لسه مااتعرفتش');
+  if (x.targets.length && x.cc) add('geo', x.targets.includes(x.cc), 'من البلد اللي بتستهدفه', countryAr(x.cc, s.country));
+  else add('geo', null, 'من البلد اللي بتستهدفه', x.targets.length ? 'البلد لسه مااتعرفش' : 'الاستهداف مش متحدد في البلجن');
+  const moved = (x.inter || 0) > 0 || (x.moves || 0) > 0 || (x.scroll || 0) > 0;
+  const stayed = x.secs == null ? null : x.secs > 3;
+  add('engaged', x.secs == null && !moved ? null : moved || !!stayed, 'قعد واتحرك في الصفحة', (x.secs == null ? '' : Math.round(x.secs) + ' ثانية') + (x.scroll ? ' · نزل ' + Math.round(x.scroll) + '%' : '') + (x.inter ? ' · ' + x.inter + ' لمسة' : ''));
+  if (x.ad) add('repeat', x.rep < 3, 'الجهاز مش بيضغط الإعلان كذا مرة', x.rep > 1 ? x.rep + ' مرات من نفس الجهاز' : 'أول مرة');
+  add('ad', x.ad ? true : null, 'جاي من إعلان موثّق (رقم ضغطة جوجل)', x.ad ? 'فيه رقم الضغطة من جوجل' : 'مش من إعلان');
+  if (s.contacts) add('contact', true, 'كلّمك', String(s.contacts).includes('wa') ? 'واتساب' : 'اتصال');
+  return out;
 }

@@ -350,6 +350,13 @@
     return v.status === 'none' ? pill('زيارة', '') : pill('حقيقي', 'ok');
   }
   // «▶ شوف الزيارة» (تسجيل rrweb): صفحة لوحدها بمشغّل كبير
+  // كارت الفحوصات: ✓ عدّى · ✗ ماعدّاش · — مش بينطبق أو لسه مااتعرفش
+  function checksList(list) {
+    return el('ul', { class: 'checks vchecks' }, list.map(function (c) {
+      var cls = c.ok === true ? 'ok' : c.ok === false ? 'bad' : 'soon';
+      return el('li', { class: cls }, [el('i', { class: 'ck', text: c.ok === true ? '✓' : c.ok === false ? '✗' : '—', 'aria-label': c.ok === true ? 'عدّى' : c.ok === false ? 'ماعدّاش' : 'مش معروف' }), el('b', { text: c.label }), el('span', { text: c.detail })]);
+    }));
+  }
   function replayHref(v) { return '/replay?site=' + encodeURIComponent(state.site) + '&sid=' + encodeURIComponent(v.id); }
   function replayLink(v, big) {
     var a = el('a', { class: big ? 'btn rp-open' : 'rp-link', href: replayHref(v), title: 'شوف الزيارة كفيديو' }, [document.createTextNode(big ? '▶ شوف الزيارة كفيديو' : '▶ فيديو')]);
@@ -393,6 +400,7 @@
       el('div', {}, [el('b', { text: head[0] }), el('span', { text: head[1] })])]));
     if (v.replay) body.appendChild(el('div', { class: 'rp-cta' }, [replayLink(v, true), el('span', { class: 'hint', text: 'صفحة موقعك الحقيقية والزائر بيتحرك فيها.' })]));
     if (v.outside) body.appendChild(el('div', { class: 'callout' }, [el('b', { text: 'بره نطاقك' }), el('span', { text: 'الزيارة دي من ' + (v.country || 'بلد تاني') + '، بره البلد اللي موقعك مستهدفه. مش محتاجة نتيجة، ومش بتتحسب عليك.' })]));
+    if (v.checks && v.checks.length) body.appendChild(el('section', { class: 'd-sec' }, [el('h3', { class: 'legend', text: 'الزيارة دي عدّت على إيه' }), checksList(v.checks)]));
     var why = v.reasons.filter(function (r) { return r.indexOf('انت ') !== 0; });
     if (scored && why.length) body.appendChild(el('section', { class: 'd-sec' }, [el('h3', { class: 'legend', text: 'ليه' }), el('ul', { class: 'why' }, why.map(function (r) { return el('li', { text: r }); }))]));
     var tl = el('ol', { class: 'timeline' }, [el('li', {}, [el('span', { class: 'spinner' }), el('span', { text: 'بنحمّل رحلة الزائر…' })])]);

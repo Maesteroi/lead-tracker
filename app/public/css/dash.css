@@ -291,3 +291,9 @@ button.switch[aria-checked="true"]::after { inset-inline-start: 21px; }
 body.level-simple .pro-only, body.level-detailed .simple-only { display: none !important; }
 .simple-line { font-size: 17px; line-height: 1.8; margin: 0 0 14px; }
 .simple-line b { font-family: var(--font-head); }
+/* كارت «الزيارة دي عدّت على إيه» */
+.checks .bad .ck { background: var(--bad-bg); color: var(--bad); }
+.vchecks li { grid-template-columns: 26px minmax(150px, 230px) 1fr; }
+.rp-side .vchecks, .d-sec .vchecks { margin-top: 4px; }
+.rp-side .vchecks li { grid-template-columns: 26px 1fr; }
+.rp-side .vchecks li span { grid-column: 2; font-size: 13px; }
