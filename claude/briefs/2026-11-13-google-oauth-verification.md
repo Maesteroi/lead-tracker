@@ -47,11 +47,22 @@
 >
 > An advertiser signs in to our dashboard and clicks "Connect Google Ads" for their website. After consenting, they pick the one ad account that advertises that website. We then use the Google Ads API with this scope to:
 > 1. **Read** daily reports for that account only: campaigns, click_view (click time, location and keyword for each click), search_term_view (search terms) and account status. We show these in the dashboard next to each website visit, so the advertiser can see which clicks were suspicious and which became real customers.
-> 2. **Write, only after the advertiser presses an approval button for each change:** add IP exclusions and negative keywords that the advertiser approved, and upload confirmed offline conversions (real leads) back to the advertiser's own account. New campaigns, if any, are created paused for the advertiser to review.
+> 2. **Write, only after the advertiser presses an approval button for each change:** add the IP exclusions and negative keywords that the advertiser approved in our dashboard. New campaigns, if any, are created paused for the advertiser to review and enable themselves.
 >
 > There is no narrower scope that allows reading Google Ads reports and making these changes. We never make a change without the advertiser's explicit approval in our dashboard, and every change is logged and visible to them.
 >
 > Refresh tokens are encrypted at rest (AES-GCM) on our server and never sent to the browser. The data is used only to provide these user-facing features. We do not sell it, use it for advertising, or share it, and our use complies with the Google API Services User Data Policy, including the Limited Use requirements (see https://maestrolt.com/privacy, section 4). Users can disconnect at any time from the dashboard or from their Google Account permissions.
+
+## صلاحية `datamanager` (ظهرت في Data access يوم 13 نوفمبر)
+- **مكانها:** متضافة في المشروع جنب `adwords`. دي صلاحية Data Manager API، ومخططة لرفع التحويلات المؤكدة بعدين (قرار 9 نوفمبر).
+- **ليه نشيلها دلوقتي:**
+  - الربط الحالي بيطلب `adwords` بس.
+  - جوجل بيطلب أقل صلاحيات ممكنة، وإن الفيديو يوري استخدام كل صلاحية مطلوبة. ومفيش حاجة على السيرفر بتستخدمها لحد دلوقتي.
+- **القرار:** نشيلها من Data access قبل التقديم، فالمراجعة تبقى على صلاحية واحدة وتمشي أسرع.
+- **لما نبني رفع التحويلات:** نضيفها ونقدّم توثيق ليها لوحدها.
+
+## Additional info (يتلصق في خانة Additional info)
+> Maestro LT signs users in to its dashboard with a separate Google Cloud project (maestro-lt-sign-in, basic profile scopes only). This project (lead-tracker-511401) is used only to connect a customer's Google Ads account. Reviewers can see the full dashboard without signing in at https://app.maestrolt.com/demo (sample data). The scope is requested from https://auth.maestrolt.com/connect, started by the "Connect Google Ads" button in the dashboard. No other project uses this OAuth client.
 
 ## سكريبت الفيديو (2–3 دقايق، بالإنجليزي)
 **قبل التسجيل:**
