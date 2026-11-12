@@ -88,6 +88,7 @@ function fakeApi(over) {
       if (p === '/v1/dash/leads') return j(200, { ok: true, leads: [{ at: new Date().toISOString(), type: 'wa', code: 'AB12', btn: 'واتساب', source: 'google_ads', detail: '', city: 'Riyadh', region: '', session: 'SES1', outcome: '' }] });
       if (p === '/v1/dash/setup') return j(200, { ok: true, sites: st.sites.map((x) => ({ id: x.id, name: x.name, domains: x.domains, status: 'on', paired: !!x.paired, installed: !!x.paired, last_event: x.paired ? new Date().toISOString() : null, plugin: x.paired ? '2.12.2' : null, delivery: x.paired ? [{ day: today, pct: 99.8, ok: true }] : [], ads: !!st.adsLinked, ads_state: st.adsLinked ? { linked: true, account: '4440003333', last_ok_day: null } : null, role: x.role || 'owner' })) });
       if (p === '/v1/dash/ads/link') { st.adsLinkCalls = (st.adsLinkCalls || 0) + 1; return j(200, { ok: true, url: 'https://auth.maestrolt.com/connect?site_id=' + JSON.parse(req.postData()).site + '&exp=1&to=api&sig=x', valid_minutes: 15 }); }
+      if (p === '/v1/dash/ads/accounts' && u.searchParams.get('n') === 'c'.repeat(48)) return j(200, { ok: true, accounts: Array.from({ length: 30 }, (_, i) => ({ id: String(6000000010 + i), name: 'Z' + (10 + i), currency: 'USD', via: '6453486391', status: i < 25 ? 'ENABLED' : 'CANCELED' })).concat([{ id: '8880005555', name: 'شادو ديزاين', currency: 'EGP', via: '6453486391', status: 'ENABLED' }]) });
       if (p === '/v1/dash/ads/accounts') return u.searchParams.get('n') === 'b'.repeat(48) ? j(410, { ok: false, error: 'expired' }) : j(200, { ok: true, accounts: [{ id: '5826734507', name: 'روضة الصالحين', currency: 'SAR', via: null }, { id: '4440003333', name: 'شادو', currency: 'EGP', via: '9990001111' }] });
       if (p === '/v1/dash/ads/choose') { const b = JSON.parse(req.postData()); st.adsChoose = Object.assign({ csrf: req.headers()['x-csrf-token'] }, b); st.adsLinked = true; return j(200, { ok: true, customer_id: b.customer_id, name: 'شادو' }); }
       if (p === '/v1/dash/ads/unlink') { st.adsLinked = false; st.adsUnlinked = true; return j(200, { ok: true }); }
@@ -790,6 +791,14 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
   await pg.goto('https://app.maestrolt.com/?site=SiteId123456&ads=' + 'b'.repeat(48) + '#/sites');
   await pg.waitForFunction(() => /انتهت مهلة الاختيار/.test(document.getElementById('d-body').innerText));
   t('ads connect: an expired choice says so plainly', true);
+  await pg.goto('https://app.maestrolt.com/?site=SiteId123456&ads=' + 'c'.repeat(48) + '#/sites');
+  await pg.waitForSelector('#d-body .pick-q');
+  t('ads connect: a big manager account lists all 31 accounts with a search box; cancelled ones are marked', (await pg.locator('#d-body .opt').count()) === 31 && (await pg.locator('#d-body .opt.off').count()) === 5 && /31 حسابًا/.test(await pg.locator('#d-body').innerText()));
+  await pg.locator('#d-body .pick-q').fill('شادو');
+  t('ads connect: searching «شادو» leaves only Shado', (await pg.locator('#d-body .opt:visible').count()) === 1 && /شادو ديزاين/.test(await pg.locator('#d-body .opt:visible').innerText()));
+  await pg.locator('#d-body .pick-q').fill('888-000');
+  t('ads connect: searching by the account number works too (with dashes)', (await pg.locator('#d-body .opt:visible').count()) === 1);
+  await shot(pg, 'ads-pick-search');
   t('ads connect: no console errors, no CSP violations', pg.errors.length === 0 && pg.csp.length === 0);
   if (pg.errors.length || pg.csp.length) console.log(pg.errors, pg.csp);
   await pg.context().close(); }

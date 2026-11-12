@@ -1182,6 +1182,7 @@ window.LT_LANG.en = {
   'ads.pick.fail': "Couldn't get the accounts from Google. Try again.",
   'ads.pick.via': "via manager account {m}",
   'ads.pick.test': "test account",
+  'ads.pick.search': "Search by account name or number", 'ads.pick.nomatch': "No account with this name or number.", 'ads.pick.count': "{n} accounts. Active accounts first.", 'ads.pick.off': "Paused or cancelled",
   'ads.done': "Connected “{a}”. First data within hours",
   'adm.cfg': "Google Ads setup on the server",
   'adm.cfg.missing': "Connecting Google Ads from the dashboard is off. Missing or invalid in the maestro-api Worker: {list}",
