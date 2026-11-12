@@ -47,8 +47,9 @@ async function visit(url, opts) {
   // سيرفر Maestro: الطلب بيروح لكود السيرفر الحقيقي (route) بنفس الهيدرز (Origin) والجسم
   await ctx.route('https://api.maestrolt.com/**', async (r) => {
     const req = r.request();
-    const body = req.postData();
-    if (body && body.includes('"start"')) log.start++; else if (body) log.chunks++;
+    const body = req.postDataBuffer();   // 2.13.4: القطع ممكن تبقى مضغوطة (gzip)، فالجسم بايتات مش نص
+    const zipped = /[?&]z=1/.test(req.url());
+    if (zipped) { log.chunks++; log.zipped = (log.zipped || 0) + 1; } else if (body && body.toString().includes('"start"')) log.start++; else if (body) log.chunks++;
     const res = await route(new Request(req.url(), { method: req.method(), headers: req.headers(), body: req.method() === 'POST' ? body : undefined }), w.env, w.f);
     const h = {}; res.headers.forEach((v, k) => { h[k] = v; });
     return r.fulfill({ status: res.status, headers: h, body: Buffer.from(await res.arrayBuffer()) });
@@ -68,7 +69,7 @@ const a = await visit('https://shado.test/?gclid=Cj0KCQiAtest1', { act: async (p
   await p.waitForTimeout(5600);                                     // دفعة كل 5 ثواني
 } });
 t('ad visit: one ticket from the site, one "start" to the server, then the recorder loads', a.log.tk === 1 && a.log.start === 1 && a.log.rr === 1);
-t('ad visit: chunks sent straight to the Maestro server (not to WordPress)', a.log.chunks >= 1);
+t('ad visit: chunks sent straight to the Maestro server (not to WordPress), compressed (gzip) when the browser supports it', a.log.chunks >= 1 && a.log.zipped >= 1);
 t('no script errors on the client site', a.log.errors.length === 0);
 const rp = await loadReplay(db, SITE, a.sid);
 t('server stored the recording for that session', !!rp && rp.events.length > 3);

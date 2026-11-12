@@ -114,3 +114,22 @@ test('originAllowed: the site domain, www and subdomains only', () => {
   assert.equal(originAllowed('null', ['shado.example']), false);
   assert.equal(originAllowed('', ['shado.example']), false);
 });
+
+test('replay 2.13.4: compressed chunks (?z=1, gzip body) — a big first page snapshot (>2 MB raw) is accepted and plays back; bad gzip, wrong origin and over-limit are refused', async () => {
+  const { gzipSync } = await import('node:zlib');
+  const s = await setup();
+  const t = await s.tk();
+  const st = await s.rp({ t, start: 1 });
+  assert.equal(st.body.z, 1, 'the server says it accepts compressed chunks');
+  const big = [{ type: 2, timestamp: 1000, data: { node: { html: 'x'.repeat(2500000) } } }, { type: 3, timestamp: 2000, data: {} }];
+  const z = (ev, q, origin, body) => route(new Request('https://api.maestrolt.com/v1/replay?z=1&seq=' + q + '&t=' + encodeURIComponent(t), { method: 'POST', headers: { origin: origin === undefined ? 'https://shado.example' : origin, 'content-type': 'text/plain' }, body: body || gzipSync(JSON.stringify(ev)) }), s.w.env, s.w.f).then(async (r) => ({ status: r.status, body: await r.json() }));
+  const r = await z(big, 0);
+  assert.equal(r.status, 200); assert.equal(r.body.ok, true);
+  const d = await s.gc(s.owner, '/v1/dash/replay?site=' + s.site.id + '&sid=SES12345');
+  assert.equal(d.body.events.length, 2); assert.equal(d.body.events[0].type, 2);
+  assert.equal((await z(null, 1, undefined, 'not gzip at all')).body.error, 'gzip');
+  assert.equal((await z(big, 1, 'https://evil.example')).status, 403);
+  assert.equal((await z(big, 250)).body.error, 'seq');
+  const huge = new Uint8Array(3 * 1024 * 1024); huge[0] = 0x1f; huge[1] = 0x8b;
+  assert.equal((await z(null, 2, undefined, huge)).status, 413);
+});

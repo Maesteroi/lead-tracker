@@ -589,19 +589,26 @@
       if (!window.fetch || !window.JSON || !window.MutationObserver) return;
       if (CFG.pt === 'checkout' || CFG.pt === 'cart' || CFG.pt === 'account' || /\/(checkout|cart|my-account)(\/|$)/.test(location.pathname)) return;
       var T = null, URL_ = '', seq = parseInt(sg(SS, 'ltp_rp_seq') || '0', 10) || 0, buf = [], bytes = 0, sent = 0, stopRec = null, done = false, t0 = Date.now();
-      var MAX = 8 * 1024 * 1024, CHUNK = 900 * 1024, MIN = 15;
+      var MAX = 8 * 1024 * 1024, CHUNK = 900 * 1024, MIN = 15, Z = false;
       function post(body, keep) {
-        return fetch(URL_, { method: 'POST', body: body, headers: { 'Content-Type': 'text/plain' }, keepalive: !!keep, credentials: 'omit' })
+        return fetch(URL_, { method: 'POST', body: body, headers: { 'Content-Type': 'text/plain' }, keepalive: !!keep && body.length < 60000, credentials: 'omit' })
+          .then(function (r) { return r.json(); }).catch(function () { return null; });
+      }
+      function gz(text) { return new Response(new Blob([text]).stream().pipeThrough(new CompressionStream('gzip'))).arrayBuffer(); }
+      function postZ(bin, s, keep) {
+        return fetch(URL_ + '?z=1&seq=' + s + '&t=' + encodeURIComponent(T), { method: 'POST', body: bin, headers: { 'Content-Type': 'text/plain' }, keepalive: !!keep, credentials: 'omit' })
           .then(function (r) { return r.json(); }).catch(function () { return null; });
       }
       function stop() { done = true; buf = []; try { if (stopRec) stopRec(); } catch (e) {} }
       function flush(keep) {
         if (!buf.length || !T) return;
         if (seq > 199) { stop(); return; }
-        var ev = buf; buf = []; var b = bytes; bytes = 0;
-        var body = JSON.stringify({ t: T, seq: seq, ev: ev });
+        var ev = buf, b = bytes, s0 = seq; buf = []; bytes = 0;
         seq++; st(SS, 'ltp_rp_seq', '' + seq); sent += b;
-        var p = post(body, keep && body.length < 60000);
+        // 2.13.4: مضغوط (gzip) لو المتصفح والسيرفر بيدعموا — أول لقطة للصفحة ممكن تبقى 2 ميجا وأكتر (اتلقى في روضة 12 نوفمبر)
+        var p = (Z && window.CompressionStream && window.Blob && window.Response)
+          ? gz(JSON.stringify(ev)).then(function (bin) { return postZ(bin, s0, keep && bin.byteLength < 60000); }, function () { return null; })
+          : post(JSON.stringify({ t: T, seq: s0, ev: ev }), keep);
         if (p && p.then) p.then(function (r) { if (r && r.ok === false) stop(); });
         if (sent > MAX || Date.now() - t0 > MIN * 60e3) stop();
       }
@@ -648,6 +655,7 @@
             if (s.max_kb) MAX = s.max_kb * 1024;
             if (s.chunk_kb) CHUNK = Math.min(CHUNK, s.chunk_kb * 1024 - 4096);
             if (s.max_min) MIN = s.max_min;
+            if (s.z) Z = true;   // السيرفر بيقبل القطع مضغوطة
             if (window.rrwebRecord) { start(); return; }
             var sc = document.createElement('script');
             sc.src = RP.js; sc.async = true;
