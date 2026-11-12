@@ -187,7 +187,7 @@ test('session message gets the sheet\'s 5 outcome buttons once a WhatsApp/call c
   const ed = s.n.by('editMessageText').pop().body;
   const kb = ed.reply_markup.inline_keyboard;
   assert.deepEqual(kb.flat().map((b) => b.callback_data), [0, 1, 2, 3, 4].map((i) => 'o|' + s.site.site.id + '|QP74|' + i));
-  assert.equal(kb[0][0].text, '✅ تم');
+  assert.equal(kb[0][0].text, '✅ تم الاتفاق');
   await s.ev({ session_id: 'T1', event: 'click', click_type: 'wa', match_code: 'ZZ11', is_test: '1', lead_level: 'primary' });
   assert.equal(s.n.by('sendMessage').pop().body.reply_markup, undefined);
 });
@@ -200,15 +200,15 @@ test('pressing a button (Mahmoud) records the outcome, answers, ticks the choice
   assert.equal(r.status, 200);
   const oc = s.w.fs.t.outcomes; assert.equal(oc.length, 1);
   assert.equal(oc[0].client_id, s.site.site.id); assert.equal(oc[0].match_code, 'AB12'); assert.equal(oc[0].value, 'تم'); assert.equal(oc[0].by_who, 'Mahmoud');
-  assert.ok(s.n.by('answerCallbackQuery')[0].body.text.includes('اتسجل: تم'));
-  assert.equal(s.n.by('editMessageReplyMarkup')[0].body.reply_markup.inline_keyboard[0][0].text, '✓ تم');
+  assert.ok(s.n.by('answerCallbackQuery')[0].body.text.includes('تم التسجيل: تم الاتفاق'));
+  assert.equal(s.n.by('editMessageReplyMarkup')[0].body.reply_markup.inline_keyboard[0][0].text, '✓ تم الاتفاق');
   assert.equal(s.n.sheet.length, 0);                                        // ماراحش للشيت
   await s.ev({ title: 'صفحة تانية', time: '2026-11-11 07:12:00' });
-  assert.equal(s.n.by('editMessageText').pop().body.reply_markup.inline_keyboard[0][0].text, '✓ تم');
+  assert.equal(s.n.by('editMessageText').pop().body.reply_markup.inline_keyboard[0][0].text, '✓ تم الاتفاق');
   // ضغطة تواصل جديدة بكود تاني: الزراير بتتنقل على الكود الجديد من غير العلامة القديمة
   await s.ev({ event: 'click', click_type: 'call', match_code: 'CD34', lead_level: 'primary', time: '2026-11-11 07:13:00' });
   const kb = s.n.by('editMessageText').pop().body.reply_markup.inline_keyboard;
-  assert.equal(kb[0][0].text, '✅ تم'); assert.equal(kb[0][0].callback_data, 'o|' + s.site.site.id + '|CD34|0');
+  assert.equal(kb[0][0].text, '✅ تم الاتفاق'); assert.equal(kb[0][0].callback_data, 'o|' + s.site.site.id + '|CD34|0');
 });
 
 test('a button press from any other chat is refused and records nothing', async () => {

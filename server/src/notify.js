@@ -15,10 +15,12 @@ const SESSION_MS = 30 * 60 * 1000;      // نفس مدة جلسة الشيت
 
 // نفس زراير الشيت بالظبط (apps-script/outcome-buttons.js)، ونفس شكل callback_data: «o|<SiteID>|<الكود>|<رقم النتيجة>»
 export const OUTCOMES = [['تم', '✅'], ['بيفكر', '🤔'], ['لغى', '❌'], ['مش جاد', '🚫'], ['ماوصلش رسالة', '📭']];
+// القيم المتخزنة فوق ثابتة (الشيت وقاعدة البيانات). اللي بيظهر على الزرار بالفصحى (قرار 12 نوفمبر).
+export const OUTCOME_LABEL = { 'تم': 'تم الاتفاق', 'بيفكر': 'يفكّر', 'لغى': 'ألغى', 'مش جاد': 'غير جادّ', 'ماوصلش رسالة': 'لم تصل رسالة' };
 export function outcomeKeyboard(siteId, code, chosen) {
   code = String(code || '').replace(/^#/, '');
   if (!siteId || !code) return null;
-  const btn = (i) => ({ text: (chosen === OUTCOMES[i][0] ? '✓ ' : OUTCOMES[i][1] + ' ') + OUTCOMES[i][0], callback_data: 'o|' + siteId + '|' + code + '|' + i });
+  const btn = (i) => ({ text: (chosen === OUTCOMES[i][0] ? '✓ ' : OUTCOMES[i][1] + ' ') + OUTCOME_LABEL[OUTCOMES[i][0]], callback_data: 'o|' + siteId + '|' + code + '|' + i });
   return { inline_keyboard: [[btn(0), btn(1), btn(2)], [btn(3), btn(4)]] };
 }
 // آخر ضغطة واتساب أو اتصال بكود في الجلسة (مش تجربة) = اللي الزراير بتسجّل عليها (نفس قاعدة الشيت)
@@ -36,10 +38,10 @@ const markupFor = (clientId, info) => (info && info.oc && !isOutside(info) ? out
 const MAX_LINES = 40;
 const MAX_TEXT = 3900;
 
-const CT_AR = { wa: '💬 واتساب', call: '📞 اتصال', sms: '✉️ رسالة نصية', email: '📧 إيميل', msg: '📨 تليجرام/ماسنجر', social: '👥 سوشيال', map: '📍 خريطة', cart: '🛒 أضف للسلة', checkout: '💳 إتمام الطلب', form: '📝 إرسال فورم', button: '🔘 زرار' };
+const CT_AR = { wa: '💬 واتساب', call: '📞 اتصال', sms: '✉️ رسالة نصية', email: '📧 بريد إلكتروني', msg: '📨 تيليجرام/ماسنجر', social: '👥 تواصل اجتماعي', map: '📍 خريطة', cart: '🛒 إضافة إلى السلة', checkout: '💳 إتمام الطلب', form: '📝 إرسال نموذج', button: '🔘 زر' };
 const LEVEL_AR = { primary: '🎯 أساسي', important: '⭐ مهم', normal: '▫️ عادي', support: '🛟 خدمة عملاء' };
-const SRC_AR = { maps: 'خرائط جوجل', google: 'جوجل', bing: 'بينج', ai: 'ذكاء اصطناعي', social: 'سوشيال', ads: 'إعلان مدفوع', listening: 'رصد', direct: 'مباشر', other: 'موقع آخر' };
-const SRC2_AR = { google_ads: 'إعلان جوجل', bing_ads: 'إعلان بينج', tiktok_ads: 'إعلان تيك توك', ads_other: 'إعلان آخر', google_organic: 'جوجل (من غير إعلان)', google_maps: 'خرائط جوجل', search_other: 'محرك بحث آخر', facebook: 'فيسبوك', instagram: 'إنستجرام', tiktok: 'تيك توك', snapchat: 'سناب شات', youtube: 'يوتيوب', x: 'إكس (تويتر)', whatsapp: 'واتساب', threads: 'ثريدز', linkedin: 'لينكدإن', social_other: 'سوشيال آخر', ai: 'ذكاء اصطناعي', listening: 'رصد', direct: 'مباشر', other_site: 'موقع آخر' };
+const SRC_AR = { maps: 'خرائط جوجل', google: 'جوجل', bing: 'بينج', ai: 'ذكاء اصطناعي', social: 'تواصل اجتماعي', ads: 'إعلان مدفوع', listening: 'رصد', direct: 'مباشر', other: 'موقع آخر' };
+const SRC2_AR = { google_ads: 'إعلان جوجل', bing_ads: 'إعلان بينج', tiktok_ads: 'إعلان تيك توك', ads_other: 'إعلان آخر', google_organic: 'جوجل (دون إعلان)', google_maps: 'خرائط جوجل', search_other: 'محرك بحث آخر', facebook: 'فيسبوك', instagram: 'إنستجرام', tiktok: 'تيك توك', snapchat: 'سناب شات', youtube: 'يوتيوب', x: 'إكس (تويتر)', whatsapp: 'واتساب', threads: 'ثريدز', linkedin: 'لينكدإن', social_other: 'تواصل اجتماعي آخر', ai: 'ذكاء اصطناعي', listening: 'رصد', direct: 'مباشر', other_site: 'موقع آخر' };
 
 const hhmm = (t) => (String(t || '').split(' ')[1] || '').slice(0, 5);
 const secs = (t) => { const m = /(\d{1,2}):(\d{2}):(\d{2})/.exec(String(t || '')); return m ? (+m[1]) * 3600 + (+m[2]) * 60 + (+m[3]) : 0; };
@@ -63,16 +65,16 @@ export function eventLine(p) {
   if (e === 'contact_return' && String(p.is_test) !== '1') {   // بلجن 2.13.1: قوة التواصل (تقديري)
     const st = contactStrength(p.away_seconds, p.app_opened);
     const icon = st.key === 'strong' ? '💪' : st.key === 'normal' ? '↩️' : '⚠️';
-    return icon + ' ' + t + ' · ' + (String(p.click_type || p.ct) === 'call' ? 'الاتصال' : 'الواتساب') + ': ' + esc(st.detail) + ' · تواصل <b>' + st.label + '</b> (تقديري)';
+    return icon + ' ' + t + ' · ' + (String(p.click_type || p.ct) === 'call' ? 'الاتصال' : 'الواتساب') + ': ' + esc(st.detail) + ' · قوة التواصل: <b>' + st.label + '</b> (تقديرية)';
   }
   if (e !== 'click') return '';
   const lv = String(p.lead_level || '');
   if (lv === 'normal' || lv === 'support') return '';
   if (/:ext/.test(String(p.detect_via || ''))) return '';
   const ct = String(p.click_type || p.ct || '');
-  let line = (String(p.is_test) === '1' ? '🧪 ' : '🎯 ') + t + ' · ' + (CT_AR[ct] || '🔘 زرار');
+  let line = (String(p.is_test) === '1' ? '🧪 ' : '🎯 ') + t + ' · ' + (CT_AR[ct] || '🔘 زر');
   if (LEVEL_AR[lv]) line += ' · ' + LEVEL_AR[lv];
-  if (p.match_code) line += ' · كود <b>#' + esc(String(p.match_code).replace(/^#/, '').slice(0, 20)) + '</b>';
+  if (p.match_code) line += ' · رمز <b>#' + esc(String(p.match_code).replace(/^#/, '').slice(0, 20)) + '</b>';
   const bt = String(p.btn_text || p.bt || '').trim();
   if (bt && bt !== '—') line += ' — "' + esc(bt.slice(0, 40)) + '"';
   if (p.btn_pos) line += ' [' + esc(String(p.btn_pos).slice(0, 30)) + ']';
@@ -103,7 +105,7 @@ function mergeInfo(old, p, geo) {
 function render(siteName, startedAt, body, info) {
   const out = ['🌐 <b>' + esc(siteName) + '</b>'];
   const d = Math.max(secs(info.last_time) - secs(startedAt), Number(info.seconds) || 0);
-  out.push((info.test ? '🧪 تجربة · ' : '') + '🕒 جلسة بدأت ' + hhmm(startedAt) + (d > 0 ? ' · ⏱️ ' + dur(d) : '') + ' · 👤 زيارة #' + esc(info.visit_no || 1));
+  out.push((info.test ? '🧪 تجربة · ' : '') + '🕒 بدأت الجلسة ' + hhmm(startedAt) + (d > 0 ? ' · ⏱️ ' + dur(d) : '') + ' · 👤 زيارة #' + esc(info.visit_no || 1));
   out.push('━━━━━━━━━━━━━━━━━━━');
   out.push(...body);
   out.push('━━━━━━━━━━━━━━━━━━━');
@@ -113,13 +115,13 @@ function render(siteName, startedAt, body, info) {
     if (info.utm) out.push('📊 ' + esc(info.utm));
   }
   if (info.device) out.push('📱 ' + esc([info.device, info.os, info.browser].filter(Boolean).join(' · ')));
-  const loc = [info.city ? info.city + ' (تقريبية)' : '', info.region && info.region !== info.city ? info.region : '', info.country].filter(Boolean).join('، ');
+  const loc = [info.city ? info.city + ' (تقريبي)' : '', info.region && info.region !== info.city ? info.region : '', info.country].filter(Boolean).join('، ');
   if (loc) out.push('📍 ' + esc(loc));
   if (info.isp) out.push('🏢 ' + esc(info.isp));
   if (isOutside(info)) {
     out.push('━━━━━━━━━━━━━━━━━━━');
-    out.push('🌍 <b>بره نطاقك</b>: الزيارة من ' + esc(countryAr(info.cc, info.country)) + '، والموقع مستهدف ' + esc(targetCountries(info.tgeo).map((c) => countryAr(c)).join(' و')) + ' بس.');
-    out.push('📝 مش محتاجة نتيجة، واتسجلت في اللوحة «بره النطاق» ومش هتتحسب عليك.');
+    out.push('🌍 <b>خارج النطاق المستهدف</b>: الزيارة من ' + esc(countryAr(info.cc, info.country)) + '، وموقعك يستهدف ' + esc(targetCountries(info.tgeo).map((c) => countryAr(c)).join(' و')) + ' فقط.');
+    out.push('📝 لا تحتاج إلى نتيجة، وسُجّلت في لوحة التحكم «خارج النطاق» ولن تُحتسب عليك.');
   }
   return out.join('\n');
 }
@@ -199,7 +201,7 @@ export async function notifyTest(env, client, fetchImpl) {
   try {
     if (!env.TG_TOKEN || !env.TG_CHAT_ID || String(env.TG_ALERTS || '').toLowerCase() === 'off') return { skipped: 'off' };
     if (!client) return { skipped: 'no-site' };
-    const text = '✅ <b>اختبار ناجح</b> — ' + esc(client.name || client.id) + '\nالموقع متوصّل بسيرفر Maestro LT، والأحداث بتوصل.';
+    const text = '✅ <b>اختبار ناجح</b> — ' + esc(client.name || client.id) + '\nالموقع متصل بخادم Maestro LT، والأحداث تصل.';
     const r = await tg(env, 'sendMessage', { chat_id: String(env.TG_CHAT_ID), text, parse_mode: 'HTML', disable_web_page_preview: true }, fetchImpl);
     return { sent: r.ok };
   } catch (e) {

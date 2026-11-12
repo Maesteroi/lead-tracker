@@ -48,7 +48,7 @@ test('first event of a session sends one message to Mahmoud with the sheet\'s lo
   assert.equal(s.n.sent.length, 1);
   const m = s.n.sent[0];
   assert.equal(m.chat_id, '5550001'); assert.equal(m.parse_mode, 'HTML');
-  for (const part of ['🌐 <b>المعقب الذهبي</b>', '🕒 جلسة بدأت 07:09', '👤 زيارة #1', '👁️ 07:09 · الرئيسية', '🧭 إعلان جوجل', '🎯 GCLID: <code>Cj0KCQiAnsvXBhCq...</code>', '📱 موبايل · Android · Chrome', '📍 Riyadh (تقريبية)، Riyadh Region، Saudi Arabia', '🏢 STC'])
+  for (const part of ['🌐 <b>المعقب الذهبي</b>', '🕒 بدأت الجلسة 07:09', '👤 زيارة #1', '👁️ 07:09 · الرئيسية', '🧭 إعلان جوجل', '🎯 GCLID: <code>Cj0KCQiAnsvXBhCq...</code>', '📱 موبايل · Android · Chrome', '📍 Riyadh (تقريبي)، Riyadh Region، Saudi Arabia', '🏢 STC'])
     assert.ok(m.text.includes(part), part + '\n' + m.text);
   assert.equal(s.w.fs.t.tg_sessions[0].message_id, 901);
 });
@@ -62,7 +62,7 @@ test('later events of the same session edit the same message (no new messages)',
   const last = s.n.edits[1];
   assert.equal(last.message_id, 901);
   assert.ok(last.text.includes('👁️ 07:10 · الخدمات'));
-  assert.ok(last.text.includes('🎯 07:11 · 📞 اتصال · 🎯 أساسي · كود <b>#QP74</b> — "اتصل بنا" [عائم]\n   📱 <code>966554912921</code>'), last.text);
+  assert.ok(last.text.includes('🎯 07:11 · 📞 اتصال · 🎯 أساسي · رمز <b>#QP74</b> — "اتصل بنا" [عائم]\n   📱 <code>966554912921</code>'), last.text);
   assert.ok(last.text.includes('⏱️ 1د 6ث'));
 });
 
@@ -173,8 +173,8 @@ test('a visit from outside the site\'s target country (Libya on a Saudi-only sit
   await s.ev({ event: 'click', click_type: 'wa', match_code: 'LY29', lead_level: 'primary', time: '2026-11-11 07:11:00', target_geo: 'EG|القاهرة' });
   const ed = s.n.edits[s.n.edits.length - 1];
   assert.equal(ed.reply_markup, undefined, 'no buttons');
-  assert.ok(ed.text.includes('🌍 <b>بره نطاقك</b>: الزيارة من السعودية، والموقع مستهدف مصر بس.'), ed.text);
-  assert.ok(ed.text.includes('مش محتاجة نتيجة'));
+  assert.ok(ed.text.includes('🌍 <b>خارج النطاق المستهدف</b>: الزيارة من السعودية، وموقعك يستهدف مصر فقط.'), ed.text);
+  assert.ok(ed.text.includes('لا تحتاج إلى نتيجة'));
   // نفس الموقع، زيارة من جوه البلد المستهدف: الزراير موجودة عادي
   await s.ev({ session_id: 'IN1', target_geo: 'SA|' });
   await s.ev({ session_id: 'IN1', event: 'click', click_type: 'call', match_code: 'SA11', lead_level: 'primary', time: '2026-11-11 07:12:00', target_geo: 'SA|' });
@@ -183,8 +183,8 @@ test('a visit from outside the site\'s target country (Libya on a Saudi-only sit
 
 test('contact strength line: after a WhatsApp click the visitor came back after 3m20s → "تواصل قوي (تقديري)"; app not opened → warning', () => {
   const l = eventLine({ event: 'contact_return', time: '2026-11-12 10:05:00', click_type: 'wa', away_seconds: 200, app_opened: 1 });
-  assert.ok(l.includes('💪') && l.includes('3د 20ث') && l.includes('<b>قوي</b>') && l.includes('تقديري'), l);
+  assert.ok(l.includes('💪') && l.includes('3 د 20 ث') && l.includes('<b>قوية</b>') && l.includes('تقديرية'), l);
   const n = eventLine({ event: 'contact_return', time: '2026-11-12 10:05:00', click_type: 'call', away_seconds: 0, app_opened: 0 });
-  assert.ok(n.includes('⚠️') && n.includes('الاتصال') && n.includes('مافتحش'), n);
+  assert.ok(n.includes('⚠️') && n.includes('الاتصال') && n.includes('لم يُفتح'), n);
   assert.equal(eventLine({ event: 'contact_return', is_test: '1', away_seconds: 5, app_opened: 1 }), '');
 });
