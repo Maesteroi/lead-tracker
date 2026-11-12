@@ -343,15 +343,15 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
   t('demo simple (default): 3 big answers, a short menu (6, with the team), no tables or charts', (await pg.locator('.answers .ans').count()) === 3 && (await pg.locator('.side-nav a').count()) === 6 && (await pg.locator('#view table, #view svg.svg').count()) === 0 && (await pg.locator('#page-title').innerText()) === 'الخلاصة');
   t('demo simple: "is your ad protected?" answers in words, at most 3 action cards', /محمي/.test(await pg.locator('.ans').first().innerText()) && (await pg.locator('.act').count()) <= 3);
   t('demo simple: the checklist counts the done steps and offers how-to for the missing ones', /\d من 6/.test(await pg.locator('.progress').innerText()) && (await pg.locator('.steps-check li').count()) === 6);
-  t('demo simple: the week summary reads as a sentence', /جالك .* زائر حقيقي/.test(await pg.locator('.story').innerText()));
-  await pg.locator('.steps-check li.todo').filter({ hasText: 'التطبيق' }).getByRole('button', { name: 'إزاي؟' }).click();
+  t('demo simple: the week summary reads as a sentence', /وصلك .* زائر/.test(await pg.locator('.story').innerText()));
+  await pg.locator('.steps-check li.todo').filter({ hasText: 'التطبيق' }).getByRole('button', { name: 'كيف؟' }).click();
   t('demo simple: "install on your phone" explains iPhone and Android', /آيفون/.test(await pg.locator('#d-body').innerText()) && /أندرويد/.test(await pg.locator('#d-body').innerText()));
   await pg.keyboard.press('Escape');
   await shot(pg, 'demo-0-simple');
   await pg.locator('#level').getByRole('button', { name: 'احترافي' }).click();
   await pg.waitForSelector('.kpis .kpi');
   t('demo: switching to detailed shows the full menu (10)', (await pg.locator('.side-nav a').count()) === 10);
-  t('demo: overview shows the 6 KPI cards, the status strip and the action cards', (await pg.locator('.kpis .kpi').count()) === 6 && /الحماية شغالة/.test(await pg.locator('.status-strip').innerText()) && (await pg.locator('.act').count()) >= 2);
+  t('demo: overview shows the 6 KPI cards, the status strip and the action cards', (await pg.locator('.kpis .kpi').count()) === 6 && /الحماية تعمل/.test(await pg.locator('.status-strip').innerText()) && (await pg.locator('.act').count()) >= 2);
   t('demo: the quality chart draws stacked bars with a legend (3 series)', (await pg.locator('svg .mk').count()) > 10 && (await pg.locator('.chart-legend .lg').count()) === 3);
   await pg.locator('svg .hit').nth(2).hover();
   t('demo: hovering a day shows a tooltip with the 3 numbers', await pg.locator('.tip').isVisible() && (await pg.locator('.tip .tr').count()) === 3);

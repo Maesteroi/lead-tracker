@@ -133,35 +133,35 @@
       var k = d.kpi, p = d.prev, cur = d.currency;
       // شريط الحالة
       view.appendChild(el('div', { class: 'status-strip' }, [
-        el('span', { class: 'st ok' }, [el('i', { class: 'dot live' }), document.createTextNode('الحماية شغالة')]),
-        el('span', { class: 'st ' + (d.status.delivery >= 99.5 ? 'ok' : 'warn') }, [el('i', { class: 'dot' }), document.createTextNode('التتبع: وصل ' + d.status.delivery + '% من الأحداث')]),
-        el('span', { class: 'st ' + (d.status.ads ? 'ok' : 'warn') }, [el('i', { class: 'dot' }), document.createTextNode(d.status.ads ? 'جوجل أدز متربط' : 'جوجل أدز مش متربط')]),
-        el('a', { class: 'st live-now', href: '#/visits' }, [el('i', { class: 'dot live' }), document.createTextNode(d.live + ' زوار دلوقتي')]),
+        el('span', { class: 'st ok' }, [el('i', { class: 'dot live' }), document.createTextNode(T('d.strip.prot'))]),
+        el('span', { class: 'st ' + (d.status.delivery >= 99.5 ? 'ok' : 'warn') }, [el('i', { class: 'dot' }), document.createTextNode(T('strip.delivery', { p: d.status.delivery }))]),
+        el('span', { class: 'st ' + (d.status.ads ? 'ok' : 'warn') }, [el('i', { class: 'dot' }), document.createTextNode(T(d.status.ads ? 'strip.ads.on' : 'd.strip.ads.off'))]),
+        el('a', { class: 'st live-now', href: '#/visits' }, [el('i', { class: 'dot live' }), document.createTextNode(T('strip.live', { n: LT.n(d.live, 'visitor') }))]),
       ]));
       // الأرقام
       view.appendChild(el('div', { class: 'kpis' }, [
-        kpi('ضغطات جوجل حاسبها', fmt(k.billed), money(k.cost, cur) + ' صرف', 'info', delta(k.billed, p.billed, true)),
-        kpi('زوار حقيقيين', fmt(k.real), pct(k.real, k.real + k.suspicious + k.blocked) + '% من الزيارات', 'ok', delta(k.real, p.real, true)),
-        kpi('مشبوه', fmt(k.suspicious), 'تحت المراقبة', 'warn', delta(k.suspicious, p.suspicious, false)),
-        kpi('اتحظر', fmt(k.blocked), 'على الموقع وجوجل', 'bad', delta(k.blocked, p.blocked, false)),
-        kpi('فلوس اتحمت', money(k.saved, cur), 'ضغطات مشبوهة ماكملتش', 'ok', delta(k.saved, p.saved, null)),
-        kpi('عملاء حقيقيين', fmt(k.won), k.cpl ? 'العميل بـ' + money(k.cpl, cur) : 'من ' + k.leads + ' تواصل', 'ok'),
+        kpi(T('d.k.billed'), fmt(k.billed), T('d.k.spent', { m: money(k.cost, cur) }), 'info', delta(k.billed, p.billed, true)),
+        kpi(T('d.k.real'), fmt(k.real), T('kpi.of_visits', { p: pct(k.real, k.real + k.suspicious + k.blocked) }), 'ok', delta(k.real, p.real, true)),
+        kpi(T('kpi.suspicious'), fmt(k.suspicious), T('d.k.watched'), 'warn', delta(k.suspicious, p.suspicious, false)),
+        kpi(T('d.k.blocked'), fmt(k.blocked), T('d.k.blocked.sub'), 'bad', delta(k.blocked, p.blocked, false)),
+        kpi(T('d.k.saved'), money(k.saved, cur), T('d.k.saved.sub'), 'ok', delta(k.saved, p.saved, null)),
+        kpi(T('kpi.won'), fmt(k.won), k.cpl ? T('d.k.cpl', { m: money(k.cpl, cur) }) : T('d.k.of_contacts', { n: LT.n(k.leads, 'contact') }), 'ok'),
       ]));
       // تعمل إيه دلوقتي
       var acts = el('div', { class: 'actions' });
       d.actions.forEach(function (a) {
-        var m = a.kind === 'approve' ? ['protection', 'warn', a.n + ' مشبوهين مستنيين موافقتك', 'اعتمدهم لجوجل علشان مايظهرلهمش إعلانك تاني', 'راجعهم']
-          : a.kind === 'outcome' ? ['leads', 'info', a.n + ' تواصل من غير نتيجة', 'سجّل اتفقت ولا لأ علشان نحسب تكلفة العميل الحقيقي', 'سجّل']
-          : a.kind === 'refund' ? ['protection', 'ok', 'ملف استرداد جاهز (~' + money(a.amount, cur) + ')', 'الأدلة جاهزة تتبعت لجوجل', 'افتح الملف']
-          : ['sites', 'warn', 'لاحقة التتبع ناقصة في حساب الإعلانات', 'من غيرها مش هنعرف الكلمة اللي جابت كل ضغطة', 'صلّحها'];
+        var m = a.kind === 'approve' ? ['protection', 'warn', T('d.act.approve', { n: LT.n(a.n, 'svisit') }), T('d.act.approve.sub'), T('d.act.approve.go')]
+          : a.kind === 'outcome' ? ['leads', 'info', T('act.outcome', { n: LT.n(a.n, 'contact') }), T('d.act.outcome.sub'), T('act.outcome.go')]
+          : a.kind === 'refund' ? ['protection', 'ok', T('d.act.refund', { m: money(a.amount, cur) }), T('d.act.refund.sub'), T('d.act.refund.go')]
+          : ['sites', 'warn', T('d.act.suffix'), T('d.act.suffix.sub'), T('d.act.suffix.go')];
         acts.appendChild(el('a', { class: 'act ' + m[1], href: '#/' + m[0] }, [el('b', { text: m[2] }), el('span', { text: m[3] }), el('em', { text: m[4] + ' ‹' })]));
       });
-      if (d.actions.length) view.appendChild(card('تعمل إيه دلوقتي', [acts]));
+      if (d.actions.length) view.appendChild(card(T('act.title'), [acts]));
       // جودة الزيارات
       var ch = el('div');
-      C.stacked(ch, d.days, [{ key: 'real', label: 'حقيقي', cls: 'c-real' }, { key: 'suspicious', label: 'مشبوه', cls: 'c-sus' }, { key: 'blocked', label: 'اتحظر', cls: 'c-blk' }], { label: 'جودة الزيارات كل يوم' });
+      C.stacked(ch, d.days, [{ key: 'real', label: T('status.real'), cls: 'c-real' }, { key: 'suspicious', label: T('status.suspicious'), cls: 'c-sus' }, { key: 'blocked', label: T('status.blocked'), cls: 'c-blk' }], { label: T('chart.quality.title') });
       var grid = el('div', { class: 'grid-2' }, [
-        card('جودة الزيارات كل يوم', [el('p', { class: 'hint', text: 'العمود العالي فجأة = هجوم. شوف الأيام اللي المشبوه زاد فيها والحماية وقفته.' }), ch], 'span-2'),
+        card(T('chart.quality.title'), [el('p', { class: 'hint', text: T('d.chart.hint') }), ch], 'span-2'),
       ]);
       view.appendChild(grid);
       // آخر المشبوهين + أكتر أماكن
@@ -174,7 +174,7 @@
       });
       var pl = el('div');
       C.hbars(pl, d.places.map(function (x) { return { label: x.name, value: x.n, cls: 'c-sus' }; }), { compact: true });
-      view.appendChild(el('div', { class: 'grid-2' }, [card('آخر المشبوهين', [sus, el('a', { class: 'linkish', href: '#/visits', text: 'كل الزيارات ‹' })]), card('منين بتيجي الضغطات المشبوهة (مدينة · حي)', [pl])]));
+      view.appendChild(el('div', { class: 'grid-2' }, [card(T('d.last_sus'), [sus, el('a', { class: 'linkish', href: '#/visits', text: T('d.all_visits') })]), card(T('d.sus_places'), [pl])]));
     });
   }
 
@@ -187,31 +187,31 @@
       var d = res[0], k = d.kpi, cur = d.currency, site = res[1].filter(function (x) { return x.id === state.site; })[0] || res[1][0], prot = res[2];
       var pend = prot.pending.length;
       var safe = !d.status.ads || !site.installed ? 'bad' : (pend || !d.status.tracking_template || d.status.delivery < 99.5) ? 'warn' : 'ok';
-      var safeText = safe === 'ok' ? 'أيوه، إعلانك محمي' : safe === 'warn' ? 'محمي، بس محتاج منك حاجة' : 'لأ، الحماية مش كاملة';
-      var safeSub = safe === 'ok' ? 'بنفحص كل ضغطة وبنحظر المحتالين لوحدنا.' : pend ? pend + ' مشبوهين مستنيين موافقتك علشان نمنعهم من جوجل.' : !d.status.tracking_template ? 'ناقص خطوة في حساب الإعلانات (لاحقة التتبع).' : 'اربط جوجل أدز وركّب الكود علشان الحماية تشتغل.';
+      var safeText = T('d.safe.' + safe);
+      var safeSub = safe === 'ok' ? T('d.safe.ok.sub') : pend ? T('d.safe.pend', { n: LT.n(pend, 'svisit') }) : !d.status.tracking_template ? T('d.safe.suffix') : T('d.safe.setup');
       view.appendChild(el('div', { class: 'answers' }, [
-        el('div', { class: 'ans ' + safe }, [el('span', { class: 'q', text: 'إعلانك محمي؟' }), el('b', { class: 'a', text: safeText }), el('span', { class: 's', text: safeSub })]),
-        el('div', { class: 'ans ok' }, [el('span', { class: 'q', text: 'اتحمى من فلوسك كام؟ (آخر 7 أيام)' }), el('b', { class: 'a', text: money(k.saved, cur) }), el('span', { class: 's', text: 'وقفنا ' + fmt(k.suspicious + k.blocked) + ' ضغطة مشبوهة قبل ما تكمّل.' })]),
-        el('div', { class: 'ans info' }, [el('span', { class: 'q', text: 'جالك كام عميل حقيقي؟' }), el('b', { class: 'a', text: fmt(k.won) + ' عميل' }), el('span', { class: 's', text: k.cpl ? 'العميل الواحد كلّفك ' + money(k.cpl, cur) + ' من الإعلانات.' : fmt(k.leads) + ' تواصل، مستنيين نتيجتهم.' })]),
+        el('div', { class: 'ans ' + safe }, [el('span', { class: 'q', text: T('ans.protected.q') }), el('b', { class: 'a', text: safeText }), el('span', { class: 's', text: safeSub })]),
+        el('div', { class: 'ans ok' }, [el('span', { class: 'q', text: T('d.ans.saved.q') }), el('b', { class: 'a', text: money(k.saved, cur) }), el('span', { class: 's', text: T('d.ans.saved.s', { n: LT.n(k.suspicious + k.blocked, 'sclick') }) })]),
+        el('div', { class: 'ans info' }, [el('span', { class: 'q', text: T('ans.won.q') }), el('b', { class: 'a', text: LT.n(k.won, 'customer') }), el('span', { class: 's', text: k.cpl ? T('d.ans.cpl', { m: money(k.cpl, cur) }) : T('d.ans.leads_wait', { n: LT.n(k.leads, 'contact') }) })]),
       ]));
       // تعمل إيه دلوقتي (3 بالكتير)
       var acts = el('div', { class: 'actions' });
       d.actions.slice(0, 3).forEach(function (a) {
-        var m = a.kind === 'approve' ? ['protection', 'warn', 'وافق على ' + a.n + ' مشبوهين', 'ضغطة واحدة لكل واحد، ومش هيشوفوا إعلانك تاني', 'وافق']
-          : a.kind === 'outcome' ? ['leads', 'info', 'قولنا ' + a.n + ' عملاء اتفقوا ولا لأ', 'علشان نقولك العميل الحقيقي بكام بالظبط', 'سجّل']
-          : a.kind === 'refund' ? ['protection', 'ok', 'اطلب فلوسك من جوجل (~' + money(a.amount, cur) + ')', 'الملف جاهز بالأدلة', 'افتح']
-          : ['sites', 'warn', 'خطوة ناقصة في حساب الإعلانات', 'من غيرها مش هنعرف أنهي كلمة جابت كل زبون', 'إزاي'];
+        var m = a.kind === 'approve' ? ['protection', 'warn', T('d.sact.approve', { n: LT.n(a.n, 'svisit') }), T('d.sact.approve.sub'), T('d.sact.approve.go')]
+          : a.kind === 'outcome' ? ['leads', 'info', T('act.outcome.simple', { n: LT.n(a.n, 'contact') }), T('act.outcome.sub'), T('act.outcome.go')]
+          : a.kind === 'refund' ? ['protection', 'ok', T('d.sact.refund', { m: money(a.amount, cur) }), T('d.sact.refund.sub'), T('d.sact.refund.go')]
+          : ['sites', 'warn', T('d.sact.suffix'), T('d.act.suffix.sub'), T('steps.how')];
         acts.appendChild(el('a', { class: 'act ' + m[1], href: '#/' + m[0] }, [el('b', { text: m[2] }), el('span', { text: m[3] }), el('em', { text: m[4] + ' ‹' })]));
       });
-      if (d.actions.length) view.appendChild(card('تعمل إيه دلوقتي', [acts]));
+      if (d.actions.length) view.appendChild(card(T('act.title'), [acts]));
       // حمايتك كاملة؟
       var steps = [
-        ['كود Maestro متركب على موقعك', site.installed, 'sites'],
-        ['حساب جوجل أدز متربط', site.ads, 'sites'],
-        ['لاحقة التتبع في حساب الإعلانات', site.template, 'sites'],
-        ['أجهزتك معفية (ضغطاتك مابتتحسبش)', site.own > 0, 'protection'],
-        ['تنبيهات تليجرام شغالة', true, 'alerts'],
-        ['التطبيق على موبايلك', installed(), 'app'],
+        [T('steps.installed'), site.installed, 'sites'],
+        [T('steps.ads'), site.ads, 'sites'],
+        [T('d.steps.suffix'), site.template, 'sites'],
+        [T('d.steps.own'), site.own > 0, 'protection'],
+        [T('d.steps.tg'), true, 'alerts'],
+        [T('steps.app'), installed(), 'app'],
       ];
       var done = steps.filter(function (x) { return x[1]; }).length;
       var bar = el('i'); bar.style.width = Math.round((done / steps.length) * 100) + '%';
@@ -219,28 +219,28 @@
       steps.forEach(function (x) {
         var li = el('li', { class: x[1] ? 'ok' : 'todo' }, [el('i', { class: 'ck', text: x[1] ? '✓' : '' }), el('span', { text: x[0] })]);
         if (!x[1]) {
-          var go = el(x[2] === 'app' ? 'button' : 'a', x[2] === 'app' ? { class: 'linkish', type: 'button', text: 'إزاي؟' } : { class: 'linkish', href: '#/' + x[2], text: 'كمّلها ‹' });
+          var go = el(x[2] === 'app' ? 'button' : 'a', x[2] === 'app' ? { class: 'linkish', type: 'button', text: T('steps.how') } : { class: 'linkish', href: '#/' + x[2], text: T('steps.finish') });
           if (x[2] === 'app') go.addEventListener('click', openInstall);
           li.appendChild(go);
         }
         list.appendChild(li);
       });
-      view.appendChild(card('حمايتك كاملة؟', [el('div', { class: 'progress' }, [el('div', { class: 'p-bar' }, [bar]), el('b', { text: done + ' من ' + steps.length })]), list]));
+      view.appendChild(card(T('steps.title'), [el('div', { class: 'progress' }, [el('div', { class: 'p-bar' }, [bar]), el('b', { text: T('steps.of', { a: done, b: steps.length }) })]), list]));
       // ملخص الأسبوع بالكلام
       var p = d.prev, better = k.suspicious + k.blocked <= (p.suspicious + p.blocked);
-      view.appendChild(card('الأسبوع ده باختصار', [el('p', { class: 'story', text:
-        'جالك ' + fmt(k.real) + ' زائر حقيقي من إعلاناتك ومن جوجل، ' + fmt(k.leads) + ' منهم كلّموك واتساب أو اتصال، و' + fmt(k.won) + ' اتفقوا معاك' + (k.cpl ? ' (العميل الواحد بـ' + money(k.cpl, cur) + ')' : '') + '. ' +
-        'وقفنا ' + fmt(k.suspicious + k.blocked) + ' ضغطة مشبوهة ' + (better ? 'أقل من الأسبوع اللي فات' : 'أكتر من الأسبوع اللي فات، وده معناه إن فيه حد بيحاول، والحماية شغالة') + '، ووفّرنا حوالي ' + money(k.saved, cur) + '.' }),
-        el('button', { class: 'btn ghost sm', type: 'button', text: 'اعرض كل التفاصيل' }),
+      view.appendChild(card(T('story.title'), [el('p', { class: 'story', text:
+        T('d.story.1', { r: LT.n(k.real, 'rvisitor'), l: fmt(k.leads), w: fmt(k.won) }) + (k.cpl ? ' ' + T('d.story.cpl', { m: money(k.cpl, cur) }) : '') + '. ' +
+        T(better ? 'd.story.less' : 'd.story.more', { n: LT.n(k.suspicious + k.blocked, 'sclick') }) + T('d.story.saved', { m: money(k.saved, cur) }) }),
+        el('button', { class: 'btn ghost sm', type: 'button', text: T('story.more') }),
       ]));
       view.querySelector('.story + .btn').addEventListener('click', function () { setLevel('detailed'); });
     });
   }
   function openInstall() {
     var body = clear($('d-body'));
-    $('d-title').textContent = 'ثبّت Maestro على موبايلك'; $('d-sub').textContent = 'بيفتح زي أي تطبيق، من غير متجر.';
-    body.appendChild(el('section', { class: 'd-sec' }, [el('h3', { class: 'legend', text: 'آيفون (سفاري)' }), el('ol', { class: 'how' }, [el('li', { text: 'افتح app.maestrolt.com من سفاري' }), el('li', { text: 'دوس على زرار المشاركة (المربع اللي فيه سهم)' }), el('li', { text: 'اختار «إضافة إلى الشاشة الرئيسية»' })])]));
-    body.appendChild(el('section', { class: 'd-sec' }, [el('h3', { class: 'legend', text: 'أندرويد (كروم)' }), el('ol', { class: 'how' }, [el('li', { text: 'افتح app.maestrolt.com من كروم' }), el('li', { text: 'دوس على النقط التلاتة فوق' }), el('li', { text: 'اختار «تثبيت التطبيق» أو «إضافة إلى الشاشة الرئيسية»' })])]));
+    $('d-title').textContent = T('inst.title'); $('d-sub').textContent = T('inst.sub');
+    body.appendChild(el('section', { class: 'd-sec' }, [el('h3', { class: 'legend', text: T('inst.ios') }), el('ol', { class: 'how' }, [el('li', { text: T('inst.ios.1') }), el('li', { text: T('inst.ios.2') }), el('li', { text: T('inst.ios.3') })])]));
+    body.appendChild(el('section', { class: 'd-sec' }, [el('h3', { class: 'legend', text: T('inst.android') }), el('ol', { class: 'how' }, [el('li', { text: T('inst.android.1') }), el('li', { text: T('inst.android.2') }), el('li', { text: T('inst.android.3') })])]));
     openDrawer();
   }
 
