@@ -490,7 +490,7 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
   t('live visits: "contacted" filter', (await pg.locator('#view .tbl tbody tr').count()) === 1);
   await pg.locator('#view .tbl tbody tr').first().click();
   await pg.waitForSelector('.timeline li.k-contact');
-  t('live visit: the journey loads from the server when opened', /ضغط واتساب/.test(await pg.locator('.timeline').innerText()) && (api.dashCalls || []).some((c) => c.startsWith('/v1/dash/session')));
+  t('live visit: the journey loads from the server when opened', /نقر واتساب/.test(await pg.locator('.timeline').innerText()) && (api.dashCalls || []).some((c) => c.startsWith('/v1/dash/session')));
   await shot(pg, 'live-visit');
   await pg.keyboard.press('Escape');
   await pg.locator('.side-nav a[data-r="leads"]').click();
