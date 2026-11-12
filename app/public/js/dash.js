@@ -248,40 +248,40 @@
   function vStatement(view) {
     return DATA.statement(state.site, state.range).then(function (d) {
       clear(view); var t = d.total, cur = d.currency;
-      view.appendChild(el('div', { class: 'callout' }, [el('b', { text: 'جوجل حاسبك على ' + fmt(t.billed) + ' ضغطة (' + money(t.cost, cur) + '). دي راحت فين؟' }), el('span', { text: 'كشف كامل لكل ضغطة، مش بس اللي وصلت موقعك.' })]));
+      view.appendChild(el('div', { class: 'callout' }, [el('b', { text: T('st.callout', { n: LT.n(t.billed, 'click'), m: money(t.cost, cur) }) }), el('span', { text: T('st.callout.sub') })]));
       var fun = el('div');
       C.hbars(fun, [
-        { label: 'ضغطات جوجل حاسبها', value: t.billed, cls: 'c-data' },
-        { label: 'اتصال أو واتساب أو اتجاهات من الإعلان نفسه', sub: 'ماوصلتش الموقع، وده طبيعي', value: t.offsite, cls: 'c-data' },
-        { label: 'وصلت موقعك', value: t.reached, cls: 'c-real' },
-        { label: 'منهم مشبوهة أو اتحظرت', value: t.bad, cls: 'c-sus' },
-        { label: 'الصفحة مافتحتش (ضغط وقفل قبل ما تحمّل)', value: t.not_loaded, cls: 'c-blk' },
-        { label: 'جوجل رجّعها لوحده (غير صالحة)', value: t.refunded, cls: 'c-ok' },
+        { label: T('d.k.billed'), value: t.billed, cls: 'c-data' },
+        { label: T('st.offsite'), sub: T('st.offsite.sub'), value: t.offsite, cls: 'c-data' },
+        { label: T('st.reached'), value: t.reached, cls: 'c-real' },
+        { label: T('st.bad'), value: t.bad, cls: 'c-sus' },
+        { label: T('st.not_loaded'), value: t.not_loaded, cls: 'c-blk' },
+        { label: T('st.refunded'), value: t.refunded, cls: 'c-ok' },
       ], { max: t.billed });
       view.appendChild(el('div', { class: 'grid-2' }, [
-        card('الضغطة راحت فين', [fun]),
-        card('الفلوس', [el('div', { class: 'kpis two' }, [
-          kpi('الصرف', money(t.cost, cur), fmt(t.billed) + ' ضغطة', 'info'),
-          kpi('على ضغطات مشبوهة', money(t.invalid_cost, cur), pct(t.invalid_cost, t.cost) + '% من الصرف', 'warn'),
-          kpi('جوجل رجّع', fmt(t.refunded) + ' ضغطة', 'من غير ما تطلب', 'ok'),
-          kpi('تقدر تطالب بـ', money(t.invalid_cost * 0.6, cur), 'بملف الاسترداد', 'ok'),
-        ]), el('button', { class: 'btn sm', type: 'button', text: '⬇ نزّل الكشف PDF' })]),
+        card(T('st.where'), [fun]),
+        card(T('st.money'), [el('div', { class: 'kpis two' }, [
+          kpi(T('st.spend'), money(t.cost, cur), LT.n(t.billed, 'click'), 'info'),
+          kpi(T('st.on_bad'), money(t.invalid_cost, cur), T('st.of_spend', { p: pct(t.invalid_cost, t.cost) }), 'warn'),
+          kpi(T('st.google_back'), LT.n(t.refunded, 'click'), T('st.unasked'), 'ok'),
+          kpi(T('st.claim'), money(t.invalid_cost * 0.6, cur), T('st.claim.sub'), 'ok'),
+        ]), el('button', { class: 'btn sm', type: 'button', text: T('st.pdf') })]),
       ]));
       view.querySelector('.btn.sm').addEventListener('click', function () { window.print(); });
       // حسب
       var seg = el('div', { class: 'seg', role: 'tablist' });
       var body = el('div');
-      var TABS = [['campaign', 'الحملة'], ['kw', 'الكلمة'], ['city', 'المدينة'], ['district', 'الحي']];
+      var TABS = ['campaign', 'kw', 'city', 'district'].map(function (k) { return [k, T('st.by.' + k)]; });
       var draw = function () {
         clear(seg); clear(body);
         TABS.forEach(function (tb) { var b = el('button', { type: 'button', 'aria-pressed': String(state.tab === tb[0]), text: tb[1] }); b.addEventListener('click', function () { state.tab = tb[0]; draw(); }); seg.appendChild(b); });
         var rows = d.by[state.tab].slice(0, 10);
         var tbody = el('tbody');
-        rows.forEach(function (r) { tbody.appendChild(el('tr', {}, [el('td', { class: 'first', text: r.name }), el('td', { 'data-l': 'وصلت الموقع', class: 'num', text: fmt(r.reached) }), el('td', { 'data-l': 'مشبوهة', class: 'num', text: fmt(r.bad) }), el('td', { 'data-l': 'النسبة' }, [pill(pct(r.bad, r.reached) + '%', pct(r.bad, r.reached) > 15 ? 'warn' : 'ok')])])); });
-        body.appendChild(el('div', { class: 'tbl-wrap' }, [el('table', { class: 'tbl static' }, [el('thead', {}, [el('tr', {}, [el('th', { text: TABS.filter(function (x) { return x[0] === state.tab; })[0][1] }), el('th', { text: 'وصلت الموقع' }), el('th', { text: 'مشبوهة' }), el('th', { text: 'نسبة المشبوه' })])]), tbody])]));
+        rows.forEach(function (r) { tbody.appendChild(el('tr', {}, [el('td', { class: 'first', text: r.name }), el('td', { 'data-l': T('st.h.reached'), class: 'num', text: fmt(r.reached) }), el('td', { 'data-l': T('st.h.bad'), class: 'num', text: fmt(r.bad) }), el('td', { 'data-l': T('st.h.ratio') }, [pill(pct(r.bad, r.reached) + '%', pct(r.bad, r.reached) > 15 ? 'warn' : 'ok')])])); });
+        body.appendChild(el('div', { class: 'tbl-wrap' }, [el('table', { class: 'tbl static' }, [el('thead', {}, [el('tr', {}, [el('th', { text: TABS.filter(function (x) { return x[0] === state.tab; })[0][1] }), el('th', { text: T('st.h.reached') }), el('th', { text: T('st.h.bad') }), el('th', { text: T('st.h.bad_ratio') })])]), tbody])]));
       };
       draw();
-      view.appendChild(card('حسب الحملة والكلمة والمكان', [seg, body]));
+      view.appendChild(card(T('st.by'), [seg, body]));
     });
   }
 
@@ -367,16 +367,16 @@
     var body = clear($('d-body'));
     $('d-title').textContent = placeOf(v);
     $('d-sub').textContent = timeAr(v.at) + ' · ' + srcName(v.src) + (v.kw ? ' «' + v.kw + '»' : '');
-    body.appendChild(el('div', { class: 'verdict s-' + v.status }, [el('div', { class: 'vd-score' }, [el('b', { text: String(v.score) }), el('small', { text: 'من 100' })]), el('div', {}, [el('b', { text: STATUS[v.status][0] }), el('span', { text: v.status === 'real' ? 'زيارة طبيعية: اتحرك في الصفحة وقعد وقت كويس.' : 'ليه؟ الأسباب تحت بالترتيب.' })])]));
-    if (v.reasons.length) body.appendChild(el('section', { class: 'd-sec' }, [el('h3', { class: 'legend', text: 'ليه' }), el('ul', { class: 'why' }, v.reasons.map(function (r) { return el('li', { text: r }); }))]));
-    body.appendChild(el('section', { class: 'd-sec' }, [el('h3', { class: 'legend', text: 'رحلة الزائر بالثانية' }), el('ol', { class: 'timeline' }, v.journey.map(function (e) { return el('li', { class: 'k-' + e.kind }, [el('time', { text: clock(e.at) }), el('span', { text: e.text })]); }))]));
-    body.appendChild(el('section', { class: 'd-sec' }, [el('h3', { class: 'legend', text: 'التفاصيل' }), el('dl', { class: 'facts' }, [
-      ['الجهاز', v.device + ' · ' + v.os], ['الشبكة', NET[v.net]], ['العنوان', '\u2066' + v.ip + '\u2069'], ['الحملة', v.campaign || '—'], ['زيارة رقم', String(v.visit_no)], ['التمرير', v.scroll + '%'],
+    body.appendChild(el('div', { class: 'verdict s-' + v.status }, [el('div', { class: 'vd-score' }, [el('b', { text: String(v.score) }), el('small', { text: T('visit.of100') })]), el('div', {}, [el('b', { text: STATUS[v.status][0] }), el('span', { text: T(v.status === 'real' ? 'd.visit.normal' : 'visit.head.why') })])]));
+    if (v.reasons.length) body.appendChild(el('section', { class: 'd-sec' }, [el('h3', { class: 'legend', text: T('visit.why') }), el('ul', { class: 'why' }, v.reasons.map(function (r) { return el('li', { text: r }); }))]));
+    body.appendChild(el('section', { class: 'd-sec' }, [el('h3', { class: 'legend', text: T('visit.journey') }), el('ol', { class: 'timeline' }, v.journey.map(function (e) { return el('li', { class: 'k-' + e.kind }, [el('time', { text: clock(e.at) }), el('span', { text: e.text })]); }))]));
+    body.appendChild(el('section', { class: 'd-sec' }, [el('h3', { class: 'legend', text: T('visit.details') }), el('dl', { class: 'facts' }, [
+      [T('f.device'), v.device + ' · ' + v.os], [T('f.network'), NET[v.net]], [T('f.ip'), '⁦' + v.ip + '⁩'], [T('f.campaign'), v.campaign || '—'], [T('f.visit_no'), String(v.visit_no)], [T('f.scroll'), v.scroll + '%'],
     ].reduce(function (a, f) { a.push(el('dt', { text: f[0] })); a.push(el('dd', { text: f[1] })); return a; }, []))]));
     var acts = el('div', { class: 'd-foot-act' });
-    if (v.status !== 'blocked') { var b1 = el('button', { class: 'btn', type: 'button', text: 'احظره واعتمده لجوجل' }); b1.addEventListener('click', function () { demoAct('اتحظر واتبعت لجوجل'); closeDrawer(); }); acts.appendChild(b1); }
-    else { var b2 = el('button', { class: 'btn ghost', type: 'button', text: 'رجّع الحظر' }); b2.addEventListener('click', function () { demoAct('الحظر اترجع'); closeDrawer(); }); acts.appendChild(b2); }
-    var b3 = el('button', { class: 'btn ghost', type: 'button', text: 'ده جهازي (اعفيه)' }); b3.addEventListener('click', function () { demoAct('الجهاز اتضاف للأجهزة المعفية'); closeDrawer(); }); acts.appendChild(b3);
+    if (v.status !== 'blocked') { var b1 = el('button', { class: 'btn', type: 'button', text: T('d.visit.block') }); b1.addEventListener('click', function () { demoAct(T('d.visit.blocked')); closeDrawer(); }); acts.appendChild(b1); }
+    else { var b2 = el('button', { class: 'btn ghost', type: 'button', text: T('d.unblock') }); b2.addEventListener('click', function () { demoAct(T('d.unblocked')); closeDrawer(); }); acts.appendChild(b2); }
+    var b3 = el('button', { class: 'btn ghost', type: 'button', text: T('d.visit.mine') }); b3.addEventListener('click', function () { demoAct(T('d.visit.mine.done')); closeDrawer(); }); acts.appendChild(b3);
     setFoot(acts);
     openDrawer();
   }
@@ -438,46 +438,46 @@
   function vProtection(view) {
     return DATA.protection(state.site).then(function (p) {
       clear(view);
-      var modeSeg = el('div', { class: 'seg wide3', role: 'radiogroup', 'aria-label': 'وضع الحماية' });
-      var MODES = [['test', 'تجربة 48 ساعة', 'بنراقب ونتعلم شكل زوارك، ومابنحظرش حد.'], ['monitor', 'مراقبة بس', 'بنعرض المشبوهين وبنستنى موافقتك على كل حظر.'], ['active', 'شغالة', 'الواضحين بيتحظروا لوحدهم، والباقي بيستنى موافقتك.']];
+      var modeSeg = el('div', { class: 'seg wide3', role: 'radiogroup', 'aria-label': T('pr.mode') });
+      var MODES = ['test', 'monitor', 'active'].map(function (k) { return [k, T('pr.mode.' + k), T('pr.mode.' + k + '.d')]; });
       var modeHint = el('p', { class: 'hint' });
-      var drawModes = function () { clear(modeSeg); MODES.forEach(function (m) { var b = el('button', { type: 'button', role: 'radio', 'aria-checked': String(p.mode === m[0]), text: m[1] }); b.addEventListener('click', function () { p.mode = m[0]; drawModes(); demoAct('وضع الحماية: ' + m[1]); }); modeSeg.appendChild(b); if (p.mode === m[0]) modeHint.textContent = m[2]; }); };
+      var drawModes = function () { clear(modeSeg); MODES.forEach(function (m) { var b = el('button', { type: 'button', role: 'radio', 'aria-checked': String(p.mode === m[0]), text: m[1] }); b.addEventListener('click', function () { p.mode = m[0]; drawModes(); demoAct(T('pr.mode') + ': ' + m[1]); }); modeSeg.appendChild(b); if (p.mode === m[0]) modeHint.textContent = m[2]; }); };
       drawModes();
-      var strictSeg = el('div', { class: 'seg', role: 'radiogroup', 'aria-label': 'درجة الحزم' });
-      var drawStrict = function () { clear(strictSeg); [['calm', 'هادية'], ['balanced', 'متوازنة'], ['strict', 'صارمة']].forEach(function (m) { var b = el('button', { type: 'button', role: 'radio', 'aria-checked': String(p.strict === m[0]), text: m[1] }); b.addEventListener('click', function () { p.strict = m[0]; drawStrict(); demoAct('درجة الحزم: ' + m[1]); }); strictSeg.appendChild(b); }); };
+      var strictSeg = el('div', { class: 'seg', role: 'radiogroup', 'aria-label': T('pr.strict') });
+      var drawStrict = function () { clear(strictSeg); ['calm', 'balanced', 'strict'].forEach(function (k) { var name = T('pr.strict.' + k); var b = el('button', { type: 'button', role: 'radio', 'aria-checked': String(p.strict === k), text: name }); b.addEventListener('click', function () { p.strict = k; drawStrict(); demoAct(T('pr.strict') + ': ' + name); }); strictSeg.appendChild(b); }); };
       drawStrict();
-      view.appendChild(card('وضع الحماية', [modeSeg, modeHint, el('div', { class: 'row-l' }, [el('span', { class: 'legend', text: 'درجة الحزم' }), strictSeg]), el('p', { class: 'hint', text: 'الصارمة بتحظر أسرع بس ممكن تمسك زبون حقيقي نادراً. المتوازنة مناسبة لأغلب المواقع.' })]));
+      view.appendChild(card(T('pr.mode'), [modeSeg, modeHint, el('div', { class: 'row-l' }, [el('span', { class: 'legend', text: T('pr.strict') }), strictSeg]), el('p', { class: 'hint', text: T('pr.strict.hint') })]));
       // طابور الموافقة
       var q = el('div', { class: 'queue' });
       var drawQ = function () {
         clear(q);
-        if (!p.pending.length) { q.appendChild(el('p', { class: 'muted', text: 'مفيش حاجة مستنية موافقتك. ✓' })); return; }
+        if (!p.pending.length) { q.appendChild(el('p', { class: 'muted', text: T('pr.q.empty') })); return; }
         p.pending.forEach(function (x, i) {
-          var ok = el('button', { class: 'btn sm', type: 'button', text: 'اعتمد لجوجل' }), no = el('button', { class: 'btn ghost sm', type: 'button', text: 'ده زبون حقيقي' });
-          ok.addEventListener('click', function () { p.pending.splice(i, 1); drawQ(); demoAct('اتبعت لجوجل: الإعلان مش هيظهر للجهاز ده تاني'); });
-          no.addEventListener('click', function () { p.pending.splice(i, 1); drawQ(); demoAct('اتسجل إنه زبون حقيقي، والنظام هيتعلم منه'); });
+          var ok = el('button', { class: 'btn sm', type: 'button', text: T('pr.q.approve') }), no = el('button', { class: 'btn ghost sm', type: 'button', text: T('pr.q.real') });
+          ok.addEventListener('click', function () { p.pending.splice(i, 1); drawQ(); demoAct(T('pr.q.approved')); });
+          no.addEventListener('click', function () { p.pending.splice(i, 1); drawQ(); demoAct(T('pr.q.realed')); });
           q.appendChild(el('div', { class: 'q-item' }, [
-            el('div', { class: 'q-main' }, [el('div', {}, [el('b', {}, [document.createTextNode(x.kind + ' '), el('span', { class: 'ltr', text: x.value })]), el('span', { class: 'dim', text: ' · ' + x.city + ' · ' + x.clicks + ' ضغطات · ' + x.cost + ' ر.س' })]), el('ul', { class: 'why sm' }, x.reasons.map(function (r) { return el('li', { text: r }); }))]),
+            el('div', { class: 'q-main' }, [el('div', {}, [el('b', {}, [document.createTextNode(x.kind + ' '), el('span', { class: 'ltr', text: x.value })]), el('span', { class: 'dim', text: ' · ' + x.city + ' · ' + LT.n(x.clicks, 'click') + ' · ' + x.cost + ' ' + T('sar') })]), el('ul', { class: 'why sm' }, x.reasons.map(function (r) { return el('li', { text: r }); }))]),
             el('div', { class: 'q-act' }, [el('span', { class: 'score s-suspicious' }, [el('b', { text: String(x.score) })]), ok, no]),
           ]));
         });
       };
       drawQ();
-      view.appendChild(card('مستنيين موافقتك', [el('p', { class: 'hint', text: 'كل واحد معاه الدليل. لو اعتمدته، الإعلان مش هيظهر له تاني في جوجل.' }), q]));
+      view.appendChild(card(T('pr.q.title'), [el('p', { class: 'hint', text: T('pr.q.hint') }), q]));
       // المحظورين
       var tb = el('tbody');
       p.blocked.forEach(function (b) {
-        var back = el('button', { class: 'btn ghost sm', type: 'button', text: 'رجّع' }); back.addEventListener('click', function () { demoAct('الحظر اترجع'); });
-        tb.appendChild(el('tr', {}, [el('td', { class: 'first' }, [el('b', {}, [document.createTextNode(b.kind + ' '), el('span', { class: 'ltr', text: b.value })]), el('div', { class: 'dim', text: b.reasons[0] || '' })]), el('td', { 'data-l': 'فين', text: b.where }), el('td', { 'data-l': 'من', text: dateAr(b.at) }), el('td', { 'data-l': 'بينتهي', text: 'بعد ' + b.expires_days + ' يوم' }), el('td', { class: 'last' }, [back])]));
+        var back = el('button', { class: 'btn ghost sm', type: 'button', text: T('pr.b.undo') }); back.addEventListener('click', function () { demoAct(T('d.unblocked')); });
+        tb.appendChild(el('tr', {}, [el('td', { class: 'first' }, [el('b', {}, [document.createTextNode(b.kind + ' '), el('span', { class: 'ltr', text: b.value })]), el('div', { class: 'dim', text: b.reasons[0] || '' })]), el('td', { 'data-l': T('pr.b.where'), text: b.where }), el('td', { 'data-l': T('pr.b.since'), text: dateAr(b.at) }), el('td', { 'data-l': T('pr.b.ends'), text: T('pr.b.after', { n: LT.n(b.expires_days, 'day') }) }), el('td', { class: 'last' }, [back])]));
       });
-      view.appendChild(card('المحظورين', [el('div', { class: 'tbl-wrap' }, [el('table', { class: 'tbl static' }, [el('thead', {}, [el('tr', {}, ['المحظور', 'فين', 'من', 'بينتهي', ''].map(function (h) { return el('th', { text: h }); }))]), tb])])]));
+      view.appendChild(card(T('pr.b.title'), [el('div', { class: 'tbl-wrap' }, [el('table', { class: 'tbl static' }, [el('thead', {}, [el('tr', {}, [T('pr.b.item'), T('pr.b.where'), T('pr.b.since'), T('pr.b.ends'), ''].map(function (h) { return el('th', { text: h }); }))]), tb])])]));
       // أجهزتي + الاسترداد
-      var own = el('ul', { class: 'd-sites' }, p.own.map(function (o) { return el('li', {}, [el('span', { class: 's-name', text: o.label }), el('span', { class: 'dim', text: 'من ' + dateAr(o.at) })]); }));
-      var add = el('button', { class: 'btn ghost sm', type: 'button', text: '+ اعفي جهاز (لينك يتفتح من الجهاز)' }); add.addEventListener('click', function () { demoAct('اللينك اتنسخ: افتحه من الموبايل اللي عايز تعفيه'); });
-      var ref = el('button', { class: 'btn sm', type: 'button', text: '⬇ ملف الاسترداد (آخر 30 يوم)' }); ref.addEventListener('click', function () { demoAct('ملف الاسترداد بيتجهز'); });
+      var own = el('ul', { class: 'd-sites' }, p.own.map(function (o) { return el('li', {}, [el('span', { class: 's-name', text: o.label }), el('span', { class: 'dim', text: T('pr.own.since', { d: dateAr(o.at) }) })]); }));
+      var add = el('button', { class: 'btn ghost sm', type: 'button', text: T('pr.own.add') }); add.addEventListener('click', function () { demoAct(T('pr.own.copied')); });
+      var ref = el('button', { class: 'btn sm', type: 'button', text: T('pr.ref.btn') }); ref.addEventListener('click', function () { demoAct(T('pr.ref.prep')); });
       view.appendChild(el('div', { class: 'grid-2' }, [
-        card('أجهزتك (ضغطاتها مابتتحسبش)', [own, add]),
-        card('ملف الاسترداد من جوجل', [el('p', { text: 'كل الضغطات المشبوهة بأدلتها (الوقت · الشبكة · السلوك) في ملف واحد، بالشكل اللي جوجل بيطلبه في نموذج طلب فحص الضغطات.' }), el('p', { class: 'hint', text: 'جوجل هو اللي بيقرر يرجّع ولا لأ.' }), ref]),
+        card(T('pr.own.title'), [own, add]),
+        card(T('pr.ref.title'), [el('p', { text: T('pr.ref.text') }), el('p', { class: 'hint', text: T('pr.ref.hint') }), ref]),
       ]));
     });
   }
