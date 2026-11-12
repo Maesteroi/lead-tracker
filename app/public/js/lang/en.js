@@ -25,6 +25,11 @@ window.LT_LANG = window.LT_LANG || {  'arrow': "›",
   'ads.pick.via': "via manager account {m}",
   'ads.pick.test': "test account",
   'ads.done': "Connected “{a}”. First data within hours",
+  'adm.cfg': "Google Ads setup on the server",
+  'adm.cfg.missing': "Connecting Google Ads from the dashboard is off. Missing or invalid in the maestro-api Worker: {list}",
+  'adm.cfg.short': "{n} (value too short or in the wrong format)",
+  'adm.cfg.ok': "All settings are in place, and pulling is on \u2713",
+  'adm.cfg.ok_nopull': "All settings are in place, but pulling is off (ADS_PULL_ENABLED is not 1)",
 };
 window.LT_LANG.en = {
   'app.name': "Maestro LT",
@@ -1117,4 +1122,9 @@ window.LT_LANG.en = {
   'ads.pick.via': "via manager account {m}",
   'ads.pick.test': "test account",
   'ads.done': "Connected “{a}”. First data within hours",
+  'adm.cfg': "Google Ads setup on the server",
+  'adm.cfg.missing': "Connecting Google Ads from the dashboard is off. Missing or invalid in the maestro-api Worker: {list}",
+  'adm.cfg.short': "{n} (value too short or in the wrong format)",
+  'adm.cfg.ok': "All settings are in place, and pulling is on \u2713",
+  'adm.cfg.ok_nopull': "All settings are in place, but pulling is off (ADS_PULL_ENABLED is not 1)",
 };

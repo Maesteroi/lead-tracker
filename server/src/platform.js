@@ -11,6 +11,7 @@ import { notFound, hasPerm, orgInScope, siteInScope, isPlatform } from './sites.
 import { eventsAllowed, clearOrgCache } from './events.js';
 import { webhookStatus, setWebhookTarget } from './tgbot.js';
 import { deliveryRows, riyadhDay } from './health.js';
+import { adsConfigMissing } from './adslink.js';
 
 const STATUSES = new Set(['trial', 'active', 'past_due', 'off']);
 const PLANS = new Set(['trial', 'basic', 'pro', 'agency', 'internal']);
@@ -78,7 +79,8 @@ export async function overview(req, env, db, sess) {
     ev_7d: list.reduce((a, o) => a + o.ev_7d, 0),
   };
   const me = isPlatform(sess) ? { owner: true, perms: ['*'] } : { owner: false, role: sess.platform.role, perms: sess.platform.perms, scoped: !(sess.platform.orgs == null && sess.platform.sites == null) };
-  return json({ ok: true, me, orgs: list.map((o) => Object.assign(o, { can_edit: orgInScope(sess, o.id) })), totals, defaults: { trial_max_sites: Number(env.MAX_SITES_TRIAL) > 0 ? Number(env.MAX_SITES_TRIAL) : 3 }, now: new Date(now).toISOString() });
+  return json({ ok: true, me, orgs: list.map((o) => Object.assign(o, { can_edit: orgInScope(sess, o.id) })), totals, defaults: { trial_max_sites: Number(env.MAX_SITES_TRIAL) > 0 ? Number(env.MAX_SITES_TRIAL) : 3 },
+    config: isPlatform(sess) ? { ads_missing: adsConfigMissing(env), ads_pull: env.ADS_PULL_ENABLED === '1' } : undefined, now: new Date(now).toISOString() });
 }
 
 export async function updateOrg(req, env, db, sess, id) {

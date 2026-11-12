@@ -120,3 +120,14 @@ test('the hourly cleanup removes expired pending tokens only when connecting is 
     assert.equal(s.w.fs.t.ads_link_pending.length, 0, 'configured: expired request removed');
   } finally { globalThis.Date = realNow; }
 });
+
+test('the super admin sees which Google Ads settings are missing on the server (names only, never values)', async () => {
+  const s = await setup({ env: { LINK_SECRET: 'short', TOKEN_ENC_KEY: '' } });
+  s.w.fs.t.users.find((u) => u.email === 'owner@rawda.example').platform_admin = true;
+  const ov = (await get(s.w, s.owner, '/v1/platform/overview')).body;
+  assert.deepEqual(ov.config.ads_missing, ['TOKEN_ENC_KEY', 'LINK_SECRET:length']);
+  assert.ok(!JSON.stringify(ov).includes('csecret'));
+  const s2 = await setup();
+  s2.w.fs.t.users.find((u) => u.email === 'owner@rawda.example').platform_admin = true;
+  assert.deepEqual((await get(s2.w, s2.owner, '/v1/platform/overview')).body.config.ads_missing, []);
+});
