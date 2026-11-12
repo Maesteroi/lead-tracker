@@ -32,7 +32,7 @@ const DEFAULTS = {
 const UNIQUE = {
   clients: [['id']], ads_link_pending: [['id']], devices: [['token_hash']], pair_codes: [['code']],
   site_pair_codes: [['code_hash']], site_health: [['client_id', 'day']], protection_verdicts: [['client_id', 'session_id']], replay_sessions: [['client_id', 'session_id']], daily_reports: [['kind', 'day']], ip_geo: [['ip']], tg_sessions: [['client_id', 'session_id', 'chat_id']], users: [['google_sub']], memberships: [['user_id', 'org_id']], platform_members: [['user_id']], platform_roles: [['name']], sessions: [['token_hash']],
-  raw_events: [['client_id', 'dedupe_key']], contact_clicks: [['client_id', 'match_code', 'type']],
+  raw_events: [['client_id', 'dedupe_key']], conv_uploads: [['client_id', 'match_code', 'conversion_action_id']], contact_clicks: [['client_id', 'match_code', 'type']],
   persons: [['client_id', 'phone_e164']], messages: [['conversation_id', 'dedupe_key']],
   calls: [['device_id', 'started_at', 'phone_e164', 'NND']],
 };

@@ -96,6 +96,11 @@
     adsAccounts: function (site, n) { return LT.api('/v1/dash/ads/accounts?site=' + encodeURIComponent(site) + '&n=' + encodeURIComponent(n)).then(function (r) { if (!r.ok) throw new Error(r.body && r.body.error || 'http'); return r.body.accounts || []; }); },
     adsChoose: function (site, n, cid) { return LT.api('/v1/dash/ads/choose', { method: 'POST', body: { site: site, n: n, customer_id: cid } }).then(function (r) { if (!r.ok) throw new Error(r.body && r.body.error || 'http'); return r.body; }); },
     adsUnlink: function (site) { return LT.api('/v1/dash/ads/unlink', { method: 'POST', body: { site: site } }).then(function (r) { if (!r.ok) throw new Error(r.body && r.body.error || 'http'); return r.body; }); },
+    // رفع العملاء المؤكدين لجوجل أدز بموافقة العميل (convupload.js على السيرفر)
+    conv: function (site) { return LT.api('/v1/dash/conv?site=' + encodeURIComponent(site)).then(function (r) { if (!r.ok) throw new Error('http'); return r.body; }); },
+    convActions: function (site) { return LT.api('/v1/dash/conv/actions?site=' + encodeURIComponent(site)).then(function (r) { if (!r.ok) throw new Error(r.body && r.body.error || 'http'); return r.body.actions || []; }); },
+    convAction: function (site, body) { return LT.api('/v1/dash/conv/action', { method: 'POST', body: Object.assign({ site: site }, body) }).then(function (r) { if (!r.ok) throw new Error(r.body && r.body.error || 'http'); return r.body.action; }); },
+    convSend: function (site, codes) { return LT.api('/v1/dash/conv/send', { method: 'POST', body: { site: site, codes: codes } }).then(function (r) { if (!r.ok) throw new Error(r.body && r.body.error || 'http'); return r.body; }); },
     pairCode: function (site) { return LT.api('/v1/sites/' + encodeURIComponent(site) + '/pair-code', { method: 'POST' }).then(function (r) { if (r.status !== 201) throw new Error(r.status === 403 ? 'role' : 'http'); return r.body; }); },
     clients: function (range) {
       return window.LTData.sites().then(function (sites) {
