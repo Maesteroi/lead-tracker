@@ -872,41 +872,41 @@
     return DATA.protection(state.site, 7).then(function (p) {
       clear(view);
       if (p.soon || !p.stats) {
-        view.appendChild(el('div', { class: 'callout' }, [el('b', { text: 'الحماية بتتجهز، وكل زيارة بتتسجل من دلوقتي' }), el('span', { text: 'أول ما السيرفر يتحدّث هتشوف هنا درجة خطر لكل زيارة و«ليه»، وطابور «مستنيين رأيك».' })]));
-        view.appendChild(soonCard('اللي جاي', ['درجة خطر لكل زيارة، و«ليه» بالعربي', 'طابور «مستنيين رأيك» بالأدلة', 'الحظر جوه جوجل مع ربط جوجل أدز']));
+        view.appendChild(el('div', { class: 'callout' }, [el('b', { text: T('prot.soon.title') }), el('span', { text: T('prot.soon.text') })]));
+        view.appendChild(soonCard(T('prot.soon.next'), [T('prot.soon.1'), T('prot.soon.2'), T('prot.soon.3')]));
         return;
       }
-      var st = p.stats, bad = st.suspicious + st.high;
-      view.appendChild(el('p', { class: 'simple-only simple-line' }, [document.createTextNode('آخر 7 أيام: من '), el('b', { text: fmt(st.all) }), document.createTextNode(' زيارة، '), el('b', { text: fmt(bad) }), document.createTextNode(bad ? ' شكلها مش طبيعي.' : ' مشبوهة. كله طبيعي ✓'), document.createTextNode(p.pending.length ? ' قولنا رأيك في ' + (p.pending.length === 1 ? 'الزيارة اللي تحت' : 'الزيارات اللي تحت') + ': زبون حقيقي ولا مشبوه؟' : '')]));
-      view.appendChild(el('div', { class: 'callout pro-only' }, [el('b', { text: 'الحماية بتراقب كل زيارة (آخر 7 أيام)' }), el('span', { text: 'مابنحظرش حد لوحدنا: كل زيارة مشبوهة بتستنى رأيك. لما تربط جوجل أدز، اللي تأكد إنه مشبوه هيتمنع من إعلانك جوه جوجل نفسه.' })]));
+      var st = p.stats, bad = st.suspicious + st.high, np = p.pending.length;
+      view.appendChild(el('p', { class: 'simple-only simple-line', text: T('prot.line', { all: LT.n(st.all, 'visit'), bad: fmt(bad) }) + ' ' + T(bad ? 'prot.line.bad' : 'prot.line.ok') + (np ? ' ' + T(np === 1 ? 'prot.line.ask1' : 'prot.line.ask') : '') }));
+      view.appendChild(el('div', { class: 'callout pro-only' }, [el('b', { text: T('prot.mode.title') }), el('span', { text: T('prot.mode.text') })]));
       view.appendChild(el('div', { class: 'kpis four pro-only' }, [
-        kpi('زيارات اتراجعت', fmt(st.all), 'كل زيارة خدت درجة من 100', 'info'),
-        kpi('مشبوه', fmt(bad), fmt(st.high) + ' منهم خطر عالي', bad ? 'warn' : 'mute'),
-        kpi('من الإعلان', fmt(st.ad_sessions), st.ad_sessions ? fmt(st.ad_bad) + ' مشبوهة (' + pct(st.ad_bad, st.ad_sessions) + '%)' : 'مفيش زيارات من إعلان', st.ad_bad ? 'warn' : 'ok'),
-        kpi('مستني رأيك', fmt(p.pending.length), p.pending.length ? 'احكم بضغطة تحت' : 'مفيش حاجة مستنية ✓', p.pending.length ? 'warn' : 'ok'),
+        kpi(T('prot.k.reviewed'), fmt(st.all), T('prot.k.reviewed.sub'), 'info'),
+        kpi(T('kpi.suspicious'), fmt(bad), T('kpi.high_of', { n: fmt(st.high) }), bad ? 'warn' : 'mute'),
+        kpi(T('prot.k.ads'), fmt(st.ad_sessions), st.ad_sessions ? T('prot.k.ads.sub', { n: fmt(st.ad_bad), p: pct(st.ad_bad, st.ad_sessions) }) : T('prot.k.ads.none'), st.ad_bad ? 'warn' : 'ok'),
+        kpi(T('kpi.review'), fmt(np), T(np ? 'prot.k.review.sub' : 'prot.k.review.none'), np ? 'warn' : 'ok'),
       ]));
       if (p.reasons.length) {
         var rc = el('div'); C.hbars(rc, p.reasons.map(function (r) { return { label: r.name, value: r.n, cls: 'c-sus' }; }), { compact: true });
-        view.appendChild(card('ليه اشتبهنا (أكتر الأسباب)', [rc], 'pro-only'));
+        view.appendChild(card(T('prot.reasons'), [rc], 'pro-only'));
       }
       var redraw = function () { lProtection(view); };
       var q = el('div', { class: 'queue' });
-      if (!p.pending.length) q.appendChild(el('p', { class: 'muted', text: 'مفيش حاجة مستنية رأيك. ✓' }));
+      if (!np) q.appendChild(el('p', { class: 'muted', text: T('prot.queue.empty') }));
       // المبسّط: أهم 5 بس، والباقي بزرار
-      var simple = state.level === 'simple', firstN = simple ? 5 : p.pending.length;
+      var simple = state.level === 'simple', firstN = simple ? 5 : np;
       p.pending.slice(0, firstN).forEach(function (v) { q.appendChild(suspectItem(v, redraw)); });
-      if (p.pending.length > firstN) { var more = el('button', { class: 'btn ghost sm more-rows', type: 'button', text: 'اعرض الباقي (' + fmt(p.pending.length - firstN) + ')' }); more.addEventListener('click', function () { more.remove(); p.pending.slice(firstN).forEach(function (v) { q.appendChild(suspectItem(v, redraw)); }); }); q.appendChild(more); }
-      view.appendChild(card('مستنيين رأيك', [el('p', { class: 'hint', text: 'كل زيارة معاها الأسباب. «ده زبون حقيقي» بيعلّم النظام، و«مشبوه أكيد» بيجهّزها للحظر لما جوجل أدز يتربط.' }), q]));
+      if (np > firstN) { var more = el('button', { class: 'btn ghost sm more-rows', type: 'button', text: T('prot.queue.more', { n: fmt(np - firstN) }) }); more.addEventListener('click', function () { more.remove(); p.pending.slice(firstN).forEach(function (v) { q.appendChild(suspectItem(v, redraw)); }); }); q.appendChild(more); }
+      view.appendChild(card(T('kpi.review'), [el('p', { class: 'hint', text: T('prot.queue.hint') }), q]));
       if (p.decided.length) {
         var dq = el('div', { class: 'queue' });
         p.decided.forEach(function (v) {
-          var back = el('button', { class: 'btn ghost sm', type: 'button', text: 'رجّع' });
+          var back = el('button', { class: 'btn ghost sm', type: 'button', text: T('prot.undo') });
           back.addEventListener('click', function () { setVerdict(v, null, redraw); });
           dq.appendChild(el('div', { class: 'q-item' }, [el('div', { class: 'q-main' }, [el('b', { text: placeOf(v) }), el('span', { class: 'dim', text: ' · ' + timeAr(v.at) + ' · ' + srcName(v.src) })]), el('div', { class: 'q-act' }, [livePill(v), back])]));
         });
-        view.appendChild(card('اللي حكمت عليه', [dq], 'pro-only'));
+        view.appendChild(card(T('prot.decided'), [dq], 'pro-only'));
       }
-      var sc = soonCard('جاي مع ربط جوجل أدز', ['«اعتمد لجوجل»: الجهاز المشبوه مايشوفش إعلانك تاني', 'أجهزتك (ضغطاتك مابتتحسبش)', 'ملف الاسترداد من جوجل بالأدلة']); sc.classList.add('pro-only'); view.appendChild(sc);
+      var sc = soonCard(T('ov.soon.title'), [T('prot.ads.1'), T('prot.ads.2'), T('ov.soon.3')]); sc.classList.add('pro-only'); view.appendChild(sc);
     });
   }
   // ════════ الفريق (G-29): مين يدخل حسابك وبيعمل إيه ════════

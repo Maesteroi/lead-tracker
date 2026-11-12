@@ -498,7 +498,7 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
   await pg.locator('#view .tbl select').first().selectOption('تم');
   await pg.waitForFunction(() => /اتسجلت/.test(document.getElementById('toast').textContent));
   t('live leads: choosing an outcome saves it to the server with the CSRF token', (api.outcomeCalls || []).length === 1 && api.outcomeCalls[0].code === 'AB12' && api.outcomeCalls[0].value === 'تم' && api.outcomeCalls[0].site === 'SiteId123456' && api.outcomeCalls[0].csrf === 'csrf-token-123');
-  for (const [r, txt, title] of [['statement', 'كشف الحساب بيشتغل أول ما تربط جوجل أدز', 'كشف الحساب'], ['protection', 'الحماية بتتجهز', 'الحماية']]) {
+  for (const [r, txt, title] of [['statement', 'كشف الحساب بيشتغل أول ما تربط جوجل أدز', 'كشف الحساب'], ['protection', 'الحماية قيد التجهيز', 'الحماية']]) {
     await pg.locator('.side-nav a[data-r="' + r + '"]').click();
     await pg.waitForFunction((x) => document.getElementById('page-title').textContent === x && document.querySelector('.callout'), title);
     t('live ' + r + ': honest "coming" page, no fake numbers', (await pg.locator('.callout').innerText()).includes(txt));
@@ -524,13 +524,13 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
   await shot(pg, 'live-scoring-overview');
   await pg.locator('.side-nav a[data-r="protection"]').click();
   await pg.waitForFunction(() => document.getElementById('page-title').textContent === 'الحماية' && document.querySelector('#view .q-item'));
-  t('protection: monitor mode said honestly (no blocking until Google Ads), queue with reasons and top-reasons chart', /مابنحظرش حد لوحدنا/.test(await pg.locator('.callout').innerText()) && (await pg.locator('#view .q-item').count()) === 2 && /بوتات/.test(await pg.locator('#view').innerText()));
+  t('protection: monitor mode said honestly (no blocking until Google Ads), queue with reasons and top-reasons chart', /لا نحظر أحدًا تلقائيًا/.test(await pg.locator('.callout').innerText()) && (await pg.locator('#view .q-item').count()) === 2 && /بوتات/.test(await pg.locator('#view').innerText()));
   await shot(pg, 'live-protection');
   await pg.locator('#view .q-item').first().getByRole('button', { name: 'احتيال مؤكَّد' }).click();
-  await pg.waitForFunction(() => /اللي حكمت عليه/.test(document.getElementById('view').textContent));
-  t('protection: "مشبوه أكيد" saves the verdict with CSRF and moves the visit to «اللي حكمت عليه»', api.verdictCalls.length === 1 && api.verdictCalls[0].sid === 'BOT1' && api.verdictCalls[0].verdict === 'fraud' && api.verdictCalls[0].csrf === 'csrf-token-123' && (await pg.locator('#view .q-item').count()) === 2 && /مشبوه أكيد/.test(await pg.locator('#view').innerText()));
-  await pg.getByRole('button', { name: 'رجّع' }).click();
-  await pg.waitForFunction(() => !/اللي حكمت عليه/.test(document.getElementById('view').textContent));
+  await pg.waitForFunction(() => /ما حكمتَ عليه/.test(document.getElementById('view').textContent));
+  t('protection: "مشبوه أكيد" saves the verdict with CSRF and moves the visit to «اللي حكمت عليه»', api.verdictCalls.length === 1 && api.verdictCalls[0].sid === 'BOT1' && api.verdictCalls[0].verdict === 'fraud' && api.verdictCalls[0].csrf === 'csrf-token-123' && (await pg.locator('#view .q-item').count()) === 2 && /احتيال مؤكَّد/.test(await pg.locator('#view').innerText()));
+  await pg.getByRole('button', { name: 'تراجع', exact: true }).click();
+  await pg.waitForFunction(() => !/ما حكمتَ عليه/.test(document.getElementById('view').textContent));
   t('protection: a verdict can be taken back', api.verdictCalls.length === 2 && api.verdictCalls[1].verdict === null);
   await pg.locator('.side-nav a[data-r="visits"]').click();
   await pg.waitForFunction(() => document.getElementById('page-title').textContent === 'الزيارات' && document.querySelector('#view .tbl tbody tr'));
@@ -560,7 +560,7 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
   const pg = await page(api, { viewport: { width: 1440, height: 900 } });
   await pg.goto('https://app.maestrolt.com/#/protection');
   await pg.waitForFunction(() => document.getElementById('page-title').textContent === 'الحماية' && document.querySelector('#view .q-item'));
-  t('simple protection: one plain sentence, no KPI grid, no reasons chart, no decided list', /من 60 زيارة، 10 شكلها مش طبيعي/.test(await pg.locator('.simple-line').innerText()) && await pg.locator('#view .kpis').isHidden() && await pg.locator('#view .callout').isHidden() && (await pg.locator('#view .q-item').count()) === 2);
+  t('simple protection: one plain sentence, no KPI grid, no reasons chart, no decided list', /من أصل 60 زيارة، 10 مشبوهة\. تبدو غير طبيعية/.test(await pg.locator('.simple-line').innerText()) && await pg.locator('#view .kpis').isHidden() && await pg.locator('#view .callout').isHidden() && (await pg.locator('#view .q-item').count()) === 2);
   t('simple protection: one reason per suspicious visit (the rest in the professional view)', (await pg.locator('#view .q-item').first().locator('.why li:visible').count()) === 1);
   await shot(pg, 'live-protection-simple');
   await pg.locator('#level').getByRole('button', { name: 'احترافي' }).click();
