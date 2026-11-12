@@ -439,4 +439,23 @@ class LTP_Core {
         }
         wp_send_json_error(['msg' => '❌ ردّ الجدول بخطأ (رقم ' . $code . ')']);
     }
+
+    // 2.13.3: بعد أي تحديث للإضافة بنمسح كاش الصفحات، لأن الصفحة المتخزنة بتفضل شايلة إعدادات وسكريبت الإصدار القديم
+    // (اتلقى في الإنجاز 12 نوفمبر: LiteSpeed Cache كان بيقدّم 2.12.0 بعد التحديث لـ2.13.2، فتسجيل الزيارات ماشتغلش).
+    // كل إضافة كاش ليها طريقتها الرسمية؛ اللي مش متركّبة بتتخطى لوحدها. بيرجّع أسامي اللي اتمسح.
+    public static function purge_page_cache() {
+        $done = [];
+        if (has_action('litespeed_purge_all') || defined('LSCWP_V')) { do_action('litespeed_purge_all'); $done[] = 'litespeed'; }
+        if (function_exists('rocket_clean_domain')) { rocket_clean_domain(); $done[] = 'wp-rocket'; }
+        if (function_exists('w3tc_flush_all')) { w3tc_flush_all(); $done[] = 'w3tc'; }
+        if (function_exists('wp_cache_clear_cache')) { wp_cache_clear_cache(); $done[] = 'wp-super-cache'; }
+        if (function_exists('sg_cachepress_purge_cache')) { sg_cachepress_purge_cache(); $done[] = 'sg-optimizer'; }
+        if (class_exists('WpFastestCache')) { do_action('wpfc_clear_all_cache', true); $done[] = 'wp-fastest-cache'; }
+        if (class_exists('autoptimizeCache') && method_exists('autoptimizeCache', 'clearall')) { autoptimizeCache::clearall(); $done[] = 'autoptimize'; }
+        if (has_action('breeze_clear_all_cache')) { do_action('breeze_clear_all_cache'); $done[] = 'breeze'; }
+        if (has_action('wphb_clear_page_cache')) { do_action('wphb_clear_page_cache'); $done[] = 'hummingbird'; }
+        if (function_exists('wp_cache_flush')) wp_cache_flush();
+        update_option('ltp_cache_purged', ['at' => gmdate('c'), 'by' => $done, 'version' => LTP_VERSION], false);
+        return $done;
+    }
 }

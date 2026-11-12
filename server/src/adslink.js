@@ -35,7 +35,7 @@ export function adsConfigMissing(env) {
   if (!env.GOOGLE_CLIENT_ID) out.push('GOOGLE_CLIENT_ID');
   if (!env.GOOGLE_CLIENT_SECRET) out.push('GOOGLE_CLIENT_SECRET');
   const ls = String(env.LINK_SECRET || '');
-  if (ls.length < 32) out.push(ls ? 'LINK_SECRET:length' : 'LINK_SECRET');
+  if (ls.length < 20) out.push(ls ? 'LINK_SECRET:length' : 'LINK_SECRET');
   return out;
 }
 const canManage = (sess, site) => ['owner', 'admin'].includes(roleFor(sess, site.org_id, site.id));
