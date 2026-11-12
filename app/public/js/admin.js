@@ -160,7 +160,7 @@
   function openDrawer(o, from) {
     current = o; lastFocus = from || document.activeElement; confirming = false;
     draft = { status: o.status, extend: 0, limMode: o.max_sites == null ? 'plan' : 'custom', max: o.max_sites != null ? o.max_sites : Math.max(o.site_count, limitOf(o) || 3),
-      plan: o.plan || '', policy: o.events_policy || 'grace', grace: o.grace_days != null ? o.grace_days : 7, notes: o.notes || '' };
+      plan: o.plan || '', policy: o.events_policy || 'grace', grace: o.grace_days != null ? o.grace_days : 7, notes: o.notes || '', replay: o.replay !== false };
     renderDrawerInfo(); renderDrawerForm();
     $('scrim').hidden = false; $('drawer').hidden = false; document.body.style.overflow = 'hidden';
     $('d-close').focus();
@@ -218,6 +218,7 @@
     $('lim-minus').disabled = $('lim-plus').disabled = draft.limMode !== 'custom';
     $('d-plan').value = draft.plan;
     setRadio('pol', draft.policy); $('d-grace').value = draft.grace;
+    setRadio('rep', draft.replay ? 'on' : 'off');
     $('d-notes').value = draft.notes;
     renderConfirm();
   }
@@ -241,6 +242,7 @@
     if (draft.policy !== (o.events_policy || 'grace')) b.events_policy = draft.policy;
     var g = Math.max(0, Math.min(90, parseInt(draft.grace, 10) || 0));
     if (g !== (o.grace_days != null ? o.grace_days : 7)) b.grace_days = g;
+    if (draft.replay !== (o.replay !== false)) b.replay = draft.replay;
     if ((draft.notes.trim() || null) !== (o.notes || null)) b.notes = draft.notes.trim();
     return b;
   }
@@ -272,6 +274,7 @@
     });
     Array.prototype.forEach.call(document.getElementsByName('lim'), function (r) { r.addEventListener('change', function () { draft.limMode = r.value; renderDrawerForm(); }); });
     Array.prototype.forEach.call(document.getElementsByName('pol'), function (r) { r.addEventListener('change', function () { draft.policy = r.value; confirming = false; renderDrawerForm(); }); });
+    Array.prototype.forEach.call(document.getElementsByName('rep'), function (r) { r.addEventListener('change', function () { draft.replay = r.value === 'on'; }); });
     $('d-max').addEventListener('input', function (e) { draft.max = e.target.value; });
     $('lim-minus').addEventListener('click', function () { draft.max = Math.max(0, (parseInt(draft.max, 10) || 0) - 1); renderDrawerForm(); });
     $('lim-plus').addEventListener('click', function () { draft.max = Math.min(1000, (parseInt(draft.max, 10) || 0) + 1); renderDrawerForm(); });

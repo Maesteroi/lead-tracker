@@ -553,6 +553,87 @@
     fp2Start_(isAd);
     fp3Start_(isAd);
 
+    // ───────────── 2.13.0: تسجيل زيارة الإعلان كفيديو (rrweb · MIT) ─────────────
+    // زوار الإعلان بس · بعد ما الصفحة تفتح خالص · كل الكتابة متخبية · صفحات الدفع والسلة والحساب لأ · بعد الموافقة لو مطلوبة.
+    // بيتبعت لسيرفر Maestro على طول بتذكرة من الموقع (الجلسة دي بس، ساعتين). أي مشكلة = بيقف بهدوء، والتتبع العادي مابيتأثرش.
+    (function replay_() {
+      var RP = CFG.rp;
+      if (!RP || !RP.tk || !RP.js || !isAd || level() !== 'full') return;
+      if (!window.fetch || !window.JSON || !window.MutationObserver) return;
+      if (CFG.pt === 'checkout' || CFG.pt === 'cart' || CFG.pt === 'account' || /\/(checkout|cart|my-account)(\/|$)/.test(location.pathname)) return;
+      var T = null, URL_ = '', seq = parseInt(sg(SS, 'ltp_rp_seq') || '0', 10) || 0, buf = [], bytes = 0, sent = 0, stopRec = null, done = false, t0 = Date.now();
+      var MAX = 8 * 1024 * 1024, CHUNK = 900 * 1024, MIN = 15;
+      function post(body, keep) {
+        return fetch(URL_, { method: 'POST', body: body, headers: { 'Content-Type': 'text/plain' }, keepalive: !!keep, credentials: 'omit' })
+          .then(function (r) { return r.json(); }).catch(function () { return null; });
+      }
+      function stop() { done = true; buf = []; try { if (stopRec) stopRec(); } catch (e) {} }
+      function flush(keep) {
+        if (!buf.length || !T) return;
+        if (seq > 199) { stop(); return; }
+        var ev = buf; buf = []; var b = bytes; bytes = 0;
+        var body = JSON.stringify({ t: T, seq: seq, ev: ev });
+        seq++; st(SS, 'ltp_rp_seq', '' + seq); sent += b;
+        var p = post(body, keep && body.length < 60000);
+        if (p && p.then) p.then(function (r) { if (r && r.ok === false) stop(); });
+        if (sent > MAX || Date.now() - t0 > MIN * 60e3) stop();
+      }
+      function start() {
+        var R = window.rrwebRecord;
+        if (!R || typeof R.record !== 'function' || done) return;
+        try {
+          stopRec = R.record({
+            emit: function (e) {
+              if (done) return;
+              buf.push(e);
+              var n = 0; try { n = e.type === 2 ? JSON.stringify(e).length : 200; } catch (x) { n = 200; }
+              bytes += n;
+              if (bytes > CHUNK) flush(false);
+            },
+            maskAllInputs: true,
+            blockClass: 'ltp-no-rec',
+            maskTextClass: 'ltp-mask',
+            recordCanvas: false, collectFonts: false, inlineImages: false,
+            slimDOMOptions: 'all',
+            sampling: { mousemove: 80, scroll: 150, media: 800, input: 'last' }
+          });
+        } catch (e) { stop(); return; }
+        setInterval(function () { if (!done) flush(false); }, 5000);
+        document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'hidden') flush(true); });
+        window.addEventListener('pagehide', function () { flush(true); });
+      }
+      function ticket() {
+        // التذكرة بتتخزن للجلسة (لحد ما يفضل عليها 10 دقايق) علشان مانطلبهاش من الموقع مع كل صفحة
+        try { var c = JSON.parse(sg(SS, 'ltp_rp_t') || 'null'); if (c && c.t && c.u && c.t.split('.')[1] === sid && (+c.t.split('.')[2]) * 1000 > Date.now() + 600e3) return Promise.resolve({ ok: true, t: c.t, u: c.u }); } catch (e) {}
+        return fetch(RP.tk, { method: 'POST', body: JSON.stringify({ sid: sid }), headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin' })
+          .then(function (r) { return r.json(); })
+          .then(function (j) { if (j && j.ok && j.t) st(SS, 'ltp_rp_t', JSON.stringify({ t: j.t, u: j.u })); return j; });
+      }
+      function go() {
+        ticket()
+          .then(function (j) {
+            if (!j || !j.ok || !j.t || !/^https:\/\//.test(j.u || '')) return null;
+            T = j.t; URL_ = j.u;
+            return post(JSON.stringify({ t: T, start: 1 }));
+          })
+          .then(function (s) {
+            if (!s || !s.rec) return;
+            if (s.max_kb) MAX = s.max_kb * 1024;
+            if (s.chunk_kb) CHUNK = Math.min(CHUNK, s.chunk_kb * 1024 - 4096);
+            if (s.max_min) MIN = s.max_min;
+            if (window.rrwebRecord) { start(); return; }
+            var sc = document.createElement('script');
+            sc.src = RP.js; sc.async = true;
+            sc.setAttribute('data-no-optimize', '1'); sc.setAttribute('data-cfasync', 'false');
+            sc.onload = start;
+            (document.head || document.documentElement).appendChild(sc);
+          })
+          .catch(function () {});
+      }
+      function later() { var idle = window.requestIdleCallback || function (f) { setTimeout(f, 1500); }; setTimeout(function () { idle(go, { timeout: 3000 }); }, 800); }
+      if (document.readyState === 'complete') later(); else window.addEventListener('load', later);
+    })();
+
     // 2.6.4: مشاهدة منتج — من المتصفح (بتتسجل حتى لو الصفحة متخزنة في الكاش)، مرة لكل منتج في الزيارة
     if (detailed && CFG.prod && CFG.prod.id) {
       try {

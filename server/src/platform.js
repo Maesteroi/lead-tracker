@@ -16,7 +16,7 @@ const STATUSES = new Set(['trial', 'active', 'past_due', 'off']);
 const PLANS = new Set(['trial', 'basic', 'pro', 'agency', 'internal']);
 const POLICIES = new Set(['grace', 'reject', 'keep']);
 const ORG_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
-const ORG_FIELDS = 'id,name,type,status,plan,trial_ends_at,max_sites,events_policy,grace_days,status_changed_at,notes,created_at';
+const ORG_FIELDS = 'id,name,type,status,plan,trial_ends_at,max_sites,events_policy,grace_days,status_changed_at,notes,replay,created_at';
 
 export const isPlatformAdmin = (sess) => !!(sess && sess.user && sess.user.platform_admin === true);
 
@@ -99,6 +99,7 @@ export async function updateOrg(req, env, db, sess, id) {
     else if (!PLANS.has(b.plan)) return bad('plan'); else patch.plan = b.plan;
   }
   if (b.events_policy !== undefined) { if (!POLICIES.has(b.events_policy)) return bad('events_policy'); patch.events_policy = b.events_policy; }
+  if (b.replay !== undefined) { if (typeof b.replay !== 'boolean') return bad('replay'); patch.replay = b.replay; }   // تسجيل الزيارات (rrweb) للحساب ده
   if (b.grace_days !== undefined) { const g = Number(b.grace_days); if (!Number.isInteger(g) || g < 0 || g > 90) return bad('grace_days'); patch.grace_days = g; }
   if (b.notes !== undefined) {
     const n = String(b.notes == null ? '' : b.notes).replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, '').trim().slice(0, 1000);

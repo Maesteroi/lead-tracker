@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<meta name="referrer" content="no-referrer">
+<meta name="theme-color" content="#0b1f4d">
+<title>شوف الزيارة · Maestro LT</title>
+<link rel="icon" href="/favicon.png" type="image/png">
+<link rel="stylesheet" href="/css/app.css">
+<link rel="stylesheet" href="/css/admin.css">
+<link rel="stylesheet" href="/css/dash.css">
+<link rel="stylesheet" href="/vendor/rrweb/rrweb-player.min.css">
+<link rel="stylesheet" href="/css/replay.css">
+</head>
+<body class="dash replay-page">
+<header class="rp-top">
+  <a class="btn ghost sm" id="back" href="/#/visits">‹ رجوع للزيارات</a>
+  <div class="rp-title"><h1 id="rp-h">شوف الزيارة</h1><span class="dim" id="rp-sub"></span></div>
+</header>
+<main class="rp-main" id="rp-main">
+  <section class="rp-stage panel-card">
+    <div id="player" class="rp-player" aria-label="تسجيل الزيارة"><div class="loading"><span class="spinner"></span>بنحمّل التسجيل…</div></div>
+    <p class="hint rp-note">بنعيد صفحة موقعك الحقيقية والزائر بيتحرك فيها. أي حاجة الزائر كتبها في الخانات متخبية، والتسجيل بيتمسح بعد 30 يوم.</p>
+  </section>
+  <aside class="rp-side">
+    <section class="panel-card" id="rp-verdict"></section>
+    <section class="panel-card"><div class="sec-head"><h2>اللحظات المهمة</h2></div><p class="hint">دوس على أي لحظة والفيديو يروح لها.</p><ol class="rp-marks" id="rp-marks"></ol></section>
+    <section class="panel-card"><div class="sec-head"><h2>التفاصيل</h2></div><dl class="facts" id="rp-facts"></dl></section>
+  </aside>
+</main>
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+<script src="/js/common.js"></script>
+<script src="/vendor/rrweb/rrweb-player.min.js"></script>
+<script src="/js/replay.js"></script>
+</body>
+</html>

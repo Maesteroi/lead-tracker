@@ -9,7 +9,17 @@ const require = createRequire(import.meta.url);
 const { chromium } = require('playwright');
 const PUB = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../public');
 const SHOTS = process.argv[2] || '';
-const headersFile = fs.readFileSync(path.join(PUB, '_headers'), 'utf8').split('\n').slice(1).map((l) => l.trim()).filter(Boolean).map((l) => [l.slice(0, l.indexOf(':')), l.slice(l.indexOf(':') + 1).trim()]);
+// _headers بنفس قواعد Cloudflare: كل قاعدة بتنطبق على المسارات اللي بتطابقها بالترتيب · «! الاسم» بيشيل الهيدر · التكرار بيتجمع بفاصلة
+const headerRules = (() => { const out = []; let cur = null; for (const raw of fs.readFileSync(path.join(PUB, '_headers'), 'utf8').split('\n')) { if (!raw.trim() || raw.trim().startsWith('#')) continue; if (!/^\s/.test(raw)) { cur = { pat: raw.trim(), lines: [] }; out.push(cur); } else if (cur) cur.lines.push(raw.trim()); } return out; })();
+function headersFor(p) {
+  const h = {};
+  for (const r of headerRules) {
+    const re = new RegExp('^' + r.pat.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*') + '$');
+    if (!re.test(p)) continue;
+    for (const l of r.lines) { if (l.startsWith('! ')) { delete h[l.slice(2).trim().toLowerCase()]; continue; } const k = l.slice(0, l.indexOf(':')).trim().toLowerCase(), v = l.slice(l.indexOf(':') + 1).trim(); h[k] = h[k] ? h[k] + ', ' + v : v; }
+  }
+  return h;
+}
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.webp': 'image/webp', '.woff2': 'font/woff2', '.webmanifest': 'application/manifest+json' };
 const NONCE = 'n0nce-from-the-wordpress-site-0001';
 const CONFIRM = 'https://rawda.site/wp-json/lt/v1/pair-confirm';
@@ -43,12 +53,13 @@ function fakeApi(over) {
       const today = new Date(Date.now() + 3 * 3600e3).toISOString().slice(0, 10);
       const range = Number(u.searchParams.get('range')) || 7;
       if (st.scoring) {
-        const sv = (id, o) => Object.assign({ id, at: new Date().toISOString(), last_at: new Date().toISOString(), pages: 1, seconds: 2, scroll: 0, contact: '', code: null, source: 'google_ads', detail: '', gclid: true, device: 'موبايل', os: 'Android', browser: 'Chrome', city: 'Santa Clara', region: 'California', country: 'United States', country_code: 'US', isp: 'Tencent Building', visit_no: 1, landing: 'الرئيسية', automation: true, score: 100, status: 'high', reasons: ['المتصفح شغّال آلياً (بوت)، مش إنسان', 'جاي من شبكة سيرفرات (Tencent)، مش بيت ولا موبايل'], ad: true, verdict: null, repeats: 3, outside: true }, o || {});
-        const bot = sv('BOT1'), sus = sv('SUS1', { city: 'Riyadh', region: '', country: 'Saudi Arabia', country_code: 'SA', isp: 'STC', automation: false, score: 60, status: 'suspicious', reasons: ['قفل الصفحة بعد 2 ثانية من غير أي حركة', 'نفس الجهاز ضغط على إعلانك 3 مرات في الفترة دي'], outside: false });
-        const ly = sv('LY1', { city: 'Tripoli', country: 'Libya', country_code: 'LY', isp: 'Al Madar', source: 'google_organic', gclid: false, ad: false, automation: false, score: 0, status: 'real', reasons: [], contact: 'wa', code: 'LY29', seconds: 21, repeats: 0 });
+        const sv = (id, o) => Object.assign({ id, at: new Date().toISOString(), last_at: new Date().toISOString(), pages: 1, seconds: 2, scroll: 0, contact: '', code: null, source: 'google_ads', detail: '', gclid: true, device: 'موبايل', os: 'Android', browser: 'Chrome', city: 'Santa Clara', region: 'California', country: 'United States', country_code: 'US', isp: 'Tencent Building', visit_no: 1, landing: 'الرئيسية', automation: true, score: 100, status: 'high', reasons: ['المتصفح شغّال آلياً (بوت)، مش إنسان', 'جاي من شبكة سيرفرات (Tencent)، مش بيت ولا موبايل'], ad: true, verdict: null, repeats: 3, outside: true, replay: true }, o || {});
+        const bot = sv('BOT1'), sus = sv('SUS1', { city: 'Riyadh', region: '', country: 'Saudi Arabia', country_code: 'SA', isp: 'STC', automation: false, score: 60, status: 'suspicious', reasons: ['قفل الصفحة بعد 2 ثانية من غير أي حركة', 'نفس الجهاز ضغط على إعلانك 3 مرات في الفترة دي'], outside: false, replay: false });
+        const ly = sv('LY1', { city: 'Tripoli', country: 'Libya', country_code: 'LY', isp: 'Al Madar', source: 'google_organic', gclid: false, ad: false, automation: false, score: 0, status: 'real', reasons: [], contact: 'wa', code: 'LY29', seconds: 21, repeats: 0, replay: false });
         const vd = (x) => Object.assign({}, x, st.verdicts && st.verdicts[x.id] ? { verdict: st.verdicts[x.id], status: st.verdicts[x.id] === 'real' ? 'real' : 'high' } : {});
         if (p === '/v1/dash/overview') { const days = []; for (let i = range - 1; i >= 0; i--) days.push({ day: new Date(Date.now() + 3 * 3600e3 - i * 864e5).toISOString().slice(0, 10), sessions: 10, pageviews: 14, clicks: 3, contacts: 2, real: 8, suspicious: 1, high: 1 }); return j(200, { ok: true, range, days, kpi: { sessions: 60, pageviews: 80, contacts: 9, won: 3, open: 2, leads: 10, real: 50, suspicious: 6, high: 4, ad_sessions: 40, ad_bad: 9, pending: 2, outside: 3, outside_leads: 1 }, prev: { sessions: 50, contacts: 7 }, live: 2, suspicious: [bot, sus].map(vd), status: { scoring: true, ads: false, delivery: 99.8, paired: true }, sources: [{ name: 'google_ads', n: 40 }], places: [{ name: 'Riyadh', n: 30 }], devices: [] }); }
         if (p === '/v1/dash/visits') return j(200, { ok: true, sessions: [bot, sus, ly].map(vd) });
+        if (p === '/v1/dash/replay') { st.replayCalls = (st.replayCalls || 0) + 1; if (u.searchParams.get('sid') !== 'BOT1' || !st.replayEvents) return j(404, { ok: false, error: 'no_replay' }); return j(200, { ok: true, site: { id: 'SiteId123456', name: 'شادو' }, started_at: new Date().toISOString(), visit: vd(bot), events: st.replayEvents }); }
         if (p === '/v1/dash/protection') { const all = [bot, sus].map(vd); return j(200, { ok: true, ads: false, mode: 'monitor', stats: { ad_sessions: 40, ad_bad: 9, high: 4, suspicious: 6, all: 60 }, pending: all.filter((x) => !x.verdict), decided: all.filter((x) => x.verdict), top_reasons: [{ code: 'bot', name: 'بوتات (متصفح آلي)', n: 4 }, { code: 'bounce', name: 'قفل في ثواني من غير حركة', n: 3 }] }); }
         if (p === '/v1/dash/verdict') { const b = JSON.parse(req.postData()); st.verdictCalls = (st.verdictCalls || []).concat([Object.assign({ csrf: req.headers()['x-csrf-token'] }, b)]); st.verdicts = Object.assign({}, st.verdicts); if (b.verdict) st.verdicts[b.sid] = b.verdict; else delete st.verdicts[b.sid]; return j(200, { ok: true, sid: b.sid, verdict: b.verdict }); }
         if (p === '/v1/dash/leads') return j(200, { ok: true, leads: [{ at: new Date().toISOString(), type: 'wa', code: 'LY29', source: 'google_organic', city: 'Tripoli', region: '', session: 'LY1', outcome: '', outside: true, outside_note: 'من ليبيا، بره البلد اللي موقعك مستهدفه' }, { at: new Date().toISOString(), type: 'wa', code: 'AB12', source: 'google_ads', city: 'Riyadh', region: '', session: 'SES1', outcome: '', outside: false }] });
@@ -98,7 +109,7 @@ async function page(api, opts) {
   await ctx.route('https://app.maestrolt.com/**', (route) => {
     let p = new URL(route.request().url()).pathname; if (p === '/') p = '/index.html'; else if (!path.extname(p)) p += '.html';
     const f = path.join(PUB, p);
-    const h = Object.fromEntries(headersFile.map(([k, v]) => [k.toLowerCase(), v]));
+    const h = headersFor(new URL(route.request().url()).pathname);
     if (!f.startsWith(PUB) || !fs.existsSync(f)) return route.fulfill({ status: 404, headers: Object.assign({}, h, { 'content-type': MIME['.html'] }), body: fs.readFileSync(path.join(PUB, '404.html')) });
     return route.fulfill({ status: 200, headers: Object.assign({}, h, { 'content-type': MIME[path.extname(f)] || 'text/plain' }), body: fs.readFileSync(f) });
   });
@@ -275,6 +286,13 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
   const c2 = api.orgCalls[1] || {};
   t('admin drawer: after confirming it sends status off with the grace policy', c2.id === 'o-da' && c2.body.status === 'off' && c2.body.events_policy === 'grace' && c2.body.grace_days === 3);
 
+  await pg.locator('#rows tr', { hasText: 'متجر لمسة' }).click();
+  t('admin drawer: video recording shows "on" by default', await pg.locator('input[name="rep"][value="on"]').isChecked());
+  await pg.locator('input[name="rep"][value="off"]').check();
+  await pg.locator('#d-save').click();
+  await pg.waitForSelector('#toast:not([hidden])');
+  const c3 = api.orgCalls[2] || {};
+  t('admin drawer: turning video recording off for an account sends replay:false only', c3.id === 'o-off' && c3.body.replay === false && Object.keys(c3.body).length === 1);
   await pg.locator('#rows tr', { hasText: 'متجر لمسة' }).click();
   await pg.keyboard.press('Escape');
   t('admin drawer: Escape closes it', await pg.locator('#drawer').isHidden());
@@ -515,6 +533,53 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
   t('leads: a contact from outside the target country is marked «بره النطاق» with a note and no outcome to pick', /بره النطاق/.test(await pg.locator('#view .tbl').innerText()) && /ليبيا/.test(await pg.locator('#view .tbl').innerText()) && (await pg.locator('#view .tbl select').count()) === 1);
   t('scoring: no console errors and no CSP violations', pg.errors.length === 0 && pg.csp.length === 0);
   if (pg.errors.length || pg.csp.length) console.log(pg.errors, pg.csp);
+  await pg.context().close(); }
+
+// 17) «▶ شوف الزيارة»: تسجيل حقيقي بـ rrweb (نفس ملف البلجن) ← المشغّل بصفحة الموقع الحقيقية، والكتابة متخبية
+{ const rec = await browser.newContext({ viewport: { width: 390, height: 700 } }); const rp = await rec.newPage();
+  const RR = fs.readFileSync(path.join(PUB, '../../plugin/lead-tracker-pro/assets/rrweb-record.min.js'), 'utf8');
+  await rec.route('https://shado.example/**', (r) => { const u = new URL(r.request().url()); if (u.pathname === '/rr.js') return r.fulfill({ status: 200, contentType: 'text/javascript', body: RR + '\nwindow.__ev=[];window.rrwebRecord.record({emit:function(e){window.__ev.push(e)},maskAllInputs:true,slimDOMOptions:"all"});' });
+    return r.fulfill({ status: 200, contentType: 'text/html; charset=utf-8', body: '<!doctype html><html lang="ar" dir="rtl"><meta charset="utf-8"><title>شادو ديزاين</title><style>body{font-family:sans-serif;margin:0}h1{color:#0b1f4d;padding:20px}.tall{height:1600px;background:linear-gradient(#fff,#cde)}</style><h1 id="h">شادو ديزاين للديكور</h1><input id="name" placeholder="اسمك"><button id="b">اطلب عرض سعر</button><div class="tall"></div><script src="/rr.js"></script>' }); });
+  await rp.goto('https://shado.example/');
+  await rp.waitForTimeout(300); await rp.click('#b'); await rp.fill('#name', 'secret-0555'); await rp.mouse.wheel(0, 600); await rp.waitForTimeout(700); await rp.click('#h'); await rp.waitForTimeout(400);
+  const events = await rp.evaluate(() => window.__ev); await rec.close();
+  t('rrweb records the real page (full snapshot + interactions) and never the typed text', events.some((e) => e.type === 2) && events.some((e) => e.type === 3 && e.data.source === 2) && !JSON.stringify(events).includes('secret-0555'));
+  const api = fakeApi({ signedIn: true, scoring: true, replayEvents: events, sites: [{ id: 'SiteId123456', name: 'شادو', domains: ['shado.example'], paired: true }] });
+  const pg = await page(api, { viewport: { width: 1440, height: 900 } });
+  await pg.goto('https://app.maestrolt.com/?site=SiteId123456#/visits');
+  await pg.waitForFunction(() => document.getElementById('page-title').textContent === 'الزيارات' && document.querySelector('#view .tbl tbody tr'));
+  const link = pg.locator('#view .tbl .rp-link');
+  t('visits: "▶ فيديو" only on visits that have a recording, linking to the replay page', (await link.count()) === 1 && (await link.getAttribute('href')) === '/replay?site=SiteId123456&sid=BOT1');
+  await pg.locator('#view .tbl tbody tr').first().click();
+  await pg.waitForSelector('#drawer .rp-open');
+  t('visit drawer: a big "▶ شوف الزيارة كفيديو" button', (await pg.locator('#drawer .rp-open').getAttribute('href')) === '/replay?site=SiteId123456&sid=BOT1');
+  await pg.locator('#drawer .rp-open').click();
+  await pg.waitForSelector('.rr-player iframe');
+  const frame = pg.frameLocator('.rr-player iframe');
+  await frame.locator('#h').waitFor({ timeout: 10000 }).catch(() => {});
+  t('replay page: the player rebuilds the real page of the site (its heading) inside the frame', (await frame.locator('#h').count()) === 1 && /شادو ديزاين للديكور/.test(await frame.locator('#h').innerText()));
+  t('replay page: the typed text is not in the replay', !(await pg.content()).includes('secret-0555') && (await frame.locator('#name').inputValue().catch(() => '')) !== 'secret-0555');
+  t('replay page: the verdict and the Arabic reasons sit beside the video', /خطر عالي/.test(await pg.locator('#rp-verdict').innerText()) && /بوت/.test(await pg.locator('#rp-verdict').innerText()));
+  t('replay page: key moments (page opened · clicks) listed from the recording itself', (await pg.locator('#rp-marks .rp-mark').count()) >= 2 && /فتح صفحة الرئيسية/.test(await pg.locator('#rp-marks').innerText()) && /ضغط/.test(await pg.locator('#rp-marks').innerText()));
+  await pg.locator('#rp-marks .rp-mark.k-click').last().click();
+  await pg.waitForTimeout(400);
+  t('replay page: clicking a moment jumps the video there', !/^0:00/.test((await pg.locator('.rr-timeline__time').first().innerText().catch(() => '0:00')).trim()));
+  t('replay page: speed and skip-idle controls', (await pg.locator('.rr-controller__btns button').count()) >= 4 && /8x/.test(await pg.locator('.rr-controller__btns').innerText()));
+  await shot(pg, 'live-replay');
+  await pg.locator('#rp-verdict').getByRole('button', { name: 'مشبوه أكيد' }).click();
+  await pg.waitForFunction(() => /مشبوه أكيد/.test(document.getElementById('toast').textContent));
+  t('replay page: the verdict can be given from beside the video', api.verdictCalls.length === 1 && api.verdictCalls[0].sid === 'BOT1' && api.verdictCalls[0].verdict === 'fraud');
+  t('replay page: no console errors and no CSP violations', pg.errors.length === 0 && pg.csp.length === 0);
+  if (pg.errors.length || pg.csp.length) console.log(pg.errors, pg.csp);
+  await pg.goto('https://app.maestrolt.com/replay?site=SiteId123456&sid=NOPE1234');
+  await pg.waitForSelector('#player .callout');
+  t('replay page: a visit with no recording says so plainly', /مفيش تسجيل للزيارة دي/.test(await pg.locator('#player').innerText()));
+  const mob = await page(api, { viewport: { width: 390, height: 800 } });
+  await mob.goto('https://app.maestrolt.com/replay?site=SiteId123456&sid=BOT1');
+  await mob.waitForSelector('.rr-player iframe');
+  t('replay page on a phone: no sideways scrolling', await mob.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1));
+  await shot(mob, 'live-replay-mobile');
+  await mob.context().close();
   await pg.context().close(); }
 
 { const api = fakeApi({ signedIn: true, orgs: [{ id: 'org1', name: 'وكالة', role: 'owner', type: 'agency', status: 'active' }], sites: [{ id: 'SiteId123456', name: 'روضة الصالحين', domains: ['rawda.site'], paired: true }, { id: 'SiteId654321', name: 'الإنجاز', domains: ['enjaz.biz'], paired: true }] });

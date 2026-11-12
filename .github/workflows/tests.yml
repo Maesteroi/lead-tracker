@@ -47,6 +47,8 @@ jobs:
         run: php tests/test-plugin-updater.php
       - name: البلجن — تقرير التوصيل للسيرفر (PHP)
         run: php tests/test-plugin-health.php
+      - name: البلجن — تسجيل زيارات الإعلان كفيديو (PHP)
+        run: php tests/test-plugin-replay.php
       - name: البلجن — فحص كتابة PHP
         run: |
           fail=0

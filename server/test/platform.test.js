@@ -269,3 +269,15 @@ test('admin can see where the bot points and switch it to the server (with secre
   assert.equal((await s.pc(s.boss, '/v1/platform/telegram', { target: 'evil.com' })).status, 400);
   assert.equal(s.w.fs.t.auth_events.filter((e) => e.kind === 'platform_tg_webhook').length, 2);
 });
+
+test('platform: video recording (replay) can be turned off/on per account; only true/false accepted', async () => {
+  const s = await setup();
+  const P = (b) => s.pc(s.boss, '/v1/platform/orgs/' + s.cust.org.id, b);
+  assert.equal((await P({ replay: 'no' })).status, 400);
+  const r = await P({ replay: false });
+  assert.equal(r.status, 200); assert.deepEqual(r.body.changed, ['replay']);
+  assert.equal(s.org().replay, false);
+  assert.equal((await s.gc(s.boss, '/v1/platform/overview')).body.orgs.find((o) => o.id === s.cust.org.id).replay, false);
+  await P({ replay: true }); assert.equal(s.org().replay, true);
+  assert.ok(s.w.fs.t.auth_events.some((e) => e.kind === 'platform_org_update' && /replay=false/.test(e.reason || '')));
+});

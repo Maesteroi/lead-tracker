@@ -316,7 +316,7 @@
         moreBtn.textContent = 'اعرض كمان (' + fmt(all.length - shown) + ' زيارة باقية)';
         rows.forEach(function (v) {
           var tr = el('tr', { tabindex: '0' }, [
-            el('td', { class: 'first' }, [el('div', { class: 'acc-name', text: placeOf(v) }), el('span', { class: 'dim', text: timeAr(v.at) })]),
+            el('td', { class: 'first' }, [el('div', { class: 'acc-name', text: placeOf(v) }), el('span', { class: 'dim', text: timeAr(v.at) }), v.replay ? replayLink(v) : null]),
             el('td', { 'data-l': 'المصدر' }, [el('div', { text: srcName(v.src) }), v.kw ? el('span', { class: 'dim', text: '«' + v.kw + '»' }) : null]),
             el('td', { 'data-l': 'الجهاز', text: v.device + (v.os ? ' · ' + v.os : '') }),
             el('td', { 'data-l': 'الشبكة', text: v.net ? NET[v.net] : shortIsp(v.isp) }),
@@ -345,6 +345,13 @@
     if (v.outside) return pill('بره النطاق', '');
     if (v.contact) return pill(v.contact === 'wa' ? 'كلّمك واتساب' : 'كلّمك اتصال', 'ok');
     return v.status === 'none' ? pill('زيارة', '') : pill('حقيقي', 'ok');
+  }
+  // «▶ شوف الزيارة» (تسجيل rrweb): صفحة لوحدها بمشغّل كبير
+  function replayHref(v) { return '/replay?site=' + encodeURIComponent(state.site) + '&sid=' + encodeURIComponent(v.id); }
+  function replayLink(v, big) {
+    var a = el('a', { class: big ? 'btn rp-open' : 'rp-link', href: replayHref(v), title: 'شوف الزيارة كفيديو' }, [document.createTextNode(big ? '▶ شوف الزيارة كفيديو' : '▶ فيديو')]);
+    a.addEventListener('click', function (e) { e.stopPropagation(); });
+    return a;
   }
   function placeOf(v) { return v.city + (v.district ? ' · ' + v.district : ''); }
   function shortIsp(x) { x = String(x || ''); if (!x) return '—'; return x.replace(/\b(company|joint[- ]stock|jsc|co\.?|ltd\.?|llc|inc\.?|a)\b/gi, '').replace(/[,]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 32); }
@@ -381,6 +388,7 @@
     body.appendChild(el('div', { class: 'verdict s-' + (scored ? (v.verdict === 'fraud' ? 'high' : v.verdict === 'real' ? 'real' : v.status) : 'none') }, [
       el('div', { class: 'vd-score' }, scored ? [el('b', { text: String(v.score) }), el('small', { text: 'من 100' })] : [el('b', { text: v.contact ? (v.contact === 'wa' ? '💬' : '📞') : '👁️' }), el('small', { text: v.pages + ' صفحة' })]),
       el('div', {}, [el('b', { text: head[0] }), el('span', { text: head[1] })])]));
+    if (v.replay) body.appendChild(el('div', { class: 'rp-cta' }, [replayLink(v, true), el('span', { class: 'hint', text: 'صفحة موقعك الحقيقية والزائر بيتحرك فيها.' })]));
     if (v.outside) body.appendChild(el('div', { class: 'callout' }, [el('b', { text: 'بره نطاقك' }), el('span', { text: 'الزيارة دي من ' + (v.country || 'بلد تاني') + '، بره البلد اللي موقعك مستهدفه. مش محتاجة نتيجة، ومش بتتحسب عليك.' })]));
     var why = v.reasons.filter(function (r) { return r.indexOf('انت ') !== 0; });
     if (scored && why.length) body.appendChild(el('section', { class: 'd-sec' }, [el('h3', { class: 'legend', text: 'ليه' }), el('ul', { class: 'why' }, why.map(function (r) { return el('li', { text: r }); }))]));
@@ -802,7 +810,7 @@
     var why = v.reasons.filter(function (r) { return r.indexOf('انت ') !== 0; });
     return el('div', { class: 'q-item' }, [
       el('div', { class: 'q-main' }, [el('div', {}, [el('b', { text: placeOf(v) }), el('span', { class: 'dim', text: ' · ' + timeAr(v.at) + ' · ' + srcName(v.src) + (v.dur != null ? ' · ' + v.dur + 'ث' : '') })]), el('ul', { class: 'why sm' }, why.slice(0, 3).map(function (r) { return el('li', { text: r }); }))]),
-      el('div', { class: 'q-act' }, [scoreBadge(v), v.verdict ? livePill(v) : null, v.verdict ? null : real, v.verdict ? null : bad, open]),
+      el('div', { class: 'q-act' }, [scoreBadge(v), v.verdict ? livePill(v) : null, v.verdict ? null : real, v.verdict ? null : bad, v.replay ? replayLink(v) : null, open]),
     ]);
   }
   function lSimple(view) {

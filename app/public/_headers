@@ -5,3 +5,12 @@
   Referrer-Policy: no-referrer
   Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=()
   Cache-Control: no-cache
+
+# «▶ شوف الزيارة»: المشغّل بيعيد بناء صفحة موقع العميل جوه إطار مقفول (من غير سكريبتات)، فمحتاج style مضمّن وصور وخطوط الموقع.
+# الصفحة دي بس. السكريبتات زي ما هي ('self' بس)، ومفيش اتصال غير بالـAPI.
+/replay
+  ! Content-Security-Policy
+  Content-Security-Policy: default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' https: data: blob:; font-src 'self' https: data:; media-src https: blob:; frame-src 'self'; child-src 'self'; connect-src https://api.maestrolt.com; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
+/replay.html
+  ! Content-Security-Policy
+  Content-Security-Policy: default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' https: data: blob:; font-src 'self' https: data:; media-src https: blob:; frame-src 'self'; child-src 'self'; connect-src https://api.maestrolt.com; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
