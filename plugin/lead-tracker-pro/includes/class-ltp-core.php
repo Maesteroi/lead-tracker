@@ -7,7 +7,7 @@ class LTP_Core {
     private static $config_cache = null;
 
     const SOURCES = ['maps','google','bing','ai','social','ads','listening','direct','other'];
-    const EVENTS  = ['page_view','scroll_50','scroll_90','click','exit','consent','view_item','fp_update'];
+    const EVENTS  = ['page_view','scroll_50','scroll_90','click','exit','consent','view_item','fp_update','contact_return'];   // 2.13.1: contact_return = رجع للصفحة بعد واتساب/اتصال
 
     public static function instance() {
         if (self::$instance === null) self::$instance = new self();

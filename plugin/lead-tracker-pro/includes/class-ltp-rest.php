@@ -211,6 +211,9 @@ class LTP_Rest {
                 'scroll_depth' => absint($r->get_param('scroll')),
                 'mouse_moves'  => absint($r->get_param('mm')),
                 'interactions' => absint($r->get_param('ia')),
+                // 2.13.1: قوة التواصل (تقديري): غاب عن الصفحة قد إيه بعد ضغطة الواتساب أو الاتصال، وهل التطبيق اتفتح أصلاً
+                'away_seconds' => $event === 'contact_return' ? min(86400, absint($r->get_param('away'))) : 0,
+                'app_opened'   => $event === 'contact_return' ? (absint($r->get_param('opened')) ? 1 : 0) : 0,
                 'webdriver'    => absint($r->get_param('wd')) ? 1 : 0,
                 'automation'   => $auto,
                 'page_load_ms' => absint($r->get_param('plms')),
@@ -252,7 +255,7 @@ class LTP_Rest {
 
             if (LTP_Core::is_server_url($webhook)) {
                 LTP_Core::send_reliable($webhook, $payload);   // 2.11.2: السيرفر: إرسال موثوق (بعد الطلب + إعادة محاولة)
-            } else {
+            } elseif ($event !== 'contact_return') {   // 2.13.1: الحدث الجديد للسيرفر بس، الشيت مايعرفوش
                 wp_remote_post($webhook, [   // الشيت (القديم): زي ما هو
                     'blocking'    => false,
                     'timeout'     => 3,

@@ -44,11 +44,11 @@
     session: function (site, sid) {
       return get('/v1/dash/session' + q(site) + '&sid=' + encodeURIComponent(sid)).then(function (b) {
         return (b.events || []).map(function (e) {
-          var kind = e.event === 'page_view' ? 'page' : e.event === 'click' ? (e.click_type === 'wa' || e.click_type === 'call' ? 'contact' : 'click') : e.event === 'exit' ? 'exit' : e.event.indexOf('scroll') === 0 ? 'scroll' : 'other';
+          var kind = e.event === 'contact_return' ? 'contact' : e.event === 'page_view' ? 'page' : e.event === 'click' ? (e.click_type === 'wa' || e.click_type === 'call' ? 'contact' : 'click') : e.event === 'exit' ? 'exit' : e.event.indexOf('scroll') === 0 ? 'scroll' : 'other';
           var text = e.event === 'page_view' ? 'فتح «' + (e.title || e.path || 'صفحة') + '»'
             : e.event === 'click' ? (e.click_type === 'wa' ? 'ضغط واتساب' : e.click_type === 'call' ? 'ضغط اتصال' : 'ضغط زرار') + (e.btn_text ? ' — «' + e.btn_text + '»' : '')
             : e.event === 'exit' ? 'خرج من الصفحة' + (e.seconds ? ' بعد ' + e.seconds + ' ثانية' : '')
-            : e.event === 'scroll_50' ? 'نزل لنص الصفحة' : e.event === 'scroll_90' ? 'نزل لآخر الصفحة' : e.event === 'fp_update' ? 'اتعرف الجهاز' : e.event;
+            : e.event === 'contact_return' ? 'رجع للصفحة بعد التواصل' : e.event === 'scroll_50' ? 'نزل لنص الصفحة' : e.event === 'scroll_90' ? 'نزل لآخر الصفحة' : e.event === 'fp_update' ? 'اتعرف الجهاز' : e.event;
           return { at: e.at, kind: kind, text: text };
         }).filter(function (e) { return e.kind !== 'other' || e.text; });
       });
@@ -61,7 +61,7 @@
     verdict: function (site, sid, v) { return LT.api('/v1/dash/verdict', { method: 'POST', body: { site: site, sid: sid, verdict: v } }).then(function (r) { if (!r.ok) throw new Error(r.status === 403 ? 'role' : 'http'); return r.body; }); },
     leads: function (site, range) {
       return get('/v1/dash/leads' + q(site, range)).then(function (b) {
-        return { currency: 'ر.س', cost: null, list: (b.leads || []).map(function (l) { return { id: l.code || l.at, at: l.at, type: l.type, code: l.code || '—', src: l.source, kw: l.detail || '', city: l.city || '—', district: l.region || '', outcome: l.outcome, session: l.session, outside: !!l.outside, outside_note: l.outside_note || '' }; }) };
+        return { currency: 'ر.س', cost: null, list: (b.leads || []).map(function (l) { return { id: l.code || l.at, at: l.at, type: l.type, code: l.code || '—', src: l.source, kw: l.detail || '', city: l.city || '—', district: l.region || '', outcome: l.outcome, session: l.session, outside: !!l.outside, outside_note: l.outside_note || '', strength: l.strength || null }; }) };
       });
     },
     setOutcome: function (site, code, value) { return LT.api('/v1/dash/outcome', { method: 'POST', body: { site: site, code: code, value: value } }).then(function (r) { if (!r.ok) throw new Error(r.body.error || 'http'); return r.body; }); },

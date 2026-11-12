@@ -54,3 +54,11 @@ test('checks card: each check ✓/✗/— agrees with the score signals', () => 
   assert.equal(by(org, 'ad').ok, null); assert.equal(by(org, 'network').ok, null); assert.equal(by(org, 'geo').ok, null); assert.equal(by(org, 'repeat'), undefined);
   assert.equal(by(scoreSession(Object.assign({}, human, { contacts: 'wa' })).checks, 'contact').detail, 'واتساب');
 });
+
+test('contact strength (estimate): app not opened · back in seconds · normal · strong', async () => {
+  const { contactStrength } = await import('../src/score.js');
+  assert.equal(contactStrength(0, 0).key, 'no_app');
+  assert.equal(contactStrength(4, 1).key, 'weak'); assert.ok(contactStrength(4, 1).detail.includes('4 ثانية'));
+  assert.equal(contactStrength(35, 1).key, 'normal');
+  const s = contactStrength(200, 1); assert.equal(s.key, 'strong'); assert.ok(s.detail.includes('3د 20ث'), s.detail);
+});

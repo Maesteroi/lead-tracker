@@ -9,7 +9,7 @@
 //   • TG_ALERTS = "off" بيقفلها من غير نشر.
 import { eq } from './db.js';
 import { escHtml as esc } from './telegram.js';
-import { outsideTarget, targetCountries, countryAr } from './score.js';
+import { outsideTarget, targetCountries, countryAr, contactStrength } from './score.js';
 
 const SESSION_MS = 30 * 60 * 1000;      // نفس مدة جلسة الشيت
 
@@ -60,6 +60,11 @@ export function eventLine(p) {
   if (e === 'begin_checkout') return '💳 ' + t + ' · بدء الدفع' + (p.cart_total ? ' (' + esc(p.cart_total) + ')' : '');
   if (e === 'purchase') return '💰 ' + t + ' · <b>شراء: ' + esc(p.order_total || 0) + ' ' + esc(p.currency || '') + '</b>';
   if (e === 'sign_up') return '📝 ' + t + ' · حساب جديد';
+  if (e === 'contact_return' && String(p.is_test) !== '1') {   // بلجن 2.13.1: قوة التواصل (تقديري)
+    const st = contactStrength(p.away_seconds, p.app_opened);
+    const icon = st.key === 'strong' ? '💪' : st.key === 'normal' ? '↩️' : '⚠️';
+    return icon + ' ' + t + ' · ' + (String(p.click_type || p.ct) === 'call' ? 'الاتصال' : 'الواتساب') + ': ' + esc(st.detail) + ' · تواصل <b>' + st.label + '</b> (تقديري)';
+  }
   if (e !== 'click') return '';
   const lv = String(p.lead_level || '');
   if (lv === 'normal' || lv === 'support') return '';

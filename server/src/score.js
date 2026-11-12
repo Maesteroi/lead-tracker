@@ -75,3 +75,14 @@ function sessionChecks(s, x) {
   if (s.contacts) add('contact', true, 'كلّمك', String(s.contacts).includes('wa') ? 'واتساب' : 'اتصال');
   return out;
 }
+
+// قوة التواصل (تقديري · بلجن 2.13.1): الزائر غاب عن الصفحة قد إيه بعد ضغطة الواتساب أو الاتصال، وهل التطبيق اتفتح.
+// ده مش مدة المكالمة: ده الوقت بره الصفحة. بيتكتب «تقديري» في كل مكان.
+const mmss = (x) => (x < 60 ? x + ' ثانية' : Math.floor(x / 60) + 'د' + (x % 60 ? ' ' + (x % 60) + 'ث' : ''));
+export function contactStrength(away, opened) {
+  const a = Math.max(0, Math.round(Number(away) || 0));
+  if (!opened || opened === '0') return { key: 'no_app', label: 'ضغط ومافتحش', detail: 'التطبيق مااتفتحش (غالباً ضغطة بالغلط أو الجهاز مافيهوش واتساب)' };
+  if (a < 10) return { key: 'weak', label: 'ضعيف', detail: 'رجع للصفحة بعد ' + mmss(a) + ' (غالباً ماكلّمكش)' };
+  if (a < 60) return { key: 'normal', label: 'عادي', detail: 'غاب ' + mmss(a) + ' في التطبيق' };
+  return { key: 'strong', label: 'قوي', detail: 'غاب ' + mmss(a) + ' في التطبيق (غالباً كلّمك فعلاً)' };
+}

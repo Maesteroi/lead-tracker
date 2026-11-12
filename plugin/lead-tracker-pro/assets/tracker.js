@@ -97,6 +97,7 @@
         var lv = roleOf_(data);
         if (lv === 'dev' || lv === 'ignore') return;   // رقم المطوّر / تجاهل = مابيتسجلش
         if (lv) data.lv = lv;
+        if ((data.ct === 'wa' || data.ct === 'call') && !/:ext/.test(data.via || '')) armReturn_(data.ct, data.mc);
       }
       if (data) { delete data._d; delete data._x; if (TEST) data.test = 1; }
       try { if (data && data.event === 'click') { data.bh = behavior_(); ga4_(data); } } catch (e) {}
@@ -111,6 +112,32 @@
         fetch(U, { method: 'POST', body: j, headers: { 'Content-Type': 'application/json' }, keepalive: true });
       } catch (e) {}
     }
+
+    // ───────────── 2.13.1: قوة التواصل (تقديري) ─────────────
+    // بعد ضغطة واتساب أو اتصال: الصفحة استخبت (التطبيق اتفتح)؟ والزائر رجع بعد قد إيه؟ رجوع في ثواني = غالباً ضغطة بالغلط،
+    // وغياب دقيقة أو أكتر = كلّمك فعلاً غالباً. ده تقدير (الوقت بره الصفحة مش مدة المكالمة نفسها)، والقياس الحقيقي من تطبيق الموبايل.
+    var RET = null;
+    function armReturn_(ct, mc) {
+      RET = { ct: ct, mc: mc || '', t: Date.now(), hid: 0, sent: false };
+      st(SS, 'ltp_ret', JSON.stringify(RET));
+      setTimeout(function () { if (RET && !RET.hid && !RET.sent && document.visibilityState === 'visible') sendReturn_(0, 0); }, 8000);
+    }
+    function sendReturn_(away, opened) {
+      if (!RET || RET.sent) return;
+      RET.sent = true; rm(SS, 'ltp_ret');
+      var b = base('contact_return');
+      b.ct = RET.ct; b.mc = RET.mc; b.away = Math.max(0, Math.min(86400, Math.round(away))); b.opened = opened ? 1 : 0;
+      send(b);
+    }
+    document.addEventListener('visibilitychange', function () {
+      if (!RET || RET.sent) return;
+      if (document.visibilityState === 'hidden') { if (!RET.hid && Date.now() - RET.t < 15000) { RET.hid = Date.now(); st(SS, 'ltp_ret', JSON.stringify(RET)); } }
+      else if (RET.hid) sendReturn_((Date.now() - RET.hid) / 1000, 1);
+    });
+    // المتصفح فتح الصفحة من الأول وهو راجع (بدل ما يكمّل): نحسب من وقت ما ساب
+    setTimeout(function () {
+      try { var pr = JSON.parse(sg(SS, 'ltp_ret') || 'null'); if (pr && !pr.sent && pr.hid && Date.now() - pr.hid < 2 * 3600e3) { RET = pr; sendReturn_((Date.now() - pr.hid) / 1000, 1); } } catch (e) {}
+    }, 0);
 
     // ───────────── الموافقة ─────────────
     // full    = موافقة (أو الموقع مش محتاج بانر): كل البيانات

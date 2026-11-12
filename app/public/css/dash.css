@@ -297,3 +297,5 @@ body.level-simple .pro-only, body.level-detailed .simple-only { display: none !i
 .rp-side .vchecks, .d-sec .vchecks { margin-top: 4px; }
 .rp-side .vchecks li { grid-template-columns: 26px 1fr; }
 .rp-side .vchecks li span { grid-column: 2; font-size: 13px; }
+.strength { margin-top: 4px; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.strength small { font-size: 12px; }

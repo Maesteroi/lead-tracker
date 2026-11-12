@@ -517,7 +517,7 @@
           DATA.setOutcome(state.site, l.code, v).then(function () { l.outcome = v; sel.disabled = false; toast('اتسجلت: ' + v + ' (#' + l.code + ')'); }, function () { sel.value = before; sel.disabled = false; toast('مااتسجلتش. جرّب تاني.'); });
         });
         tb.appendChild(el('tr', {}, [
-          el('td', { class: 'first' }, [el('b', { text: (l.type === 'wa' ? '💬 واتساب' : '📞 اتصال') + ' · كود #' + l.code }), el('div', { class: 'dim', text: timeAr(l.at) })]),
+          el('td', { class: 'first' }, [el('b', { text: (l.type === 'wa' ? '💬 واتساب' : '📞 اتصال') + ' · كود #' + l.code }), el('div', { class: 'dim', text: timeAr(l.at) }), l.strength ? el('div', { class: 'strength' }, [pill('تواصل ' + l.strength.label, l.strength.key === 'strong' ? 'ok' : l.strength.key === 'normal' ? 'info' : 'warn'), el('small', { class: 'dim', text: ' ' + l.strength.detail + ' · تقديري' })]) : null]),
           el('td', { 'data-l': 'المصدر', class: 'pro-only' }, [el('div', { text: srcName(l.src) }), l.kw ? el('span', { class: 'dim', text: '«' + l.kw + '»' }) : null]),
           el('td', { 'data-l': 'المكان', text: l.city + (l.district ? ' · ' + l.district : '') }),
           el('td', { 'data-l': 'النتيجة' }, [sel]),

@@ -148,3 +148,10 @@ test('outside the target country (Libya on a Saudi-only site): the contact is ma
   const v = (await s.gc(s.owner, '/v1/dash/visits?range=7&site=' + s.site.id)).body.sessions.find((x) => x.id === 'LY1');
   assert.equal(v.outside, true);
 });
+
+test('leads carry the contact strength (estimate) from the visitor coming back to the page', async () => {
+  const s = await setup();
+  await s.ev({ event: 'contact_return', time: s.today + ' 10:05:00', click_type: 'wa', match_code: 'AB12', away_seconds: 130, app_opened: 1 });
+  const l = (await s.gc(s.owner, '/v1/dash/leads?range=7&site=' + s.site.id)).body.leads.find((x) => x.code === 'AB12');
+  assert.equal(l.strength.key, 'strong'); assert.ok(l.strength.detail.includes('2د 10ث'));
+});

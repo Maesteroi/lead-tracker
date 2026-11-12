@@ -180,3 +180,11 @@ test('a visit from outside the site\'s target country (Libya on a Saudi-only sit
   await s.ev({ session_id: 'IN1', event: 'click', click_type: 'call', match_code: 'SA11', lead_level: 'primary', time: '2026-11-11 07:12:00', target_geo: 'SA|' });
   assert.equal(s.n.edits[s.n.edits.length - 1].reply_markup.inline_keyboard.length, 2);
 });
+
+test('contact strength line: after a WhatsApp click the visitor came back after 3m20s → "تواصل قوي (تقديري)"; app not opened → warning', () => {
+  const l = eventLine({ event: 'contact_return', time: '2026-11-12 10:05:00', click_type: 'wa', away_seconds: 200, app_opened: 1 });
+  assert.ok(l.includes('💪') && l.includes('3د 20ث') && l.includes('<b>قوي</b>') && l.includes('تقديري'), l);
+  const n = eventLine({ event: 'contact_return', time: '2026-11-12 10:05:00', click_type: 'call', away_seconds: 0, app_opened: 0 });
+  assert.ok(n.includes('⚠️') && n.includes('الاتصال') && n.includes('مافتحش'), n);
+  assert.equal(eventLine({ event: 'contact_return', is_test: '1', away_seconds: 5, app_opened: 1 }), '');
+});
