@@ -29,13 +29,45 @@ const siteView = (c) => ({ id: c.id, name: c.name, domains: c.domains || [], sta
 
 // الأحقية على موقع: عضو في حسابه، ولو صلاحيته محددة بمواقع معينة يبقى الموقع منها
 function membershipFor(sess, orgId) { return sess.memberships.find((m) => m.org_id === orgId) || null; }
-// مدير المنصة (users.platform_admin، قرار محمود 11 نوفمبر): بيشوف ويدير كل مواقع كل الحسابات من اللوحة، كأنه مالك
+// السوبر أدمن (users.platform_admin، قرار محمود 11 نوفمبر): بيشوف ويدير كل مواقع كل الحسابات من اللوحة، كأنه مالك
 export const isPlatform = (sess) => !!(sess && sess.user && sess.user.platform_admin === true);
-export function roleFor(sess, orgId) { const m = membershipFor(sess, orgId); return m ? m.role : isPlatform(sess) ? 'owner' : null; }
+// فريق المنصة (G-29، 12 نوفمبر): sess.platform = { owner, perms[], orgs: null|[], sites: null|[] } (team.js بيحمّله مع الجلسة)
+// النطاق: orgs و sites الاتنين null = كل حاجة. غير كده: الحساب في orgs، أو الموقع في sites.
+export function hasPerm(sess, p) { if (isPlatform(sess)) return true; const pl = sess && sess.platform; return !!(pl && pl.perms && pl.perms.includes(p)); }
+const allScope = (pl) => pl.orgs == null && pl.sites == null;
+export function siteInScope(sess, orgId, siteId) {
+  if (isPlatform(sess)) return true;
+  const pl = sess && sess.platform; if (!pl) return false;
+  return allScope(pl) || (!!pl.orgs && pl.orgs.includes(orgId)) || (!!pl.sites && pl.sites.includes(siteId));
+}
+// الحساب كله في النطاق (للتغييرات على الحساب نفسه: الحالة · التجربة · الخطة)
+export function orgInScope(sess, orgId) {
+  if (isPlatform(sess)) return true;
+  const pl = sess && sess.platform; if (!pl) return false;
+  return allScope(pl) || (!!pl.orgs && pl.orgs.includes(orgId));
+}
+const platformSees = (sess, site) => !!site.org_id && (isPlatform(sess) || (hasPerm(sess, 'dash_view') && siteInScope(sess, site.org_id, site.id)));
+export function roleFor(sess, orgId, siteId) {
+  const m = membershipFor(sess, orgId);
+  if (m) return m.role;
+  if (isPlatform(sess)) return 'owner';
+  if (hasPerm(sess, 'dash_view') && (siteId ? siteInScope(sess, orgId, siteId) : orgInScope(sess, orgId) || !!(sess.platform.sites && sess.platform.sites.length))) return hasPerm(sess, 'dash_act') ? 'staff' : 'viewer';
+  return null;
+}
 function canSee(sess, site) {
-  if (isPlatform(sess) && site.org_id) return true;
+  if (platformSees(sess, site)) return true;
   const m = membershipFor(sess, site.org_id);
   return !!m && (!m.site_ids || m.site_ids.includes(site.id));
+}
+// كل المواقع اللي صاحب الجلسة يشوفها (عضويته + نطاقه في فريق المنصة)، مع اسم الحساب لو فيه أكتر من حساب
+export async function visibleSites(db, sess, cols) {
+  const sel = 'select=' + cols + '&order=created_at.asc';
+  const platform = isPlatform(sess) || hasPerm(sess, 'dash_view');
+  const orgIds = sess.memberships.map((m) => m.org_id);
+  let rows = [];
+  if (platform) rows = (await db.select('clients?org_id=not.is.null&' + sel)) || [];
+  else if (orgIds.length) rows = (await db.select('clients?org_id=in.(' + orgIds.join(',') + ')&' + sel)) || [];
+  return rows.filter((c) => canSee(sess, c));
 }
 export async function loadSite(db, sess, id) {
   if (!SITE_ID_RE.test(String(id || ''))) return null;
@@ -48,21 +80,20 @@ export const notFound = () => json({ ok: false, error: 'not_found' }, 404);
 export async function me(req, env, db, sess) {
   const orgIds = sess.memberships.map((m) => m.org_id);
   const orgs = orgIds.length ? (await db.select('organizations?id=in.(' + orgIds.join(',') + ')&select=id,name,type,status,trial_ends_at')) || [] : [];
+  const pl = sess.platform;
   return json({ ok: true, user: { id: sess.user.id, email: sess.user.email, name: sess.user.name, platform_admin: sess.user.platform_admin === true },
+    platform: isPlatform(sess) ? { owner: true, perms: ['*'] } : pl ? { owner: false, role: pl.role, perms: pl.perms, scoped: !allScope(pl) } : null,
     orgs: orgs.map((o) => Object.assign({}, o, { role: membershipFor(sess, o.id).role })), csrf: sess.csrf });
 }
 
 export async function listSites(req, env, db, sess) {
-  if (isPlatform(sess)) {
-    const rows = (await db.select('clients?org_id=not.is.null&select=id,name,status,org_id,domains,created_at,timezone,country_code&order=created_at.asc')) || [];
+  const rows = await visibleSites(db, sess, 'id,name,status,org_id,domains,created_at,timezone,country_code');
+  if (isPlatform(sess) || hasPerm(sess, 'dash_view')) {   // فريق المنصة: المواقع متقسمة حسب الحساب
     const orgs = (await db.select('organizations?select=id,name')) || [];
     const on = new Map(orgs.map((o) => [o.id, o.name]));
     return json({ ok: true, all: true, sites: rows.map((c) => siteView(Object.assign({}, c, { org_name: on.get(c.org_id) || '' }))) });
   }
-  const orgIds = sess.memberships.map((m) => m.org_id);
-  if (!orgIds.length) return json({ ok: true, sites: [] });
-  const rows = (await db.select('clients?org_id=in.(' + orgIds.join(',') + ')&select=id,name,status,org_id,domains,created_at,timezone,country_code&order=created_at.asc')) || [];
-  return json({ ok: true, sites: rows.filter((c) => canSee(sess, c)).map(siteView) });
+  return json({ ok: true, sites: rows.map(siteView) });
 }
 
 // حدود الخطة: الحساب الموقوف أو التجربة المنتهية = 402، وحد المواقع = 409. بيرجّع null لو مفيش مانع.
@@ -109,7 +140,7 @@ export async function createSite(req, env, db, sess) {
 export async function rotateKey(req, env, db, sess, id) {
   const site = await loadSite(db, sess, id);
   if (!site) return notFound();
-  if (!MANAGE.has(roleFor(sess, site.org_id))) return json({ ok: false, error: 'forbidden' }, 403);
+  if (!MANAGE.has(roleFor(sess, site.org_id, site.id))) return json({ ok: false, error: 'forbidden' }, 403);
   const key = 'ltk' + randomToken(24);
   await db.update('clients?id=' + eq(site.id), { key_hash: await sha256(key) });
   await audit(db, sess.user.id, 'key_rotated', true, site.id);

@@ -6,12 +6,13 @@ import { me, listSites, createSite, rotateKey, installStatus, loadSite, notFound
 import { createPairCode } from './pairing.js';
 import { connectSite } from './connect.js';
 import { isPlatformAdmin, overview, updateOrg, telegramStatus, telegramSwitch } from './platform.js';
+import { platformTeam, platformRoleSave, platformRoleDelete, platformInvite, platformInviteCancel, platformMember, platformAudit, teamList, teamInvite, teamInviteCancel, teamMember } from './team.js';
 import { dashOverview, dashVisits, dashSession, dashLeads, dashSetup, dashOutcome, dashProtection, dashVerdict, dashReplay } from './dash.js';
 
 const SITE_ACT = /^\/v1\/sites\/([A-Za-z0-9]{6,20})\/(rotate-key|install-status|pair-code)$/;
 const ORG_ACT = /^\/v1\/platform\/orgs\/([^/]+)$/;
 
-export const isAppPath = (p) => p === '/v1/me' || p.startsWith('/v1/auth/') || p === '/v1/sites' || p.startsWith('/v1/sites/') || p === '/v1/connect' || p.startsWith('/v1/platform/') || p.startsWith('/v1/dash/');
+export const isAppPath = (p) => p === '/v1/me' || p.startsWith('/v1/auth/') || p === '/v1/sites' || p.startsWith('/v1/sites/') || p === '/v1/connect' || p.startsWith('/v1/platform/') || p.startsWith('/v1/dash/') || p === '/v1/team' || p.startsWith('/v1/team/');
 
 function corsHeaders(req, env) {
   const o = req.headers.get('origin');
@@ -50,6 +51,22 @@ export async function handleApp(req, env, db, url, p, fetchImpl) {
     else if (m === 'POST' && oa) res = await updateOrg(req, env, db, sess, oa[1]);
     else if (m === 'GET' && p === '/v1/platform/telegram') res = await telegramStatus(req, env, db, sess, fetchImpl);
     else if (m === 'POST' && p === '/v1/platform/telegram') res = await telegramSwitch(req, env, db, sess, fetchImpl);
+    else if (m === 'GET' && p === '/v1/platform/team') res = await platformTeam(req, env, db, sess);
+    else if (m === 'POST' && p === '/v1/platform/roles') res = await platformRoleSave(req, env, db, sess);
+    else if (m === 'POST' && p === '/v1/platform/roles/delete') res = await platformRoleDelete(req, env, db, sess);
+    else if (m === 'POST' && p === '/v1/platform/invites') res = await platformInvite(req, env, db, sess);
+    else if (m === 'POST' && p === '/v1/platform/invites/cancel') res = await platformInviteCancel(req, env, db, sess);
+    else if (m === 'POST' && p === '/v1/platform/members') res = await platformMember(req, env, db, sess);
+    else if (m === 'GET' && p === '/v1/platform/audit') res = await platformAudit(req, env, db, sess);
+    else res = notFound();
+    return finish(res, req, env, true);
+  }
+  // فريق العميل جوه حسابه (team.js)
+  if (p.startsWith('/v1/team')) {
+    if (m === 'GET' && p === '/v1/team') res = await teamList(req, env, db, sess, url);
+    else if (m === 'POST' && p === '/v1/team/invite') res = await teamInvite(req, env, db, sess);
+    else if (m === 'POST' && p === '/v1/team/invite/cancel') res = await teamInviteCancel(req, env, db, sess);
+    else if (m === 'POST' && p === '/v1/team/member') res = await teamMember(req, env, db, sess);
     else res = notFound();
     return finish(res, req, env, true);
   }

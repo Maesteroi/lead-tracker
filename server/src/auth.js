@@ -3,6 +3,7 @@
 // مقفول لحد ما الأسرار الثلاثة تتحط: GOOGLE_SIGNIN_CLIENT_ID · GOOGLE_SIGNIN_CLIENT_SECRET · SESSION_SECRET.
 import { eq } from './db.js';
 import { sha256, safeEqual, json, randomToken } from './util.js';
+import { loadPlatform, acceptInvites, hasOpenInvites } from './team.js';
 
 const te = new TextEncoder();
 const GOOGLE_AUTH = 'https://accounts.google.com/o/oauth2/v2/auth';
@@ -138,6 +139,7 @@ export async function authCallback(req, env, db, url, fetchImpl) {
   if (!c.email || c.email_verified !== true) { await audit(db, null, 'login_failed', false, 'email_unverified'); return loginError(env, 'email', clear); }
 
   const user = await upsertUser(env, db, c);
+  await acceptInvites(db, Object.assign({}, user, { email: String(c.email).toLowerCase() }));   // دعوات الفرق (team.js)
   const sess = await newSession(db, user.id, req);
   await audit(db, user.id, 'login', true);
   const to = appOrigin(env) + safeNext(st.x);
@@ -149,13 +151,15 @@ async function upsertUser(env, db, c) {
   const now = new Date().toISOString();
   const name = String(c.name || '').slice(0, 120) || null;
   const email = String(c.email).slice(0, 200).toLowerCase();
-  let u = await db.one('users?google_sub=eq.' + encodeURIComponent(String(c.sub)) + '&select=id,email,name');
+  let u = await db.one('users?google_sub=eq.' + encodeURIComponent(String(c.sub)) + '&select=id,email,name,platform_admin');
   if (u) {
     await db.update('users?id=' + eq(u.id), { email, name, locale: c.locale ? String(c.locale).slice(0, 10) : null, last_login_at: now });
     return u;
   }
   const rows = await db.insert('users', [{ google_sub: String(c.sub), email, name, locale: c.locale ? String(c.locale).slice(0, 10) : null, last_login_at: now }]);
   u = rows[0];
+  // معاه دعوة لفريق (حساب عميل أو فريق المنصة): بيدخل على الحساب اللي اتدعى له، من غير حساب تجربة جديد
+  if (await hasOpenInvites(db, email)) { await audit(db, u.id, 'signup', true, 'invited'); return u; }
   const days = Number(env.TRIAL_DAYS) > 0 ? Number(env.TRIAL_DAYS) : 14;
   const org = (await db.insert('organizations', [{ name: (name || email.split('@')[0]).slice(0, 80), status: 'trial', trial_ends_at: new Date(Date.now() + days * 86400000).toISOString() }]))[0];
   await db.insert('memberships', [{ user_id: u.id, org_id: org.id, role: 'owner' }], { returning: false });
@@ -180,7 +184,8 @@ export async function getSession(req, db) {
   const user = await db.one('users?id=' + eq(s.user_id) + '&select=id,email,name,platform_admin');
   if (!user) return null;
   const memberships = (await db.select('memberships?user_id=eq.' + encodeURIComponent(s.user_id) + '&select=org_id,role,site_ids')) || [];
-  return { user, memberships, csrf: s.csrf_token, sessionId: s.id };
+  const platform = await loadPlatform(db, user);                       // فريق المنصة (team.js)، أو null
+  return { user, memberships, platform, csrf: s.csrf_token, sessionId: s.id };
 }
 
 // أي طلب بيغيّر حاجة: توكن CSRF + الطلب جاي من اللوحة بس

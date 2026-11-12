@@ -21,7 +21,7 @@ const dash = (c) => c.slice(0, 4) + '-' + c.slice(4);
 
 // ── اللوحة: كود جديد لموقع ──
 export async function createPairCode(req, env, db, sess, site) {
-  if (!MANAGE.has(roleFor(sess, site.org_id))) return json({ ok: false, error: 'forbidden' }, 403);
+  if (!MANAGE.has(roleFor(sess, site.org_id, site.id))) return json({ ok: false, error: 'forbidden' }, 403);
   const now = new Date().toISOString();
   await db.update('site_pair_codes?site_id=' + eq(site.id) + '&used_at=is.null', { expires_at: now });   // الكود القديم يموت
   const code = pairCode();
