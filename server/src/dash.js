@@ -18,11 +18,26 @@ import { tr, countryName, langOf } from './i18n.js';
 import { replaySet, loadReplay } from './replay.js';
 import { adsState } from './adslink.js';
 
-const RANGES = new Set([1, 7, 30]);
+const RANGES = new Set([1, 7, 14, 30, 90]);
+const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
+const MAX_DAYS = 92;
 const SID_RE = /^[A-Za-z0-9_-]{4,64}$/;
 const CODE_RE = /^[A-Za-z0-9]{2,20}$/;
 const VALUES = new Set(OUTCOMES.map((o) => o[0]));
 const rangeOf = (url) => { const r = Number(url.searchParams.get('range')); return RANGES.has(r) ? r : 7; };
+// الفترة: آخر N يوم (range) أو من يوم لحد يوم (from · to، بتوقيت الرياض، لحد 92 يوم). الفترة السابقة بنفس الطول قبلها على طول.
+const dayTs = (day) => Date.parse(day + 'T00:00:00+03:00');
+const addD = (day, n) => riyadhDay(dayTs(day) + n * 864e5 + 3 * 3600e3);
+export function periodOf(url, now) {
+  const today = riyadhDay(now);
+  let from = url.searchParams.get('from'), to = url.searchParams.get('to');
+  if (!(DAY_RE.test(from || '') && DAY_RE.test(to || '') && from <= to && to <= today)) { const r = rangeOf(url); to = today; from = addD(today, -(r - 1)); }
+  let n = Math.round((dayTs(to) - dayTs(from)) / 864e5) + 1;
+  if (n > MAX_DAYS) { from = addD(to, -(MAX_DAYS - 1)); n = MAX_DAYS; }
+  const days = []; for (let i = 0; i < n; i++) days.push(addD(from, i));
+  return { from, to, n, days, sinceTs: new Date(dayTs(from)).toISOString(), untilTs: new Date(dayTs(to) + 864e5).toISOString(), prevFrom: addD(from, -n), prevTo: addD(from, -1), current: to === today };
+}
+const inPeriod = (pd) => (x) => { const t = Date.parse(x.started_at || x.at); return !(t >= Date.parse(pd.untilTs)); };
 const num = (v) => Number(v) || 0;
 const tally = (list, key) => { const m = new Map(); for (const x of list) { const k = key(x); if (k) m.set(k, (m.get(k) || 0) + 1); } return [...m.entries()].map(([name, n]) => ({ name, n })).sort((a, b) => b.n - a.n); };
 
@@ -47,46 +62,66 @@ async function deliveryOf(db, siteId, now) {
 export async function dashOverview(req, env, db, sess, url) {
   const site = await siteFrom(db, sess, url);
   if (!site) return notFound();
-  const range = rangeOf(url), now = Date.now();
-  const from = riyadhDay(now - (range - 1) * 864e5), prevFrom = riyadhDay(now - (2 * range - 1) * 864e5);
-  const daily = (await db.req('POST', 'rpc/dash_daily', { p_site: site.id, p_since: prevFrom })) || [];
+  const now = Date.now(), pd = periodOf(url, now), range = pd.n, lang = langOf(url.searchParams.get('lang'));
+  const daily = (await db.req('POST', 'rpc/dash_daily', { p_site: site.id, p_since: pd.prevFrom })) || [];
   const byDay = new Map(daily.map((d) => [String(d.day).slice(0, 10), d]));
-  const days = [];
-  for (let i = range - 1; i >= 0; i--) { const day = riyadhDay(now - i * 864e5), d = byDay.get(day) || {}; days.push({ day, sessions: num(d.sessions), pageviews: num(d.pageviews), clicks: num(d.clicks), contacts: num(d.contacts) }); }
-  const prev = daily.filter((d) => String(d.day).slice(0, 10) >= prevFrom && String(d.day).slice(0, 10) < from);
-  const sinceTs = new Date(now - range * 864e5).toISOString();
-  const [sessions, rp] = await Promise.all([scoredSessions(db, site.id, sinceTs, 2000, langOf(url.searchParams.get('lang'))), replaySet(db, site.id, sinceTs)]);
+  const days = pd.days.map((day) => { const d = byDay.get(day) || {}; return { day, sessions: num(d.sessions), pageviews: num(d.pageviews), clicks: num(d.clicks), contacts: num(d.contacts) }; });
+  const prev = daily.filter((d) => String(d.day).slice(0, 10) >= pd.prevFrom && String(d.day).slice(0, 10) <= pd.prevTo);
+  const sinceTs = pd.sinceTs;
+  const [all, rp] = await Promise.all([scoredSessions(db, site.id, sinceTs, 2000, lang), replaySet(db, site.id, sinceTs)]);
+  const sessions = all.filter(inPeriod(pd));
   for (const x of sessions) x.replay = rp.has(x.session_id);
   const sc = new Map();
   for (const x of sessions) { const k = dayOf(x); const c = sc.get(k) || { real: 0, suspicious: 0, high: 0 }; c[x.status]++; sc.set(k, c); }
   for (const d of days) { const c = sc.get(d.day) || { real: 0, suspicious: 0, high: 0 }; d.real = c.real; d.suspicious = c.suspicious; d.high = c.high; }
   const pending = sessions.filter((x) => x.status !== 'real' && !x.verdict);
-  const leads = markOutside((await db.req('POST', 'rpc/dash_leads', { p_site: site.id, p_since: sinceTs })) || [], sessions, langOf(url.searchParams.get('lang')));
+  const leads = markOutside(((await db.req('POST', 'rpc/dash_leads', { p_site: site.id, p_since: sinceTs })) || []).filter(inPeriod(pd)), sessions, lang);
   const deliv = await deliveryOf(db, site.id, now);
   const lastDeliv = deliv[0] || null;
   const sum = (list, k) => list.reduce((a, d) => a + num(d[k]), 0);
   return json({
-    ok: true, site: { id: site.id, name: site.name }, range, days,
+    ok: true, site: { id: site.id, name: site.name }, range, period: { from: pd.from, to: pd.to, days: pd.n, current: pd.current }, days,
     kpi: { sessions: sum(days, 'sessions'), pageviews: sum(days, 'pageviews'), contacts: sum(days, 'contacts'),
       won: leads.filter((l) => l.outcome === 'تم').length, open: leads.filter((l) => !l.outcome && !l.outside).length, leads: leads.length, outside_leads: leads.filter((l) => l.outside).length, outside: sessions.filter((x) => x.outside).length,
       real: sessions.filter((x) => x.status === 'real').length, suspicious: sessions.filter((x) => x.status === 'suspicious').length, high: sessions.filter((x) => x.status === 'high').length,
       ad_sessions: sessions.filter((x) => x.ad).length, ad_bad: sessions.filter((x) => x.ad && x.status !== 'real').length, pending: pending.length },
     prev: { sessions: sum(prev, 'sessions'), contacts: sum(prev, 'contacts') },
-    live: sessions.filter((s) => Date.parse(s.last_at) > now - 5 * 60e3).length,
+    live: pd.current ? sessions.filter((s) => Date.parse(s.last_at) > now - 5 * 60e3).length : 0,
     suspicious: sessions.filter((x) => x.status !== 'real').sort((a, b) => b.score - a.score).slice(0, 5).map(sessionView),
     status: { scoring: true, ads: await adsLinked(db, site.id), delivery: lastDeliv ? lastDeliv.pv_pct : null, delivery_day: lastDeliv ? lastDeliv.day : null, paired: !!site.paired_at },
     sources: tally(sessions, (s) => s.source_fine || s.source || 'direct').slice(0, 8),
     places: tally(sessions, (s) => s.city || null).slice(0, 6),
     devices: tally(sessions, (s) => s.device || null).slice(0, 4),
+    // للرئيسية الاحترافية: البلاد · أسباب الاشتباه · أوقات الزيارات (يوم × ساعة بتوقيت الرياض) · أول صفحة · آخر الزيارات
+    countries: tally(sessions, (s) => s.country_code || null).slice(0, 6).map((c) => ({ code: c.name, name: countryName(lang, c.name), n: c.n })),
+    reasons: reasonsOf(sessions, lang),
+    hours: hoursOf(sessions),
+    landing: tally(sessions, (s) => s.landing_title || null).slice(0, 5),
+    recent: sessions.slice().sort((a, b) => Date.parse(b.started_at) - Date.parse(a.started_at)).slice(0, 6).map(sessionView),
   });
+}
+function reasonsOf(list, lang) {
+  const m = new Map();
+  for (const x of list) if (x.status !== 'real') for (const c of x.codes || []) m.set(c, (m.get(c) || 0) + 1);
+  return [...m.entries()].map(([code, n]) => ({ code, name: reasonGroup(lang, code), n })).sort((a, b) => b.n - a.n).slice(0, 6);
+}
+// [7 أيام الأسبوع (السبت أولاً)][24 ساعة] = { n: كل الزيارات · bad: المشبوهة }
+function hoursOf(list) {
+  const g = Array.from({ length: 7 }, () => Array.from({ length: 24 }, () => ({ n: 0, bad: 0 })));
+  for (const x of list) {
+    const t = Date.parse(x.started_at); if (!t) continue;
+    const r = new Date(t + 3 * 3600e3), dow = (r.getUTCDay() + 1) % 7, h = r.getUTCHours();
+    g[dow][h].n++; if (x.status !== 'real') g[dow][h].bad++;
+  }
+  return g;
 }
 
 export async function dashVisits(req, env, db, sess, url) {
   const site = await siteFrom(db, sess, url);
   if (!site) return notFound();
-  const range = rangeOf(url);
-  const since = new Date(Date.now() - range * 864e5).toISOString();
-  const [list, rp] = await Promise.all([scoredSessions(db, site.id, since, 1000, langOf(url.searchParams.get('lang'))), replaySet(db, site.id, since)]);
+  const pd = periodOf(url, Date.now()), since = pd.sinceTs;
+  const [all, rp] = await Promise.all([scoredSessions(db, site.id, since, 1000, langOf(url.searchParams.get('lang'))), replaySet(db, site.id, since)]);
+  const list = all.filter(inPeriod(pd));
   return json({ ok: true, sessions: list.map((s) => Object.assign(sessionView(s), { replay: rp.has(s.session_id) })) });
 }
 // تواصل من زيارة بره البلد المستهدف: بيتعلّم «بره النطاق» (ملحوظة) ومابيستناش نتيجة
@@ -108,9 +143,9 @@ function sessionView(s) {
 export async function dashProtection(req, env, db, sess, url) {
   const site = await siteFrom(db, sess, url);
   if (!site) return notFound();
-  const range = rangeOf(url);
-  const since = new Date(Date.now() - range * 864e5).toISOString();
-  const [list, rp] = await Promise.all([scoredSessions(db, site.id, since, 2000, langOf(url.searchParams.get('lang'))), replaySet(db, site.id, since)]);
+  const pd = periodOf(url, Date.now()), since = pd.sinceTs;
+  const [all, rp] = await Promise.all([scoredSessions(db, site.id, since, 2000, langOf(url.searchParams.get('lang'))), replaySet(db, site.id, since)]);
+  const list = all.filter(inPeriod(pd));
   for (const x of list) x.replay = rp.has(x.session_id);
   const ads = list.filter((x) => x.ad);
   const reasons = new Map();
@@ -152,9 +187,8 @@ export async function dashSession(req, env, db, sess, url) {
 export async function dashLeads(req, env, db, sess, url) {
   const site = await siteFrom(db, sess, url);
   if (!site) return notFound();
-  const range = rangeOf(url);
-  const since = new Date(Date.now() - range * 864e5).toISOString();
-  const list = markOutside((await db.req('POST', 'rpc/dash_leads', { p_site: site.id, p_since: since })) || [], await scoredSessions(db, site.id, new Date(Date.parse(since) - 864e5).toISOString(), 2000, langOf(url.searchParams.get('lang'))), langOf(url.searchParams.get('lang')));
+  const pd = periodOf(url, Date.now()), since = pd.sinceTs;
+  const list = markOutside(((await db.req('POST', 'rpc/dash_leads', { p_site: site.id, p_since: since })) || []).filter(inPeriod(pd)), await scoredSessions(db, site.id, new Date(Date.parse(since) - 864e5).toISOString(), 2000, langOf(url.searchParams.get('lang'))), langOf(url.searchParams.get('lang')));
   // قوة التواصل (تقديري): آخر «رجع للصفحة» لكل كود
   const rets = (await db.select('raw_events?client_id=' + eq(site.id) + '&event=eq.contact_return&received_at=gte.' + encodeURIComponent(since) + '&select=match_code,payload,received_at&order=received_at.asc&limit=2000').catch(() => [])) || [];
   const strength = new Map();

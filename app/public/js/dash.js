@@ -104,12 +104,49 @@
       b.addEventListener('click', function () { if (state.level !== x[0]) setLevel(x[0]); });
       lvl.appendChild(b);
     });
-    var seg = clear($('range'));
-    [1, 7, 30].map(function (d) { return [d, T('range.' + d)]; }).forEach(function (r) {
-      var b = el('button', { type: 'button', 'aria-pressed': String(state.range === r[0]), text: r[1] });
-      b.addEventListener('click', function () { state.range = r[0]; buildTop(); render(); });
-      seg.appendChild(b);
+    rangePicker(clear($('range')));
+  }
+  // ── اختيار الفترة: جاهزة (النهارده · امبارح · 7 · 14 · 30 · الشهر ده · الشهر اللي فات · 90) أو من–إلى ──
+  // state.range: رقم = آخر N يوم، أو «YYYY-MM-DD~YYYY-MM-DD» لفترة محددة
+  function ymd(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+  function presets() {
+    var t = new Date(), y = new Date(t.getFullYear(), t.getMonth(), t.getDate() - 1);
+    var m0 = new Date(t.getFullYear(), t.getMonth(), 1), lm0 = new Date(t.getFullYear(), t.getMonth() - 1, 1), lm1 = new Date(t.getFullYear(), t.getMonth(), 0);
+    return [['today', 1], ['yesterday', ymd(y) + '~' + ymd(y)], ['7', 7], ['14', 14], ['30', 30], ['month', ymd(m0) + '~' + ymd(t)], ['lastmonth', ymd(lm0) + '~' + ymd(lm1)], ['90', 90]];
+  }
+  function rangeLabel() {
+    var hit = presets().filter(function (p) { return p[1] === state.range; })[0];
+    if (hit) return T('rg.' + hit[0]);
+    var p = String(state.range).split('~'); if (p.length !== 2) return T('rg.7');
+    var f = function (x) { return new Date(x + 'T12:00:00').toLocaleDateString(LT.locale, { day: 'numeric', month: 'short' }); };
+    return p[0] === p[1] ? f(p[0]) : f(p[0]) + ' – ' + f(p[1]);
+  }
+  function rangePicker(box) {
+    box.className = 'range-pick';
+    var btn = el('button', { class: 'range-btn', type: 'button', 'aria-haspopup': 'true', 'aria-expanded': 'false', text: rangeLabel() });
+    var pop = el('div', { class: 'range-pop', role: 'menu', hidden: '' });
+    var close = function () { pop.hidden = true; btn.setAttribute('aria-expanded', 'false'); document.removeEventListener('click', outside, true); };
+    var outside = function (e) { if (!box.contains(e.target)) close(); };
+    var pick = function (v) { state.range = v; close(); buildTop(); render(); };
+    presets().forEach(function (p) {
+      var b = el('button', { class: 'opt-r', type: 'button', role: 'menuitemradio', 'aria-checked': String(state.range === p[1]), text: T('rg.' + p[0]) });
+      b.addEventListener('click', function () { pick(p[1]); });
+      pop.appendChild(b);
     });
+    var today = ymd(new Date()), cur = String(state.range).split('~');
+    var from = el('input', { type: 'date', max: today, 'aria-label': T('rg.from') }), to = el('input', { type: 'date', max: today, 'aria-label': T('rg.to') });
+    from.value = cur.length === 2 ? cur[0] : ymd(new Date(Date.now() - 6 * 864e5)); to.value = cur.length === 2 ? cur[1] : today;
+    var apply = el('button', { class: 'btn sm', type: 'button', text: T('rg.apply') });
+    apply.addEventListener('click', function () {
+      var a = from.value, z = to.value;
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(a) || !/^\d{4}-\d{2}-\d{2}$/.test(z) || a > z || z > today) { toast(T('rg.bad')); return; }
+      if ((Date.parse(z) - Date.parse(a)) / 864e5 > 91) { toast(T('rg.max')); return; }
+      pick(a + '~' + z);
+    });
+    pop.appendChild(el('div', { class: 'custom' }, [el('b', { text: T('rg.custom') }), el('label', {}, [el('span', { text: T('rg.from') }), from]), el('label', {}, [el('span', { text: T('rg.to') }), to]), apply]));
+    btn.addEventListener('click', function () { if (pop.hidden) { pop.hidden = false; btn.setAttribute('aria-expanded', 'true'); document.addEventListener('click', outside, true); } else close(); });
+    pop.addEventListener('keydown', function (e) { if (e.key === 'Escape') { close(); btn.focus(); } });
+    box.appendChild(btn); box.appendChild(pop);
   }
   function route() { var h = (location.hash || '').replace(/^#\//, ''); return ROUTES.some(function (r) { return r[0] === h; }) ? h : 'overview'; }
   function render() {
@@ -129,56 +166,6 @@
   }
 
   // ════════ 1) الرئيسية ════════
-  function vOverview(view) {
-    return DATA.overview(state.site, state.range).then(function (d) {
-      clear(view);
-      var k = d.kpi, p = d.prev, cur = d.currency;
-      // شريط الحالة
-      view.appendChild(el('div', { class: 'status-strip' }, [
-        el('span', { class: 'st ok' }, [el('i', { class: 'dot live' }), document.createTextNode(T('d.strip.prot'))]),
-        el('span', { class: 'st ' + (d.status.delivery >= 99.5 ? 'ok' : 'warn') }, [el('i', { class: 'dot' }), document.createTextNode(T('strip.delivery', { p: d.status.delivery }))]),
-        el('span', { class: 'st ' + (d.status.ads ? 'ok' : 'warn') }, [el('i', { class: 'dot' }), document.createTextNode(T(d.status.ads ? 'strip.ads.on' : 'd.strip.ads.off'))]),
-        el('a', { class: 'st live-now', href: '#/visits' }, [el('i', { class: 'dot live' }), document.createTextNode(T('strip.live', { n: LT.n(d.live, 'visitor') }))]),
-      ]));
-      // الأرقام
-      view.appendChild(el('div', { class: 'kpis' }, [
-        kpi(T('d.k.billed'), fmt(k.billed), T('d.k.spent', { m: money(k.cost, cur) }), 'info', delta(k.billed, p.billed, true)),
-        kpi(T('d.k.real'), fmt(k.real), T('kpi.of_visits', { p: pct(k.real, k.real + k.suspicious + k.blocked) }), 'ok', delta(k.real, p.real, true)),
-        kpi(T('kpi.suspicious'), fmt(k.suspicious), T('d.k.watched'), 'warn', delta(k.suspicious, p.suspicious, false)),
-        kpi(T('d.k.blocked'), fmt(k.blocked), T('d.k.blocked.sub'), 'bad', delta(k.blocked, p.blocked, false)),
-        kpi(T('d.k.saved'), money(k.saved, cur), T('d.k.saved.sub'), 'ok', delta(k.saved, p.saved, null)),
-        kpi(T('kpi.won'), fmt(k.won), k.cpl ? T('d.k.cpl', { m: money(k.cpl, cur) }) : T('d.k.of_contacts', { n: LT.n(k.leads, 'contact') }), 'ok'),
-      ]));
-      // تعمل إيه دلوقتي
-      var acts = el('div', { class: 'actions' });
-      d.actions.forEach(function (a) {
-        var m = a.kind === 'approve' ? ['protection', 'warn', T('d.act.approve', { n: LT.n(a.n, 'svisit') }), T('d.act.approve.sub'), T('d.act.approve.go')]
-          : a.kind === 'outcome' ? ['leads', 'info', T('act.outcome', { n: LT.n(a.n, 'contact') }), T('d.act.outcome.sub'), T('act.outcome.go')]
-          : a.kind === 'refund' ? ['protection', 'ok', T('d.act.refund', { m: money(a.amount, cur) }), T('d.act.refund.sub'), T('d.act.refund.go')]
-          : ['sites', 'warn', T('d.act.suffix'), T('d.act.suffix.sub'), T('d.act.suffix.go')];
-        acts.appendChild(el('a', { class: 'act ' + m[1], href: '#/' + m[0] }, [el('b', { text: m[2] }), el('span', { text: m[3] }), el('em', { text: m[4] + ' ' + T('arrow') })]));
-      });
-      if (d.actions.length) view.appendChild(card(T('act.title'), [acts]));
-      // جودة الزيارات
-      var ch = el('div');
-      C.stacked(ch, d.days, [{ key: 'real', label: T('status.real'), cls: 'c-real' }, { key: 'suspicious', label: T('status.suspicious'), cls: 'c-sus' }, { key: 'blocked', label: T('status.blocked'), cls: 'c-blk' }], { label: T('chart.quality.title') });
-      var grid = el('div', { class: 'grid-2' }, [
-        card(T('chart.quality.title'), [el('p', { class: 'hint', text: T('d.chart.hint') }), ch], 'span-2'),
-      ]);
-      view.appendChild(grid);
-      // آخر المشبوهين + أكتر أماكن
-      var sus = el('ul', { class: 'feed' });
-      d.suspicious.forEach(function (v) {
-        var li = el('li', { tabindex: '0' }, [scoreBadge(v), el('div', {}, [el('b', { text: v.city + ' · ' + v.district + ' — ' + srcName(v.src) }), el('span', { text: v.reasons[0] || '' })]), el('time', { text: timeAr(v.at) })]);
-        li.addEventListener('click', function () { openVisit(v); });
-        li.addEventListener('keydown', function (e) { if (e.key === 'Enter') openVisit(v); });
-        sus.appendChild(li);
-      });
-      var pl = el('div');
-      C.hbars(pl, d.places.map(function (x) { return { label: x.name, value: x.n, cls: 'c-sus' }; }), { compact: true });
-      view.appendChild(el('div', { class: 'grid-2' }, [card(T('d.last_sus'), [sus, el('a', { class: 'linkish', href: '#/visits', text: T('d.all_visits') })]), card(T('d.sus_places'), [pl])]));
-    });
-  }
 
   // ════════ الخلاصة (المستوى البسيط لصاحب البزنس) ════════
   // 3 إجابات كبيرة · «تعمل إيه دلوقتي» (3 بالكتير) · «حمايتك كاملة؟» · ملخص الأسبوع بالكلام. من غير جداول.
@@ -715,7 +702,7 @@
     var rows = [[T('cl.h.name'), T('cl.h.domain'), T('cl.h.visits'), T('cl.h.bad_pct'), T('cl.h.saved'), T('cl.h.leads'), T('cl.h.won'), T('cl.h.cpl'), T('cl.h.billed'), T('st.spend'), T('cl.h.delivery_pct')]];
     list.forEach(function (c) { rows.push([c.name, c.domain, z(c.visits), z(c.bad_pct), z(c.saved), c.leads, c.won, z(c.cpl), z(c.billed), z(c.cost), z(c.delivery)]); });
     var csv = '\ufeff' + rows.map(function (r) { return r.map(function (v) { var x = String(v); return /[",\n]/.test(x) ? '"' + x.replace(/"/g, '""') + '"' : x; }).join(','); }).join('\n');
-    var a = el('a', { href: URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' })), download: 'maestro-clients-' + state.range + 'd.csv' });
+    var a = el('a', { href: URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' })), download: 'maestro-clients-' + String(state.range).replace('~', '_') + '.csv' });
     document.body.appendChild(a); a.click(); a.remove();
   }
 
@@ -809,6 +796,10 @@
     return a.kind === 'pending' ? ['protection', 'warn', T('act.pending', { n: LT.n(a.n, 'svisit') }), T(simple ? 'act.pending.sub.simple' : 'act.pending.sub'), T('act.pending.go')]
       : a.kind === 'outcome' ? ['leads', 'info', T(simple ? 'act.outcome.simple' : 'act.outcome', { n: LT.n(a.n, 'contact') }), T('act.outcome.sub'), T('act.outcome.go')]
       : a.kind === 'delivery' ? ['sites', 'warn', simple ? T('act.delivery.simple') : T('act.delivery', { p: a.pct }), T(simple ? 'act.delivery.sub.simple' : 'act.delivery.sub'), T('act.details')]
+      // بعد ربط جوجل أدز (وفي اللوحة التجريبية): المنع في جوجل · طلب الاسترداد · لاحقة الرابط
+      : a.kind === 'approve' ? ['protection', 'warn', T('d.act.approve', { n: LT.n(a.n, 'svisit') }), T('d.act.approve.sub'), T('d.act.approve.go')]
+      : a.kind === 'refund' ? ['protection', 'ok', T('d.act.refund', { m: money(a.amount, a.currency || T('sar')) }), T('d.act.refund.sub'), T('d.act.refund.go')]
+      : a.kind === 'template' ? ['sites', 'warn', T('d.act.suffix'), T('d.act.suffix.sub'), T('d.act.suffix.go')]
       : ['sites', 'info', T('act.ads'), T('act.ads.sub'), T('nav.sites')];
   }
   function actionsCard(list, simple) {
@@ -819,42 +810,106 @@
   function lOverview(view) {
     return DATA.overview(state.site, state.range).then(function (d) {
       clear(view);
-      var k = d.kpi, p = d.prev, sc = d.scoring, bad = (k.suspicious || 0) + (k.high || 0), dl = d.status.delivery;
+      var k = d.kpi, p = d.prev, sc = d.scoring, bad = (k.suspicious || 0) + (k.high || 0), dl = d.status.delivery, all = (k.real || 0) + bad;
+      var clean = all ? Math.round(((k.real || 0) / all) * 100) : 100, current = !d.period || d.period.current;
+      // ١) البطاقة الكبيرة: الحالة · أهم الأرقام · نظافة الزيارات
+      var ringBox = el('div', { class: 'hero-ring' });
+      C.ring(ringBox, clean, { cls: clean >= 90 ? '' : clean >= 75 ? 'warn' : 'bad', label: T('ov.clean') });
+      ringBox.appendChild(el('div', {}, [el('b', { text: T('ov.clean') }), el('small', { text: T('ov.clean.sub') })]));
+      var chip = function (n, label, cls) { return el('span', { class: 'hero-chip ' + (cls || '') }, [el('b', { text: fmt(n) }), document.createTextNode(label)]); };
+      view.appendChild(el('section', { class: 'ov-hero', 'aria-label': T('ov.hero.aria') }, [
+        el('div', {}, [
+          el('h2', { text: T(!sc ? 'strip.prot.soon' : bad ? 'ov.hero.watch' : 'ov.hero.ok', { n: LT.n(bad, 'svisit') }) }),
+          el('p', { class: 'sub', text: T('ov.hero.sub', { p: rangeLabel() }) }),
+          el('div', { class: 'hero-chips' }, [chip(k.sessions, T('ov.c.visits')), sc ? chip(k.real, T('ov.c.real'), 'ok') : null, sc ? chip(bad, T('ov.c.bad'), bad ? 'warn' : '') : null, chip(k.contacts, T('ov.c.contacts'), 'ok'), chip(k.won, T('ov.c.won'), 'ok'), current ? el('a', { class: 'hero-chip', href: '#/visits' }, [el('i', { class: 'dot live' }), el('b', { text: fmt(d.live) }), document.createTextNode(T('ov.c.live'))]) : null]),
+        ]),
+        ringBox,
+      ]));
       view.appendChild(el('div', { class: 'status-strip' }, [
         el('a', { class: 'st ' + (sc ? 'ok' : ''), href: '#/protection' }, [el('i', { class: 'dot' + (sc ? ' live' : '') }), document.createTextNode(T(sc ? 'strip.prot.on' : 'strip.prot.soon'))]),
         el('span', { class: 'st ' + (dl == null ? '' : dl >= 99.5 ? 'ok' : 'warn') }, [el('i', { class: 'dot' }), document.createTextNode(dl == null ? T('strip.delivery.none') : T('strip.delivery', { p: dl }))]),
         el('span', { class: 'st ' + (d.status.ads ? 'ok' : '') }, [el('i', { class: 'dot' }), document.createTextNode(T(d.status.ads ? 'strip.ads.on' : 'strip.ads.soon'))]),
-        el('a', { class: 'st live-now', href: '#/visits' }, [el('i', { class: 'dot live' }), document.createTextNode(T('strip.live', { n: LT.n(d.live, 'visitor') }))]),
       ]));
-      view.appendChild(el('div', { class: 'kpis' }, sc ? [
-        kpi(T('kpi.visits'), fmt(k.sessions), T('kpi.pages_opened', { n: LT.n(k.pageviews, 'page') }), 'info', delta(k.sessions, p.real, true)),
-        kpi(T('kpi.real'), fmt(k.real), T('kpi.of_visits', { p: pct(k.real, k.real + bad) }), 'ok'),
-        kpi(T('kpi.suspicious'), fmt(bad), T('kpi.high_of', { n: fmt(k.high) }) + (k.ad_sessions ? ' · ' + T('kpi.from_ads', { a: fmt(k.ad_bad), b: fmt(k.ad_sessions) }) : ''), bad ? 'warn' : 'mute'),
-        kpi(T('kpi.contacts'), fmt(k.contacts), T('kpi.wa_call') + (k.outside_leads ? ' · ' + T('kpi.outside_n', { n: fmt(k.outside_leads) }) : ''), 'ok', delta(k.contacts, p.contacts, true)),
+      // ٢) الأرقام بخط صغير لكل يوم في الفترة
+      var col = function (key) { return d.days.map(function (x) { return key === 'bad' ? (x.suspicious || 0) + (x.high || 0) : (x[key] || 0); }); };
+      var kpiS = function (label, value, sub, cls, dlt, key, sc2) { var c = kpi(label, value, sub, cls, dlt); C.spark(c, col(key), sc2); return c; };
+      var money0 = k.saved != null;   // جوجل أدز مربوط وفيه أرقام صرف: «نقرات احتسبها جوجل» و«مبالغ حُميت» أول حاجة
+      view.appendChild(el('div', { class: 'kpis pro' + (money0 ? ' eight' : '') }, sc ? (money0 ? [kpi(T('d.k.billed'), fmt(k.billed), T('d.k.spent', { m: money(k.cost, d.currency) }), 'info'), kpi(T('d.k.saved'), money(k.saved, d.currency), T('d.k.saved.sub'), 'ok')] : []).concat([
+        kpiS(T('kpi.visits'), fmt(k.sessions), T('kpi.pages_opened', { n: LT.n(k.pageviews, 'page') }), 'info', delta(k.sessions, p.sessions != null ? p.sessions : p.real, true), 'sessions', 'c-real'),
+        kpiS(T('kpi.real'), fmt(k.real), T('kpi.of_visits', { p: pct(k.real, all) }), 'ok', null, 'real', 'c-ok'),
+        kpiS(T('kpi.suspicious'), fmt(bad), T('kpi.high_of', { n: fmt(k.high) }) + (k.ad_sessions ? ' · ' + T('kpi.from_ads', { a: fmt(k.ad_bad), b: fmt(k.ad_sessions) }) : ''), bad ? 'warn' : 'mute', null, 'bad', 'c-sus'),
+        kpiS(T('kpi.contacts'), fmt(k.contacts), T('kpi.wa_call') + (k.outside_leads ? ' · ' + T('kpi.outside_n', { n: fmt(k.outside_leads) }) : ''), 'ok', delta(k.contacts, p.contacts, true), 'contacts', 'c-ok'),
         kpi(T('kpi.won'), fmt(k.won), T('kpi.won.sub'), 'ok'),
         kpi(T('kpi.review'), fmt(k.pending + k.open), T('kpi.review.sub', { a: fmt(k.pending), b: fmt(k.open) }), k.pending + k.open ? 'warn' : 'mute'),
-      ] : [
-        kpi(T('kpi.visits'), fmt(k.real), T('kpi.pages_opened', { n: LT.n(k.pageviews, 'page') }), 'info', delta(k.real, p.real, true)),
-        kpi(T('kpi.contacts'), fmt(k.contacts), T('kpi.wa_call'), 'ok', delta(k.contacts, p.contacts, true)),
+      ]) : [
+        kpiS(T('kpi.visits'), fmt(k.real), T('kpi.pages_opened', { n: LT.n(k.pageviews, 'page') }), 'info', delta(k.real, p.real, true), 'sessions', 'c-real'),
+        kpiS(T('kpi.contacts'), fmt(k.contacts), T('kpi.wa_call'), 'ok', delta(k.contacts, p.contacts, true), 'contacts', 'c-ok'),
         kpi(T('kpi.contact_rate'), pct(k.contacts, k.real) + '%', T('kpi.contact_rate.sub'), 'info'),
         kpi(T('kpi.won'), fmt(k.won), T('kpi.won.sub'), 'ok'),
         kpi(T('kpi.open'), fmt(k.open), T('kpi.open.sub'), k.open ? 'warn' : 'mute'),
         kpi(T('kpi.delivery'), dl == null ? T('kpi.delivery.none') : dl + '%', T('kpi.delivery.sub'), dl == null ? 'mute' : dl >= 99.5 ? 'ok' : 'warn'),
       ]));
       if (d.actions.length) view.appendChild(actionsCard(d.actions, false));
-      var ch = el('div');
-      C.stacked(ch, d.days, sc ? LIVE_SERIES : [{ key: 'real', label: T('kpi.visits'), cls: 'c-real' }], { label: T(sc ? 'chart.quality' : 'chart.daily') });
-      view.appendChild(card(T(sc ? 'chart.quality.title' : 'chart.daily'), [el('p', { class: 'hint', text: T(sc ? 'chart.quality.hint' : 'chart.daily.hint') }), ch]));
-      if (sc && d.suspicious.length) {
+      // الأكثر اشتباهًا بانتظار حكمك (بالأسباب وزرارين)
+      if (sc && d.suspicious.length && DATA.verdict) {
         var sl = el('div', { class: 'queue' });
-        d.suspicious.forEach(function (v) { sl.appendChild(suspectItem(v, function () { lOverview(view); })); });
-        view.appendChild(card(T('ov.top_suspicious'), [sl, el('a', { class: 'linkish', href: '#/protection', text: T('ov.all_suspicious') })]));
+        d.suspicious.slice(0, 3).forEach(function (v) { sl.appendChild(suspectItem(v, function () { lOverview(view); })); });
+        view.appendChild(panel(T('ov.top_suspicious'), T('ov.top_suspicious.i'), [sl, el('a', { class: 'linkish', href: '#/protection', text: T('ov.all_suspicious') })]));
       }
-      var src = el('div'); C.hbars(src, d.sources.map(function (x) { return { label: srcName(x.name), value: x.n, cls: x.name === 'google_ads' ? 'c-real' : 'c-data' }; }), { compact: true });
-      var pl = el('div'); C.hbars(pl, d.places.map(function (x) { return { label: x.name, value: x.n, cls: 'c-data' }; }), { compact: true });
-      view.appendChild(el('div', { class: 'grid-2' }, [card(T('ov.sources'), [d.sources.length ? src : el('p', { class: 'muted', text: T('ov.no_visits') })]), card(T('ov.places'), [d.places.length ? pl : el('p', { class: 'muted', text: T('ov.no_places') })])]));
-      view.appendChild(soonCard(T('ov.soon.title'), [T('ov.soon.1'), T('ov.soon.2'), T('ov.soon.3')]));
+      // ٣) حركة الزيارات (منحنى) + مصادرها (دائرة)
+      var rows = d.days.map(function (x) { return { day: x.day, real: sc ? x.real || 0 : x.sessions || 0, bad: (x.suspicious || 0) + (x.high || 0), contacts: x.contacts || 0 }; });
+      var ch = el('div');
+      C.area(ch, rows, (sc ? [{ key: 'real', label: T('ov.real'), cls: 'c-real' }, { key: 'bad', label: T('ov.bad'), cls: 'c-sus' }] : [{ key: 'real', label: T('kpi.visits'), cls: 'c-real' }]).concat([{ key: 'contacts', label: T('ov.contacts'), cls: 'c-ok' }]), { label: T('ov.traffic') });
+      var srcBox = el('div');
+      var SRC_CLS = ['c-real', 'c-data', 'c-ok', 'c-sus', 'c-acc', 'c-blk', 'c-mute', 'c-mute'];
+      if (d.sources.length) C.donut(srcBox, d.sources.map(function (x, i) { return { label: srcName(x.name), value: x.n, cls: SRC_CLS[i] || 'c-mute' }; }), { caption: T('ov.donut.cap'), label: T('ov.sources') });
+      else srcBox.appendChild(el('p', { class: 'muted', text: T('ov.no_visits') }));
+      view.appendChild(el('div', { class: 'grid-ov' }, [panel(T('ov.traffic'), T('ov.traffic.i'), [ch]), panel(T('ov.sources'), T('ov.sources.i'), [srcBox])]));
+      // ٤) آخر الزيارات (كروت بفحوصاتها) + أسباب الاشتباه
+      var vc = el('div', { class: 'vcards' });
+      (d.recent || []).forEach(function (v) { vc.appendChild(visitCard(v, function () { lOverview(view); })); });
+      if (!(d.recent || []).length) vc.appendChild(el('p', { class: 'muted', text: T('ov.no_visits') }));
+      var rs = el('div');
+      if (sc && (d.reasons || []).length) C.hbars(rs, d.reasons.map(function (r) { return { label: r.name, value: r.n, cls: 'c-sus' }; }), { compact: true });
+      else rs.appendChild(el('p', { class: 'muted', text: T(sc ? 'ov.reasons.none' : 'prot.soon.title') }));
+      view.appendChild(el('div', { class: 'grid-ov' }, [panel(T('ov.recent'), T('ov.recent.i'), [vc, el('a', { class: 'linkish', href: '#/visits', text: T('d.all_visits') })]), panel(T('ov.reasons'), T('ov.reasons.i'), [rs, sc && bad ? el('a', { class: 'linkish', href: '#/protection', text: T('ov.all_suspicious') }) : null])]));
+      // ٥) أوقات الزيارات (خريطة حرارية) + البلاد والمدن
+      var hm = el('div');
+      if (d.hours) {
+        C.heat(hm, d.hours, { days: [0, 1, 2, 3, 4, 5, 6].map(function (i) { return T('dow.' + i); }), badLabel: T('ov.bad'), label: T('ov.hours') });
+        hm.appendChild(el('div', { class: 'heat-legend' }, [el('span', {}, [el('i', { class: 'lo' }), document.createTextNode(T('ov.h.lo'))]), el('span', {}, [el('i', { class: 'hi' }), document.createTextNode(T('ov.h.hi'))]), sc ? el('span', {}, [el('i', { class: 'rk' }), document.createTextNode(T('ov.h.risky'))]) : null]));
+      }
+      var geo = el('div');
+      if ((d.countries || []).length) C.hbars(geo, d.countries.map(function (x) { return { label: x.name, value: x.n, cls: 'c-real' }; }), { compact: true });
+      if (d.places.length) { geo.appendChild(el('h3', { class: 'legend', text: T('ov.cities') })); C.hbars(geo, d.places.map(function (x) { return { label: x.name, value: x.n, cls: 'c-data' }; }), { compact: true }); }
+      if (!(d.countries || []).length && !d.places.length) geo.appendChild(el('p', { class: 'muted', text: T('ov.no_places') }));
+      view.appendChild(el('div', { class: 'grid-ov' }, [panel(T('ov.hours'), T('ov.hours.i'), [hm]), panel(T('ov.places'), T('ov.places.i'), [geo])]));
+      // ٦) الأجهزة + أول صفحة
+      var dev = el('div');
+      if ((d.devices || []).length) C.donut(dev, d.devices.map(function (x, i) { return { label: x.name, value: x.n, cls: ['c-real', 'c-data', 'c-ok', 'c-mute'][i] }; }), { caption: T('ov.donut.cap'), label: T('ov.devices') });
+      var land = el('div');
+      if ((d.landing || []).length) C.hbars(land, d.landing.map(function (x) { return { label: x.name, value: x.n, cls: 'c-data' }; }), { compact: true });
+      else land.appendChild(el('p', { class: 'muted', text: T('ov.no_visits') }));
+      view.appendChild(el('div', { class: 'grid-ov' }, [panel(T('ov.landing'), T('ov.landing.i'), [land]), panel(T('ov.devices'), '', [dev])]));
+      if (!d.status.ads) view.appendChild(soonCard(T('ov.soon.title'), [T('ov.soon.1'), T('ov.soon.2'), T('ov.soon.3')]));
     });
+  }
+  // بطاقة بعنوان وعلامة ⓘ («اتحسب إزاي»)
+  function panel(title, info, kids) {
+    return el('section', { class: 'card' }, [el('div', { class: 'card-h' }, [el('h2', { text: title }), info ? el('button', { class: 'info', type: 'button', title: info, 'aria-label': info, text: 'i' }) : null])].concat(kids));
+  }
+  // كارت زيارة: الدرجة · المكان والوقت والمصدر · علامات الفحوصات · الحالة والتسجيل
+  function visitCard(v, done) {
+    var chips = el('div', { class: 'vchips' }, (v.checks || []).slice(0, 5).map(function (c) { return el('span', { class: 'vchip ' + (c.ok === true ? '' : c.ok === false ? 'bad' : 'na'), title: c.detail || '', text: (c.ok === true ? '✓ ' : c.ok === false ? '✗ ' : '— ') + c.label }); }));
+    var card0 = el('div', { class: 'vcard', tabindex: '0', role: 'button', 'aria-label': placeOf(v) }, [
+      v.score == null ? el('span', { class: 'score s-none' }, [el('b', { text: '—' })]) : scoreBadge(v),
+      el('div', { class: 'vc-main' }, [el('b', { text: placeOf(v) || T('place.unknown') }), el('span', { class: 'vc-meta', text: timeAr(v.at) + ' · ' + srcName(v.src) + (v.kw ? ' «' + v.kw + '»' : '') + (v.dur != null ? ' · ' + LT.n(v.dur, 'second') : '') }), chips]),
+      el('div', { class: 'vc-act' }, [v.live ? livePill(v) : pill(STATUS[v.status][0], STATUS[v.status][1]), v.replay ? replayLink(v) : null]),
+    ]);
+    var go = function () { if (v.live) openLiveVisit(v, done); else openVisit(v); };
+    card0.addEventListener('click', function (e) { if (e.target.closest('a')) return; go(); });
+    card0.addEventListener('keydown', function (e) { if (e.key === 'Enter') go(); });
+    return card0;
   }
   // سطر زيارة مشبوهة: الدرجة + المكان + أول 3 أسباب + زرارين الحكم + الرحلة
   function suspectItem(v, done) {
@@ -1023,7 +1078,7 @@
 
   var LIVE_VIEWS = { overview: lOverview, statement: lStatement, protection: lProtection };
 
-  var VIEWS = { overview: vOverview, clients: vClients, statement: vStatement, visits: vVisits, protection: vProtection, leads: vLeads, alerts: vAlerts, reports: vReports, sites: vSites, team: vTeam };
+  var VIEWS = { overview: lOverview, clients: vClients, statement: vStatement, visits: vVisits, protection: vProtection, leads: vLeads, alerts: vAlerts, reports: vReports, sites: vSites, team: vTeam };
 
   // ── الدرج ──
   var lastFocus = null;

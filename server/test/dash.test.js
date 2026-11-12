@@ -155,3 +155,35 @@ test('leads carry the contact strength (estimate) from the visitor coming back t
   const l = (await s.gc(s.owner, '/v1/dash/leads?range=7&site=' + s.site.id)).body.leads.find((x) => x.code === 'AB12');
   assert.equal(l.strength.key, 'strong'); assert.ok(l.strength.detail.includes('2 د 10 ث'));
 });
+
+test('periods: last N days (1 · 7 · 14 · 30 · 90) or a custom from–to (max 92 days, never in the future); the previous period has the same length', async () => {
+  const { periodOf } = await import('../src/dash.js');
+  const now = Date.parse('2026-11-12T12:00:00Z');
+  const P = (q) => periodOf(new URL('https://x/?' + q), now);
+  assert.deepEqual([P('range=14').from, P('range=14').to, P('range=14').n], ['2026-10-30', '2026-11-12', 14]);
+  assert.equal(P('range=90').n, 90);
+  assert.equal(P('range=5').n, 7, 'unknown range → 7');
+  const y = P('from=2026-11-11&to=2026-11-11');
+  assert.deepEqual([y.n, y.days, y.prevFrom, y.prevTo, y.current], [1, ['2026-11-11'], '2026-11-10', '2026-11-10', false]);
+  assert.equal(y.sinceTs, '2026-11-10T21:00:00.000Z'); assert.equal(y.untilTs, '2026-11-11T21:00:00.000Z');
+  const m = P('from=2026-10-01&to=2026-10-31');
+  assert.deepEqual([m.n, m.days[0], m.days[30], m.prevFrom, m.prevTo], [31, '2026-10-01', '2026-10-31', '2026-08-31', '2026-09-30']);
+  assert.equal(P('from=2026-11-01&to=2026-11-20').n, 7, 'future end date → falls back to last 7 days');
+  assert.equal(P('from=2026-01-01&to=2026-11-12').n, 92, 'capped at 92 days');
+});
+
+test('dash overview (pro home): countries, reasons, hours heatmap (Riyadh time), landing pages and latest visits; a past period has no "live" count', async () => {
+  const s = await setup();
+  const r = await s.gc(s.owner, '/v1/dash/overview?site=' + s.site.id + '&range=7');
+  assert.equal(r.status, 200);
+  const b = r.body;
+  assert.equal(b.hours.length, 7); assert.equal(b.hours[0].length, 24);
+  const total = b.hours.flat().reduce((a, c) => a + c.n, 0);
+  assert.equal(total, b.kpi.real + b.kpi.suspicious + b.kpi.high);
+  assert.ok(Array.isArray(b.countries) && Array.isArray(b.reasons) && Array.isArray(b.landing));
+  assert.ok(b.recent.length >= 1 && b.recent[0].id && 'checks' in b.recent[0]);
+  assert.deepEqual([b.period.days, b.period.current], [7, true]);
+  const y = s.today.replace(/\d{2}$/, (d) => String(Math.max(1, Number(d) - 1)).padStart(2, '0'));
+  const past = (await s.gc(s.owner, '/v1/dash/overview?site=' + s.site.id + '&from=' + y + '&to=' + y)).body;
+  assert.equal(past.period.days, 1); assert.equal(past.live, 0); assert.equal(past.kpi.real + past.kpi.suspicious + past.kpi.high, 0, "yesterday has none of today's visits");
+});
