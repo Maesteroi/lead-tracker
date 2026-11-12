@@ -70,6 +70,11 @@ function fakeApi(over) {
       st.dashCalls = (st.dashCalls || []).concat([p + u.search]);
       const today = new Date(Date.now() + 3 * 3600e3).toISOString().slice(0, 10);
       const range = Number(u.searchParams.get('range')) || 7;
+      // رفع العملاء المؤكدين (convupload.js)
+      if (p === '/v1/dash/conv') return j(200, Object.assign({ ok: true }, st.conv || { linked: false, manage: true }));
+      if (p === '/v1/dash/conv/actions') return j(200, { ok: true, actions: [{ id: '222', name: 'Offline leads' }] });
+      if (p === '/v1/dash/conv/action') { const b = JSON.parse(req.postData()); st.convActionCalls = (st.convActionCalls || []).concat([b]); st.conv.action = b.create ? { id: '900001', name: 'Maestro LT – عميل مؤكد' } : { id: b.action_id, name: 'Offline leads' }; return j(200, { ok: true, action: st.conv.action }); }
+      if (p === '/v1/dash/conv/send') { const b = JSON.parse(req.postData()); st.convSent = (st.convSent || []).concat([{ codes: b.codes, csrf: req.headers()['x-csrf-token'] }]); if (st.convScope) return j(403, { ok: false, error: 'scope' }); st.conv.sent_total += b.codes.length; st.conv.ready = st.conv.ready.filter((r) => !b.codes.includes(r.code)); return j(200, { ok: true, sent: b.codes.length }); }
       if (st.scoring) {
         const sv = (id, o) => Object.assign({ id, at: new Date().toISOString(), last_at: new Date().toISOString(), pages: 1, seconds: 2, scroll: 0, contact: '', code: null, source: 'google_ads', detail: '', gclid: true, device: 'موبايل', os: 'Android', browser: 'Chrome', city: 'Santa Clara', region: 'California', country: 'United States', country_code: 'US', isp: 'Tencent Building', visit_no: 1, landing: 'الرئيسية', automation: true, score: 100, status: 'high', reasons: ['المتصفح يعمل آليًا (برنامج آلي) وليس إنسانًا', 'الزيارة من شبكة خوادم (Tencent) وليست من منزل أو جوال'], ad: true, verdict: null, repeats: 3, outside: true, replay: true, checks: [{ k: 'human', ok: false, label: 'إنسان مش بوت', detail: 'المتصفح شغّال آلياً' }, { k: 'network', ok: false, label: 'شبكة بيت أو موبايل', detail: 'Tencent Building' }, { k: 'geo', ok: false, label: 'من البلد اللي بتستهدفه', detail: 'أمريكا' }, { k: 'engaged', ok: false, label: 'قعد واتحرك في الصفحة', detail: '2 ثانية' }, { k: 'repeat', ok: false, label: 'الجهاز مش بيضغط الإعلان كذا مرة', detail: '3 مرات من نفس الجهاز' }, { k: 'ad', ok: true, label: 'جاي من إعلان موثّق (رقم ضغطة جوجل)', detail: 'فيه رقم الضغطة من جوجل' }] }, o || {});
         const bot = sv('BOT1'), sus = sv('SUS1', { city: 'Riyadh', region: '', country: 'Saudi Arabia', country_code: 'SA', isp: 'STC', automation: false, score: 60, status: 'suspicious', reasons: ['أغلق الصفحة بعد ثانيتين دون أي حركة', 'الجهاز نفسه نقر على إعلانك 3 مرات في هذه الفترة'], outside: false, replay: false });
@@ -591,6 +596,36 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
   await pg.waitForFunction(() => document.getElementById('page-title').textContent === 'الزيارات' && document.querySelector('#view .tbl tbody tr'));
   t('simple visits: device, network and score columns hidden', await pg.locator('#view .tbl th', { hasText: 'الشبكة' }).isHidden() && await pg.locator('#view .tbl th', { hasText: 'الدرجة' }).isHidden() && await pg.locator('#view .tbl th', { hasText: 'الحالة' }).isVisible());
   t('simple views: no console errors and no CSP violations', pg.errors.length === 0 && pg.csp.length === 0);
+  await pg.context().close(); }
+
+// 22) إرسال العملاء المؤكدين لجوجل أدز (13 نوفمبر): اختيار إجراء التحويل ← القايمة ← موافقة بضغطتين ← إرسال
+{ const api = fakeApi({ signedIn: true, sites: [{ id: 'SiteId123456', name: 'روضة الصالحين', domains: ['rawda.site'], paired: true }],
+    conv: { linked: true, manage: true, action: null, sent_total: 0, sent: [], ready: [{ code: 'AB12', at: new Date().toISOString(), outcome_at: new Date().toISOString(), type: 'wa', source: 'google_ads', city: 'Riyadh', failed: null }, { code: 'CD34', at: new Date().toISOString(), outcome_at: null, type: 'call', source: 'google_ads', city: 'Jeddah', failed: null }] } });
+  const pg = await page(api, { viewport: { width: 1200, height: 900 } });
+  await pg.goto('https://app.maestrolt.com/#/leads');
+  await pg.waitForSelector('.conv-card .conv-pick select:not([disabled])');
+  t('conv: no action yet — the owner picks an «Import from clicks» action or creates one; nothing listed to send yet', (await pg.locator('.conv-card select option').count()) === 2 && (await pg.getByRole('button', { name: /أنشئ إجراء/ }).count()) === 1 && (await pg.locator('.conv-list').count()) === 0);
+  await pg.getByRole('button', { name: /أنشئ إجراء/ }).click();
+  t('conv: creating asks once more before touching the account', (api.convActionCalls || []).length === 0 && (await pg.getByRole('button', { name: /اضغط مرة أخرى لإنشائه/ }).count()) === 1);
+  await pg.getByRole('button', { name: /اضغط مرة أخرى لإنشائه/ }).click();
+  await pg.waitForSelector('.conv-card .conv-list .opt');
+  t('conv: after creating, the action is shown and both confirmed customers are listed, ticked', api.convActionCalls[0].create === true && /Maestro LT – عميل مؤكد/.test(await pg.locator('.conv-action').innerText()) && (await pg.locator('.conv-list input:checked').count()) === 2);
+  await pg.locator('.conv-list .opt', { hasText: 'CD34' }).locator('input').uncheck();
+  await pg.getByRole('button', { name: 'أرسل 1 إلى جوجل أدز' }).click();
+  t('conv: the first press only asks to confirm (nothing sent)', !api.convSent && (await pg.getByRole('button', { name: /اضغط مرة أخرى لتأكيد إرسال 1/ }).count()) === 1);
+  await shot(pg, 'conv-confirm');
+  await pg.getByRole('button', { name: /اضغط مرة أخرى لتأكيد إرسال 1/ }).click();
+  await pg.waitForFunction(() => /أُرسل 1 إلى جوجل أدز/.test(document.getElementById('toast').textContent));
+  await pg.waitForFunction(() => /أُرسل حتى الآن: 1/.test(document.querySelector('.conv-card').innerText));
+  t('conv: only the ticked customer is sent, with the CSRF token; the list refreshes', JSON.stringify(api.convSent[0].codes) === '["AB12"]' && api.convSent[0].csrf === 'csrf-token-123' && (await pg.locator('.conv-list .opt').count()) === 1);
+  api.convScope = true;
+  await pg.getByRole('button', { name: 'أرسل 1 إلى جوجل أدز' }).click();
+  await pg.getByRole('button', { name: /اضغط مرة أخرى لتأكيد/ }).click();
+  await pg.waitForFunction(() => /أعد ربط جوجل أدز/.test(document.getElementById('toast').textContent));
+  t('conv: an old connection without the upload permission says «reconnect» plainly', true);
+  await shot(pg, 'conv-card');
+  t('conv: no console errors, no CSP violations', pg.errors.length === 0 && pg.csp.length === 0);
+  if (pg.errors.length || pg.csp.length) console.log(pg.errors, pg.csp);
   await pg.context().close(); }
 
 // 18) الأدوار والفرق (G-29)

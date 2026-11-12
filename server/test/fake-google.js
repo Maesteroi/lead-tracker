@@ -12,7 +12,7 @@ import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 
 const CV_SEGMENTS = new Set(['segments.date', 'segments.device', 'segments.ad_network_type', 'segments.ad_sub_network_type', 'segments.click_type', 'segments.slot', 'segments.month_of_year']);
-const RESOURCES = new Set(['customer', 'customer_client', 'campaign', 'search_term_view', 'click_view', 'ad_group_ad', 'geo_target_constant']);
+const RESOURCES = new Set(['conversion_action', 'customer', 'customer_client', 'campaign', 'search_term_view', 'click_view', 'ad_group_ad', 'geo_target_constant']);
 
 export function fakeGoogle(opts) {
   opts = opts || {};
@@ -56,6 +56,7 @@ export function fakeGoogle(opts) {
     const camp = (id) => (acct.campaigns || []).find((c) => String(c.id) === String(id)) || { id, name: '' };
     let results = [];
     if (p.from === 'customer') results = [{ customer: acct.customer }];
+    else if (p.from === 'conversion_action') results = (acct.convActions || []).filter((c) => c.type === 'UPLOAD_CLICKS' && c.status === 'ENABLED').map((c) => ({ conversionAction: c }));
     else if (p.from === 'customer_client') results = (acct.children || []).map((c) => ({ customerClient: c }));
     else if (p.from === 'geo_target_constant') {
       const want = /IN \((.+)\)/.exec(q)[1].split(',').map((x) => x.trim().replace(/'/g, ''));
@@ -115,6 +116,27 @@ export function fakeGoogle(opts) {
       if (!access) return resp(400, { error: 'invalid_grant', error_description: 'Token has been expired or revoked.' });
       issued.add(access);
       return resp(200, { access_token: access, expires_in: 3599, token_type: 'Bearer' });
+    }
+    // Data Manager API (رفع التحويلات): صلاحية datamanager لازم تكون في التوكن
+    if (u.hostname === 'datamanager.googleapis.com') {
+      const tok = String(headers.Authorization || '').replace(/^Bearer /, '');
+      const body = JSON.parse(init.body || '{}');
+      g.ingest = g.ingest || []; g.ingest.push(body);
+      if (!issued.has(tok)) return resp(401, { error: { code: 401, status: 'UNAUTHENTICATED' } });
+      if (g.noDataManagerScope) return resp(403, { error: { code: 403, status: 'PERMISSION_DENIED', message: 'Request had insufficient authentication scopes.', details: [{ reason: 'ACCESS_TOKEN_SCOPE_INSUFFICIENT' }] } });
+      if (u.pathname !== '/v1/events:ingest') return resp(404, { error: { code: 404 } });
+      return resp(200, { requestId: 'req-' + g.ingest.length });
+    }
+    if (u.hostname === 'googleads.googleapis.com' && /\/conversionActions:mutate$/.test(u.pathname)) {
+      const tok = String(headers.Authorization || '').replace(/^Bearer /, '');
+      if (!issued.has(tok)) return apiErr(401, 'UNAUTHENTICATED', 'invalid credentials');
+      const cid = u.pathname.split('/')[3]; const acct = g.accounts[cid];
+      if (!acct) return apiErr(403, 'PERMISSION_DENIED', 'USER_PERMISSION_DENIED');
+      const op = (JSON.parse(init.body || '{}').operations || [])[0] || {};
+      const id = String(900000 + (acct.convActions || []).length + 1);
+      acct.convActions = (acct.convActions || []).concat([Object.assign({ id }, op.create)]);
+      g.mutations = (g.mutations || []).concat([{ customer: cid, create: op.create }]);
+      return resp(200, { results: [{ resourceName: 'customers/' + cid + '/conversionActions/' + id }] });
     }
     if (u.hostname === 'googleads.googleapis.com') {
       // الحسابات اللي التوكن يوصلها (accessible[access token] = ['123', ...])

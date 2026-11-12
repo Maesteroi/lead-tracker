@@ -488,6 +488,7 @@
         kpi(T('leads.k.cpl'), won && d.cost != null ? money(d.cost / won, d.currency) : '—', T(d.cost == null ? 'leads.k.cpl.ads' : 'leads.k.cpl.how'), 'ok'),
         kpi(T('kpi.open'), fmt(open), T('leads.k.open.sub'), open ? 'warn' : 'mute'),
       ]));
+      if (DATA.conv) view.appendChild(convCard());
       var dist = {}; L.forEach(function (l) { var k = l.outcome || (l.outside ? '__out' : '__none'); dist[k] = (dist[k] || 0) + 1; });
       var ch = el('div');
       C.hbars(ch, OUTCODES.concat(['__out', '__none']).filter(function (k) { return dist[k]; }).map(function (k) { return { label: k === '__out' ? T('visit.outside') : k === '__none' ? T('leads.none') : outName(k), value: dist[k], cls: k === 'تم' ? 'c-ok' : k === '__none' || k === '__out' ? 'c-mute' : 'c-data' }; }), { compact: true });
@@ -522,6 +523,90 @@
       ]));
       view.appendChild(card(T('leads.all'), [el('div', { class: 'tbl-wrap' }, [el('table', { class: 'tbl static' }, [el('thead', {}, [el('tr', {}, ['contact', 'source', 'place', 'outcome'].map(function (h) { return el('th', { text: T('leads.h.' + h), class: h === 'source' ? 'pro-only' : '' }); }))]), tb])]), moreL]));
     });
+  }
+
+  // ── ارفع العملاء المؤكدين لجوجل أدز: القايمة ← موافقة العميل ← الإرسال (مفيش رفع أوتوماتيك) ──
+  function convCard() {
+    var body = el('div', {}, [el('p', {}, [el('span', { class: 'spinner' }), el('span', { text: T('conv.loading') })])]);
+    var box = card(T('conv.title'), [el('p', { class: 'hint', text: T('conv.intro') }), body]);
+    box.classList.add('conv-card');
+    var site = state.site;
+    var load = function () {
+      DATA.conv(site).then(function (d) {
+        clear(body);
+        if (!d.linked) { body.appendChild(el('p', {}, [el('span', { text: T('conv.not_linked') + ' ' }), el('a', { class: 'linkish', href: '#/sites', text: T('nav.sites') })])); return; }
+        // إجراء التحويل
+        if (!d.action) {
+          if (!d.manage) { body.appendChild(el('p', { class: 'muted', text: T('conv.ask_owner') })); return; }
+          body.appendChild(actionPicker(function () { load(); }));
+          return;
+        }
+        var chg = d.manage ? el('button', { class: 'linkish', type: 'button', text: T('conv.change') }) : null;
+        body.appendChild(el('p', { class: 'conv-action' }, [el('span', { text: T('conv.action', { a: d.action.name || d.action.id }) + ' ' }), chg]));
+        if (chg) chg.addEventListener('click', function () { clear(body); body.appendChild(actionPicker(function () { load(); })); });
+        if (d.sent_total) body.appendChild(el('p', { class: 'hint', text: T('conv.sent_total', { n: fmt(d.sent_total) }) }));
+        if (!d.ready.length) { body.appendChild(el('p', { class: 'muted', text: T('conv.none') })); return; }
+        var picked = {};
+        var list = el('div', { class: 'opts conv-list' });
+        d.ready.forEach(function (r) {
+          picked[r.code] = true;
+          var cb = el('input', { type: 'checkbox', checked: '' });
+          cb.addEventListener('change', function () { picked[r.code] = cb.checked; sync(); });
+          if (!d.manage) cb.disabled = true;
+          list.appendChild(el('label', { class: 'opt' }, [cb, el('span', {}, [
+            el('b', { text: (r.type === 'wa' ? '💬 ' + T('wa') : '📞 ' + T('call')) + ' · ' + T('leads.code', { c: r.code }) }),
+            el('small', { text: timeAr(r.outcome_at || r.at) + (r.city ? ' · ' + r.city : '') + ' · ' + srcName(r.source) }),
+            r.failed ? el('small', { class: 'danger-text', text: T('conv.failed_before') }) : null,
+          ])]));
+        });
+        body.appendChild(list);
+        if (!d.manage) { body.appendChild(el('p', { class: 'muted', text: T('conv.ask_owner') })); return; }
+        var send = el('button', { class: 'btn', type: 'button' });
+        var note = el('p', { class: 'hint', text: T('conv.what') });
+        var sure = false;
+        var count = function () { return Object.keys(picked).filter(function (k) { return picked[k]; }).length; };
+        var sync = function () { sure = false; var n = count(); send.disabled = !n; send.textContent = T('conv.send', { n: fmt(n) }); };
+        send.addEventListener('click', function () {
+          if (!sure) { sure = true; send.textContent = T('conv.send.sure', { n: fmt(count()) }); return; }
+          send.disabled = true;
+          DATA.convSend(site, Object.keys(picked).filter(function (k) { return picked[k]; })).then(function (r) { toast(T('conv.sent', { n: fmt(r.sent) })); load(); }, function (e) {
+            send.disabled = false; sure = false; sync();
+            toast(T(e.message === 'scope' ? 'conv.err.scope' : e.message === 'nothing' ? 'conv.none' : 'conv.err.google'));
+            if (e.message === 'scope') load();
+          });
+        });
+        sync();
+        body.appendChild(el('div', { class: 'conv-act' }, [send]));
+        body.appendChild(note);
+      }, function () { clear(body); body.appendChild(el('p', { class: 'muted', text: T('conv.err.load') })); });
+    };
+    // اختيار إجراء تحويل «استيراد من النقرات» من الحساب، أو إنشاء واحد بزرار
+    function actionPicker(done) {
+      var wrap = el('div', { class: 'conv-pick' }, [el('p', { text: T('conv.pick.text') })]);
+      var sel = el('select', { 'aria-label': T('conv.pick.label') }, [el('option', { value: '', text: T('conv.pick.loading') })]);
+      sel.disabled = true;
+      var use = el('button', { class: 'btn ghost sm', type: 'button', text: T('conv.pick.use'), disabled: '' });
+      var mk = el('button', { class: 'btn sm', type: 'button', text: T('conv.pick.create') });
+      wrap.appendChild(el('div', { class: 'conv-row' }, [sel, use]));
+      wrap.appendChild(el('div', { class: 'conv-row' }, [mk, el('small', { class: 'dim', text: T('conv.pick.create.hint') })]));
+      DATA.convActions(site).then(function (acts) {
+        clear(sel);
+        sel.appendChild(el('option', { value: '', text: acts.length ? T('conv.pick.choose') : T('conv.pick.none') }));
+        acts.forEach(function (a) { sel.appendChild(el('option', { value: a.id, text: a.name + ' (' + a.id + ')' })); });
+        sel.disabled = !acts.length;
+      }, function () { clear(sel); sel.appendChild(el('option', { value: '', text: T('conv.err.google') })); });
+      sel.addEventListener('change', function () { use.disabled = !sel.value; });
+      use.addEventListener('click', function () { use.disabled = true; DATA.convAction(site, { action_id: sel.value }).then(function (a) { toast(T('conv.action.set', { a: a.name })); done(); }, function () { use.disabled = false; toast(T('err.save')); }); });
+      var sureMk = false;
+      mk.addEventListener('click', function () {
+        if (!sureMk) { sureMk = true; mk.textContent = T('conv.pick.create.sure'); return; }
+        mk.disabled = true;
+        DATA.convAction(site, { create: true }).then(function (a) { toast(T('conv.action.set', { a: a.name })); done(); }, function () { mk.disabled = false; sureMk = false; mk.textContent = T('conv.pick.create'); toast(T('conv.err.google')); });
+      });
+      return wrap;
+    }
+    load();
+    return box;
   }
 
   // ════════ 6) التنبيهات ════════

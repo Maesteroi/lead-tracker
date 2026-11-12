@@ -9,6 +9,7 @@ import { isPlatformAdmin, overview, updateOrg, telegramStatus, telegramSwitch } 
 import { platformTeam, platformRoleSave, platformRoleDelete, platformInvite, platformInviteCancel, platformMember, platformAudit, teamList, teamInvite, teamInviteCancel, teamMember } from './team.js';
 import { dashOverview, dashVisits, dashSession, dashLeads, dashSetup, dashOutcome, dashProtection, dashVerdict, dashReplay } from './dash.js';
 import { dashAdsLink, dashAdsAccounts, dashAdsChoose, dashAdsUnlink } from './adslink.js';
+import { dashConv, dashConvActions, dashConvAction, dashConvSend } from './convupload.js';
 
 const SITE_ACT = /^\/v1\/sites\/([A-Za-z0-9]{6,20})\/(rotate-key|install-status|pair-code)$/;
 const ORG_ACT = /^\/v1\/platform\/orgs\/([^/]+)$/;
@@ -87,6 +88,11 @@ export async function handleApp(req, env, db, url, p, fetchImpl) {
     else if (m === 'GET' && p === '/v1/dash/ads/accounts') res = await dashAdsAccounts(req, env, db, sess, url, fetchImpl);
     else if (m === 'POST' && p === '/v1/dash/ads/choose') res = await dashAdsChoose(req, env, db, sess);
     else if (m === 'POST' && p === '/v1/dash/ads/unlink') res = await dashAdsUnlink(req, env, db, sess);
+    // رفع العملاء المؤكدين لجوجل أدز بموافقة العميل (convupload.js)
+    else if (m === 'GET' && p === '/v1/dash/conv') res = await dashConv(req, env, db, sess, url);
+    else if (m === 'GET' && p === '/v1/dash/conv/actions') res = await dashConvActions(req, env, db, sess, url, fetchImpl);
+    else if (m === 'POST' && p === '/v1/dash/conv/action') res = await dashConvAction(req, env, db, sess, fetchImpl);
+    else if (m === 'POST' && p === '/v1/dash/conv/send') res = await dashConvSend(req, env, db, sess, fetchImpl);
     else res = notFound();
     return finish(res, req, env, true);
   }
