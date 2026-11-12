@@ -436,7 +436,7 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
   const dl = pg.waitForEvent('download');
   await pg.getByRole('button', { name: '⬇ CSV' }).click();
   const file = await dl; const p = await file.path(); const csv = fs.readFileSync(p, 'utf8');
-  t('clients: CSV export has a header and 6 clients (Excel-friendly BOM)', csv.charCodeAt(0) === 0xfeff && csv.trim().split('\n').length === 7 && /العميل,الدومين/.test(csv));
+  t('clients: CSV export has a header and 6 clients (Excel-friendly BOM)', csv.charCodeAt(0) === 0xfeff && csv.trim().split('\n').length === 7 && /العميل,النطاق/.test(csv));
   await pg.locator('#view .tbl tbody tr', { hasText: 'نقل عفش جدة' }).click();
   await pg.waitForFunction(() => document.getElementById('page-title').textContent === 'الرئيسية' && document.querySelector('.kpis .kpi'));
   t('clients: clicking a client opens its dashboard', (await pg.locator('#site').inputValue()) === 'Nql4Movers01');
@@ -447,7 +447,7 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
   await pg.locator('.fld', { hasText: 'اسم الوكالة' }).locator('input').fill('وكالة نجمة');
   await pg.waitForFunction(() => /وكالة نجمة/.test(document.querySelector('.rd-brand').textContent));
   const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64');
-  await pg.locator('.fld', { hasText: 'لوجو الوكالة' }).locator('input[type="file"]').setInputFiles({ name: 'logo.png', mimeType: 'image/png', buffer: png });
+  await pg.locator('.fld', { hasText: 'شعار الوكالة' }).locator('input[type="file"]').setInputFiles({ name: 'logo.png', mimeType: 'image/png', buffer: png });
   await pg.waitForSelector('.report-doc .rd-logo');
   t('reports: the agency name and logo show in the report (logo stays in the browser)', (await pg.locator('.rd-logo').getAttribute('src')).startsWith('data:image/png;base64,'));
   await pg.locator('.ck-in', { hasText: 'كشف الحساب' }).locator('input').uncheck();
@@ -455,10 +455,10 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
   await pg.locator('.rep-form').getByRole('button', { name: 'احترافي', exact: true }).click();
   await pg.waitForFunction(() => document.querySelectorAll('.rd-kpis > div').length === 6);
   t('reports: the detailed report shows more numbers (6 vs 3)', true);
-  await pg.getByRole('button', { name: 'ابعته أوتوماتيك' }).click();
-  t('reports: scheduling needs a valid client email', /اكتب إيميل العميل صح/.test(await pg.locator('#toast').innerText()));
-  await pg.locator('.fld', { hasText: 'الإيميل' }).locator('input').fill('owner@client.example');
-  await pg.getByRole('button', { name: 'ابعته أوتوماتيك' }).click();
+  await pg.getByRole('button', { name: 'أرسله تلقائيًا' }).click();
+  t('reports: scheduling needs a valid client email', /اكتب بريد العميل بشكل صحيح/.test(await pg.locator('#toast').innerText()));
+  await pg.locator('.fld', { hasText: 'البريد الإلكتروني' }).locator('input').fill('owner@client.example');
+  await pg.getByRole('button', { name: 'أرسله تلقائيًا' }).click();
   t('reports: scheduling confirms (demo)', /owner@client.example/.test(await pg.locator('#toast').innerText()));
   await shot(pg, 'agency-reports');
   await pg.emulateMedia({ media: 'print' }); await pg.evaluate(() => document.body.classList.add('print-report'));
@@ -725,7 +725,7 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
   t('live agency: an agency account opens on the detailed level', (await pg.locator('.side-nav a').count()) === 10);
   await pg.locator('.side-nav a[data-r="clients"]').click();
   await pg.waitForFunction(() => document.querySelectorAll('#view .tbl tbody tr').length === 2);
-  t('live agency: all clients with real visits/contacts/customers', /60/.test(await pg.locator('#view .tbl').innerText()) && /تواصل من غير نتيجة/.test(await pg.locator('#view .tbl').innerText()));
+  t('live agency: all clients with real visits/contacts/customers', /60/.test(await pg.locator('#view .tbl').innerText()) && /دون نتيجة/.test(await pg.locator('#view .tbl').innerText()));
   await pg.locator('.side-nav a[data-r="reports"]').click();
   await pg.waitForSelector('.report-doc .rd-answers');
   t('live agency: the report uses real numbers and no statement section yet', /بنراقب كل زيارة/.test(await pg.locator('.rd-answers').innerText()) && !(await pg.locator('.report-doc h3').allInnerTexts()).includes('كشف الحساب'));
