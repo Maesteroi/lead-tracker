@@ -4,7 +4,9 @@
   'use strict';
   var LT = window.LT, el = LT.el, clear = LT.clear;
   var $ = function (id) { return document.getElementById(id); };
-  var data = null, filter = 'all', query = '', current = null, draft = null, lastFocus = null, confirming = false;
+  var data = null, filter = 'all', query = '', current = null, draft = null, lastFocus = null, confirming = false, ME = null;
+  // صلاحيات صاحب الجلسة (G-29): السوبر أدمن = كل حاجة
+  function can(p) { return !!ME && (ME.owner || (ME.perms || []).indexOf(p) >= 0); }
 
   var STATUS = {
     trial: { t: 'تجربة', c: 'info' }, active: { t: 'مفعّل', c: 'ok' },
@@ -58,9 +60,12 @@
       if (r[0].status === 404) return showDenied();
       if (!r[0].ok) { toast('مقدرناش نحمّل البيانات. جرّب تاني.', true); return; }
       data = r[0].body;
+      ME = data.me || { owner: true, perms: ['*'] };
       $('loading').hidden = true; $('app').hidden = false;
       $('updated').textContent = 'آخر تحديث ' + new Date().toLocaleTimeString('ar-EG-u-nu-latn', { hour: 'numeric', minute: '2-digit' });
-      renderKpis(); renderFilter(); renderRows(); renderTg(r[1].ok ? r[1].body : null);
+      renderKpis(); renderFilter(); renderRows(); $('tg').hidden = r[1].status === 404; if (r[1].status !== 404) renderTg(r[1].ok ? r[1].body : null);
+      $('role-eyebrow').textContent = ME.owner ? 'سوبر أدمن' : 'فريق المنصة · ' + (ME.role || '') + (ME.scoped ? ' (حسابات معيّنة)' : '');
+      $('tab-btn-team').hidden = !ME.owner; $('tab-btn-audit').hidden = !(ME.owner || can('audit'));
       if (current) { var o = find(current.id); if (o) { current = o; renderDrawerInfo(); } }
     });
   }
@@ -201,7 +206,11 @@
   }
   function renderDrawerForm() {
     var o = current, seg = clear($('d-status'));
-    ['trial', 'active', 'past_due', 'off'].forEach(function (k) {
+    // كل جزء بيظهر بس لو عندك صلاحيته، والحساب كله في نطاقك (السيرفر بيتأكد كمان)
+    var editable = o.can_edit !== false, any = false;
+    Array.prototype.forEach.call(document.querySelectorAll('#drawer [data-perm]'), function (f) { var ok = editable && can(f.getAttribute('data-perm')); f.hidden = !ok; if (ok) any = true; });
+    $('d-save').hidden = !any;
+    ['trial', 'active', 'past_due', 'off'].filter(function (k) { return k === o.status || can('orgs_suspend') || (k !== 'off' && k !== 'past_due'); }).forEach(function (k) {
       var b = el('button', { type: 'button', role: 'radio', 'data-v': k, 'aria-checked': String(draft.status === k), text: STATUS[k].t });
       b.addEventListener('click', function () { draft.status = k; confirming = false; renderDrawerForm(); });
       seg.appendChild(b);
@@ -259,6 +268,14 @@
     });
   }
 
+  // ── الأقسام: الحسابات · الفريق · السجل ──
+  function showTab(t) {
+    ['accounts', 'team', 'audit'].forEach(function (k) { $('tab-' + k).hidden = k !== t; $('tab-btn-' + k).setAttribute('aria-selected', String(k === t)); });
+    if (t === 'team') window.LTAdminTeam.team($('tab-team'), toast);
+    if (t === 'audit') window.LTAdminTeam.audit($('tab-audit'), toast);
+  }
+  function wireTabs() { Array.prototype.forEach.call(document.querySelectorAll('#tabs [data-tab]'), function (b) { b.addEventListener('click', function () { showTab(b.getAttribute('data-tab')); }); }); }
+
   // ── الربط ──
   function wire() {
     $('refresh').addEventListener('click', load);
@@ -300,7 +317,7 @@
     if (!m) { location.replace('/login?next=' + encodeURIComponent('/admin')); return; }
     $('who').textContent = m.user.name || m.user.email || '';
     $('out').hidden = false;
-    if (!m.user.platform_admin) { showDenied(); return; }
-    wire(); load();
+    if (!m.user.platform_admin && !m.platform) { showDenied(); return; }
+    wire(); wireTabs(); load();
   });
 })();

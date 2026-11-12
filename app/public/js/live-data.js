@@ -37,7 +37,7 @@
     init: function () { return LT.me().then(function (m) { me = m; return m; }); },
     me: function () { return me; },
     agency: null,
-    sites: function () { return get('/v1/sites').then(function (b) { return (b.sites || []).map(function (s) { return { id: s.id, name: s.name, domain: (s.domains || [])[0] || '', currency: 'ر.س', org: b.all ? (s.org_name || '') : '' }; }); }); },
+    sites: function () { return get('/v1/sites').then(function (b) { return (b.sites || []).map(function (s) { return { id: s.id, name: s.name, domain: (s.domains || [])[0] || '', currency: 'ر.س', org: b.all ? (s.org_name || '') : '', org_id: s.org_id }; }); }); },
     overview: function (site, range) { return overviewRaw(site, range).then(mapOverview); },
     statement: function () { return Promise.resolve({ unavailable: 'ads' }); },
     visits: function (site, range) { return get('/v1/dash/visits' + q(site, range)).then(function (b) { return (b.sessions || []).map(mapVisit); }); },
@@ -84,6 +84,9 @@
         });
       });
     },
+    // فريق الحساب (G-29): المالك والمدير بيدعوا ويعدّلوا
+    team: function (org) { return LT.api('/v1/team?org=' + encodeURIComponent(org)).then(function (r) { if (r.status === 403) return { forbidden: true }; if (!r.ok) throw new Error('http'); return r.body; }); },
+    teamPost: function (path, body) { return LT.api('/v1/team/' + path, { method: 'POST', body: body }).then(function (r) { return r; }); },
     pairCode: function (site) { return LT.api('/v1/sites/' + encodeURIComponent(site) + '/pair-code', { method: 'POST' }).then(function (r) { if (r.status !== 201) throw new Error(r.status === 403 ? 'role' : 'http'); return r.body; }); },
     clients: function (range) {
       return window.LTData.sites().then(function (sites) {

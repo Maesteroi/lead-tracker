@@ -28,7 +28,7 @@
   <section id="app" hidden>
     <div class="adm-head">
       <div>
-        <p class="eyebrow">مدير المنصة</p>
+        <p class="eyebrow" id="role-eyebrow">مدير المنصة</p>
         <h1>إدارة المنصة</h1>
         <p class="muted">كل الحسابات ومواقعها وحدودها في مكان واحد. أي تغيير هنا بيتطبّق على السيرفر خلال دقيقة.</p>
       </div>
@@ -38,6 +38,13 @@
       </div>
     </div>
 
+    <div class="seg adm-tabs" id="tabs" role="tablist" aria-label="أقسام الإدارة">
+      <button type="button" role="tab" id="tab-btn-accounts" data-tab="accounts" aria-selected="true">الحسابات</button>
+      <button type="button" role="tab" id="tab-btn-team" data-tab="team" aria-selected="false" hidden>الفريق</button>
+      <button type="button" role="tab" id="tab-btn-audit" data-tab="audit" aria-selected="false" hidden>سجل التغييرات</button>
+    </div>
+
+    <div id="tab-accounts" role="tabpanel" aria-labelledby="tab-btn-accounts">
     <div class="kpis" id="kpis" aria-label="أرقام المنصة"></div>
 
     <section class="panel-card tg" id="tg" aria-labelledby="tg-h">
@@ -81,6 +88,9 @@
       </div>
       <p class="empty muted" id="empty" hidden>مفيش حسابات بالشكل ده.</p>
     </section>
+    </div>
+    <div id="tab-team" role="tabpanel" aria-labelledby="tab-btn-team" hidden></div>
+    <div id="tab-audit" role="tabpanel" aria-labelledby="tab-btn-audit" hidden></div>
   </section>
 
   <section class="card narrow center" id="denied" hidden>
@@ -103,13 +113,13 @@
   <div class="d-body" id="d-body">
     <div class="d-state" id="d-state"></div>
 
-    <fieldset class="d-sec">
+    <fieldset class="d-sec" data-perm="orgs_status">
       <legend>حالة الحساب</legend>
       <div class="seg wide" id="d-status" role="radiogroup" aria-label="حالة الحساب"></div>
       <p class="hint" id="d-status-hint"></p>
     </fieldset>
 
-    <fieldset class="d-sec">
+    <fieldset class="d-sec" data-perm="orgs_trial">
       <legend>التجربة المجانية</legend>
       <p class="d-trial" id="d-trial"></p>
       <div class="chips">
@@ -119,7 +129,7 @@
       </div>
     </fieldset>
 
-    <fieldset class="d-sec">
+    <fieldset class="d-sec" data-perm="orgs_plan">
       <legend>حد المواقع</legend>
       <div class="opts" role="radiogroup" aria-label="حد المواقع">
         <label class="opt"><input type="radio" name="lim" value="plan"><span><b>حسب الخطة</b><small id="d-lim-plan"></small></span></label>
@@ -128,7 +138,7 @@
       </div>
     </fieldset>
 
-    <fieldset class="d-sec">
+    <fieldset class="d-sec" data-perm="orgs_plan">
       <legend>الخطة</legend>
       <select id="d-plan" aria-label="الخطة">
         <option value="">— من غير خطة —</option>
@@ -140,7 +150,7 @@
       </select>
     </fieldset>
 
-    <fieldset class="d-sec">
+    <fieldset class="d-sec" data-perm="orgs_policy">
       <legend>لو الحساب اتوقف أو التجربة خلصت: أحداث مواقعه</legend>
       <div class="opts" role="radiogroup" aria-label="سياسة الأحداث">
         <label class="opt"><input type="radio" name="pol" value="grace"><span><b>فترة سماح ثم رفض</b><small>بتتسجل <input id="d-grace" class="mini" type="number" min="0" max="90" inputmode="numeric" aria-label="أيام السماح"> يوم من وقت التوقف، وبعدين بتترفض. العميل مابيخسرش بيانات لو اتأخر يوم في الدفع.</small></span></label>
@@ -149,7 +159,7 @@
       </div>
     </fieldset>
 
-    <fieldset class="d-sec">
+    <fieldset class="d-sec" data-perm="orgs_replay">
       <legend>تسجيل الزيارات كفيديو</legend>
       <div class="opts" role="radiogroup" aria-label="تسجيل الزيارات">
         <label class="opt"><input type="radio" name="rep" value="on"><span><b>شغال</b><small>زيارات الإعلان بتتسجل (الكتابة متخبية) وبتتمسح بعد 30 يوم.</small></span></label>
@@ -157,7 +167,7 @@
       </div>
     </fieldset>
 
-    <fieldset class="d-sec">
+    <fieldset class="d-sec" data-perm="orgs_notes">
       <legend>ملاحظات</legend>
       <textarea id="d-notes" rows="3" maxlength="1000" placeholder="ملاحظة داخلية، العميل مابيشوفهاش"></textarea>
     </fieldset>
@@ -179,6 +189,7 @@
 <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 
 <script src="/js/common.js"></script>
+<script src="/js/admin-team.js"></script>
 <script src="/js/admin.js"></script>
 </body>
 </html>

@@ -7,7 +7,7 @@
 import { eq } from './db.js';
 import { json } from './util.js';
 import { audit } from './auth.js';
-import { notFound } from './sites.js';
+import { notFound, hasPerm, orgInScope, siteInScope, isPlatform } from './sites.js';
 import { eventsAllowed, clearOrgCache } from './events.js';
 import { webhookStatus, setWebhookTarget } from './tgbot.js';
 import { deliveryRows, riyadhDay } from './health.js';
@@ -18,7 +18,10 @@ const POLICIES = new Set(['grace', 'reject', 'keep']);
 const ORG_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const ORG_FIELDS = 'id,name,type,status,plan,trial_ends_at,max_sites,events_policy,grace_days,status_changed_at,notes,replay,created_at';
 
-export const isPlatformAdmin = (sess) => !!(sess && sess.user && sess.user.platform_admin === true);
+// أي حد في فريق المنصة (السوبر أدمن أو عضو بدور). كل endpoint بعدها بيتأكد من الصلاحية والنطاق (G-29).
+export const isPlatformAdmin = (sess) => !!(sess && sess.user && (sess.user.platform_admin === true || sess.platform));
+// كل حقل في تعديل الحساب ومحتاج أنهي صلاحية
+const FIELD_PERM = { status: 'orgs_status', extend_trial_days: 'orgs_trial', max_sites: 'orgs_plan', plan: 'orgs_plan', events_policy: 'orgs_policy', grace_days: 'orgs_policy', notes: 'orgs_notes', replay: 'orgs_replay' };
 
 // حالة استقبال الأحداث للحساب: accepting · grace (لحد grace_until) · rejecting
 function eventsState(org, now) {
@@ -31,12 +34,16 @@ function eventsState(org, now) {
 }
 
 export async function overview(req, env, db, sess) {
+  if (!hasPerm(sess, 'orgs_view')) return notFound();
   const now = Date.now();
-  const orgs = (await db.select('organizations?select=' + ORG_FIELDS + '&order=created_at.asc')) || [];
+  const allSites = (await db.select('clients?org_id=not.is.null&select=id,org_id')) || [];
+  // العضو بنطاق: الحسابات اللي في نطاقه، أو اللي فيها موقع من مواقعه (بمواقعه بس)
+  const orgs = ((await db.select('organizations?select=' + ORG_FIELDS + '&order=created_at.asc')) || [])
+    .filter((o) => orgInScope(sess, o.id) || allSites.some((c) => c.org_id === o.id && siteInScope(sess, o.id, c.id)));
   const owners = (await db.select('memberships?role=eq.owner&select=user_id,org_id')) || [];
   const userIds = [...new Set(owners.map((m) => m.user_id))];
   const users = userIds.length ? (await db.select('users?id=in.(' + userIds.join(',') + ')&select=id,name,email,last_login_at')) || [] : [];
-  const sites = (await db.select('clients?org_id=not.is.null&select=id,name,domains,status,org_id,paired_at,created_at&order=created_at.asc')) || [];
+  const sites = ((await db.select('clients?org_id=not.is.null&select=id,name,domains,status,org_id,paired_at,created_at&order=created_at.asc')) || []).filter((c) => siteInScope(sess, c.org_id, c.id));
   const stats = (await db.req('POST', 'rpc/platform_site_stats', { since_24h: new Date(now - 864e5).toISOString(), since_7d: new Date(now - 7 * 864e5).toISOString() })) || [];
   const st = new Map(stats.map((s) => [s.client_id, s]));
   // قياس التوصيل (آخر 3 أيام): محلي البلجن ↔ اللي وصل السيرفر
@@ -70,7 +77,8 @@ export async function overview(req, env, db, sess) {
     ev_24h: list.reduce((a, o) => a + o.ev_24h, 0),
     ev_7d: list.reduce((a, o) => a + o.ev_7d, 0),
   };
-  return json({ ok: true, orgs: list, totals, defaults: { trial_max_sites: Number(env.MAX_SITES_TRIAL) > 0 ? Number(env.MAX_SITES_TRIAL) : 3 }, now: new Date(now).toISOString() });
+  const me = isPlatform(sess) ? { owner: true, perms: ['*'] } : { owner: false, role: sess.platform.role, perms: sess.platform.perms, scoped: !(sess.platform.orgs == null && sess.platform.sites == null) };
+  return json({ ok: true, me, orgs: list.map((o) => Object.assign(o, { can_edit: orgInScope(sess, o.id) })), totals, defaults: { trial_max_sites: Number(env.MAX_SITES_TRIAL) > 0 ? Number(env.MAX_SITES_TRIAL) : 3 }, now: new Date(now).toISOString() });
 }
 
 export async function updateOrg(req, env, db, sess, id) {
@@ -79,6 +87,10 @@ export async function updateOrg(req, env, db, sess, id) {
   if (!org) return notFound();
   const b = await req.json().catch(() => ({}));
   const patch = {}; const bad = (f) => json({ ok: false, error: 'bad_' + f }, 400);
+  // الصلاحية والنطاق: كل حقل بصلاحيته، والإيقاف صلاحية لوحده، والحساب لازم يكون كله في نطاق العضو
+  if (!hasPerm(sess, 'orgs_view') || !orgInScope(sess, org.id)) return notFound();
+  for (const k of Object.keys(FIELD_PERM)) if (b[k] !== undefined && !hasPerm(sess, FIELD_PERM[k])) return json({ ok: false, error: 'forbidden', field: k }, 403);
+  if ((b.status === 'off' || b.status === 'past_due') && b.status !== org.status && !hasPerm(sess, 'orgs_suspend')) return json({ ok: false, error: 'forbidden', field: 'status' }, 403);
 
   if (b.status !== undefined) {
     if (!STATUSES.has(b.status)) return bad('status');
@@ -114,10 +126,12 @@ export async function updateOrg(req, env, db, sess, id) {
 }
 
 export async function telegramStatus(req, env, db, sess, fetchImpl) {
+  if (!hasPerm(sess, 'telegram')) return notFound();
   return json(Object.assign({ ok: true }, await webhookStatus(env, fetchImpl)));
 }
 
 export async function telegramSwitch(req, env, db, sess, fetchImpl) {
+  if (!hasPerm(sess, 'telegram')) return notFound();
   const b = await req.json().catch(() => ({}));
   const target = String(b.target || '');
   if (target !== 'server' && target !== 'sheet') return json({ ok: false, error: 'target' }, 400);
