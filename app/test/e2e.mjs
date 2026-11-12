@@ -498,7 +498,7 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
   await pg.locator('#view .tbl select').first().selectOption('تم');
   await pg.waitForFunction(() => /سُجّلت النتيجة/.test(document.getElementById('toast').textContent));
   t('live leads: choosing an outcome saves it to the server with the CSRF token', (api.outcomeCalls || []).length === 1 && api.outcomeCalls[0].code === 'AB12' && api.outcomeCalls[0].value === 'تم' && api.outcomeCalls[0].site === 'SiteId123456' && api.outcomeCalls[0].csrf === 'csrf-token-123');
-  for (const [r, txt, title] of [['statement', 'كشف الحساب بيشتغل أول ما تربط جوجل أدز', 'كشف الحساب'], ['protection', 'الحماية قيد التجهيز', 'الحماية']]) {
+  for (const [r, txt, title] of [['statement', 'يعمل كشف الحساب فور ربط جوجل أدز', 'كشف الحساب'], ['protection', 'الحماية قيد التجهيز', 'الحماية']]) {
     await pg.locator('.side-nav a[data-r="' + r + '"]').click();
     await pg.waitForFunction((x) => document.getElementById('page-title').textContent === x && document.querySelector('.callout'), title);
     t('live ' + r + ': honest "coming" page, no fake numbers', (await pg.locator('.callout').innerText()).includes(txt));
@@ -728,7 +728,7 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
   t('live agency: all clients with real visits/contacts/customers', /60/.test(await pg.locator('#view .tbl').innerText()) && /دون نتيجة/.test(await pg.locator('#view .tbl').innerText()));
   await pg.locator('.side-nav a[data-r="reports"]').click();
   await pg.waitForSelector('.report-doc .rd-answers');
-  t('live agency: the report uses real numbers and no statement section yet', /بنراقب كل زيارة/.test(await pg.locator('.rd-answers').innerText()) && !(await pg.locator('.report-doc h3').allInnerTexts()).includes('كشف الحساب'));
+  t('live agency: the report uses real numbers and no statement section yet', /نراقب كل زيارة/.test(await pg.locator('.rd-answers').innerText()) && !(await pg.locator('.report-doc h3').allInnerTexts()).includes('كشف الحساب'));
   t('live agency: no console errors and no CSP violations', pg.errors.length === 0 && pg.csp.length === 0);
   if (pg.errors.length || pg.csp.length) console.log(pg.errors, pg.csp);
   await pg.context().close(); }
