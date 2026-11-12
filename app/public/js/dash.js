@@ -37,7 +37,7 @@
   var BOTTOM = BOTTOMS.detailed;
   var STATUS = { real: [T('status.real'), 'ok'], suspicious: [T('status.suspicious'), 'warn'], high: [T('status.high'), 'bad'], blocked: [T('status.blocked'), 'bad'] };
   var NET = { mobile: T('net.mobile'), home: T('net.home'), vpn: 'VPN', dc: T('net.dc') };
-  var OUT = { 'تم': 'ok', 'بيفكر': 'info', 'لغى': 'bad', 'مش جاد': 'warn', 'ماوصلش رسالة': '' };
+  var OUT = { 'تم': 'ok', 'بيفكر': 'info', 'لغى': 'bad', 'مش جاد': 'warn', 'ماوصلش رسالة': '' };   // ألوان النتيجة (القيم المتخزنة)
 
   // ── أدوات ──
   function money(n, cur) { return n == null || isNaN(n) ? '—' : fmt(Math.round(n)) + ' ' + (cur || ''); }
@@ -483,51 +483,55 @@
   }
 
   // ════════ 5) العملاء الحقيقيين ════════
+  // نتايج التواصل: القيم المتخزنة ثابتة (الشيت وتليجرام وقاعدة البيانات)، والاسم المعروض من ملف اللغة
+  var OUTCODES = ['تم', 'بيفكر', 'لغى', 'مش جاد', 'ماوصلش رسالة'];
+  var OUTKEY = { 'تم': 'agreed', 'بيفكر': 'thinking', 'لغى': 'cancelled', 'مش جاد': 'not_serious', 'ماوصلش رسالة': 'no_msg' };
+  function outName(v) { return OUTKEY[v] ? T('outcome.' + OUTKEY[v]) : v; }
   function vLeads(view) {
     return DATA.leads(state.site, state.range).then(function (d) {
       clear(view);
       var L = d.list, won = L.filter(function (l) { return l.outcome === 'تم'; }).length, open = L.filter(function (l) { return !l.outcome && !l.outside; }).length;
       var wa = L.filter(function (l) { return l.type === 'wa'; }).length, out = L.filter(function (l) { return l.outside; }).length;
-      view.appendChild(el('p', { class: 'simple-only simple-line' }, [document.createTextNode('كلّمك '), el('b', { text: fmt(L.length - out) }), document.createTextNode(' (' + fmt(wa) + ' واتساب · ' + fmt(L.length - wa) + ' اتصال)، و'), el('b', { text: fmt(won) }), document.createTextNode(' اتفقوا معاك.' + (open ? ' فاضل ' + fmt(open) + ' مستنيين تسجيل النتيجة تحت.' : '') + (out ? ' و' + fmt(out) + ' من بره البلد اللي بتستهدفه.' : ''))]));
+      view.appendChild(el('p', { class: 'simple-only simple-line', text: T('leads.line', { n: fmt(L.length - out), wa: fmt(wa), call: fmt(L.length - wa), won: fmt(won) }) + (open ? ' ' + T('leads.line.open', { n: fmt(open) }) : '') + (out ? ' ' + T('leads.line.out', { n: fmt(out) }) : '') }));
       view.appendChild(el('div', { class: 'kpis four pro-only' }, [
-        kpi('تواصل', fmt(L.length), fmt(L.filter(function (l) { return l.type === 'wa'; }).length) + ' واتساب · ' + fmt(L.filter(function (l) { return l.type === 'call'; }).length) + ' اتصال', 'info'),
-        kpi('اتفقوا', fmt(won), pct(won, L.length) + '% من التواصل', 'ok'),
-        kpi('تكلفة العميل الحقيقي', won && d.cost != null ? money(d.cost / won, d.currency) : '—', d.cost == null ? 'بعد ربط جوجل أدز' : 'الصرف ÷ اللي اتفقوا', 'ok'),
-        kpi('من غير نتيجة', fmt(open), 'سجّلها من تليجرام أو من هنا', open ? 'warn' : 'mute'),
+        kpi(T('kpi.contacts'), fmt(L.length), T('leads.k.split', { wa: fmt(wa), call: fmt(L.filter(function (l) { return l.type === 'call'; }).length) }), 'info'),
+        kpi(T('leads.k.won'), fmt(won), T('leads.k.won.sub', { p: pct(won, L.length) }), 'ok'),
+        kpi(T('leads.k.cpl'), won && d.cost != null ? money(d.cost / won, d.currency) : '—', T(d.cost == null ? 'leads.k.cpl.ads' : 'leads.k.cpl.how'), 'ok'),
+        kpi(T('kpi.open'), fmt(open), T('leads.k.open.sub'), open ? 'warn' : 'mute'),
       ]));
-      var dist = {}; L.forEach(function (l) { var k = l.outcome || (l.outside ? 'بره النطاق' : 'لسه'); dist[k] = (dist[k] || 0) + 1; });
+      var dist = {}; L.forEach(function (l) { var k = l.outcome || (l.outside ? '__out' : '__none'); dist[k] = (dist[k] || 0) + 1; });
       var ch = el('div');
-      C.hbars(ch, ['تم', 'بيفكر', 'لغى', 'مش جاد', 'ماوصلش رسالة', 'بره النطاق', 'لسه'].filter(function (k) { return dist[k]; }).map(function (k) { return { label: k, value: dist[k], cls: k === 'تم' ? 'c-ok' : k === 'لسه' || k === 'بره النطاق' ? 'c-mute' : 'c-data' }; }), { compact: true });
+      C.hbars(ch, OUTCODES.concat(['__out', '__none']).filter(function (k) { return dist[k]; }).map(function (k) { return { label: k === '__out' ? T('visit.outside') : k === '__none' ? T('leads.none') : outName(k), value: dist[k], cls: k === 'تم' ? 'c-ok' : k === '__none' || k === '__out' ? 'c-mute' : 'c-data' }; }), { compact: true });
       var tb = el('tbody'), shownL = 25;
       var moreL = el('button', { class: 'btn ghost sm more-rows', type: 'button' });
       var drawL = function () {
       clear(tb);
-      moreL.hidden = L.length <= shownL; moreL.textContent = 'اعرض كمان (' + fmt(L.length - shownL) + ' تواصل باقي)';
+      moreL.hidden = L.length <= shownL; moreL.textContent = T('leads.more', { n: LT.n(L.length - shownL, 'contact') });
       L.slice(0, shownL).forEach(function (l) {
-        var sel = l.outside ? el('span', { title: l.outside_note || '' }, [pill('بره النطاق', ''), el('div', { class: 'dim', text: l.outside_note || 'بره البلد المستهدف، مش محتاجة نتيجة' })]) : el('select', { 'aria-label': 'النتيجة' }, ['', 'تم', 'بيفكر', 'لغى', 'مش جاد', 'ماوصلش رسالة'].map(function (o) { return el('option', { value: o, text: o || '— لسه —' }); }));
+        var sel = l.outside ? el('span', { title: l.outside_note || '' }, [pill(T('visit.outside'), ''), el('div', { class: 'dim', text: l.outside_note || T('leads.outside.note') })]) : el('select', { 'aria-label': T('leads.h.outcome') }, [''].concat(OUTCODES).map(function (o) { return el('option', { value: o, text: o ? outName(o) : T('leads.none.opt') }); }));
         if (!l.outside) sel.value = l.outcome;
         if (!l.outside) sel.addEventListener('change', function () {
           var before = l.outcome, v = sel.value;
-          if (!DATA.setOutcome) { l.outcome = v; demoAct('النتيجة اتسجلت: ' + (v || 'لسه')); return; }
-          if (!v || l.code === '—') { sel.value = before; toast(!v ? 'مينفعش ترجّعها «لسه»، اختار النتيجة الصح' : 'التواصل ده من غير كود'); return; }
+          if (!DATA.setOutcome) { l.outcome = v; demoAct(T('leads.saved', { o: v ? outName(v) : T('leads.none'), c: '' })); return; }
+          if (!v || l.code === '—') { sel.value = before; toast(T(!v ? 'leads.err.none' : 'leads.err.nocode')); return; }
           sel.disabled = true;
-          DATA.setOutcome(state.site, l.code, v).then(function () { l.outcome = v; sel.disabled = false; toast('اتسجلت: ' + v + ' (#' + l.code + ')'); }, function () { sel.value = before; sel.disabled = false; toast('مااتسجلتش. جرّب تاني.'); });
+          DATA.setOutcome(state.site, l.code, v).then(function () { l.outcome = v; sel.disabled = false; toast(T('leads.saved', { o: outName(v), c: ' (#' + l.code + ')' })); }, function () { sel.value = before; sel.disabled = false; toast(T('err.save')); });
         });
         tb.appendChild(el('tr', {}, [
-          el('td', { class: 'first' }, [el('b', { text: (l.type === 'wa' ? '💬 واتساب' : '📞 اتصال') + ' · كود #' + l.code }), el('div', { class: 'dim', text: timeAr(l.at) }), l.strength ? el('div', { class: 'strength' }, [pill('تواصل ' + l.strength.label, l.strength.key === 'strong' ? 'ok' : l.strength.key === 'normal' ? 'info' : 'warn'), el('small', { class: 'dim', text: ' ' + l.strength.detail + ' · تقديري' })]) : null]),
-          el('td', { 'data-l': 'المصدر', class: 'pro-only' }, [el('div', { text: srcName(l.src) }), l.kw ? el('span', { class: 'dim', text: '«' + l.kw + '»' }) : null]),
-          el('td', { 'data-l': 'المكان', text: l.city + (l.district ? ' · ' + l.district : '') }),
-          el('td', { 'data-l': 'النتيجة' }, [sel]),
+          el('td', { class: 'first' }, [el('b', { text: (l.type === 'wa' ? '💬 ' + T('wa') : '📞 ' + T('call')) + ' · ' + T('leads.code', { c: l.code }) }), el('div', { class: 'dim', text: timeAr(l.at) }), l.strength ? el('div', { class: 'strength' }, [pill(T('leads.strength', { s: l.strength.label }), l.strength.key === 'strong' ? 'ok' : l.strength.key === 'normal' ? 'info' : 'warn'), el('small', { class: 'dim', text: ' ' + l.strength.detail + ' · ' + T('estimate') })]) : null]),
+          el('td', { 'data-l': T('visits.h.source'), class: 'pro-only' }, [el('div', { text: srcName(l.src) }), l.kw ? el('span', { class: 'dim', text: '«' + l.kw + '»' }) : null]),
+          el('td', { 'data-l': T('f.place'), text: l.city + (l.district ? ' · ' + l.district : '') }),
+          el('td', { 'data-l': T('leads.h.outcome') }, [sel]),
         ]));
       });
       };
       moreL.addEventListener('click', function () { shownL += 25; drawL(); });
       drawL();
       view.appendChild(el('div', { class: 'grid-2 pro-only' }, [
-        card('النتايج', [ch, el('p', { class: 'hint', text: 'النتيجة بتتسجل بضغطة من رسالة تليجرام اللي بتوصلك مع كل تواصل.' })]),
-        card('ليه ده مهم', [el('p', { text: 'المنافسين بيعدّوا الضغطات. إحنا بنعدّ العملاء اللي اتفقوا فعلاً، فتعرف كل كلمة جابتلك كام عميل حقيقي، وبكام.' })]),
+        card(T('leads.results'), [ch, el('p', { class: 'hint', text: T('leads.results.hint') })]),
+        card(T('leads.why'), [el('p', { text: T('leads.why.text') })]),
       ]));
-      view.appendChild(card('كل تواصل', [el('div', { class: 'tbl-wrap' }, [el('table', { class: 'tbl static' }, [el('thead', {}, [el('tr', {}, ['التواصل', 'المصدر', 'المكان', 'النتيجة'].map(function (h) { return el('th', { text: h, class: h === 'المصدر' ? 'pro-only' : '' }); }))]), tb])]), moreL]));
+      view.appendChild(card(T('leads.all'), [el('div', { class: 'tbl-wrap' }, [el('table', { class: 'tbl static' }, [el('thead', {}, [el('tr', {}, ['contact', 'source', 'place', 'outcome'].map(function (h) { return el('th', { text: T('leads.h.' + h), class: h === 'source' ? 'pro-only' : '' }); }))]), tb])]), moreL]));
     });
   }
 
