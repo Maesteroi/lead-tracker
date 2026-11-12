@@ -82,6 +82,7 @@ body.dash { background: var(--bg); }
 .s-real { background: var(--info-bg); color: var(--info); }
 .s-suspicious { background: var(--warn-bg); color: var(--warn); }
 .s-blocked { background: var(--bad-bg); color: var(--bad); }
+.s-high { background: var(--bad-bg); color: var(--bad); }
 
 /* الرسوم */
 .chart-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 6px; }

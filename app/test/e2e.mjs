@@ -42,6 +42,17 @@ function fakeApi(over) {
       st.dashCalls = (st.dashCalls || []).concat([p + u.search]);
       const today = new Date(Date.now() + 3 * 3600e3).toISOString().slice(0, 10);
       const range = Number(u.searchParams.get('range')) || 7;
+      if (st.scoring) {
+        const sv = (id, o) => Object.assign({ id, at: new Date().toISOString(), last_at: new Date().toISOString(), pages: 1, seconds: 2, scroll: 0, contact: '', code: null, source: 'google_ads', detail: '', gclid: true, device: 'موبايل', os: 'Android', browser: 'Chrome', city: 'Santa Clara', region: 'California', country: 'United States', country_code: 'US', isp: 'Tencent Building', visit_no: 1, landing: 'الرئيسية', automation: true, score: 100, status: 'high', reasons: ['المتصفح شغّال آلياً (بوت)، مش إنسان', 'جاي من شبكة سيرفرات (Tencent)، مش بيت ولا موبايل'], ad: true, verdict: null, repeats: 3, outside: true }, o || {});
+        const bot = sv('BOT1'), sus = sv('SUS1', { city: 'Riyadh', region: '', country: 'Saudi Arabia', country_code: 'SA', isp: 'STC', automation: false, score: 60, status: 'suspicious', reasons: ['قفل الصفحة بعد 2 ثانية من غير أي حركة', 'نفس الجهاز ضغط على إعلانك 3 مرات في الفترة دي'], outside: false });
+        const ly = sv('LY1', { city: 'Tripoli', country: 'Libya', country_code: 'LY', isp: 'Al Madar', source: 'google_organic', gclid: false, ad: false, automation: false, score: 0, status: 'real', reasons: [], contact: 'wa', code: 'LY29', seconds: 21, repeats: 0 });
+        const vd = (x) => Object.assign({}, x, st.verdicts && st.verdicts[x.id] ? { verdict: st.verdicts[x.id], status: st.verdicts[x.id] === 'real' ? 'real' : 'high' } : {});
+        if (p === '/v1/dash/overview') { const days = []; for (let i = range - 1; i >= 0; i--) days.push({ day: new Date(Date.now() + 3 * 3600e3 - i * 864e5).toISOString().slice(0, 10), sessions: 10, pageviews: 14, clicks: 3, contacts: 2, real: 8, suspicious: 1, high: 1 }); return j(200, { ok: true, range, days, kpi: { sessions: 60, pageviews: 80, contacts: 9, won: 3, open: 2, leads: 10, real: 50, suspicious: 6, high: 4, ad_sessions: 40, ad_bad: 9, pending: 2, outside: 3, outside_leads: 1 }, prev: { sessions: 50, contacts: 7 }, live: 2, suspicious: [bot, sus].map(vd), status: { scoring: true, ads: false, delivery: 99.8, paired: true }, sources: [{ name: 'google_ads', n: 40 }], places: [{ name: 'Riyadh', n: 30 }], devices: [] }); }
+        if (p === '/v1/dash/visits') return j(200, { ok: true, sessions: [bot, sus, ly].map(vd) });
+        if (p === '/v1/dash/protection') { const all = [bot, sus].map(vd); return j(200, { ok: true, ads: false, mode: 'monitor', stats: { ad_sessions: 40, ad_bad: 9, high: 4, suspicious: 6, all: 60 }, pending: all.filter((x) => !x.verdict), decided: all.filter((x) => x.verdict), top_reasons: [{ code: 'bot', name: 'بوتات (متصفح آلي)', n: 4 }, { code: 'bounce', name: 'قفل في ثواني من غير حركة', n: 3 }] }); }
+        if (p === '/v1/dash/verdict') { const b = JSON.parse(req.postData()); st.verdictCalls = (st.verdictCalls || []).concat([Object.assign({ csrf: req.headers()['x-csrf-token'] }, b)]); st.verdicts = Object.assign({}, st.verdicts); if (b.verdict) st.verdicts[b.sid] = b.verdict; else delete st.verdicts[b.sid]; return j(200, { ok: true, sid: b.sid, verdict: b.verdict }); }
+        if (p === '/v1/dash/leads') return j(200, { ok: true, leads: [{ at: new Date().toISOString(), type: 'wa', code: 'LY29', source: 'google_organic', city: 'Tripoli', region: '', session: 'LY1', outcome: '', outside: true, outside_note: 'من ليبيا، بره البلد اللي موقعك مستهدفه' }, { at: new Date().toISOString(), type: 'wa', code: 'AB12', source: 'google_ads', city: 'Riyadh', region: '', session: 'SES1', outcome: '', outside: false }] });
+      }
       if (p === '/v1/dash/overview') { const days = []; for (let i = range - 1; i >= 0; i--) days.push({ day: new Date(Date.now() + 3 * 3600e3 - i * 864e5).toISOString().slice(0, 10), sessions: 10 + i, pageviews: 14 + i, clicks: 3, contacts: 2 }); return j(200, { ok: true, site: { id: u.searchParams.get('site') }, range, days, kpi: { sessions: 60, pageviews: 80, contacts: 9, won: 3, open: 2, leads: 9 }, prev: { sessions: 50, contacts: 7 }, live: 2, status: { scoring: false, ads: false, delivery: 99.8, paired: true }, sources: [{ name: 'google_ads', n: 40 }, { name: 'google_organic', n: 15 }, { name: 'direct', n: 5 }], places: [{ name: 'Riyadh', n: 30 }, { name: 'Jeddah', n: 12 }], devices: [{ name: 'موبايل', n: 50 }] }); }
       if (p === '/v1/dash/visits') return j(200, { ok: true, sessions: [{ id: 'SES1', at: new Date().toISOString(), last_at: new Date().toISOString(), pages: 2, seconds: 70, scroll: 80, contact: 'wa', code: 'AB12', source: 'google_ads', detail: '', utm: '', gclid: true, device: 'موبايل', os: 'iOS', browser: 'Safari', city: 'Riyadh', region: 'Riyadh Region', country: 'Saudi Arabia', isp: 'Saudi Telecom Company JSC', visit_no: 1, landing: 'الرئيسية', automation: false }, { id: 'SES2', at: new Date(Date.now() - 3600e3).toISOString(), last_at: new Date(Date.now() - 3500e3).toISOString(), pages: 1, seconds: 12, scroll: null, contact: '', code: null, source: 'google_organic', detail: '', device: 'كمبيوتر', os: 'Windows', browser: 'Chrome', city: 'Jeddah', region: '', country: 'Saudi Arabia', isp: 'Mobily', visit_no: 2, landing: 'الأسعار', automation: false }] });
       if (p === '/v1/dash/session') return j(200, { ok: true, events: [{ at: new Date().toISOString(), event: 'page_view', title: 'الرئيسية' }, { at: new Date().toISOString(), event: 'click', click_type: 'wa', btn_text: 'واتساب' }] });
@@ -460,6 +471,49 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
   await pg.waitForSelector('.checks');
   t('live sites: installed, plugin version and delivery from the server', /2.12.2/.test(await pg.locator('.checks').innerText()) && /99.8%/.test(await pg.locator('.checks').innerText()));
   t('live: no console errors and no CSP violations', pg.errors.length === 0 && pg.csp.length === 0);
+  if (pg.errors.length || pg.csp.length) console.log(pg.errors, pg.csp);
+  await pg.context().close(); }
+
+// 16) الحماية جزء 1 على اللوحة الحقيقية: درجة الخطر و«ليه» وطابور رأيك، و«بره النطاق»
+{ const api = fakeApi({ signedIn: true, scoring: true, sites: [{ id: 'SiteId123456', name: 'شادو', domains: ['shado.example'], paired: true }] }); api.scoring = true;
+  const pg = await page(api, { viewport: { width: 1440, height: 900 } });
+  await pg.goto('https://app.maestrolt.com/');
+  await pg.waitForSelector('.answers .ans');
+  t('scoring simple: the owner is told how many visits look fake, in plain words', /10 زيارة مشبوهة/.test(await pg.locator('.answers').innerText()) && /2 مستنيين رأيك/.test(await pg.locator('.answers').innerText()));
+  const actTxt = await pg.locator('.actions').innerText(); t('scoring simple: the first thing to do is to review the suspicious visits', /2 زيارات مشبوهة مستنية رأيك/.test(actTxt)); if (!/2 زيارات مشبوهة/.test(actTxt)) console.log(actTxt);
+  await pg.locator('#level').getByRole('button', { name: 'تفصيلي' }).click();
+  await pg.waitForSelector('.kpis .kpi');
+  t('scoring overview: real / suspicious KPIs and a 3-series quality chart (real · suspicious · high risk)', /حقيقي/.test(await pg.locator('.kpis').innerText()) && /4 منهم خطر عالي/.test(await pg.locator('.kpis').innerText()) && (await pg.locator('.chart-legend .lg').count()) === 3);
+  t('scoring overview: the most suspicious visits show their reasons in Arabic', /متصفح شغّال آلياً/.test(await pg.locator('#view').innerText()));
+  await shot(pg, 'live-scoring-overview');
+  await pg.locator('.side-nav a[data-r="protection"]').click();
+  await pg.waitForFunction(() => document.getElementById('page-title').textContent === 'الحماية' && document.querySelector('#view .q-item'));
+  t('protection: monitor mode said honestly (no blocking until Google Ads), queue with reasons and top-reasons chart', /مابنحظرش حد لوحدنا/.test(await pg.locator('.callout').innerText()) && (await pg.locator('#view .q-item').count()) === 2 && /بوتات/.test(await pg.locator('#view').innerText()));
+  await shot(pg, 'live-protection');
+  await pg.locator('#view .q-item').first().getByRole('button', { name: 'مشبوه أكيد' }).click();
+  await pg.waitForFunction(() => /اللي حكمت عليه/.test(document.getElementById('view').textContent));
+  t('protection: "مشبوه أكيد" saves the verdict with CSRF and moves the visit to «اللي حكمت عليه»', api.verdictCalls.length === 1 && api.verdictCalls[0].sid === 'BOT1' && api.verdictCalls[0].verdict === 'fraud' && api.verdictCalls[0].csrf === 'csrf-token-123' && (await pg.locator('#view .q-item').count()) === 2 && /مشبوه أكيد/.test(await pg.locator('#view').innerText()));
+  await pg.getByRole('button', { name: 'رجّع' }).click();
+  await pg.waitForFunction(() => !/اللي حكمت عليه/.test(document.getElementById('view').textContent));
+  t('protection: a verdict can be taken back', api.verdictCalls.length === 2 && api.verdictCalls[1].verdict === null);
+  await pg.locator('.side-nav a[data-r="visits"]').click();
+  await pg.waitForFunction(() => document.getElementById('page-title').textContent === 'الزيارات' && document.querySelector('#view .tbl tbody tr'));
+  t('visits: risk score and status per visit, and «بره النطاق» for Libya on a Saudi site', /خطر عالي/.test(await pg.locator('#view .tbl').innerText()) && /بره النطاق/.test(await pg.locator('#view .tbl').innerText()) && (await pg.locator('#view .tbl .score').count()) === 3);
+  await pg.getByRole('button', { name: /^مشبوه/ }).click();
+  await pg.waitForFunction(() => document.querySelectorAll('#view .tbl tbody tr').length === 2);
+  t('visits: the "suspicious" filter', true);
+  await pg.locator('#view .tbl tbody tr').first().click();
+  await pg.waitForSelector('#drawer .why li');
+  t('visit drawer: score, «ليه» reasons and the two verdict buttons', /100/.test(await pg.locator('.verdict').innerText()) && /شبكة سيرفرات/.test(await pg.locator('#drawer .why').innerText()) && await pg.locator('#d-foot').getByRole('button', { name: 'ده زبون حقيقي' }).isVisible());
+  await pg.locator('#d-foot').getByRole('button', { name: 'ده زبون حقيقي' }).click();
+  await pg.waitForFunction(() => /زبون حقيقي/.test(document.getElementById('toast').textContent));
+  t('visit drawer: "ده زبون حقيقي" is saved', api.verdictCalls.length === 3 && api.verdictCalls[2].verdict === 'real');
+  await shot(pg, 'live-visit-scored');
+  await pg.keyboard.press('Escape');
+  await pg.locator('.side-nav a[data-r="leads"]').click();
+  await pg.waitForFunction(() => document.getElementById('page-title').textContent === 'العملاء الحقيقيين' && document.querySelector('#view .tbl tbody tr'));
+  t('leads: a contact from outside the target country is marked «بره النطاق» with a note and no outcome to pick', /بره النطاق/.test(await pg.locator('#view .tbl').innerText()) && /ليبيا/.test(await pg.locator('#view .tbl').innerText()) && (await pg.locator('#view .tbl select').count()) === 1);
+  t('scoring: no console errors and no CSP violations', pg.errors.length === 0 && pg.csp.length === 0);
   if (pg.errors.length || pg.csp.length) console.log(pg.errors, pg.csp);
   await pg.context().close(); }
 

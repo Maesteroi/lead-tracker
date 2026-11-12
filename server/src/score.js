@@ -15,25 +15,34 @@ export function targetCountries(t) {
   const part = String(t || '').split('|')[0];
   return part.split(/[,\s]+/).map((x) => x.trim().toUpperCase()).filter((x) => /^[A-Z]{2}$/.test(x));
 }
+// اسم كل سبب في ملخص «أكتر أسباب الاشتباه»
+export const REASON_AR = { bot: 'بوتات (متصفح آلي)', dc: 'شبكات سيرفرات', geo: 'من بره البلد المستهدف', bounce: 'قفل في ثواني من غير حركة', idle: 'من غير أي لمس أو تمرير', repeat: 'نفس الجهاز بيضغط على الإعلان كذا مرة' };
+// الزيارة من بلد بره البلاد اللي الموقع مستهدفها (من إعداد «الاستهداف» في البلجن، مثلاً «SA|جدة»)؟
+// محمود 12 نوفمبر: «الموقع مستهدف السعودية… الزيارة من ليبيا يبقى مستحيل يكون عميل». إعلان أو من غير إعلان.
+// لو البلد مش معروف أو الاستهداف فاضي: مانحكمش (false).
+export function outsideTarget(cc, targetGeo) {
+  const c = String(cc || '').toUpperCase(), t = targetCountries(targetGeo);
+  return /^[A-Z]{2}$/.test(c) && t.length > 0 && !t.includes(c);
+}
 export const isDatacenter = (isp, asn) => DC_ASN.has(String(asn || '').toUpperCase()) || (!!isp && DC.test(String(isp)));
 
 export function scoreSession(s, verdict) {
-  const reasons = [];
+  const reasons = [], codes = [];
   let score = 0;
-  const add = (pts, text) => { score += pts; if (pts > 0 && text) reasons.push(text); };
+  const add = (pts, text, code) => { score += pts; if (pts > 0 && text) { reasons.push(text); codes.push(code); } };
   const ad = !!s.has_gclid || s.source_fine === 'google_ads';
   const secs = n(s.seconds), inter = n(s.interactions), moves = n(s.mouse_moves), scroll = n(s.scroll);
   const cc = String(s.country_code || '').toUpperCase();
 
-  if (s.automation) add(60, 'المتصفح شغّال آلياً (بوت)، مش إنسان');
+  if (s.automation) add(60, 'المتصفح شغّال آلياً (بوت)، مش إنسان', 'bot');
   if (isDatacenter(s.isp, s.asn)) add(45, 'جاي من شبكة سيرفرات (' + String(s.isp || s.asn).slice(0, 40) + ')، مش بيت ولا موبايل');
   const targets = targetCountries(s.target_geo);
-  if (ad && cc && targets.length && !targets.includes(cc)) add(30, 'جاي من ' + countryAr(cc, s.country) + '، والإعلان مستهدف ' + targets.map((c) => countryAr(c)).join(' و') + ' بس');
-  if (ad && secs != null && secs <= 3 && !inter) add(25, 'قفل الصفحة بعد ' + Math.max(0, Math.round(secs)) + ' ثانية من غير أي حركة');
-  else if (ad && !inter && !moves && !scroll) add(15, 'مافيش أي لمس أو تمرير على الصفحة');
+  if (ad && cc && targets.length && !targets.includes(cc)) add(40, 'جاي من ' + countryAr(cc, s.country) + '، والإعلان مستهدف ' + targets.map((c) => countryAr(c)).join(' و') + ' بس', 'geo');
+  if (ad && secs != null && secs <= 3 && !inter) add(25, 'قفل الصفحة بعد ' + Math.max(0, Math.round(secs)) + ' ثانية من غير أي حركة', 'bounce');
+  else if (ad && !inter && !moves && !scroll) add(15, 'مافيش أي لمس أو تمرير على الصفحة', 'idle');
   const rep = n(s.fp_ad_sessions) || 0;
-  if (ad && rep >= 3) add(35, 'نفس الجهاز ضغط على إعلانك ' + rep + ' مرات في الفترة دي');
-  else if (ad && rep === 2) add(10, 'نفس الجهاز ضغط على إعلانك مرتين');
+  if (ad && rep >= 3) add(35, 'نفس الجهاز ضغط على إعلانك ' + rep + ' مرات في الفترة دي', 'repeat');
+  else if (ad && rep === 2) add(10, 'نفس الجهاز ضغط على إعلانك مرتين', 'repeat');
 
   // إشارات إنسان حقيقي بتنزّل الدرجة
   if (s.contacts) score -= 35;
@@ -44,5 +53,5 @@ export function scoreSession(s, verdict) {
   let status = score >= 70 ? 'high' : score >= 40 ? 'suspicious' : 'real';
   if (verdict === 'real') { status = 'real'; reasons.unshift('انت قلت إنه زبون حقيقي'); }
   if (verdict === 'fraud') { status = 'high'; score = Math.max(score, 90); reasons.unshift('انت أكدت إنه مشبوه'); }
-  return { score, status, reasons, ad };
+  return { score, status, reasons, codes, ad };
 }
