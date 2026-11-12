@@ -13,7 +13,8 @@
     if (s == null) s = (D.ar || {})[key];
     if (s == null) return key;
     if (typeof s === 'function') return s(v || {});
-    return v ? String(s).replace(/\{(\w+)\}/g, function (x, k) { return v[k] != null ? String(v[k]) : x; }) : s;
+    // {x:nom} = المثنى في موضع الرفع (فاعل أو مبتدأ): «زيارتين» ← «زيارتان». الافتراضي صيغة النصب والجر (بعد ثانيتين · من يومين)
+    return v ? String(s).replace(/\{(\w+)(:nom)?\}/g, function (x, k, nom) { if (v[k] == null) return x; var r = String(v[k]); return nom && !/\d/.test(r) ? r.replace(/(\S+?)(ت?)ين(?=\s|$)/g, '$1$2ان') : r; }) : s;
   }
   // العدد مع المعدود (العربي: 1 زيارة واحدة · 2 زيارتين · 3–10 زيارات · 11+ زيارة). الوحدات في ملف اللغة: units.<اسم> = [1, 2, 3–10, 11+] أو [1, n] للإنجليزي
   function n(count, unit) {
