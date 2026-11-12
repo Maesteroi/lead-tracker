@@ -578,7 +578,7 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
   await pg.context().close(); }
 
 // 18) الأدوار والفرق (G-29)
-{ const perms = [['orgs_view', 'يشوف الحسابات وأرقامها'], ['orgs_status', 'يغيّر حالة الحساب'], ['orgs_suspend', 'يوقف حساب'], ['orgs_trial', 'يمد التجربة'], ['orgs_plan', 'حد المواقع والخطة'], ['orgs_policy', 'سياسة الأحداث'], ['orgs_notes', 'الملاحظات'], ['orgs_replay', 'تسجيل الزيارات'], ['dash_view', 'يفتح لوحات العملاء'], ['dash_act', 'يسجّل نتايج ويحكم'], ['telegram', 'بوت تليجرام'], ['audit', 'سجل التغييرات']].map(([key, label]) => ({ key, label }));
+{ const perms = [['orgs_view', 'يرى الحسابات وأرقامها'], ['orgs_status', 'يغيّر حالة الحساب'], ['orgs_suspend', 'يوقف الحساب'], ['orgs_trial', 'يمدّد التجربة'], ['orgs_plan', 'حد المواقع والخطة'], ['orgs_policy', 'سياسة الأحداث'], ['orgs_notes', 'الملاحظات'], ['orgs_replay', 'تسجيل الزيارات'], ['dash_view', 'يفتح لوحات العملاء'], ['dash_act', 'يسجّل نتايج ويحكم'], ['telegram', 'بوت تليجرام'], ['audit', 'سجل التغييرات']].map(([key, label]) => ({ key, label }));
   const ov = overviewData();
   const team = { ok: true, perms, owners: [{ id: 'u1', email: 'mahmoud@example.com', name: 'محمود', you: true }, { id: 'u2', email: 'may@example.com', name: 'مي' }], roles: [{ id: 'role-0', name: 'دعم فني', perms: ['orgs_view', 'orgs_trial'] }],
     members: [{ user_id: 'u9', role_id: 'role-0', scope_org_ids: ['o-da'], scope_site_ids: null, user: { email: 'sara@maestro.example', name: 'سارة' } }], invites: [],
@@ -590,7 +590,7 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
   t('admin (super admin): tabs for accounts, team and the change log', await pg.locator('#tab-btn-team').isVisible() && await pg.locator('#tab-btn-audit').isVisible() && /المدير العام/.test(await pg.locator('#role-eyebrow').innerText()));
   await pg.locator('#tab-btn-team').click();
   await pg.waitForSelector('#tab-team .role-row');
-  t('team tab: super admins, roles with their permissions, members with their scope', /محمود/.test(await pg.locator('#tab-team').innerText()) && /دعم فني/.test(await pg.locator('#tab-team .role-row').innerText()) && /يمد التجربة/.test(await pg.locator('#tab-team .role-row').innerText()) && /Digital Avenue/.test(await pg.locator('#tab-team').innerText()));
+  t('team tab: super admins, roles with their permissions, members with their scope', /محمود/.test(await pg.locator('#tab-team').innerText()) && /دعم فني/.test(await pg.locator('#tab-team .role-row').innerText()) && /يمدّد التجربة/.test(await pg.locator('#tab-team .role-row').innerText()) && /Digital Avenue/.test(await pg.locator('#tab-team').innerText()));
   await pg.getByRole('button', { name: '+ دور جديد' }).click();
   await pg.locator('.role-edit input[type="text"]').fill('مشرف السعودية');
   await pg.locator('.role-edit .ck-in', { hasText: 'يفتح لوحات العملاء' }).locator('input').check();

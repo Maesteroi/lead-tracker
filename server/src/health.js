@@ -73,19 +73,19 @@ export async function dailyDeliveryReport(env, db, fetchImpl, nowMs) {
   // نحجز اليوم الأول (لو نسختين من الكرون اشتغلوا مع بعض، واحدة بس تبعت)
   const claim = await db.insert('daily_reports', [{ kind: 'delivery', day }], { ignoreDuplicates: true, onConflict: 'kind,day' });
   if (!claim || !claim[0]) return { skipped: 'sent' };
-  const lines = ['📡 <b>تقرير التوصيل</b> — ' + day + ' (امبارح بتوقيت الموقع)', 'المعيار: زيارات ≥ 99.5% · ضغطات 100%', ''];
+  const lines = ['📡 <b>تقرير التوصيل</b> — ' + day + ' (أمس بتوقيت الموقع)', 'المعيار: زيارات ≥ 99.5% · نقرات 100%', ''];
   let bad = 0;
   for (const r of rows) {
     if (!name.has(r.client_id) && !sites.length) continue;
     const o = r.out || {};
-    const extra = [o.failed_first ? 'فشل أول مرة ' + o.failed_first : '', o.queued ? 'في الطابور ' + o.queued : '', o.rejected ? 'اترفض ' + o.rejected : '', o.dropped ? 'اتسقط ' + o.dropped : ''].filter(Boolean).join(' · ');
+    const extra = [o.failed_first ? 'فشل في المحاولة الأولى ' + o.failed_first : '', o.queued ? 'في قائمة الانتظار ' + o.queued : '', o.rejected ? 'مرفوض ' + o.rejected : '', o.dropped ? 'مُسقَط ' + o.dropped : ''].filter(Boolean).join(' · ');
     if (!r.ok) bad++;
-    lines.push((r.ok ? '✅ ' : '⚠️ ') + esc(name.get(r.client_id) || r.client_id) + ': زيارات ' + r.server_pv + '/' + r.local_pv + ' (' + r.pv_pct + '%) · ضغطات ' + r.server_click + '/' + r.local_click + (extra ? '\n   ' + esc(extra) + ' (من أول 2.11.2)' : ''));
+    lines.push((r.ok ? '✅ ' : '⚠️ ') + esc(name.get(r.client_id) || r.client_id) + ': زيارات ' + r.server_pv + '/' + r.local_pv + ' (' + r.pv_pct + '%) · نقرات ' + r.server_click + '/' + r.local_click + (extra ? '\n   ' + esc(extra) + ' (منذ 2.11.2)' : ''));
   }
   const reported = new Set(rows.map((r) => r.client_id));
   const silent = sites.filter((s) => !reported.has(s.id)).map((s) => s.name);
-  if (silent.length) lines.push('', '⚪ مابعتوش تقرير (بلجن أقدم من 2.12.2 أو مافيش حركة): ' + esc(silent.join('، ')));
-  if (!rows.length && !silent.length) lines.push('مفيش مواقع على السيرفر.');
+  if (silent.length) lines.push('', '⚪ لم ترسل تقريرًا (إضافة أقدم من 2.12.2 أو لا توجد حركة): ' + esc(silent.join('، ')));
+  if (!rows.length && !silent.length) lines.push('لا توجد مواقع على الخادم.');
   const r = await tg(env, 'sendMessage', { chat_id: String(env.TG_CHAT_ID), text: lines.join('\n'), parse_mode: 'HTML', disable_web_page_preview: true }, fetchImpl);
   if (!r.ok) { await db.req('DELETE', 'daily_reports?kind=eq.delivery&day=eq.' + day); return { failed: true }; }
   return { sent: true, sites: rows.length, bad };

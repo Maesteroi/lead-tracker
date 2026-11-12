@@ -93,8 +93,8 @@ test('morning report: once a day after 05:00 UTC, about yesterday, ✅/⚠️ pe
   assert.equal(r.sent, true); assert.equal(r.bad, 1);
   const m = s.n.sent.pop().text;
   assert.ok(m.includes('تقرير التوصيل') && m.includes(day), m);
-  assert.ok(m.includes('⚠️ روضة: زيارات 4/5 (80%) · ضغطات 1/1'), m);
-  assert.ok(m.includes('فشل أول مرة 2') && m.includes('اترفض 1'), m);
+  assert.ok(m.includes('⚠️ روضة: زيارات 4/5 (80%) · نقرات 1/1'), m);
+  assert.ok(m.includes('فشل في المحاولة الأولى 2') && m.includes('مرفوض 1'), m);
   assert.ok(m.includes('⚪') && m.includes('الإنجاز'), m);
   assert.deepEqual(await dailyDeliveryReport(env, db, s.w.f, now + 3600e3), { skipped: 'sent' });
   assert.equal(s.n.sent.length, 0);
