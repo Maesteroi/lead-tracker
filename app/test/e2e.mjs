@@ -138,7 +138,7 @@ const text = (pg) => pg.locator('#view').innerText();
 
 // 1) من غير بيانات
 { const api = fakeApi(); const pg = await page(api); await pg.goto('https://app.maestrolt.com/connect');
-  t('no link data: explains to open it from WordPress', /افتح الصفحة دي من ووردبريس/.test(await text(pg))); await shot(pg, 'connect-nolink'); await pg.context().close(); }
+  t('no link data: explains to open it from WordPress', /افتح هذه الصفحة من ووردبريس/.test(await text(pg))); await shot(pg, 'connect-nolink'); await pg.context().close(); }
 
 // 2) الدورة كاملة: مش داخل ← دخول ← كارت ← تأكيد ← رجوع لووردبريس
 { const api = fakeApi(); const pg = await page(api, { viewport: { width: 390, height: 780 } });
@@ -148,12 +148,12 @@ const text = (pg) => pg.locator('#view').innerText();
   t('the data is removed from the address bar immediately', pg.url() === 'https://app.maestrolt.com/connect');
   await shot(pg, 'connect-1-signin-mobile');
   await pg.getByRole('button', { name: 'الدخول بحساب جوجل' }).click();
-  await pg.waitForSelector('text=تربط الموقع ده بحسابك');
+  await pg.waitForSelector('text=هل تريد ربط هذا الموقع بحسابك');
   t('login start was asked to come back to /connect only', api.loginStarted === 1 && api.loginNext === '/connect');
   t('after sign-in the confirm card shows the domain and the account', (await pg.locator('.domain').innerText()) === 'rawda.site' && /mahmoud@example.com/.test(await text(pg)));
   await shot(pg, 'connect-2-confirm-mobile');
   await pg.getByRole('button', { name: 'نعم، اربط' }).click();
-  await pg.waitForSelector('text=اتربط');
+  await pg.waitForSelector('text=تم الربط');
   t('the saved link data is gone as soon as it succeeds', (await pg.evaluate(() => sessionStorage.getItem('lt_connect'))) === null);
   t('the request carries the confirm address, the number, the name and the return page, with the CSRF token from the dashboard origin', api.calls.length === 1 && api.calls[0].body.confirm_url === CONFIRM && api.calls[0].body.nonce === NONCE && api.calls[0].body.name === 'روضة الصالحين' && api.calls[0].body.return_url === RETURN && api.calls[0].body.org_id === 'org1' && api.calls[0].csrf === 'csrf-token-123' && api.calls[0].origin === 'https://app.maestrolt.com');
   t('no domain field is sent (the server takes it from the confirm address)', !('domain' in api.calls[0].body));
@@ -166,57 +166,57 @@ const text = (pg) => pg.locator('#view').innerText();
 // 3) فشل: الموقع مايردش
 { const api = fakeApi({ signedIn: true, connect: { status: 502, body: { ok: false, error: 'site_unreachable' } } }); const pg = await page(api);
   await pg.goto('https://app.maestrolt.com/connect' + HASH); await pg.getByRole('button', { name: 'نعم، اربط' }).click();
-  await pg.waitForSelector('text=مقدرناش نوصل لموقعك');
-  t('502: explains the firewall cause and offers retry', /pair-confirm/.test(await text(pg)) && (await pg.getByRole('button', { name: 'حاول تاني' }).count()) === 1);
+  await pg.waitForSelector('text=تعذّر الوصول إلى موقعك');
+  t('502: explains the firewall cause and offers retry', /pair-confirm/.test(await text(pg)) && (await pg.getByRole('button', { name: 'حاول مرة أخرى' }).count()) === 1);
   const before = api.calls.length;
   api.connect = { status: 200, body: { ok: true, created: false, site: { id: 'x', name: 'x', domains: ['rawda.site'] }, return_url: null } };
-  await pg.getByRole('button', { name: 'حاول تاني' }).click(); await pg.waitForSelector('text=اتربط');
-  t('retry works and a missing return page shows "go back to WordPress" without redirecting', /ارجع لوحة ووردبريس/.test(await text(pg)) && api.calls.length === before + 1 && api.calls[before].body.org_id === 'org1' && pg.url() === 'https://app.maestrolt.com/connect');
+  await pg.getByRole('button', { name: 'حاول مرة أخرى' }).click(); await pg.waitForSelector('text=تم الربط');
+  t('retry works and a missing return page shows "go back to WordPress" without redirecting', /عُد إلى لوحة ووردبريس/.test(await text(pg)) && api.calls.length === before + 1 && api.calls[before].body.org_id === 'org1' && pg.url() === 'https://app.maestrolt.com/connect');
   await shot(pg, 'connect-4-done-noreturn'); await pg.context().close(); }
 
 // 3ب) عنوان الرجوع مش https: مانروحلوش أبداً
 for (const bad of ['javascript:alert(1)', 'http://rawda.site/wp-admin/', '//evil.example/']) {
   const api = fakeApi({ signedIn: true, connect: { status: 200, body: { ok: true, created: false, site: { id: 'x', name: 'x', domains: ['rawda.site'] }, return_url: bad } } }); const pg = await page(api);
-  await pg.goto('https://app.maestrolt.com/connect' + HASH); await pg.getByRole('button', { name: 'نعم، اربط' }).click(); await pg.waitForSelector('text=اتربط'); await pg.waitForTimeout(3000);
-  t(`return address «${bad}» is never followed`, pg.url() === 'https://app.maestrolt.com/connect' && (await pg.getByRole('button', { name: 'ارجع لووردبريس' }).count()) === 0); await pg.context().close();
+  await pg.goto('https://app.maestrolt.com/connect' + HASH); await pg.getByRole('button', { name: 'نعم، اربط' }).click(); await pg.waitForSelector('text=تم الربط'); await pg.waitForTimeout(3000);
+  t(`return address «${bad}» is never followed`, pg.url() === 'https://app.maestrolt.com/connect' && (await pg.getByRole('button', { name: 'عُد إلى ووردبريس' }).count()) === 0); await pg.context().close();
 }
 
 // 4) رسائل الأخطاء الأخرى
-for (const [status, error, re] of [[409, 'domain_exists', /مربوط بحساب تاني/], [409, 'site_limit', /3 مواقع/], [402, 'plan_inactive', /التجربة المجانية انتهت/], [429, 'too_many', /استنى ساعة/], [403, 'forbidden', /مفيش صلاحية/], [400, 'bad_request', /ناقص أو قديم/]]) {
+for (const [status, error, re] of [[409, 'domain_exists', /مربوط بحساب آخر/], [409, 'site_limit', /3 مواقع/], [402, 'plan_inactive', /انتهت التجربة المجانية/], [429, 'too_many', /انتظر ساعة/], [403, 'forbidden', /لا توجد صلاحية/], [400, 'bad_request', /ناقص أو قديم/]]) {
   const api = fakeApi({ signedIn: true, connect: { status, body: { ok: false, error } } }); const pg = await page(api);
   await pg.goto('https://app.maestrolt.com/connect' + HASH); await pg.getByRole('button', { name: 'نعم، اربط' }).click(); await pg.waitForSelector('#view .notice.bad');
-  t(`${status} ${error}: clear message, no retry button`, re.test(await text(pg)) && (await pg.getByRole('button', { name: 'حاول تاني' }).count()) === 0);
+  t(`${status} ${error}: clear message, no retry button`, re.test(await text(pg)) && (await pg.getByRole('button', { name: 'حاول مرة أخرى' }).count()) === 0);
   await pg.context().close();
 }
 
 // 5) حساب بصلاحية قراية بس ، وأكتر من حساب
 { const api = fakeApi({ signedIn: true, orgs: [{ id: 'o1', name: 'حساب', role: 'viewer' }] }); const pg = await page(api);
   await pg.goto('https://app.maestrolt.com/connect' + HASH); await pg.waitForSelector('#view .notice');
-  t('a viewer cannot connect: told to ask the owner, no connect button', /اطلب من مالك الحساب/.test(await text(pg)) && (await pg.getByRole('button', { name: 'نعم، اربط' }).count()) === 0); await pg.context().close(); }
+  t('a viewer cannot connect: told to ask the owner, no connect button', /اطلب ذلك من مالك الحساب/.test(await text(pg)) && (await pg.getByRole('button', { name: 'نعم، اربط' }).count()) === 0); await pg.context().close(); }
 { const api = fakeApi({ signedIn: true, orgs: [{ id: 'o1', name: 'حساب أ', role: 'viewer' }, { id: 'o2', name: 'حساب ب', role: 'owner' }, { id: 'o3', name: 'حساب ج', role: 'admin' }] }); const pg = await page(api);
   await pg.goto('https://app.maestrolt.com/connect' + HASH); await pg.waitForSelector('#org');
   t('several accounts: only owner/admin ones are offered', (await pg.locator('#org option').allInnerTexts()).join() === 'حساب ب,حساب ج');
-  await pg.selectOption('#org', 'o3'); await pg.getByRole('button', { name: 'نعم، اربط' }).click(); await pg.waitForSelector('text=اتربط');
+  await pg.selectOption('#org', 'o3'); await pg.getByRole('button', { name: 'نعم، اربط' }).click(); await pg.waitForSelector('text=تم الربط');
   t('the chosen account is the one sent', api.calls[0].body.org_id === 'o3'); await pg.context().close(); }
 
 // 6) بيانات مش سليمة في الرابط
 for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c: 'http://rawda.site/wp-json/lt/v1/pair-confirm', n: NONCE })], ['short number', '#' + new URLSearchParams({ c: CONFIRM, n: 'short' })], ['not a url', '#' + new URLSearchParams({ c: 'javascript:alert(1)', n: NONCE })]]) {
   const api = fakeApi({ signedIn: true }); const pg = await page(api); await pg.goto('https://app.maestrolt.com/connect' + h);
-  t(`bad link data (${name}): treated as no link, nothing sent`, /افتح الصفحة دي من ووردبريس/.test(await text(pg)) && api.calls.length === 0); await pg.context().close();
+  t(`bad link data (${name}): treated as no link, nothing sent`, /افتح هذه الصفحة من ووردبريس/.test(await text(pg)) && api.calls.length === 0); await pg.context().close();
 }
 
 // 7) رابط قديم (أكتر من 15 دقيقة)
 { const api = fakeApi({ signedIn: true }); const pg = await page(api); await pg.goto('https://app.maestrolt.com/connect');
   await pg.evaluate((n) => sessionStorage.setItem('lt_connect', JSON.stringify({ c: 'https://rawda.site/wp-json/lt/v1/pair-confirm', n, r: '', s: '', t: Date.now() - 20 * 60 * 1000 })), NONCE);
-  await pg.reload(); await pg.waitForSelector('text=الرابط انتهى'); t('a link older than 15 minutes is expired locally, nothing sent', api.calls.length === 0); await pg.context().close(); }
+  await pg.reload(); await pg.waitForSelector('text=انتهت صلاحية الرابط'); t('a link older than 15 minutes is expired locally, nothing sent', api.calls.length === 0); await pg.context().close(); }
 
 // 8) إلغاء
 { const api = fakeApi({ signedIn: true }); const pg = await page(api); await pg.goto('https://app.maestrolt.com/connect' + HASH);
-  await pg.getByRole('button', { name: 'إلغاء' }).click(); t('cancel sends nothing and forgets the link', /ما اتربطش أي حاجة/.test(await text(pg)) && api.calls.length === 0 && (await pg.evaluate(() => sessionStorage.getItem('lt_connect'))) === null); await pg.context().close(); }
+  await pg.getByRole('button', { name: 'إلغاء' }).click(); t('cancel sends nothing and forgets the link', /لم يُربط أي شيء/.test(await text(pg)) && api.calls.length === 0 && (await pg.evaluate(() => sessionStorage.getItem('lt_connect'))) === null); await pg.context().close(); }
 
 // 9) صفحة الدخول
 { const api = fakeApi(); const pg = await page(api); await pg.goto('https://app.maestrolt.com/login?error=state&next=/connect');
-  t('login page: error message + button goes to Google start with a safe next', /ما اتكملتش صح/.test(await pg.locator('#err').innerText()) && (await pg.locator('#go').getAttribute('href')) === 'https://api.maestrolt.com/v1/auth/google/start?next=%2Fconnect'); await shot(pg, 'login-error');
+  t('login page: error message + button goes to Google start with a safe next', /لم تكتمل محاولة الدخول/.test(await pg.locator('#err').innerText()) && (await pg.locator('#go').getAttribute('href')) === 'https://api.maestrolt.com/v1/auth/google/start?next=%2Fconnect'); await shot(pg, 'login-error');
   await pg.goto('https://app.maestrolt.com/login?next=//evil.example');
   t('login page: an off-site next is replaced by /', (await pg.locator('#go').getAttribute('href')) === 'https://api.maestrolt.com/v1/auth/google/start?next=%2F');
   api.signedIn = true; await pg.goto('https://app.maestrolt.com/login?next=/connect'); await pg.waitForURL('https://app.maestrolt.com/connect');

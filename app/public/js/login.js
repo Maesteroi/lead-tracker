@@ -1,18 +1,19 @@
 (function () {
   'use strict';
+  var T = LT.t;
   var ERR = {
-    denied: 'ما أكملتش الدخول من جوجل. تقدر تحاول تاني.',
-    state: 'محاولة الدخول ما اتكملتش صح. جرّب تاني من الأول.',
-    expired: 'محاولة الدخول خدت وقت أطول من اللازم (10 دقايق). جرّب تاني.',
-    google: 'جوجل ما قدرتش تكمّل الدخول. جرّب تاني بعد شوية.',
-    email: 'إيميل حساب جوجل ده مش متأكد. استخدم حساب تاني أو أكّد الإيميل عند جوجل.'
+    denied: T('login.e.denied'),
+    state: T('login.e.state'),
+    expired: T('login.e.expired'),
+    google: T('login.e.google'),
+    email: T('login.e.email')
   };
   var q = new URLSearchParams(location.search);
   var next = LT.safeNext(q.get('next'));
   var err = q.get('error');
   if (err) {
     var box = document.getElementById('err');
-    box.textContent = ERR[err] || 'حصلت مشكلة في الدخول. جرّب تاني.';
+    box.textContent = ERR[err] || T('login.e.other');
     box.hidden = false;
   }
   document.getElementById('go').href = LT.loginUrl(next);
