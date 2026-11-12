@@ -384,7 +384,7 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
   await pg.locator('.side-nav a[data-r="protection"]').click();
   await pg.waitForFunction(() => document.getElementById('page-title').textContent === 'الحماية' && document.querySelector('.q-item'));
   const before = await pg.locator('.q-item').count();
-  await pg.locator('.q-item').first().getByRole('button', { name: 'اعتمده في جوجل' }).click();
+  await pg.locator('.q-item').first().getByRole('button', { name: 'امنعه في جوجل' }).click();
   t('demo protection: approving removes it from the queue and says it is a demo', (await pg.locator('.q-item').count()) === before - 1 && /التجريبية/.test(await pg.locator('#toast').innerText()));
   t('demo: never calls the API, no console errors, no CSP violations', apiCalls.length === 0 && pg.errors.length === 0 && pg.csp.length === 0);
   if (pg.errors.length || pg.csp.length) console.log(pg.errors, pg.csp);
