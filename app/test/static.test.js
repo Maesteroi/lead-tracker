@@ -68,6 +68,7 @@ test('i18n: every key used by the screens exists in the Arabic file, and the Ara
   const missing = [...used].filter((k) => !k.endsWith('.') && AR[k] === undefined);   // «nav.» + متغير = مفتاح بيتركّب (بيتفحص في المتصفح)
   assert.deepEqual(missing, [], 'missing keys');
   const text = JSON.stringify(AR);
-  for (const w of ['مش ', 'مفيش', 'دلوقتي', 'إزاي', 'ليه', 'بتاع', 'عايز', 'لسه', 'بره', 'كمان', 'بنحمّل', 'مقدرناش', 'النهارده', 'شوف '])
-    assert.ok(!text.includes(w), 'colloquial word in ar.js: ' + w);
+  // كلمة كاملة (مش جزء من كلمة: «ليه» جوه «عليها» مسموح)
+  for (const w of ['مش', 'مفيش', 'دلوقتي', 'إزاي', 'ليه', 'بتاع', 'عايز', 'لسه', 'بره', 'كمان', 'بنحمّل', 'مقدرناش', 'النهارده', 'شوف', 'اتسجل', 'جاي', 'بيتفعّل', 'هيظهر'])
+    assert.ok(!new RegExp('(^|[\\s«"(،.:])' + w + '($|[\\s»"),.،؟:])').test(text), 'colloquial word in ar.js: ' + w);
 });

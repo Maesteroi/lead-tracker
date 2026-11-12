@@ -35,7 +35,7 @@
   var NAV = { simple: ['overview', 'leads', 'protection', 'alerts', 'sites', 'team'], detailed: ROUTES.map(function (r) { return r[0]; }) };
   var BOTTOMS = { simple: ['overview', 'leads', 'protection', 'alerts'], detailed: ['overview', 'statement', 'visits', 'protection'] };
   var BOTTOM = BOTTOMS.detailed;
-  var STATUS = { real: ['حقيقي', 'ok'], suspicious: ['مشبوه', 'warn'], high: ['خطر عالي', 'bad'], blocked: ['محظور', 'bad'] };
+  var STATUS = { real: [T('status.real'), 'ok'], suspicious: [T('status.suspicious'), 'warn'], high: [T('status.high'), 'bad'], blocked: [T('status.blocked'), 'bad'] };
   var SRC = { google_ads: 'إعلان جوجل', google_organic: 'بحث جوجل', google_maps: 'خرائط جوجل', direct: 'مباشر', social: 'سوشيال' };
   var NET = { mobile: 'داتا موبايل', home: 'إنترنت منزلي', vpn: 'VPN', dc: 'شبكة سيرفرات' };
   var OUT = { 'تم': 'ok', 'بيفكر': 'info', 'لغى': 'bad', 'مش جاد': 'warn', 'ماوصلش رسالة': '' };
@@ -339,26 +339,26 @@
         el('div', { class: 'tbl-wrap' }, [el('table', { class: 'tbl' }, [el('thead', {}, [el('tr', {}, ['المكان والوقت', 'المصدر', 'الجهاز', 'الشبكة', 'التفاعل', 'الدرجة', 'الحالة'].map(function (h) { return el('th', { text: h, class: h === 'الجهاز' || h === 'الشبكة' || h === 'الدرجة' ? 'pro-only' : '' }); }))]), tbody])]), moreBtn]));
     });
   }
-  // حالة الزيارة الحقيقية: حكمك الأول، بعدين الدرجة، بعدين «بره النطاق»، بعدين التواصل
+  // حالة الزيارة الحقيقية: حكمك الأول، بعدين الدرجة، بعدين «خارج النطاق»، بعدين التواصل
   function livePill(v) {
-    if (v.verdict === 'fraud') return pill('مشبوه أكيد', 'bad');
-    if (v.verdict === 'real') return pill('زبون حقيقي ✓', 'ok');
+    if (v.verdict === 'fraud') return pill(T('verdict.fraud'), 'bad');
+    if (v.verdict === 'real') return pill(T('verdict.real') + ' ✓', 'ok');
     if (v.status === 'high' || v.status === 'suspicious') return pill(STATUS[v.status][0], STATUS[v.status][1]);
-    if (v.outside) return pill('بره النطاق', '');
-    if (v.contact) return pill(v.contact === 'wa' ? 'كلّمك واتساب' : 'كلّمك اتصال', 'ok');
-    return v.status === 'none' ? pill('زيارة', '') : pill('حقيقي', 'ok');
+    if (v.outside) return pill(T('visit.outside'), '');
+    if (v.contact) return pill(T(v.contact === 'wa' ? 'visit.contacted.wa' : 'visit.contacted.call'), 'ok');
+    return v.status === 'none' ? pill(T('visit.one'), '') : pill(T('status.real'), 'ok');
   }
-  // «▶ شوف الزيارة» (تسجيل rrweb): صفحة لوحدها بمشغّل كبير
-  // كارت الفحوصات: ✓ عدّى · ✗ ماعدّاش · — مش بينطبق أو لسه مااتعرفش
+  // فحوصات الزيارة: ✓ نجح · ✗ لم ينجح · — لا ينطبق أو غير معروف بعد
   function checksList(list) {
     return el('ul', { class: 'checks vchecks' }, list.map(function (c) {
       var cls = c.ok === true ? 'ok' : c.ok === false ? 'bad' : 'soon';
-      return el('li', { class: cls }, [el('i', { class: 'ck', text: c.ok === true ? '✓' : c.ok === false ? '✗' : '—', 'aria-label': c.ok === true ? 'عدّى' : c.ok === false ? 'ماعدّاش' : 'مش معروف' }), el('b', { text: c.label }), el('span', { text: c.detail })]);
+      return el('li', { class: cls }, [el('i', { class: 'ck', text: c.ok === true ? '✓' : c.ok === false ? '✗' : '—', 'aria-label': T(c.ok === true ? 'check.pass' : c.ok === false ? 'check.fail' : 'check.na') }), el('b', { text: c.label }), el('span', { text: c.detail })]);
     }));
   }
+  // «▶ شاهد الزيارة» (تسجيل rrweb): صفحة لوحدها بمشغّل كبير
   function replayHref(v) { return '/replay?site=' + encodeURIComponent(state.site) + '&sid=' + encodeURIComponent(v.id); }
   function replayLink(v, big) {
-    var a = el('a', { class: big ? 'btn rp-open' : 'rp-link', href: replayHref(v), title: 'شوف الزيارة كفيديو' }, [document.createTextNode(big ? '▶ شوف الزيارة كفيديو' : '▶ فيديو')]);
+    var a = el('a', { class: big ? 'btn rp-open' : 'rp-link', href: replayHref(v), title: T('replay.watch') }, [document.createTextNode(big ? '▶ ' + T('replay.watch') : '▶ ' + T('replay.short'))]);
     a.addEventListener('click', function (e) { e.stopPropagation(); });
     return a;
   }
@@ -383,53 +383,53 @@
     openDrawer();
   }
 
-  // زيارة حقيقية (من السيرفر): الدرجة و«ليه» من الحماية، والرحلة بتتحمّل لما تفتح الزيارة
+  // زيارة حقيقية (من السيرفر): الدرجة والأسباب من الحماية، والمسار بيتحمّل لما تفتح الزيارة
   function openLiveVisit(v, after) {
     var body = clear($('d-body'));
     $('d-title').textContent = placeOf(v);
     $('d-sub').textContent = timeAr(v.at) + ' · ' + srcName(v.src) + (v.kw ? ' «' + v.kw + '»' : '');
     var scored = v.score != null && v.status !== 'none';
-    var head = !scored ? [v.contact ? 'الزائر ده كلّمك' : 'زيارة مسجّلة', 'درجة الخطر بتظهر هنا أول ما السيرفر يتحدّث.']
-      : v.verdict === 'fraud' ? ['مشبوه أكيد', 'انت أكدت ده. لما جوجل أدز يتربط هيتمنع من إعلانك.']
-      : v.verdict === 'real' ? ['زبون حقيقي', 'انت أكدت ده، فمش هيتحسب مشبوه.']
-      : v.status === 'real' ? ['حقيقي', v.reasons.length ? 'فيه إشارة صغيرة تحت، بس مش كفاية نشك فيه.' : 'زيارة طبيعية، مفيش أي حاجة غريبة.']
-      : [STATUS[v.status][0], 'ليه؟ الأسباب تحت بالترتيب.'];
+    var head = !scored ? [T(v.contact ? 'visit.head.contacted' : 'visit.head.recorded'), T('visit.head.noscore')]
+      : v.verdict === 'fraud' ? [T('verdict.fraud'), T('visit.head.fraud')]
+      : v.verdict === 'real' ? [T('verdict.real'), T('visit.head.real')]
+      : v.status === 'real' ? [T('status.real'), T(v.reasons.length ? 'visit.head.real_hint' : 'visit.head.normal')]
+      : [STATUS[v.status][0], T('visit.head.why')];
     body.appendChild(el('div', { class: 'verdict s-' + (scored ? (v.verdict === 'fraud' ? 'high' : v.verdict === 'real' ? 'real' : v.status) : 'none') }, [
-      el('div', { class: 'vd-score' }, scored ? [el('b', { text: String(v.score) }), el('small', { text: 'من 100' })] : [el('b', { text: v.contact ? (v.contact === 'wa' ? '💬' : '📞') : '👁️' }), el('small', { text: v.pages + ' صفحة' })]),
+      el('div', { class: 'vd-score' }, scored ? [el('b', { text: String(v.score) }), el('small', { text: T('visit.of100') })] : [el('b', { text: v.contact ? (v.contact === 'wa' ? '💬' : '📞') : '👁️' }), el('small', { text: LT.n(v.pages, 'page') })]),
       el('div', {}, [el('b', { text: head[0] }), el('span', { text: head[1] })])]));
-    if (v.replay) body.appendChild(el('div', { class: 'rp-cta' }, [replayLink(v, true), el('span', { class: 'hint', text: 'صفحة موقعك الحقيقية والزائر بيتحرك فيها.' })]));
-    if (v.outside) body.appendChild(el('div', { class: 'callout' }, [el('b', { text: 'بره نطاقك' }), el('span', { text: 'الزيارة دي من ' + (v.country || 'بلد تاني') + '، بره البلد اللي موقعك مستهدفه. مش محتاجة نتيجة، ومش بتتحسب عليك.' })]));
-    if (v.checks && v.checks.length) body.appendChild(el('section', { class: 'd-sec' }, [el('h3', { class: 'legend', text: 'الزيارة دي عدّت على إيه' }), checksList(v.checks)]));
-    var why = v.reasons.filter(function (r) { return r.indexOf('انت ') !== 0; });
-    if (scored && why.length) body.appendChild(el('section', { class: 'd-sec' }, [el('h3', { class: 'legend', text: 'ليه' }), el('ul', { class: 'why' }, why.map(function (r) { return el('li', { text: r }); }))]));
-    var tl = el('ol', { class: 'timeline' }, [el('li', {}, [el('span', { class: 'spinner' }), el('span', { text: 'بنحمّل رحلة الزائر…' })])]);
-    body.appendChild(el('section', { class: 'd-sec' }, [el('h3', { class: 'legend', text: 'رحلة الزائر بالثانية' }), tl]));
-    body.appendChild(el('section', { class: 'd-sec' }, [el('h3', { class: 'legend', text: 'التفاصيل' }), el('dl', { class: 'facts' }, [
-      ['المصدر', srcName(v.src) + (v.kw ? ' · ' + v.kw : '')], ['الجهاز', v.device + (v.os ? ' · ' + v.os : '')], ['الشبكة', shortIsp(v.isp)], ['أول صفحة', v.landing || '—'],
-      ['المدة', v.dur == null ? '—' : v.dur + ' ثانية'], ['زيارة رقم', String(v.visit_no || 1)], ['كود المطابقة', v.code ? '#' + v.code : '—'],
-    ].concat(v.repeats > 1 ? [['نفس الجهاز من الإعلان', v.repeats + ' مرات']] : []).reduce(function (a, f) { a.push(el('dt', { text: f[0] })); a.push(el('dd', { text: f[1] })); return a; }, []))]));
+    if (v.replay) body.appendChild(el('div', { class: 'rp-cta' }, [replayLink(v, true), el('span', { class: 'hint', text: T('replay.hint') })]));
+    if (v.outside) body.appendChild(el('div', { class: 'callout' }, [el('b', { text: T('visit.outside') }), el('span', { text: T('visit.outside.text', { c: v.country || T('visit.other_country') }) })]));
+    if (v.checks && v.checks.length) body.appendChild(el('section', { class: 'd-sec' }, [el('h3', { class: 'legend', text: T('visit.checks') }), checksList(v.checks)]));
+    var why = v.reasons.filter(function (r) { return !/^(حكمك|Your review)/.test(r); });
+    if (scored && why.length) body.appendChild(el('section', { class: 'd-sec' }, [el('h3', { class: 'legend', text: T('visit.why') }), el('ul', { class: 'why' }, why.map(function (r) { return el('li', { text: r }); }))]));
+    var tl = el('ol', { class: 'timeline' }, [el('li', {}, [el('span', { class: 'spinner' }), el('span', { text: T('visit.journey.loading') })])]);
+    body.appendChild(el('section', { class: 'd-sec' }, [el('h3', { class: 'legend', text: T('visit.journey') }), tl]));
+    body.appendChild(el('section', { class: 'd-sec' }, [el('h3', { class: 'legend', text: T('visit.details') }), el('dl', { class: 'facts' }, [
+      [T('f.source'), srcName(v.src) + (v.kw ? ' · ' + v.kw : '')], [T('f.device'), v.device + (v.os ? ' · ' + v.os : '')], [T('f.network'), shortIsp(v.isp)], [T('f.landing'), v.landing || '—'],
+      [T('f.duration'), v.dur == null ? '—' : LT.n(v.dur, 'second')], [T('f.visit_no'), String(v.visit_no || 1)], [T('f.code'), v.code ? '#' + v.code : '—'],
+    ].concat(v.repeats > 1 ? [[T('f.repeats'), LT.n(v.repeats, 'time')]] : []).reduce(function (a, f) { a.push(el('dt', { text: f[0] })); a.push(el('dd', { text: f[1] })); return a; }, []))]));
     setFoot(scored && DATA.verdict ? verdictButtons(v, function () { openLiveVisit(v, after); if (after) after(); }) : null);
     openDrawer();
     DATA.session(state.site, v.id).then(function (ev) {
       clear(tl);
-      if (!ev.length) tl.appendChild(el('li', {}, [el('span', { text: 'مفيش أحداث.' })]));
+      if (!ev.length) tl.appendChild(el('li', {}, [el('span', { text: T('visit.journey.empty') })]));
       ev.forEach(function (e) { tl.appendChild(el('li', { class: 'k-' + e.kind }, [el('time', { text: clock(e.at) }), el('span', { text: e.text })])); });
-    }, function () { clear(tl); tl.appendChild(el('li', {}, [el('span', { text: 'مقدرناش نحمّل الرحلة. جرّب تاني.' })])); });
+    }, function () { clear(tl); tl.appendChild(el('li', {}, [el('span', { text: T('visit.journey.fail') })])); });
   }
-  // حكمك على الزيارة (زبون حقيقي · مشبوه أكيد · رجّع): بيتحفظ على السيرفر، وبيغلب الدرجة
+  // حكمك على الزيارة (عميل حقيقي · احتيال مؤكَّد · تراجع): بيتحفظ على السيرفر، وبيغلب الدرجة
   function setVerdict(v, value, done) {
     DATA.verdict(state.site, v.id, value).then(function () {
       v.verdict = value;
       if (value === 'real') v.status = 'real';
       if (value === 'fraud') { v.status = 'high'; v.score = Math.max(v.score || 0, 90); }
-      toast(value === 'real' ? 'اتسجل إنه زبون حقيقي، والنظام هيتعلم منه' : value === 'fraud' ? 'اتسجل إنه مشبوه أكيد. لما جوجل أدز يتربط هيتمنع من إعلانك' : 'الحكم اترجع');
+      toast(T(value === 'real' ? 'verdict.saved.real' : value === 'fraud' ? 'verdict.saved.fraud' : 'verdict.saved.undo'));
       if (done) done();
-    }, function (e) { toast(e && e.message === 'role' ? 'صلاحيتك مشاهدة بس، مينفعش تحكم' : 'مااتسجلش. جرّب تاني.'); });
+    }, function (e) { toast(T(e && e.message === 'role' ? 'verdict.err.role' : 'err.save')); });
   }
   function verdictButtons(v, done) {
     var box = el('div', { class: 'd-foot-act' });
-    if (v.verdict) { var u = el('button', { class: 'btn ghost', type: 'button', text: 'رجّع حكمي' }); u.addEventListener('click', function () { setVerdict(v, null, function () { v.status = 'none'; render(); closeDrawer(); }); }); box.appendChild(u); return box; }
-    var real = el('button', { class: 'btn ghost', type: 'button', text: 'ده زبون حقيقي' }), bad = el('button', { class: 'btn', type: 'button', text: 'مشبوه أكيد' });
+    if (v.verdict) { var u = el('button', { class: 'btn ghost', type: 'button', text: T('verdict.undo') }); u.addEventListener('click', function () { setVerdict(v, null, function () { v.status = 'none'; render(); closeDrawer(); }); }); box.appendChild(u); return box; }
+    var real = el('button', { class: 'btn ghost', type: 'button', text: T('verdict.real') }), bad = el('button', { class: 'btn', type: 'button', text: T('verdict.fraud') });
     real.addEventListener('click', function () { setVerdict(v, 'real', done); });
     bad.addEventListener('click', function () { setVerdict(v, 'fraud', done); });
     box.appendChild(real); box.appendChild(bad);
@@ -760,68 +760,68 @@
   window.addEventListener('afterprint', function () { document.body.classList.remove('print-report'); });
 
   // ════════ شاشات البيانات الحقيقية (اللي بتختلف عن التجريبية) ════════
-  function soonCard(title, lines) { return card(title, [el('ul', { class: 'soon-list' }, lines.map(function (t) { return el('li', { text: t }); })), el('p', { class: 'hint', text: 'بيتفعّل قبل النزول (22 نوفمبر)، وهيظهر هنا لوحده.' })], 'soon'); }
-  var LIVE_SERIES = [{ key: 'real', label: 'حقيقي', cls: 'c-real' }, { key: 'suspicious', label: 'مشبوه', cls: 'c-sus' }, { key: 'high', label: 'خطر عالي', cls: 'c-blk' }];
+  function soonCard(title, lines) { return card(title, [el('ul', { class: 'soon-list' }, lines.map(function (t) { return el('li', { text: t }); })), el('p', { class: 'hint', text: T('soon.hint') })], 'soon'); }
+  var LIVE_SERIES = [{ key: 'real', label: T('status.real'), cls: 'c-real' }, { key: 'suspicious', label: T('status.suspicious'), cls: 'c-sus' }, { key: 'high', label: T('status.high'), cls: 'c-blk' }];
   function liveAction(a, simple) {
-    return a.kind === 'pending' ? ['protection', 'warn', a.n + (a.n === 1 ? ' زيارة مشبوهة' : ' زيارات مشبوهة') + ' مستنية رأيك', simple ? 'بص على الأسباب وقول زبون حقيقي ولا لأ' : 'كل واحدة معاها الأسباب، احكم بضغطة', 'راجعها']
-      : a.kind === 'outcome' ? ['leads', 'info', simple ? 'قولنا ' + a.n + ' عملاء اتفقوا ولا لأ' : a.n + ' تواصل من غير نتيجة', 'علشان نحسب العميل الحقيقي بكام', 'سجّل']
-      : a.kind === 'delivery' ? ['sites', 'warn', simple ? 'فيه أحداث ماوصلتش' : 'التوصيل ' + a.pct + '%', simple ? 'بنتابعها، ومش محتاج منك حاجة دلوقتي' : 'فيه أحداث ماوصلتش من موقعك، بنتابعها', 'التفاصيل']
-      : ['sites', 'info', 'اربط جوجل أدز (قريباً)', 'علشان الحظر يتنفذ جوه جوجل وكشف الحساب', 'المواقع'];
+    return a.kind === 'pending' ? ['protection', 'warn', T('act.pending', { n: LT.n(a.n, 'svisit') }), T(simple ? 'act.pending.sub.simple' : 'act.pending.sub'), T('act.pending.go')]
+      : a.kind === 'outcome' ? ['leads', 'info', T(simple ? 'act.outcome.simple' : 'act.outcome', { n: LT.n(a.n, 'contact') }), T('act.outcome.sub'), T('act.outcome.go')]
+      : a.kind === 'delivery' ? ['sites', 'warn', simple ? T('act.delivery.simple') : T('act.delivery', { p: a.pct }), T(simple ? 'act.delivery.sub.simple' : 'act.delivery.sub'), T('act.details')]
+      : ['sites', 'info', T('act.ads'), T('act.ads.sub'), T('nav.sites')];
   }
   function actionsCard(list, simple) {
     var acts = el('div', { class: 'actions' });
     list.forEach(function (a) { var m = liveAction(a, simple); acts.appendChild(el('a', { class: 'act ' + m[1], href: '#/' + m[0] }, [el('b', { text: m[2] }), el('span', { text: m[3] }), el('em', { text: m[4] + ' ‹' })])); });
-    return card('تعمل إيه دلوقتي', [acts]);
+    return card(T('act.title'), [acts]);
   }
   function lOverview(view) {
     return DATA.overview(state.site, state.range).then(function (d) {
       clear(view);
-      var k = d.kpi, p = d.prev, sc = d.scoring, bad = (k.suspicious || 0) + (k.high || 0);
+      var k = d.kpi, p = d.prev, sc = d.scoring, bad = (k.suspicious || 0) + (k.high || 0), dl = d.status.delivery;
       view.appendChild(el('div', { class: 'status-strip' }, [
-        el('a', { class: 'st ' + (sc ? 'ok' : ''), href: '#/protection' }, [el('i', { class: 'dot' + (sc ? ' live' : '') }), document.createTextNode(sc ? 'الحماية: بتراقب كل زيارة' : 'الحماية: بتتجهز')]),
-        el('span', { class: 'st ' + (d.status.delivery == null ? '' : d.status.delivery >= 99.5 ? 'ok' : 'warn') }, [el('i', { class: 'dot' }), document.createTextNode(d.status.delivery == null ? 'التوصيل: أول قياس بعد تحديث البلجن' : 'التتبع: وصل ' + d.status.delivery + '% من الأحداث')]),
-        el('span', { class: 'st ' + (d.status.ads ? 'ok' : '') }, [el('i', { class: 'dot' }), document.createTextNode(d.status.ads ? 'جوجل أدز متربط' : 'جوجل أدز: الربط جاي قريباً')]),
-        el('a', { class: 'st live-now', href: '#/visits' }, [el('i', { class: 'dot live' }), document.createTextNode(d.live + ' زوار دلوقتي')]),
+        el('a', { class: 'st ' + (sc ? 'ok' : ''), href: '#/protection' }, [el('i', { class: 'dot' + (sc ? ' live' : '') }), document.createTextNode(T(sc ? 'strip.prot.on' : 'strip.prot.soon'))]),
+        el('span', { class: 'st ' + (dl == null ? '' : dl >= 99.5 ? 'ok' : 'warn') }, [el('i', { class: 'dot' }), document.createTextNode(dl == null ? T('strip.delivery.none') : T('strip.delivery', { p: dl }))]),
+        el('span', { class: 'st ' + (d.status.ads ? 'ok' : '') }, [el('i', { class: 'dot' }), document.createTextNode(T(d.status.ads ? 'strip.ads.on' : 'strip.ads.soon'))]),
+        el('a', { class: 'st live-now', href: '#/visits' }, [el('i', { class: 'dot live' }), document.createTextNode(T('strip.live', { n: LT.n(d.live, 'visitor') }))]),
       ]));
       view.appendChild(el('div', { class: 'kpis' }, sc ? [
-        kpi('زيارات', fmt(k.sessions), fmt(k.pageviews) + ' صفحة اتفتحت', 'info', delta(k.sessions, p.real, true)),
-        kpi('حقيقي', fmt(k.real), pct(k.real, k.real + bad) + '% من الزيارات', 'ok'),
-        kpi('مشبوه', fmt(bad), fmt(k.high) + ' منهم خطر عالي' + (k.ad_sessions ? ' · ' + fmt(k.ad_bad) + ' من ' + fmt(k.ad_sessions) + ' من الإعلان' : ''), bad ? 'warn' : 'mute'),
-        kpi('تواصل', fmt(k.contacts), 'واتساب واتصال' + (k.outside_leads ? ' · ' + fmt(k.outside_leads) + ' بره النطاق' : ''), 'ok', delta(k.contacts, p.contacts, true)),
-        kpi('عملاء حقيقيين', fmt(k.won), 'اتفقوا معاك', 'ok'),
-        kpi('مستني رأيك', fmt(k.pending + k.open), fmt(k.pending) + ' مشبوه · ' + fmt(k.open) + ' تواصل من غير نتيجة', k.pending + k.open ? 'warn' : 'mute'),
+        kpi(T('kpi.visits'), fmt(k.sessions), T('kpi.pages_opened', { n: LT.n(k.pageviews, 'page') }), 'info', delta(k.sessions, p.real, true)),
+        kpi(T('kpi.real'), fmt(k.real), T('kpi.of_visits', { p: pct(k.real, k.real + bad) }), 'ok'),
+        kpi(T('kpi.suspicious'), fmt(bad), T('kpi.high_of', { n: fmt(k.high) }) + (k.ad_sessions ? ' · ' + T('kpi.from_ads', { a: fmt(k.ad_bad), b: fmt(k.ad_sessions) }) : ''), bad ? 'warn' : 'mute'),
+        kpi(T('kpi.contacts'), fmt(k.contacts), T('kpi.wa_call') + (k.outside_leads ? ' · ' + T('kpi.outside_n', { n: fmt(k.outside_leads) }) : ''), 'ok', delta(k.contacts, p.contacts, true)),
+        kpi(T('kpi.won'), fmt(k.won), T('kpi.won.sub'), 'ok'),
+        kpi(T('kpi.review'), fmt(k.pending + k.open), T('kpi.review.sub', { a: fmt(k.pending), b: fmt(k.open) }), k.pending + k.open ? 'warn' : 'mute'),
       ] : [
-        kpi('زيارات', fmt(k.real), fmt(k.pageviews) + ' صفحة اتفتحت', 'info', delta(k.real, p.real, true)),
-        kpi('تواصل', fmt(k.contacts), 'واتساب واتصال', 'ok', delta(k.contacts, p.contacts, true)),
-        kpi('نسبة التواصل', pct(k.contacts, k.real) + '%', 'من الزيارات', 'info'),
-        kpi('عملاء حقيقيين', fmt(k.won), 'اتفقوا معاك', 'ok'),
-        kpi('من غير نتيجة', fmt(k.open), 'سجّلها من تليجرام أو من العملاء', k.open ? 'warn' : 'mute'),
-        kpi('التوصيل', d.status.delivery == null ? 'لسه' : d.status.delivery + '%', 'الأحداث اللي وصلت من موقعك', d.status.delivery == null ? 'mute' : d.status.delivery >= 99.5 ? 'ok' : 'warn'),
+        kpi(T('kpi.visits'), fmt(k.real), T('kpi.pages_opened', { n: LT.n(k.pageviews, 'page') }), 'info', delta(k.real, p.real, true)),
+        kpi(T('kpi.contacts'), fmt(k.contacts), T('kpi.wa_call'), 'ok', delta(k.contacts, p.contacts, true)),
+        kpi(T('kpi.contact_rate'), pct(k.contacts, k.real) + '%', T('kpi.contact_rate.sub'), 'info'),
+        kpi(T('kpi.won'), fmt(k.won), T('kpi.won.sub'), 'ok'),
+        kpi(T('kpi.open'), fmt(k.open), T('kpi.open.sub'), k.open ? 'warn' : 'mute'),
+        kpi(T('kpi.delivery'), dl == null ? T('kpi.delivery.none') : dl + '%', T('kpi.delivery.sub'), dl == null ? 'mute' : dl >= 99.5 ? 'ok' : 'warn'),
       ]));
       if (d.actions.length) view.appendChild(actionsCard(d.actions, false));
       var ch = el('div');
-      C.stacked(ch, d.days, sc ? LIVE_SERIES : [{ key: 'real', label: 'زيارات', cls: 'c-real' }], { label: sc ? 'جودة الزيارات' : 'الزيارات كل يوم' });
-      view.appendChild(card(sc ? 'جودة الزيارات كل يوم' : 'الزيارات كل يوم', [el('p', { class: 'hint', text: sc ? 'كل زيارة بتاخد درجة خطر من 100: من 40 مشبوه، ومن 70 خطر عالي.' : 'كل زيارة متسجلة. تقسيمها لحقيقي ومشبوه بيبدأ مع الحماية.' }), ch]));
+      C.stacked(ch, d.days, sc ? LIVE_SERIES : [{ key: 'real', label: T('kpi.visits'), cls: 'c-real' }], { label: T(sc ? 'chart.quality' : 'chart.daily') });
+      view.appendChild(card(T(sc ? 'chart.quality.title' : 'chart.daily'), [el('p', { class: 'hint', text: T(sc ? 'chart.quality.hint' : 'chart.daily.hint') }), ch]));
       if (sc && d.suspicious.length) {
         var sl = el('div', { class: 'queue' });
         d.suspicious.forEach(function (v) { sl.appendChild(suspectItem(v, function () { lOverview(view); })); });
-        view.appendChild(card('أكتر الزيارات المشبوهة', [sl, el('a', { class: 'linkish', href: '#/protection', text: 'كل المشبوهين ‹' })]));
+        view.appendChild(card(T('ov.top_suspicious'), [sl, el('a', { class: 'linkish', href: '#/protection', text: T('ov.all_suspicious') })]));
       }
       var src = el('div'); C.hbars(src, d.sources.map(function (x) { return { label: srcName(x.name), value: x.n, cls: x.name === 'google_ads' ? 'c-real' : 'c-data' }; }), { compact: true });
       var pl = el('div'); C.hbars(pl, d.places.map(function (x) { return { label: x.name, value: x.n, cls: 'c-data' }; }), { compact: true });
-      view.appendChild(el('div', { class: 'grid-2' }, [card('مصادر الزيارات', [d.sources.length ? src : el('p', { class: 'muted', text: 'لسه مفيش زيارات في الفترة دي.' })]), card('الزيارات منين (المدن)', [d.places.length ? pl : el('p', { class: 'muted', text: 'لسه مفيش أماكن.' })])]));
-      view.appendChild(soonCard('جاي مع ربط جوجل أدز', ['الحظر جوه جوجل نفسه بضغطة «اعتمد لجوجل»', 'الفلوس اللي اتحمت وكشف الحساب', 'ملف الاسترداد من جوجل بالأدلة']));
+      view.appendChild(el('div', { class: 'grid-2' }, [card(T('ov.sources'), [d.sources.length ? src : el('p', { class: 'muted', text: T('ov.no_visits') })]), card(T('ov.places'), [d.places.length ? pl : el('p', { class: 'muted', text: T('ov.no_places') })])]));
+      view.appendChild(soonCard(T('ov.soon.title'), [T('ov.soon.1'), T('ov.soon.2'), T('ov.soon.3')]));
     });
   }
   // سطر زيارة مشبوهة: الدرجة + المكان + أول 3 أسباب + زرارين الحكم + الرحلة
   function suspectItem(v, done) {
-    var real = el('button', { class: 'btn ghost sm', type: 'button', text: 'ده زبون حقيقي' }), bad = el('button', { class: 'btn sm', type: 'button', text: 'مشبوه أكيد' }), open = el('button', { class: 'linkish', type: 'button', text: 'الرحلة ‹' });
+    var real = el('button', { class: 'btn ghost sm', type: 'button', text: T('verdict.real') }), bad = el('button', { class: 'btn sm', type: 'button', text: T('verdict.fraud') }), open = el('button', { class: 'linkish', type: 'button', text: T('visit.journey_link') });
     real.addEventListener('click', function () { setVerdict(v, 'real', done); });
     bad.addEventListener('click', function () { setVerdict(v, 'fraud', done); });
     open.addEventListener('click', function () { openLiveVisit(v, done); });
-    var why = v.reasons.filter(function (r) { return r.indexOf('انت ') !== 0; });
+    var why = v.reasons.filter(function (r) { return !/^(حكمك|Your review)/.test(r); });
     return el('div', { class: 'q-item' }, [
-      el('div', { class: 'q-main' }, [el('div', {}, [el('b', { text: placeOf(v) }), el('span', { class: 'dim', text: ' · ' + timeAr(v.at) + ' · ' + srcName(v.src) + (v.dur != null ? ' · ' + v.dur + 'ث' : '') })]), el('ul', { class: 'why sm' }, why.slice(0, 3).map(function (r, i) { return el('li', { text: r, class: i ? 'pro-only' : '' }); }))]),
+      el('div', { class: 'q-main' }, [el('div', {}, [el('b', { text: placeOf(v) }), el('span', { class: 'dim', text: ' · ' + timeAr(v.at) + ' · ' + srcName(v.src) + (v.dur != null ? ' · ' + LT.n(v.dur, 'second') : '') })]), el('ul', { class: 'why sm' }, why.slice(0, 3).map(function (r, i) { return el('li', { text: r, class: i ? 'pro-only' : '' }); }))]),
       el('div', { class: 'q-act' }, [scoreBadge(v), v.verdict ? livePill(v) : null, v.verdict ? null : real, v.verdict ? null : bad, v.replay ? replayLink(v) : null, open]),
     ]);
   }
@@ -831,32 +831,34 @@
       var d = res[0], k = d.kpi, bad = (k.suspicious || 0) + (k.high || 0), site = res[1].filter(function (x) { return x.id === state.site; })[0] || res[1][0] || {};
       var ads = (d.sources.filter(function (x) { return x.name === 'google_ads'; })[0] || {}).n || 0;
       view.appendChild(el('div', { class: 'answers' }, [
-        d.scoring ? el('div', { class: 'ans ' + (bad ? 'warn' : 'ok') }, [el('span', { class: 'q', text: 'فيه ضغطات وهمية؟' }), el('b', { class: 'a', text: bad ? fmt(bad) + ' زيارة مشبوهة' : 'لأ، كله طبيعي' }), el('span', { class: 's', text: bad ? 'من ' + fmt(k.sessions) + ' زيارة.' + (k.pending ? ' ' + fmt(k.pending) + ' مستنيين رأيك.' : '') + ' الحظر جوه جوجل بييجي مع ربط جوجل أدز.' : 'بنراقب كل زيارة، ولو ظهر حاجة هتلاقيها هنا.' })])
-          : el('div', { class: 'ans info' }, [el('span', { class: 'q', text: 'إعلانك محمي؟' }), el('b', { class: 'a', text: 'بنراقب كل زيارة' }), el('span', { class: 's', text: 'الكشف والحظر الأوتوماتيك بيشتغلوا قبل 22 نوفمبر، وهنبلّغك أول ما يشتغلوا.' })]),
-        el('div', { class: 'ans ok' }, [el('span', { class: 'q', text: 'جالك كام زيارة؟ (آخر 7 أيام)' }), el('b', { class: 'a', text: fmt(k.sessions) + ' زيارة' }), el('span', { class: 's', text: ads ? fmt(ads) + ' منهم من إعلانات جوجل.' : 'من كل المصادر.' })]),
-        el('div', { class: 'ans info' }, [el('span', { class: 'q', text: 'جالك كام عميل حقيقي؟' }), el('b', { class: 'a', text: fmt(k.won) + ' عميل' }), el('span', { class: 's', text: fmt(k.contacts) + ' كلّموك واتساب أو اتصال' + (k.open ? '، و' + fmt(k.open) + ' مستنيين تسجيل النتيجة.' : '.') })]),
+        d.scoring ? el('div', { class: 'ans ' + (bad ? 'warn' : 'ok') }, [el('span', { class: 'q', text: T('ans.fraud.q') }), el('b', { class: 'a', text: bad ? LT.n(bad, 'svisit') : T('ans.fraud.none') }), el('span', { class: 's', text: bad ? T('ans.fraud.of', { n: LT.n(k.sessions, 'visit') }) + (k.pending ? ' ' + T('ans.fraud.pending', { n: fmt(k.pending) }) : '') + ' ' + T('ans.fraud.ads') : T('ans.fraud.watch') })])
+          : el('div', { class: 'ans info' }, [el('span', { class: 'q', text: T('ans.protected.q') }), el('b', { class: 'a', text: T('ans.protected.a') }), el('span', { class: 's', text: T('ans.protected.s') })]),
+        el('div', { class: 'ans ok' }, [el('span', { class: 'q', text: T('ans.visits.q') }), el('b', { class: 'a', text: LT.n(k.sessions, 'visit') }), el('span', { class: 's', text: ads ? T('ans.visits.ads', { n: fmt(ads) }) : T('ans.visits.all') })]),
+        el('div', { class: 'ans info' }, [el('span', { class: 'q', text: T('ans.won.q') }), el('b', { class: 'a', text: LT.n(k.won, 'customer') }), el('span', { class: 's', text: T('ans.won.s', { n: fmt(k.contacts) }) + (k.open ? T('ans.won.open', { n: fmt(k.open) }) : '.') })]),
       ]));
       if (d.actions.length) view.appendChild(actionsCard(d.actions.slice(0, 3), true));
       var steps = [
-        ['كود Maestro متركب على موقعك', site.installed ? 'ok' : 'todo', 'sites'],
-        ['البلجن آخر نسخة وبيقيس التوصيل', site.plugin ? 'ok' : 'todo', 'sites'],
-        ['حساب جوجل أدز متربط', site.ads ? 'ok' : 'soon', 'sites'],
-        ['الحماية بتراقب كل زيارة', d.scoring ? 'ok' : 'soon', 'protection'],
-        ['الحظر جوه جوجل', 'soon', 'protection'],
-        ['التطبيق على موبايلك', installed() ? 'ok' : 'todo', 'app'],
+        [T('steps.installed'), site.installed ? 'ok' : 'todo', 'sites'],
+        [T('steps.plugin'), site.plugin ? 'ok' : 'todo', 'sites'],
+        [T('steps.ads'), site.ads ? 'ok' : 'soon', 'sites'],
+        [T('steps.watch'), d.scoring ? 'ok' : 'soon', 'protection'],
+        [T('steps.block'), 'soon', 'protection'],
+        [T('steps.app'), installed() ? 'ok' : 'todo', 'app'],
       ];
       var done = steps.filter(function (x) { return x[1] === 'ok'; }).length;
       var bar = el('i'); bar.style.width = Math.round((done / steps.length) * 100) + '%';
       var list = el('ul', { class: 'steps-check' });
       steps.forEach(function (x) {
         var li = el('li', { class: x[1] }, [el('i', { class: 'ck', text: x[1] === 'ok' ? '✓' : x[1] === 'soon' ? '…' : '' }), el('span', { text: x[0] })]);
-        if (x[1] === 'soon') li.appendChild(pill('قريباً', ''));
-        else if (x[1] === 'todo') { var go = el(x[2] === 'app' ? 'button' : 'a', x[2] === 'app' ? { class: 'linkish', type: 'button', text: 'إزاي؟' } : { class: 'linkish', href: '#/' + x[2], text: 'كمّلها ‹' }); if (x[2] === 'app') go.addEventListener('click', openInstall); li.appendChild(go); }
+        if (x[1] === 'soon') li.appendChild(pill(T('soon'), ''));
+        else if (x[1] === 'todo') { var go = el(x[2] === 'app' ? 'button' : 'a', x[2] === 'app' ? { class: 'linkish', type: 'button', text: T('steps.how') } : { class: 'linkish', href: '#/' + x[2], text: T('steps.finish') }); if (x[2] === 'app') go.addEventListener('click', openInstall); li.appendChild(go); }
         list.appendChild(li);
       });
-      view.appendChild(card('حمايتك كاملة؟', [el('div', { class: 'progress' }, [el('div', { class: 'p-bar' }, [bar]), el('b', { text: done + ' من ' + steps.length })]), list]));
-      view.appendChild(card('الأسبوع ده باختصار', [el('p', { class: 'story', text: 'جالك ' + fmt(k.sessions) + ' زيارة' + (ads ? ' (' + fmt(ads) + ' من إعلانات جوجل)' : '') + '، ' + fmt(k.contacts) + ' منهم كلّموك واتساب أو اتصال، و' + fmt(k.won) + ' اتفقوا معاك.' + (d.scoring ? (bad ? ' لقينا ' + fmt(bad) + ' زيارة مشبوهة.' : ' مالقيناش زيارات مشبوهة.') : '') + (d.places[0] ? ' أكتر زيارات جاية من ' + d.places[0].name + '.' : '') }),
-        el('button', { class: 'btn ghost sm', type: 'button', text: 'اعرض كل التفاصيل' })]));
+      view.appendChild(card(T('steps.title'), [el('div', { class: 'progress' }, [el('div', { class: 'p-bar' }, [bar]), el('b', { text: T('steps.of', { a: done, b: steps.length }) })]), list]));
+      var story = T('story.base', { v: LT.n(k.sessions, 'visit'), ads: ads ? T('story.ads', { n: fmt(ads) }) : '', c: fmt(k.contacts), w: fmt(k.won) })
+        + (d.scoring ? ' ' + (bad ? T('story.bad', { n: LT.n(bad, 'svisit') }) : T('story.clean')) : '')
+        + (d.places[0] ? ' ' + T('story.place', { p: d.places[0].name }) : '');
+      view.appendChild(card(T('story.title'), [el('p', { class: 'story', text: story }), el('button', { class: 'btn ghost sm', type: 'button', text: T('story.more') })]));
       view.querySelector('.story + .btn').addEventListener('click', function () { setLevel('detailed'); });
     });
   }
