@@ -63,9 +63,9 @@ export function eventLine(p) {
   if (e === 'purchase') return '💰 ' + t + ' · <b>شراء: ' + esc(p.order_total || 0) + ' ' + esc(p.currency || '') + '</b>';
   if (e === 'sign_up') return '📝 ' + t + ' · حساب جديد';
   if (e === 'contact_return' && String(p.is_test) !== '1') {   // بلجن 2.13.1: قوة التواصل (تقديري)
-    const st = contactStrength(p.away_seconds, p.app_opened);
+    const st = contactStrength(p.away_seconds, p.app_opened, 'ar', p.click_type || p.ct);
     const icon = st.key === 'strong' ? '💪' : st.key === 'normal' ? '↩️' : '⚠️';
-    return icon + ' ' + t + ' · ' + (String(p.click_type || p.ct) === 'call' ? 'الاتصال' : 'الواتساب') + ': ' + esc(st.detail) + ' · قوة التواصل: <b>' + st.label + '</b> (تقديرية)';
+    return icon + ' ' + t + ' · ' + esc(st.detail) + ' · قوة التواصل: <b>' + st.label + '</b> (تقديرية)';
   }
   if (e !== 'click') return '';
   const lv = String(p.lead_level || '');

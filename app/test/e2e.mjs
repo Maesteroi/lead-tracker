@@ -75,7 +75,7 @@ function fakeApi(over) {
         const bot = sv('BOT1'), sus = sv('SUS1', { city: 'Riyadh', region: '', country: 'Saudi Arabia', country_code: 'SA', isp: 'STC', automation: false, score: 60, status: 'suspicious', reasons: ['أغلق الصفحة بعد ثانيتين دون أي حركة', 'الجهاز نفسه نقر على إعلانك 3 مرات في هذه الفترة'], outside: false, replay: false });
         const ly = sv('LY1', { city: 'Tripoli', country: 'Libya', country_code: 'LY', isp: 'Al Madar', source: 'google_organic', gclid: false, ad: false, automation: false, score: 0, status: 'real', reasons: [], contact: 'wa', code: 'LY29', seconds: 21, repeats: 0, replay: false });
         const vd = (x) => Object.assign({}, x, st.verdicts && st.verdicts[x.id] ? { verdict: st.verdicts[x.id], status: st.verdicts[x.id] === 'real' ? 'real' : 'high' } : {});
-        if (p === '/v1/dash/overview') { const days = []; for (let i = range - 1; i >= 0; i--) days.push({ day: new Date(Date.now() + 3 * 3600e3 - i * 864e5).toISOString().slice(0, 10), sessions: 10, pageviews: 14, clicks: 3, contacts: 2, real: 8, suspicious: 1, high: 1 }); return j(200, { ok: true, range, days, kpi: { sessions: 60, pageviews: 80, contacts: 9, won: 3, open: 2, leads: 10, real: 50, suspicious: 6, high: 4, ad_sessions: 40, ad_bad: 9, pending: 2, outside: 3, outside_leads: 1 }, prev: { sessions: 50, contacts: 7 }, live: 2, suspicious: [bot, sus].map(vd), status: { scoring: true, ads: false, delivery: 99.8, paired: true }, sources: [{ name: 'google_ads', n: 40 }], places: [{ name: 'Riyadh', n: 30 }], devices: [] }); }
+        if (p === '/v1/dash/overview') { const days = []; for (let i = range - 1; i >= 0; i--) days.push({ day: new Date(Date.now() + 3 * 3600e3 - i * 864e5).toISOString().slice(0, 10), sessions: 10 + (i * 7) % 9, pageviews: 14 + i, clicks: 3, contacts: 2 + (i % 3), real: 8 + (i * 5) % 7, suspicious: 1 + (i % 2), high: i % 4 === 1 ? 2 : 1 }); const hours = Array.from({ length: 7 }, (_, d) => Array.from({ length: 24 }, (_, h) => { const n = h >= 9 && h <= 23 ? ((d * 3 + h * 7) % 9) : h < 3 ? 1 : 0; return { n, bad: h === 2 || (d === 4 && h === 21) ? Math.max(1, n) : 0 }; })); return j(200, { ok: true, range, period: { days: range, current: true }, hours, countries: [{ code: 'SA', name: 'السعودية', n: 48 }, { code: 'EG', name: 'مصر', n: 7 }, { code: 'US', name: 'الولايات المتحدة', n: 5 }], reasons: [{ code: 'bounce', name: 'إغلاق خلال ثوانٍ دون حركة', n: 6 }, { code: 'dc', name: 'شبكات خوادم', n: 4 }, { code: 'bot', name: 'برامج آلية', n: 2 }], landing: [{ name: 'الرئيسية', n: 30 }, { name: 'الباقات والأسعار', n: 18 }, { name: 'تواصل معنا', n: 6 }], recent: [bot, sus].map(vd), days, kpi: { sessions: 60, pageviews: 80, contacts: 9, won: 3, open: 2, leads: 10, real: 50, suspicious: 6, high: 4, ad_sessions: 40, ad_bad: 9, pending: 2, outside: 3, outside_leads: 1 }, prev: { sessions: 50, contacts: 7 }, live: 2, suspicious: [bot, sus].map(vd), status: { scoring: true, ads: false, delivery: 99.8, paired: true }, sources: [{ name: 'google_ads', n: 40 }, { name: 'google_organic', n: 12 }, { name: 'direct', n: 5 }, { name: 'instagram', n: 3 }], places: [{ name: 'الرياض', n: 30 }, { name: 'جدة', n: 14 }], devices: [{ name: 'جوال', n: 49 }, { name: 'حاسوب', n: 11 }] }); }
         if (p === '/v1/dash/visits') return j(200, { ok: true, sessions: [bot, sus, ly].map(vd) });
         if (p === '/v1/dash/replay') { st.replayCalls = (st.replayCalls || 0) + 1; if (u.searchParams.get('sid') !== 'BOT1' || !st.replayEvents) return j(404, { ok: false, error: 'no_replay' }); return j(200, { ok: true, site: { id: 'SiteId123456', name: 'شادو' }, started_at: new Date().toISOString(), visit: vd(bot), events: st.replayEvents }); }
         if (p === '/v1/dash/protection') { const all = [bot, sus].map(vd); return j(200, { ok: true, ads: false, mode: 'monitor', stats: { ad_sessions: 40, ad_bad: 9, high: 4, suspicious: 6, all: 60 }, pending: all.filter((x) => !x.verdict), decided: all.filter((x) => x.verdict), top_reasons: [{ code: 'bot', name: 'بوتات (متصفح آلي)', n: 4 }, { code: 'bounce', name: 'قفل في ثواني من غير حركة', n: 3 }] }); }
@@ -137,7 +137,7 @@ async function page(api, opts) {
   });
   return pg;
 }
-const shot = async (pg, name) => { if (SHOTS) { await pg.waitForTimeout(400); } if (SHOTS) await pg.screenshot({ path: path.join(SHOTS, name + '.png') }); };
+const shot = async (pg, name) => { if (SHOTS) { await pg.waitForTimeout(name.endsWith('-full') ? 1600 : 400); } if (SHOTS) await pg.screenshot({ path: path.join(SHOTS, name + '.png'), fullPage: name.endsWith('-full') }); };
 const text = (pg) => pg.locator('#view').innerText();
 
 // 1) من غير بيانات
@@ -355,16 +355,19 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
   await pg.locator('#level').getByRole('button', { name: 'احترافي' }).click();
   await pg.waitForSelector('.kpis .kpi');
   t('demo: switching to detailed shows the full menu (10)', (await pg.locator('.side-nav a').count()) === 10);
-  t('demo: overview shows the 6 KPI cards, the status strip and the action cards', (await pg.locator('.kpis .kpi').count()) === 6 && /الحماية تعمل/.test(await pg.locator('.status-strip').innerText()) && (await pg.locator('.act').count()) >= 2);
-  t('demo: the quality chart draws stacked bars with a legend (3 series)', (await pg.locator('svg .mk').count()) > 10 && (await pg.locator('.chart-legend .lg').count()) === 3);
-  await pg.locator('svg .hit').nth(2).hover();
+  t('demo: the pro home — 8 KPI cards (with Google clicks and money protected), the status strip and the action cards', (await pg.locator('.kpis .kpi').count()) === 8 && /نقرات احتسبها جوجل/.test(await pg.locator('.kpis').innerText()) && /الحماية: تراقب كل زيارة/.test(await pg.locator('.status-strip').innerText()) && (await pg.locator('.act').count()) >= 2);
+  t('demo: the traffic curve draws 3 smooth lines with a legend, plus donuts, visit cards and the hours heatmap', (await pg.locator('.area-chart .a-line').count()) === 3 && (await pg.locator('.chart-legend').first().locator('.lg').count()) === 3 && (await pg.locator('.donut').count()) === 2 && (await pg.locator('.vcard').count()) >= 3 && (await pg.locator('.heat .h-cell').count()) === 168);
+  await pg.locator('.area-chart .hit').nth(2).hover();
   t('demo: hovering a day shows a tooltip with the 3 numbers', await pg.locator('.tip').isVisible() && (await pg.locator('.tip .tr').count()) === 3);
   await pg.getByRole('button', { name: 'عرض كجدول' }).click();
   t('demo: "show as table" swaps the chart for a table', await pg.locator('.tview').isVisible() && await pg.locator('.plot').isHidden());
   await shot(pg, 'demo-1-overview');
-  await pg.getByRole('button', { name: '30 يومًا' }).click();
+  await pg.locator('.range-btn').click();
+  t('period picker: ready periods (today → 90 days) and a custom from–to', (await pg.locator('.range-pop .opt-r').count()) === 8 && (await pg.locator('.range-pop input[type="date"]').count()) === 2);
+  await shot(pg, 'range-picker');
+  await pg.locator('.range-pop').getByRole('menuitemradio', { name: 'آخر 30 يومًا' }).click();
   await pg.waitForFunction(() => document.querySelectorAll('svg .hit').length === 30);
-  t('demo: switching to 30 days redraws with 30 days', true);
+  t('demo: switching to 30 days redraws with 30 days, and the button shows the period', /آخر 30 يومًا/.test(await pg.locator('.range-btn').innerText()));
   for (const [r, title] of [['statement', 'كشف الحساب'], ['visits', 'الزيارات'], ['protection', 'الحماية'], ['leads', 'العملاء الحقيقيون'], ['alerts', 'التنبيهات'], ['sites', 'المواقع والتثبيت']]) {
     await pg.locator('.side-nav a[data-r="' + r + '"]').click();
     await pg.waitForFunction((x) => document.getElementById('page-title').textContent === x && !document.querySelector('.view .loading'), title);
@@ -483,7 +486,7 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
   await shot(pg, 'live-simple');
   await pg.locator('#level').getByRole('button', { name: 'احترافي' }).click();
   await pg.waitForSelector('.kpis .kpi');
-  t('live detailed: visits, contacts, conversion, customers, delivery KPIs and a single-series chart', /60/.test(await pg.locator('.kpis').innerText()) && /99.8%/.test(await pg.locator('.kpis').innerText()) && (await pg.locator('.chart-legend .lg').count()) === 1);
+  t('live detailed: visits, contacts, conversion, customers, delivery KPIs, and the traffic curve without a suspicious series (scoring off)', /60/.test(await pg.locator('.kpis').innerText()) && /99.8%/.test(await pg.locator('.kpis').innerText()) && (await pg.locator('.area-chart').count()) === 1 && !/مشبوهة/.test(await pg.locator('.chart-legend').first().innerText()));
   t('live detailed: sources and cities come from the server', /إعلان جوجل/.test(await pg.locator('#view').innerText()) && /Riyadh/.test(await pg.locator('#view').innerText()));
   await shot(pg, 'live-overview');
   await pg.locator('.side-nav a[data-r="visits"]').click();
@@ -526,6 +529,8 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
   t('scoring overview: real / suspicious KPIs and a 3-series quality chart (real · suspicious · high risk)', /حقيقي/.test(await pg.locator('.kpis').innerText()) && /منها 4 عالية الخطورة/.test(await pg.locator('.kpis').innerText()) && (await pg.locator('.chart-legend .lg').count()) === 3);
   t('scoring overview: the most suspicious visits show their reasons in Arabic', /المتصفح يعمل آليًا/.test(await pg.locator('#view').innerText()));
   await shot(pg, 'live-scoring-overview');
+  await shot(pg, 'live-scoring-overview-full');
+  t('pro home: hero with the quality ring, sparkline KPIs, traffic curve, sources donut, visit cards with checks, reasons, hours heatmap, countries', (await pg.locator('.ov-hero .ring').count()) === 1 && (await pg.locator('.kpis.pro .spark').count()) === 4 && (await pg.locator('.area-chart').count()) === 1 && (await pg.locator('.donut').count()) === 2 && (await pg.locator('.vcard .vchip').count()) >= 2 && (await pg.locator('.heat .h-cell').count()) === 168 && /السعودية/.test(await pg.locator('#view').innerText()));
   await pg.locator('.side-nav a[data-r="protection"]').click();
   await pg.waitForFunction(() => document.getElementById('page-title').textContent === 'الحماية' && document.querySelector('#view .q-item'));
   t('protection: monitor mode said honestly (no blocking until Google Ads), queue with reasons and top-reasons chart', /لا نحظر أحدًا تلقائيًا/.test(await pg.locator('.callout').innerText()) && (await pg.locator('#view .q-item').count()) === 2 && /بوتات/.test(await pg.locator('#view').innerText()));

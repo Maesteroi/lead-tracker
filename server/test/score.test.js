@@ -79,3 +79,13 @@ test('no Egyptian colloquial words in the Arabic server texts (simple MSA only)'
   for (const w of ['مش ', 'مفيش', 'دلوقتي', 'إزاي', 'ليه', 'كام ', 'بتاع', 'عايز', 'لسه', 'بره', 'جاي من', 'قفل الصفحة', 'سيرفرات', 'بوت'])
     assert.ok(!ar.includes(w), 'colloquial: ' + w);
 });
+
+test('contact strength wording (Mahmoud 12 Nov): "came back to your site after X from opening WhatsApp / the call", same rule for calls', async () => {
+  const { contactStrength } = await import('../src/score.js');
+  assert.equal(contactStrength(331, 1, 'ar', 'wa').detail, 'رجع لموقعك بعد 5 د 31 ث من فتح الواتساب، فغالبًا تواصل معك فعلًا');
+  assert.equal(contactStrength(331, 1, 'ar', 'call').detail, 'رجع لموقعك بعد 5 د 31 ث من فتح الاتصال، فغالبًا تواصل معك فعلًا');
+  assert.equal(contactStrength(4, 1, 'ar', 'wa').detail, 'رجع لموقعك بعد 4 ثوانٍ فقط من فتح الواتساب، فغالبًا لم يتواصل');
+  assert.equal(contactStrength(0, 0, 'ar', 'call').key, 'no_app');
+  assert.match(contactStrength(0, 0, 'ar', 'call').detail, /^ضغط زر الاتصال ولم يُفتح التطبيق/);
+  assert.equal(contactStrength(90, 1, 'en', 'wa').detail, 'Came back to your site 1m 30s after opening WhatsApp, so they likely contacted you');
+});

@@ -4,7 +4,7 @@
   'use strict';
   var LT = window.LT, me = null;
   var get = function (path) { return LT.api(path).then(function (r) { if (r.status === 401) { location.replace('/login?next=' + encodeURIComponent(location.pathname)); throw new Error('auth'); } if (!r.ok) throw new Error('http ' + r.status); return r.body; }); };
-  var q = function (site, range) { return '?site=' + encodeURIComponent(site) + (range ? '&range=' + range : '') + (LT.lang && LT.lang !== 'ar' ? '&lang=' + LT.lang : ''); };   // لغة أسباب الحماية والفحوصات من السيرفر
+  var q = function (site, range) { var cr = typeof range === 'string' && /^\d{4}-\d{2}-\d{2}~\d{4}-\d{2}-\d{2}$/.test(range) ? range.split('~') : null; return '?site=' + encodeURIComponent(site) + (cr ? '&from=' + cr[0] + '&to=' + cr[1] : range ? '&range=' + range : '') + (LT.lang && LT.lang !== 'ar' ? '&lang=' + LT.lang : ''); };   // لغة أسباب الحماية والفحوصات من السيرفر
   var cache = {};
   function overviewRaw(site, range) { var k = site + '|' + range; return cache[k] || (cache[k] = get('/v1/dash/overview' + q(site, range)).finally(function () { setTimeout(function () { delete cache[k]; }, 30000); })); }
 
@@ -20,9 +20,10 @@
       kpi: { billed: null, sessions: k.sessions, real: sc ? k.real : k.sessions, suspicious: sc ? k.suspicious : null, high: sc ? k.high : null, blocked: null, saved: null, cost: null,
         leads: k.leads, contacts: k.contacts, won: k.won, open: k.open, cpl: null, pageviews: k.pageviews, ad_sessions: k.ad_sessions, ad_bad: k.ad_bad, pending: k.pending || 0, outside: k.outside || 0, outside_leads: k.outside_leads || 0 },
       prev: { real: o.prev.sessions, contacts: o.prev.contacts },
-      days: o.days.map(function (d) { return sc ? { day: d.day, real: d.real, suspicious: d.suspicious, high: d.high, contacts: d.contacts } : { day: d.day, real: d.sessions, suspicious: 0, high: 0, contacts: d.contacts }; }),
+      days: o.days.map(function (d) { return sc ? { day: d.day, sessions: d.sessions, real: d.real, suspicious: d.suspicious, high: d.high, contacts: d.contacts } : { day: d.day, sessions: d.sessions, real: d.sessions, suspicious: 0, high: 0, contacts: d.contacts }; }),
       status: { protection: sc ? 'monitor' : 'soon', delivery: o.status.delivery, ads: o.status.ads, tracking_template: null, paired: o.status.paired, scoring: sc },
       actions: actions, suspicious: (o.suspicious || []).map(mapVisit), places: o.places, sources: o.sources, devices: o.devices,
+      period: o.period || null, countries: o.countries || [], reasons: o.reasons || [], hours: o.hours || null, landing: o.landing || [], recent: (o.recent || []).map(mapVisit),
     };
   }
   function mapVisit(s) {

@@ -85,9 +85,10 @@ function sessionChecks(s, x, lang) {
 
 // قوة التواصل (تقديري · بلجن 2.13.1): الزائر غاب عن الصفحة قد إيه بعد ضغطة الواتساب أو الاتصال، وهل التطبيق اتفتح.
 // ده مش مدة المكالمة: ده الوقت بره الصفحة. بيتكتب «تقديري» في كل مكان.
-export function contactStrength(away, opened, lang) {
+// channel: 'wa' (واتساب) أو 'call' (اتصال). نفس القياس للاتنين: الصفحة كانت في الخلفية قد إيه بعد الضغطة
+export function contactStrength(away, opened, lang, channel) {
   lang = lang || 'ar';
   const a = Math.max(0, Math.round(Number(away) || 0));
   const key = !opened || opened === '0' ? 'no_app' : a < 10 ? 'weak' : a < 60 ? 'normal' : 'strong';
-  return { key, label: tr(lang, 's.' + key), detail: tr(lang, 's.' + key + '.d', { t: duration(lang, a) }) };
+  return { key, label: tr(lang, 's.' + key), detail: tr(lang, 's.' + key + '.d', { t: duration(lang, a), ch: tr(lang, String(channel) === 'call' ? 'ch.call' : 'ch.wa') }) };
 }

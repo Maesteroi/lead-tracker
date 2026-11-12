@@ -131,11 +131,15 @@
 
   var cache = {};
   function data(siteId) { var s = SITES.filter(function (x) { return x.id === siteId; })[0] || SITES[0]; return cache[s.id] || (cache[s.id] = build(s)); }
+  // الفترة: رقم (آخر N يوم) أو «من~إلى» ← عدد أيامها (البيانات الوهمية بتعدّ من النهارده)
+  function nd(r) { if (typeof r === 'string' && r.indexOf('~') > 0) { var p = r.split('~'); return Math.max(1, Math.round((Date.parse(p[1]) - Date.parse(p[0])) / 864e5) + 1); } return Number(r) || 7; }
   function inRange(list, range, key) {
+    range = nd(range);
     var since = dayStr(NOW - (range - 1) * DAY);
     return list.filter(function (x) { return (key ? x[key] : x.day) >= since; });
   }
   function prevRange(list, range) {
+    range = nd(range);
     var a = dayStr(NOW - (2 * range - 1) * DAY), b = dayStr(NOW - range * DAY);
     return list.filter(function (x) { return x.day >= a && x.day <= b; });
   }
@@ -143,6 +147,7 @@
 
   // لكل عميل: ملخص الفترة (للوكالة)
   function summary(siteId, range) {
+    range = nd(range);
     var D = data(siteId), days = inRange(D.days, range), prev = prevRange(D.days, range);
     var leads = D.leads.filter(function (l) { return l.at.slice(0, 10) >= dayStr(NOW - (range - 1) * DAY); });
     var won = leads.filter(function (l) { return l.outcome === 'تم'; }).length;
@@ -181,7 +186,7 @@
           D.site.id === 'KzFeD6ZXsbYH' ? { kind: 'template' } : null,
         ].filter(Boolean),
         suspicious: D.visits.filter(function (v) { return v.status !== 'real'; }).slice(0, 5),
-        places: topPlaces(inRange(D.visits, range).filter(function (v) { return v.status !== 'real'; })) });
+        places: topPlaces(inRange(D.visits, range).filter(function (v) { return v.status !== 'real'; })) }).then(function (o) { return proFields(o, D, range, leads); });
     },
     statement: function (siteId, range) {
       var D = data(siteId), days = inRange(D.days, range);
@@ -224,6 +229,36 @@
       }));
     },
   };
+  // نفس شكل بيانات السيرفر للرئيسية الاحترافية (lOverview): زيارات · حقيقية · مشبوهة · خطورة عالية (= المحظورة هنا) · أوقات · مصادر …
+  function tallyBy(list, key) { var m = {}; list.forEach(function (x) { var k = key(x); if (k) m[k] = (m[k] || 0) + 1; }); return Object.keys(m).map(function (k) { return { name: k, n: m[k] }; }).sort(function (a, b) { return b.n - a.n; }); }
+  function checksOf(v) {
+    var bad = v.status !== 'real';
+    return [{ label: T('chk.human'), ok: v.net !== 'dc' || !bad }, { label: T('chk.network'), ok: v.net !== 'dc' && v.net !== 'vpn' }, { label: T('chk.engaged'), ok: (v.dur || 0) > 8 }, { label: T('chk.ad'), ok: v.src === 'google_ads' ? true : null }];
+  }
+  function proFields(o, D, range, leads) {
+    var vis = inRange(D.visits, range), k = o.kpi;
+    k.sessions = vis.length; k.high = k.blocked; k.contacts = leads.length; k.open = leads.filter(function (l) { return !l.outcome; }).length;
+    k.pending = D.protection.pending.length; k.pageviews = vis.reduce(function (a, v) { return a + (v.pages || 1); }, 0);
+    k.ad_sessions = vis.filter(function (v) { return v.src === 'google_ads'; }).length; k.ad_bad = vis.filter(function (v) { return v.src === 'google_ads' && v.status !== 'real'; }).length;
+    o.prev.sessions = (o.prev.real || 0) + (o.prev.suspicious || 0) + (o.prev.blocked || 0); o.prev.contacts = Math.round(k.contacts * 0.9);
+    var byDay = {}; leads.forEach(function (l) { var d = l.at.slice(0, 10); byDay[d] = (byDay[d] || 0) + 1; });
+    o.days = o.days.map(function (d) { return Object.assign({}, d, { sessions: (d.real || 0) + (d.suspicious || 0) + (d.blocked || 0), high: d.blocked || 0, contacts: byDay[d.day] || 0 }); });
+    o.scoring = true; o.status.scoring = true;
+    var hours = []; for (var i = 0; i < 7; i++) { hours.push([]); for (var h = 0; h < 24; h++) hours[i].push({ n: 0, bad: 0 }); }
+    vis.forEach(function (v) { var t = new Date(v.at), c = hours[(t.getDay() + 1) % 7][t.getHours()]; c.n++; if (v.status !== 'real') c.bad++; });
+    o.hours = hours;
+    o.sources = tallyBy(vis, function (v) { return v.src; }).slice(0, 6);
+    o.devices = tallyBy(vis, function (v) { return v.device; }).slice(0, 3);
+    o.countries = [{ code: 'SA', name: T('dm.sa'), n: vis.length }];
+    o.places = tallyBy(vis, function (v) { return v.city; }).slice(0, 5);
+    var bad = vis.filter(function (v) { return v.status !== 'real'; });
+    o.reasons = tallyBy([].concat.apply([], bad.map(function (v) { return v.reasons.map(function (r) { return r.replace(/\d+/g, 'N'); }); })), function (r) { return r; }).slice(0, 5).map(function (x) { var ex = [].concat.apply([], bad.map(function (v) { return v.reasons; })).filter(function (r) { return r.replace(/\d+/g, 'N') === x.name; })[0]; return { name: ex || x.name, n: x.n }; });
+    var paths = [T('rp.home')].concat(T('dm.paths').split('|'));
+    o.landing = paths.slice(0, 4).map(function (p, i) { return { name: p, n: Math.round(vis.length / (i + 1.6)) }; });
+    o.recent = vis.slice().sort(function (a, b) { return Date.parse(b.at) - Date.parse(a.at); }).slice(0, 6).map(function (v) { return Object.assign({}, v, { checks: checksOf(v) }); });
+    o.period = { days: o.days.length, current: true };
+    return o;
+  }
   function topPlaces(list) {
     var m = {}; list.forEach(function (v) { var k = v.city + ' · ' + v.district; m[k] = (m[k] || 0) + 1; });
     return Object.keys(m).map(function (k) { return { name: k, n: m[k] }; }).sort(function (a, b) { return b.n - a.n; }).slice(0, 5);
