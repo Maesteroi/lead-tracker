@@ -16,8 +16,8 @@
     if (!o.status.ads) actions.push({ kind: 'ads' });
     if (o.status.delivery != null && o.status.delivery < 99.5) actions.push({ kind: 'delivery', pct: o.status.delivery });
     return {
-      live: o.live, currency: LT.t('sar'), scoring: sc,
-      kpi: { billed: null, sessions: k.sessions, real: sc ? k.real : k.sessions, suspicious: sc ? k.suspicious : null, high: sc ? k.high : null, blocked: null, saved: null, cost: null,
+      live: o.live, currency: o.ads && o.ads.currency && o.ads.currency !== 'SAR' ? o.ads.currency : LT.t('sar'), scoring: sc, ads: o.ads || null,
+      kpi: { billed: o.ads && o.ads.totals ? o.ads.totals.clicks : null, sessions: k.sessions, real: sc ? k.real : k.sessions, suspicious: sc ? k.suspicious : null, high: sc ? k.high : null, blocked: null, saved: null, cost: o.ads && o.ads.totals ? o.ads.totals.cost : null,
         leads: k.leads, contacts: k.contacts, won: k.won, open: k.open, cpl: null, pageviews: k.pageviews, ad_sessions: k.ad_sessions, ad_bad: k.ad_bad, pending: k.pending || 0, outside: k.outside || 0, outside_leads: k.outside_leads || 0 },
       prev: { real: o.prev.sessions, contacts: o.prev.contacts },
       days: o.days.map(function (d) { return sc ? { day: d.day, sessions: d.sessions, real: d.real, suspicious: d.suspicious, high: d.high, contacts: d.contacts } : { day: d.day, sessions: d.sessions, real: d.sessions, suspicious: 0, high: 0, contacts: d.contacts }; }),

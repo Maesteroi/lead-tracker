@@ -933,8 +933,11 @@
       // ٢) الأرقام بخط صغير لكل يوم في الفترة
       var col = function (key) { return d.days.map(function (x) { return key === 'bad' ? (x.suspicious || 0) + (x.high || 0) : (x[key] || 0); }); };
       var kpiS = function (label, value, sub, cls, dlt, key, sc2) { var c = kpi(label, value, sub, cls, dlt); C.spark(c, col(key), sc2); return c; };
-      var money0 = k.saved != null;   // جوجل أدز مربوط وفيه أرقام صرف: «نقرات احتسبها جوجل» و«مبالغ حُميت» أول حاجة
-      view.appendChild(el('div', { class: 'kpis pro' + (money0 ? ' eight' : '') }, sc ? (money0 ? [kpi(T('d.k.billed'), fmt(k.billed), T('d.k.spent', { m: money(k.cost, d.currency) }), 'info'), kpi(T('d.k.saved'), money(k.saved, d.currency), T('d.k.saved.sub'), 'ok')] : []).concat([
+      var money0 = k.billed != null;   // جوجل أدز مربوط وفيه أرقام: «نقرات احتسبها جوجل» أول حاجة، وجنبها «مبالغ حُميت» (التجريبي) أو «ماوصلتش موقعك» (حي)
+      var reach = d.ads && d.ads.reach;
+      var second = k.saved != null ? kpi(T('d.k.saved'), money(k.saved, d.currency), T('d.k.saved.sub'), 'ok')
+        : kpi(T('ads.k.missing'), reach ? fmt(reach.missing) : '—', reach && reach.url_clicks ? T('ads.k.missing.sub', { p: pct(reach.missing, reach.url_clicks) }) : T('ads.k.missing.none'), reach && reach.missing ? 'warn' : 'mute');
+      view.appendChild(el('div', { class: 'kpis pro' + (money0 ? ' eight' : '') }, sc ? (money0 ? [kpi(T('d.k.billed'), fmt(k.billed), T('d.k.spent', { m: money(k.cost, d.currency) }), 'info'), second] : []).concat([
         kpiS(T('kpi.visits'), fmt(k.sessions), T('kpi.pages_opened', { n: LT.n(k.pageviews, 'page') }), 'info', delta(k.sessions, p.sessions != null ? p.sessions : p.real, true), 'sessions', 'c-real'),
         kpiS(T('kpi.real'), fmt(k.real), T('kpi.of_visits', { p: pct(k.real, all) }), 'ok', null, 'real', 'c-ok'),
         kpiS(T('kpi.suspicious'), fmt(bad), T('kpi.high_of', { n: fmt(k.high) }) + (k.ad_sessions ? ' · ' + T('kpi.from_ads', { a: fmt(k.ad_bad), b: fmt(k.ad_sessions) }) : ''), bad ? 'warn' : 'mute', null, 'bad', 'c-sus'),
@@ -991,7 +994,8 @@
       if ((d.devices || []).length) C.donut(dev, d.devices.map(function (x, i) { return { label: x.name, value: x.n, cls: ['c-real', 'c-data', 'c-ok', 'c-mute'][i] }; }), { caption: T('ov.donut.cap'), label: T('ov.devices') });
       else dev.appendChild(el('p', { class: 'muted', text: T('ov.no_visits') }));
       view.appendChild(panel(T('ov.devices'), '', [dev]));
-      if (!d.status.ads) view.appendChild(soonCard(T('ov.soon.title'), [T('ov.soon.1'), T('ov.soon.2'), T('ov.soon.3')]));
+      if (d.ads && d.ads.linked) view.appendChild(adsPanel(d.ads, sc));
+      else if (!d.status.ads) view.appendChild(soonCard(T('ov.soon.title'), [T('ov.soon.1'), T('ov.soon.2'), T('ov.soon.3')]));
     });
   }
   // المصادر والتحويل: لكل منصة الزيارات · تواصلوا · نسبة التحويل · تم الاتفاق · المشبوهة
@@ -1028,6 +1032,28 @@
     if (cities.length) { nums.appendChild(el('h3', { class: 'legend', text: T('ov.cities') })); C.hbars(nums, cities.slice(0, 6).map(function (x) { return { label: x.name, sub: sub(x), value: x.n, cls: cTone(x) }; }), { compact: true }); }
     return panel(T('ov.map'), T('ov.map.i'), [el('div', { class: 'map-grid' }, [mapBox, nums])]);
   }
+  // جوجل أدز في الرئيسية: الحملات · الكلمات ونتيجتنا (زيارة · تواصل · تم الاتفاق) · العبارات اللي اتكتبت فعلًا
+  function adsPanel(a, sc) {
+    var cur = a.currency === 'SAR' ? T('sar') : (a.currency || '');
+    if (a.empty) return panel(T('ads.p.title'), T('ads.p.i'), [el('p', { class: 'muted', text: T('ads.p.first') })]);
+    var t = a.totals;
+    var strip = el('div', { class: 'ads-strip' }, [
+      ['ads.s.impr', fmt(t.impressions)], ['ads.s.clicks', fmt(t.clicks)], ['ads.s.cost', money(t.cost, cur)], ['ads.s.cpc', money2(t.cpc, cur)], ['ads.s.invalid', fmt(t.invalid)], ['ads.s.conv', fmt(t.conversions)],
+    ].map(function (x) { return el('div', {}, [el('span', { text: T(x[0]) }), el('b', { text: x[1] })]); }));
+    var tbl = function (head, rows) { return el('div', { class: 'conv ads-tbl' }, [el('table', { class: 'mini' }, [el('thead', {}, [el('tr', {}, head.map(function (h, i) { return el('th', { class: i ? 'n' : '', text: h }); }))]), el('tbody', {}, rows)])]); };
+    var camps = tbl([T('ads.h.campaign'), T('ads.s.clicks'), T('ads.s.cost'), T('ads.s.invalid'), T('ads.s.conv')], (a.campaigns || []).map(function (c) { return el('tr', {}, [el('td', {}, [el('b', { text: c.name })]), el('td', { class: 'n', text: fmt(c.clicks) }), el('td', { class: 'n', text: money(c.cost, cur) }), el('td', { class: 'n', text: fmt(c.invalid) }), el('td', { class: 'n', text: fmt(c.conversions) })]); }));
+    var kws = tbl([T('ads.h.keyword'), T('ads.s.clicks'), T('ads.h.visits'), T('ads.h.contacts'), T('ads.h.won')].concat(sc ? [T('ads.h.bad')] : []).concat([T('ads.s.cost')]), (a.keywords || []).map(function (k) {
+      return el('tr', { class: k.won ? 'conv-best' : '' }, [el('td', {}, [el('b', { text: k.keyword || T('ads.kw.none') }), /^(EXACT|PHRASE|BROAD)$/.test(k.match || '') ? el('small', { class: 'dim', text: ' · ' + T('ads.m.' + k.match.toLowerCase()) }) : null]), el('td', { class: 'n', text: fmt(k.clicks) }), el('td', { class: 'n', text: fmt(k.visits) }), el('td', { class: 'n', text: fmt(k.contacts) }), el('td', { class: 'n', text: fmt(k.won) })].concat(sc ? [el('td', { class: 'n', text: fmt(k.bad) })] : []).concat([el('td', { class: 'n', text: k.cost ? money(k.cost, cur) : '—' })]));
+    }));
+    var terms = tbl([T('ads.h.term'), T('ads.s.clicks'), T('ads.s.cost'), T('ads.s.conv')], (a.terms || []).map(function (x) { return el('tr', {}, [el('td', { text: x.term }), el('td', { class: 'n', text: fmt(x.clicks) }), el('td', { class: 'n', text: money(x.cost, cur) }), el('td', { class: 'n', text: fmt(x.conversions) })]); }));
+    var sub = function (title, info, kids) { return el('div', { class: 'ads-sub' }, [el('h3', { class: 'legend', text: title }), info ? el('p', { class: 'hint', text: info }) : null].concat(kids)); };
+    return panel(T('ads.p.title'), T('ads.p.i'), [
+      el('p', { class: 'hint', text: T('ads.p.last', { d: a.last_day || '—' }) }), strip,
+      sub(T('ads.p.keywords'), T('ads.p.keywords.i'), [(a.keywords || []).length ? kws : el('p', { class: 'muted', text: T('ads.p.none') })]),
+      el('div', { class: 'grid-ov ads-two' }, [sub(T('ads.p.campaigns'), '', [(a.campaigns || []).length ? camps : el('p', { class: 'muted', text: T('ads.p.none') })]), sub(T('ads.p.terms'), T('ads.p.terms.i'), [(a.terms || []).length ? terms : el('p', { class: 'muted', text: T('ads.p.none') })])]),
+    ]);
+  }
+  function money2(n, cur) { return n == null || isNaN(n) ? '—' : (Math.round(n * 100) / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ' + (cur || ''); }
   // بطاقة بعنوان وعلامة ⓘ («اتحسب إزاي»)
   function panel(title, info, kids) {
     return el('section', { class: 'card' }, [el('div', { class: 'card-h' }, [el('h2', { text: title }), info ? el('button', { class: 'info', type: 'button', title: info, 'aria-label': info, text: 'i' }) : null])].concat(kids));

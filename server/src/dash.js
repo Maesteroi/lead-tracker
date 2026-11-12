@@ -17,6 +17,7 @@ import { scoreSession, reasonGroup, outsideTarget, contactStrength, targetCountr
 import { tr, countryName, langOf } from './i18n.js';
 import { replaySet, loadReplay } from './replay.js';
 import { adsState } from './adslink.js';
+import { adsSummary } from './adsdash.js';
 
 const RANGES = new Set([1, 7, 14, 30, 90]);
 const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -96,6 +97,7 @@ export async function dashOverview(req, env, db, sess, url) {
     countries: geoTally(sessions, (s) => s.country_code || null).slice(0, 12).map((c) => Object.assign(c, { code: c.key, name: countryName(lang, c.key) })),
     cities: geoTally(sessions, (s) => (s.city ? s.city + '|' + (s.country_code || '') : null)).slice(0, 15).map((c) => Object.assign(c, { name: c.key.split('|')[0], cc: c.key.split('|')[1] || '' })),
     sources_conv: sourcesConv(sessions, leads),
+    ads: await adsSummary(db, site, pd, sessions, leads).catch(() => null),
     targets: [...new Set(sessions.flatMap((s) => targetCountries(s.target_geo)))].slice(0, 20),
     reasons: reasonsOf(sessions, lang),
     hours: hoursOf(sessions),
