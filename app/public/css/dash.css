@@ -429,3 +429,12 @@ svg.geo { width: 100%; height: auto; aspect-ratio: 1.7; display: block; backgrou
 .opt[hidden] { display: none; }
 .pick-q { width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; font: inherit; background: var(--card); color: inherit; }
 .opt.off { opacity: .62; }
+/* جوجل أدز في الرئيسية */
+.ads-strip { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; margin: 6px 0 18px; }
+.ads-strip > div { background: var(--bg-soft, color-mix(in srgb, var(--accent) 5%, var(--card))); border-radius: 10px; padding: 10px 12px; display: grid; gap: 2px; }
+.ads-strip span { font-size: 12px; color: var(--muted); }
+.ads-strip b { font-size: 18px; font-variant-numeric: tabular-nums; }
+@media (max-width: 900px) { .ads-strip { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.ads-sub { margin-top: 14px; }
+.ads-two { margin-bottom: 0; }
+.ads-two > .ads-sub { margin-top: 14px; }
