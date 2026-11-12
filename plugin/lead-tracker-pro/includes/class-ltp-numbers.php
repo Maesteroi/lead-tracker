@@ -150,9 +150,9 @@ class LTP_Numbers {
         $c = self::changes();
         if (!$c['new'] && !$c['gone']) return;
         echo '<div class="notice notice-warning"><p><strong>📞 تغيير في أرقام التواصل:</strong> ';
-        if ($c['new'])  echo 'رقم جديد ظهر في الموقع: <code dir="ltr">' . esc_html(implode('، ', $c['new'])) . '</code>. ';
-        if ($c['gone']) echo 'رقم مابقاش ظاهر من أكتر من ' . (int) self::GONE_DAYS . ' يوم: <code dir="ltr">' . esc_html(implode('، ', $c['gone'])) . '</code>. ';
-        echo 'راجع جدول «الأرقام اللي اتلقطت».</p></div>';
+        if ($c['new'])  echo 'ظهر رقم جديد في الموقع: <code dir="ltr">' . esc_html(implode('، ', $c['new'])) . '</code>. ';
+        if ($c['gone']) echo 'رقم لم يعد ظاهرًا منذ أكثر من ' . (int) self::GONE_DAYS . ' يومًا: <code dir="ltr">' . esc_html(implode('، ', $c['gone'])) . '</code>. ';
+        echo 'راجع جدول «الأرقام الملتقطة».</p></div>';
     }
 
     // ─── لوحة التحكم ───
@@ -162,17 +162,17 @@ class LTP_Numbers {
         $roles = LTP_Roles::load();
         ?>
         <div class="ltp-card">
-            <h3>📞 الأرقام اللي اتلقطت</h3>
-            <p class="description">بتتلقط لوحدها من صفحات الموقع. «تلقائي» ماشي على طبيعة نشاطك (<strong><?php echo esc_html(LTP_Roles::JOURNEYS[LTP_Roles::journey()]); ?></strong> — تتغير من الإعدادات)، والرقم اللي في سطر حقوق الملكية بس = رقم المطوّر. لو حاجة غلط، غيّرها من «اختيارك».</p>
+            <h3>📞 الأرقام الملتقطة</h3>
+            <p class="description">تُلتقط تلقائيًا من صفحات الموقع. «تلقائي» يتبع طبيعة نشاطك (<strong><?php echo esc_html(LTP_Roles::JOURNEYS[LTP_Roles::journey()]); ?></strong> — تُغيَّر من الإعدادات)، والرقم الموجود في سطر حقوق الملكية فقط = رقم المطوّر. إذا كان شيء خاطئًا، فغيّره من «اختيارك».</p>
             <?php echo LTP_Roles::legend(); // phpcs:ignore ?>
             <?php if (!is_array($all) || !$all): ?>
-                <p>لسه مفيش أرقام. هتظهر بعد أول زيارات للموقع بعد التحديث.</p>
+                <p>لا توجد أرقام بعد. ستظهر بعد أولى زيارات الموقع بعد التحديث.</p>
             <?php else: ?>
             <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
                 <input type="hidden" name="action" value="ltp_numbers_save">
                 <?php wp_nonce_field('ltp_numbers_save', '_ltp_num_nonce'); ?>
                 <table class="ltp-table widefat striped">
-                    <thead><tr><th>الرقم</th><th>النوع</th><th>فين</th><th>صفحات</th><th>ضغطات</th><th>آخر ظهور</th><th>تلقائي</th><th>اختيارك</th></tr></thead>
+                    <thead><tr><th>الرقم</th><th>النوع</th><th>المكان</th><th>صفحات</th><th>نقرات</th><th>آخر ظهور</th><th>تلقائي</th><th>اختيارك</th></tr></thead>
                     <tbody>
                     <?php
                     uasort($all, function ($a, $b) { return ($b['clicks'] ?? 0) <=> ($a['clicks'] ?? 0) ?: (($b['normal'] ?? 0) <=> ($a['normal'] ?? 0)); });
@@ -181,7 +181,7 @@ class LTP_Numbers {
                         $types = [];
                         if (!empty($r['wa'])) $types[] = '💬 واتساب';
                         if (!empty($r['call'])) $types[] = '📞 اتصال';
-                        if (!$types && !empty($r['text'])) $types[] = '📝 نص من غير رابط';
+                        if (!$types && !empty($r['text'])) $types[] = '📝 نص دون رابط';
                         elseif (!empty($r['text'])) $types[] = '+ نص';
                         $pos = (array) ($r['pos'] ?? []); arsort($pos);
                         $cur = $roles['n'][$k] ?? '';
@@ -208,7 +208,7 @@ class LTP_Numbers {
     }
 
     public function save_overrides() {
-        if (!current_user_can('manage_options')) wp_die('ممنوع');
+        if (!current_user_can('manage_options')) wp_die('غير مسموح');
         check_admin_referer('ltp_numbers_save', '_ltp_num_nonce');
         $n = isset($_POST['role_n']) && is_array($_POST['role_n']) ? wp_unslash($_POST['role_n']) : [];
         $e = isset($_POST['role_e']) && is_array($_POST['role_e']) ? wp_unslash($_POST['role_e']) : [];

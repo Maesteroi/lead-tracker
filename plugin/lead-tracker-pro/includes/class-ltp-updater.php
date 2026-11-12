@@ -130,7 +130,7 @@ class LTP_Updater {
         $e = self::pick(self::feed());
         if (!$e || $e['package'] !== $package) {
             self::note('error', 'package not in a valid signed feed');
-            return new WP_Error('ltp_update_unverified', 'Lead Tracker Pro: التحديث ده مش متوقّع من Maestro LT، فاتلغى.');
+            return new WP_Error('ltp_update_unverified', 'Lead Tracker Pro: هذا التحديث غير موقّع من Maestro LT، فأُلغي.');
         }
         $tmp = download_url($package, 120);
         if (is_wp_error($tmp)) return $tmp;
@@ -138,7 +138,7 @@ class LTP_Updater {
         if (!hash_equals($e['sha256'], $hash) || !self::signature_ok($e['version'], $hash, $e['sig'])) {
             @unlink($tmp);
             self::note('error', 'checksum/signature mismatch for ' . $e['version']);
-            return new WP_Error('ltp_update_bad_package', 'Lead Tracker Pro: ملف التحديث مش مطابق للتوقيع، فاتلغى ومااتركّبش.');
+            return new WP_Error('ltp_update_bad_package', 'Lead Tracker Pro: ملف التحديث لا يطابق التوقيع، فأُلغي ولم يُثبَّت.');
         }
         self::note('verified', $e['version']);
         return $tmp;

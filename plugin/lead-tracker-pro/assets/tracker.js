@@ -523,7 +523,7 @@
     function behavior_() {
       bhTick_();
       var parts = ['فعلي ' + Math.round(BH.act / 1000) + 'ث'];
-      if (BH.away) parts.push('خرج ورجع ' + BH.away);
+      if (BH.away) parts.push('غادر وعاد ' + BH.away);
       if (BH.copy) parts.push('نسخ ' + BH.copy + (BH.copyNum ? ' (رقم)' : ''));
       if (BH.hoverEl && BH.hoverT) { var h = (Date.now() - BH.hoverT) / 1000; if (h > 0.3 && h < 120) parts.push('تردد ' + h.toFixed(1) + 'ث'); }
       return parts.join(' · ').slice(0, 120);
@@ -871,12 +871,12 @@
         if (ct === 'wa') {
           var w = new URL(u, location.href);
           var raw = w.searchParams.get('phone') || dec(w.pathname.split('/')[1] || '');
-          if (!raw) return isWaHost(w.hostname.toLowerCase()) && !/send|channel|catalog|message|qr|c$/i.test(w.pathname) ? 'رابط واتساب من غير رقم' : '';
-          if (/[^\d]/.test(raw)) return 'رموز زيادة في الرقم (+ أو - أو مسافة)';
-          for (var i = 0; i < CC.length; i++) if (raw.indexOf(CC[i] + '0') === 0 && raw.length > CC[i].length + 9) return 'صفر زيادة بعد مفتاح الدولة';
-          if (raw.charAt(0) === '0') return 'الرقم من غير مفتاح الدولة';
+          if (!raw) return isWaHost(w.hostname.toLowerCase()) && !/send|channel|catalog|message|qr|c$/i.test(w.pathname) ? 'رابط واتساب دون رقم' : '';
+          if (/[^\d]/.test(raw)) return 'رموز زائدة في الرقم (+ أو - أو مسافة)';
+          for (var i = 0; i < CC.length; i++) if (raw.indexOf(CC[i] + '0') === 0 && raw.length > CC[i].length + 9) return 'صفر زائد بعد مفتاح الدولة';
+          if (raw.charAt(0) === '0') return 'الرقم دون مفتاح الدولة';
           if (raw.length < 10) return 'الرقم ناقص';
-          if (/^web\.whatsapp\.com$/i.test(w.hostname)) return 'رابط واتساب ويب (بيفتح على الكمبيوتر بس)';
+          if (/^web\.whatsapp\.com$/i.test(w.hostname)) return 'رابط واتساب ويب (يفتح على الحاسوب فقط)';
         }
         if (ct === 'call') {
           var d = dec(String(u).replace(/^tel:/i, '')).replace(/[\s\-()]/g, '');

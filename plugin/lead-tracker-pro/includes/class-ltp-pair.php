@@ -144,7 +144,7 @@ class LTP_Pair {
     }
 
     public function connect_button() {
-        if (!current_user_can('manage_options')) wp_die('ممنوع');
+        if (!current_user_can('manage_options')) wp_die('غير مسموح');
         check_admin_referer('ltp_connect');
         wp_redirect(self::connect_url());     // خارجي بالقصد: لوحة Maestro LT
         exit;
@@ -253,7 +253,7 @@ class LTP_Pair {
     }
 
     public function pair_now_button() {
-        if (!current_user_can('manage_options')) wp_die('ممنوع');
+        if (!current_user_can('manage_options')) wp_die('غير مسموح');
         check_admin_referer('ltp_pair_now', '_ltp_pair_nonce');
         delete_transient('ltp_pair_lock');
         $s = self::attempt(true);
@@ -303,7 +303,7 @@ class LTP_Pair {
     }
 
     public function pair_code_button() {
-        if (!current_user_can('manage_options')) wp_die('ممنوع');
+        if (!current_user_can('manage_options')) wp_die('غير مسموح');
         check_admin_referer('ltp_pair_code', '_ltp_pc_nonce');
         $s = self::pair_with_code(sanitize_text_field(wp_unslash($_POST['pair_code'] ?? '')));
         wp_safe_redirect(admin_url('admin.php?page=lead-tracker-settings&pairtry=' . rawurlencode($s)));
@@ -313,18 +313,18 @@ class LTP_Pair {
     public static function state_text($s) {
         $map = [
             'paired'    => '✅ مربوط',
-            'pending'   => '⏳ اتسجّل، ومستني تأكيد من مقدّم الخدمة (حماية على الموقع منعت التأكيد الأوتوماتيك).',
-            'disabled'  => '⛔ الموقع ده موقوف من مقدّم الخدمة.',
-            'no_hub'    => '⚪ لسه مش مربوط. اضغط «اربط بـ Maestro LT» (أو اكتب كود الربط لو معاك كود).',
-            'code'      => '❌ الكود غلط أو انتهى أو اتستعمل. اطلب كود جديد من لوحة Maestro LT (بيتجدد ويصلح 15 دقيقة)، أو اضغط «اربط بـ Maestro LT».',
-            'bad_code'  => '❌ الكود مكتوب غلط: لازم 8 حروف وأرقام (زي K7M2-QX9P).',
-            'domain_mismatch' => '❌ دومين الموقع ده مش نفس الدومين المسجّل في لوحة Maestro LT لموقعك.',
-            'site_unreachable' => '❌ سيرفر Maestro مقدرش يوصل لموقعك علشان يأكد الربط. غالباً بلجن أمان أو جدار حماية بيقفل REST API (المسار /wp-json/lt/v1/pair-confirm). اسمح بيه وحاول تاني بنفس الكود (لسه صالح).',
-            'network'   => '🔄 مقدرناش نوصل للاستقبال — هنحاول تاني لوحدنا كل ساعة.',
-            'bad_reply' => '🔄 الرد من الاستقبال مش مفهوم — هنحاول تاني لوحدنا كل ساعة.',
-            'busy'      => '🔄 محاولات كتير في نفس الوقت — هنحاول تاني لوحدنا كل ساعة.',
+            'pending'   => '⏳ سُجّل، وينتظر تأكيدًا من مقدّم الخدمة (منعت حماية على الموقع التأكيد التلقائي).',
+            'disabled'  => '⛔ هذا الموقع موقوف من مقدّم الخدمة.',
+            'no_hub'    => '⚪ لم يُربط بعد. انقر «اربط بـ Maestro LT» (أو اكتب رمز الربط إذا كان لديك رمز).',
+            'code'      => '❌ الرمز خاطئ أو منتهٍ أو مستخدَم. اطلب رمزًا جديدًا من لوحة Maestro LT (صالح لمدة 15 دقيقة)، أو انقر «اربط بـ Maestro LT».',
+            'bad_code'  => '❌ الرمز مكتوب بشكل خاطئ: يجب أن يتكون من 8 حروف وأرقام (مثل K7M2-QX9P).',
+            'domain_mismatch' => '❌ نطاق هذا الموقع لا يطابق النطاق المسجّل لموقعك في لوحة Maestro LT.',
+            'site_unreachable' => '❌ تعذّر على خادم Maestro الوصول إلى موقعك لتأكيد الربط. غالبًا توجد إضافة أمان أو جدار حماية يمنع REST API (المسار /wp-json/lt/v1/pair-confirm). اسمح به وحاول مرة أخرى بالرمز نفسه (ما زال صالحًا).',
+            'network'   => '🔄 تعذّر الوصول إلى الاستقبال — سنحاول تلقائيًا كل ساعة.',
+            'bad_reply' => '🔄 رد الاستقبال غير مفهوم — سنحاول تلقائيًا كل ساعة.',
+            'busy'      => '🔄 محاولات كثيرة في الوقت نفسه — سنحاول تلقائيًا كل ساعة.',
         ];
-        return $map[$s] ?? '🔄 بيتربط أوتوماتيك — هنحاول تاني لوحدنا كل ساعة.';
+        return $map[$s] ?? '🔄 جارٍ الربط تلقائيًا — سنحاول كل ساعة.';
     }
 
     public function notice() {
@@ -334,7 +334,7 @@ class LTP_Pair {
         $s = (string) LTP_Core::get('pair_state', '');
         // 2.11.0: بعد التفعيل دايماً بنعرض الزرار (3 ضغطات للربط)، ومعاه سبب آخر فشل لو فيه
         echo '<div class="notice notice-info"><p><strong>Lead Tracker Pro:</strong> '
-            . ($s !== '' && $s !== 'no_hub' ? esc_html(self::state_text($s)) . ' ' : 'فاضل خطوة واحدة: اربط الموقع بحسابك على Maestro LT. ')
+            . ($s !== '' && $s !== 'no_hub' ? esc_html(self::state_text($s)) . ' ' : 'بقيت خطوة واحدة: اربط الموقع بحسابك على Maestro LT. ')
             . '<a class="button button-primary" href="' . esc_url(self::connect_link()) . '">اربط بـ Maestro LT</a></p></div>';
     }
 
@@ -346,32 +346,32 @@ class LTP_Pair {
         <div class="ltp-card" style="border-right:4px solid <?php echo $paired ? '#00a32a' : '#dba617'; ?>;">
             <h3>🔗 الربط</h3>
             <p><?php echo esc_html(self::state_text($s)); ?>
-                <?php if ($paired && LTP_Core::get('paired_at') !== '') echo ' · من ' . esc_html(LTP_Core::get('paired_at')); ?>
+                <?php if ($paired && LTP_Core::get('paired_at') !== '') echo ' · منذ ' . esc_html(LTP_Core::get('paired_at')); ?>
             </p>
             <?php if (!$paired): ?>
                 <?php // 2.11.0: الطريق الأساسي: زرار واحد ?>
                 <p style="margin:14px 0;"><a class="button button-primary button-hero" href="<?php echo esc_url(self::connect_link()); ?>">🔗 اربط بـ Maestro LT</a></p>
-                <p class="description">هتسجّل دخول بجوجل (لو مش داخل) وتضغط «نعم، اربط». مفيش نسخ ولصق.</p>
+                <p class="description">ستسجّل الدخول بحساب جوجل (إذا لم تكن مسجّلًا) ثم تنقر «نعم، اربط». دون نسخ أو لصق.</p>
             <?php elseif (self::legacy_paired()): ?>
                 <?php // 2.11.3: موقع مربوط بالشيت القديم: نفس الزرار ينقله للسيرفر ?>
-                <p style="margin:14px 0;"><a class="button button-primary" href="<?php echo esc_url(self::connect_link()); ?>">🔗 انقل الربط لـ Maestro LT</a></p>
-                <p class="description">⚠️ بعد النقل الأحداث بتروح لسيرفر Maestro LT بس، والشيت القديم بيقف للموقع ده.</p>
+                <p style="margin:14px 0;"><a class="button button-primary" href="<?php echo esc_url(self::connect_link()); ?>">🔗 انقل الربط إلى Maestro LT</a></p>
+                <p class="description">⚠️ بعد النقل تذهب الأحداث إلى خادم Maestro LT فقط، ويتوقف الجدول القديم لهذا الموقع.</p>
             <?php elseif (isset($_GET['connected'])): ?>
-                <p style="color:#00a32a;"><strong>✅ الموقع اتربط بحسابك على Maestro LT.</strong></p>
+                <p style="color:#00a32a;"><strong>✅ رُبط الموقع بحسابك على Maestro LT.</strong></p>
             <?php endif; ?>
             <?php $o = LTP_Core::out_status(); if ($paired && ($o['failed_first'] || $o['queued'] || $o['rejected'] || $o['dropped'])): ?>
-                <p class="description">📡 إرسال السيرفر: فشل أول مرة <?php echo (int) $o['failed_first']; ?> · اتصلّح بإعادة المحاولة <?php echo (int) $o['recovered']; ?> · في الطابور <?php echo (int) $o['queued']; ?> · اتسقط <?php echo (int) $o['dropped']; ?> · اترفض <?php echo (int) $o['rejected']; ?><?php if ($o['last_error'] !== '') echo ' · آخر خطأ: ' . esc_html($o['last_error']) . ' (' . esc_html($o['last_error_at']) . ' UTC)'; ?></p>
+                <p class="description">📡 الإرسال إلى الخادم: فشل في المحاولة الأولى <?php echo (int) $o['failed_first']; ?> · نجح بإعادة المحاولة <?php echo (int) $o['recovered']; ?> · في قائمة الانتظار <?php echo (int) $o['queued']; ?> · مُسقَط <?php echo (int) $o['dropped']; ?> · مرفوض <?php echo (int) $o['rejected']; ?><?php if ($o['last_error'] !== '') echo ' · آخر خطأ: ' . esc_html($o['last_error']) . ' (' . esc_html($o['last_error_at']) . ' UTC)'; ?></p>
             <?php endif; ?>
             <?php // 2.10.0: الربط بكود من لوحة Maestro LT (بديل لو الزرار ماينفعش) ?>
-            <details><summary><?php echo $paired ? 'ربط بكود جديد من لوحة Maestro LT' : 'عندي كود ربط بدل الزرار'; ?></summary>
-            <?php if ($paired): ?><p class="description">⚠️ لو الموقع كان مربوط بالشيت، الربط بكود هيخلّي الأحداث تروح للسيرفر الجديد بس.</p><?php endif; ?>
+            <details><summary><?php echo $paired ? 'ربط برمز جديد من لوحة Maestro LT' : 'لديّ رمز ربط بدل الزر'; ?></summary>
+            <?php if ($paired): ?><p class="description">⚠️ إذا كان الموقع مربوطًا بالجدول، فالربط بالرمز يجعل الأحداث تذهب إلى الخادم الجديد فقط.</p><?php endif; ?>
             <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="margin:10px 0;">
                 <input type="hidden" name="action" value="ltp_pair_code">
                 <?php wp_nonce_field('ltp_pair_code', '_ltp_pc_nonce'); ?>
-                <label for="ltp_pair_code"><strong>كود الربط من لوحة Maestro LT</strong></label><br>
+                <label for="ltp_pair_code"><strong>رمز الربط من لوحة Maestro LT</strong></label><br>
                 <input type="text" name="pair_code" id="ltp_pair_code" class="regular-text" dir="ltr" maxlength="9" placeholder="K7M2-QX9P" autocomplete="off" style="font-family:monospace;letter-spacing:2px;">
                 <button type="submit" class="button">اربط</button>
-                <p class="description">الكود صالح 15 دقيقة ومرة واحدة. من اللوحة: مواقعي ← الموقع ← «كود الربط».</p>
+                <p class="description">الرمز صالح لمدة 15 دقيقة ولمرة واحدة. من اللوحة: المواقع والتثبيت ← الموقع ← «رمز الربط».</p>
             </form>
             </details>
             <?php if (!$paired): ?>
@@ -379,8 +379,8 @@ class LTP_Pair {
                 <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
                     <input type="hidden" name="action" value="ltp_pair_now">
                     <?php wp_nonce_field('ltp_pair_now', '_ltp_pair_nonce'); ?>
-                    <button type="submit" class="button">🔄 حاول دلوقتي</button>
-                    <span class="description">(اختياري — البلجن بيحاول لوحده)</span>
+                    <button type="submit" class="button">🔄 حاول الآن</button>
+                    <span class="description">(اختياري — تحاول الإضافة تلقائيًا)</span>
                 </form>
             <?php endif; ?>
         </div>

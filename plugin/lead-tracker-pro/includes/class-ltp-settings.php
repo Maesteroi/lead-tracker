@@ -123,7 +123,7 @@ class LTP_Settings {
                 <div class="ltp-card">
                     <h3>آخر 7 أيام</h3>
                     <p><strong>👁️ زيارات:</strong> <?php echo number_format($total['page_view']); ?></p>
-                    <p><strong>📞 نقرة:</strong> <?php echo number_format($total['click']); ?></p>
+                    <p><strong>📞 نقرات:</strong> <?php echo number_format($total['click']); ?></p>
                     <p><strong>📉 معدل التحويل:</strong>
                         <?php echo $total['page_view'] > 0 ? round(($total['click'] / $total['page_view']) * 100, 2) : 0; ?>%
                     </p>
@@ -160,7 +160,7 @@ class LTP_Settings {
                 </table>
             </div>
 
-            <?php if (isset($_GET['numsaved'])): ?><div class="notice notice-success"><p>✅ اتحفظت اختيارات الأرقام</p></div><?php endif; ?>
+            <?php if (isset($_GET['numsaved'])): ?><div class="notice notice-success"><p>✅ حُفظت اختيارات الأرقام</p></div><?php endif; ?>
             <?php LTP_Telegram::card(); ?>
             <?php LTP_WooCommerce::card(); ?>
             <?php LTP_Numbers::card(); ?>
@@ -202,11 +202,11 @@ class LTP_Settings {
             <?php endif; ?>
 
             <?php if (isset($_GET['badurl'])): ?>
-                <div class="notice notice-error"><p>❌ رابط Webhook مش صحيح واتتجاهل — لازم يبدأ بـ <code>https://script.google.com/macros/s/</code> وينتهي بـ <code>/exec</code>، أو يكون على «دومين السيرفر».</p></div>
+                <div class="notice notice-error"><p>❌ رابط Webhook غير صحيح وتم تجاهله — يجب أن يبدأ بـ <code>https://script.google.com/macros/s/</code> وينتهي بـ <code>/exec</code>، أو يكون على «نطاق الخادم».</p></div>
             <?php endif; ?>
 
             <?php if (isset($_GET['reset'])): ?>
-                <div class="notice notice-success"><p>✅ تم حذف إعدادات Database — الإعدادات دلوقتي جاية من config.json</p></div>
+                <div class="notice notice-success"><p>✅ حُذفت إعدادات قاعدة البيانات — الإعدادات الآن من config.json</p></div>
             <?php endif; ?>
 
             <?php LTP_Pair::box(); ?>
@@ -214,10 +214,10 @@ class LTP_Settings {
             <?php if ($has_config && $config_count > 0): ?>
                 <div class="notice notice-info">
                     <p>
-                        <strong>📄 ملف config.json موجود</strong> — فيه
+                        <strong>📄 ملف config.json موجود</strong> — يحتوي على
                         <strong><?php echo esc_html($config_count); ?></strong> حقل.
-                        الحقول اللي عليها علامة 📄 بتاخد قيمتها من الملف تلقائيًا.
-                        لو عايز تغيّرها يدويًا من هنا، املأ الحقل → هيتحفظ في الـ Database ويلغي الـ config.
+                        الحقول التي عليها علامة 📄 تأخذ قيمتها من الملف تلقائيًا.
+                        إذا أردت تغييرها يدويًا من هنا، فاملأ الحقل ← سيُحفظ في قاعدة البيانات ويتجاوز ملف config.
                     </p>
                 </div>
             <?php endif; ?>
@@ -227,7 +227,7 @@ class LTP_Settings {
                 <?php wp_nonce_field('ltp_save', '_ltp_nonce'); ?>
 
                 <details class="ltp-card">
-                    <summary style="cursor:pointer;font-weight:600;">🛠️ إعدادات الاتصال اليدوية (متقدم — مش محتاجها، الربط أوتوماتيك)</summary>
+                    <summary style="cursor:pointer;font-weight:600;">🛠️ إعدادات الاتصال اليدوية (متقدم — لا تحتاج إليها، فالربط تلقائي)</summary>
 
                     <table class="form-table">
                         <tr>
@@ -236,7 +236,7 @@ class LTP_Settings {
                                 <input type="url" name="webhook_url" id="webhook_url" class="large-text"
                                        value="<?php echo esc_attr($webhook); ?>"
                                        placeholder="https://script.google.com/macros/s/.../exec">
-                                <p class="description">رابط Apps Script (زر "نسخ" من Deploy → Web App URL)</p>
+                                <p class="description">رابط Apps Script (زر «نسخ» من Deploy ← Web App URL)</p>
                             </td>
                         </tr>
                         <tr>
@@ -244,8 +244,8 @@ class LTP_Settings {
                             <td>
                                 <input type="password" name="webhook_secret" id="webhook_secret" class="regular-text"
                                        value="" autocomplete="new-password"
-                                       placeholder="<?php echo $secret !== '' ? esc_attr('•••••••• محفوظ — سيبه فاضي') : ''; ?>">
-                                <p class="description">الربط بيحطه أوتوماتيك. اكتب هنا بس لو بتظبط يدوي بالمفتاح العام SECRET.</p>
+                                       placeholder="<?php echo $secret !== '' ? esc_attr('•••••••• محفوظ — اتركه فارغًا') : ''; ?>">
+                                <p class="description">يضعه الربط تلقائيًا. اكتب هنا فقط إذا كنت تضبط يدويًا بالمفتاح العام SECRET.</p>
                             </td>
                         </tr>
                         <tr>
@@ -257,12 +257,12 @@ class LTP_Settings {
                             </td>
                         </tr>
                         <tr>
-                            <th><label for="server_mirror">السيرفر الجديد (Maestro LT)</label></th>
+                            <th><label for="server_mirror">خادم Maestro LT</label></th>
                             <td>
                                 <label><input type="checkbox" name="server_mirror" id="server_mirror" value="1" <?php checked((bool) LTP_Core::get('server_mirror')); ?>>
-                                    ابعت نسخة من كل حدث للسيرفر كمان (الشيت فاضل شغال زي ما هو)</label>
+                                    أرسل نسخة من كل حدث إلى الخادم أيضًا (يبقى الجدول يعمل كما هو)</label>
                                 <p><input type="url" name="server_url" class="large-text" value="<?php echo esc_attr(LTP_Core::get('server_url', LTP_Core::SERVER_URL)); ?>"></p>
-                                <p class="description">فعّله بس لما السيرفر يبقى شغال. الإرسال في الخلفية ومابيأخّرش الزائر.</p>
+                                <p class="description">فعّله فقط عندما يعمل الخادم. الإرسال يتم في الخلفية ولا يؤخّر الزائر.</p>
                             </td>
                         </tr>
                     </table>
@@ -273,14 +273,14 @@ class LTP_Settings {
                     <h3>🔄 التحديثات</h3>
                     <?php $us = LTP_Updater::status(); ?>
                     <?php if (!LTP_Updater::enabled()): ?>
-                        <p class="description">التحديث الأوتوماتيك لسه مش متفعّل في النسخة دي.</p>
+                        <p class="description">التحديث التلقائي غير مفعّل بعد في هذا الإصدار.</p>
                     <?php else: ?>
                         <p><label><input type="checkbox" name="auto_update" value="1" <?php checked((string) LTP_Core::get('auto_update', '1') !== '0'); ?>>
-                            حدّث البلجن لوحده لما يطلع إصدار جديد (موقّع من Maestro LT)</label></p>
+                            حدّث الإضافة تلقائيًا عند صدور إصدار جديد (موقّع من Maestro LT)</label></p>
                         <p><label for="update_channel">القناة:</label>
                             <select name="update_channel" id="update_channel">
-                                <option value="stable" <?php selected(LTP_Updater::channel(), 'stable'); ?>>عادية (بعد ما الإصدار يتجرب)</option>
-                                <option value="early" <?php selected(LTP_Updater::channel(), 'early'); ?>>مبكرة (أول ما يطلع)</option>
+                                <option value="stable" <?php selected(LTP_Updater::channel(), 'stable'); ?>>عادية (بعد تجربة الإصدار)</option>
+                                <option value="early" <?php selected(LTP_Updater::channel(), 'early'); ?>>مبكرة (فور صدوره)</option>
                             </select></p>
                         <p class="description">الإصدار الحالي <?php echo esc_html(LTP_VERSION); ?>
                             <?php if (!empty($us['checked'])) echo ' · آخر فحص ' . esc_html($us['checked']) . ' UTC'; ?>
@@ -301,11 +301,11 @@ class LTP_Settings {
                             </td>
                         </tr>
                         <tr>
-                            <th><label for="match_code"><?php echo $this->field_label('match_code', 'كود المطابقة'); ?></label></th>
+                            <th><label for="match_code"><?php echo $this->field_label('match_code', 'رمز المطابقة'); ?></label></th>
                             <td>
                                 <label>
                                     <input type="checkbox" name="match_code" value="1" <?php checked($match, 1); ?>>
-                                    إضافة "كود #XXXX" لرسالة الواتساب تلقائيًا
+                                    إضافة «رمز #XXXX» إلى رسالة الواتساب تلقائيًا
                                 </label>
                             </td>
                         </tr>
@@ -317,7 +317,7 @@ class LTP_Settings {
                                         <option value="<?php echo esc_attr($jk); ?>" <?php selected(LTP_Roles::journey(), $jk); ?>><?php echo esc_html($jl); ?></option>
                                     <?php endforeach; ?>
                                 </select>
-                                <p class="description">رحلة العميل بتخلص فين؟ على أساسها البلجن بيحدد أهمية كل إجراء لوحده (واتساب · اتصال · فورم…): أنهي يتحسب Lead ويتبعت لجوجل ويجيب تنبيه. وتقدر تغيّر أي إجراء من جدول الأرقام والجرد في لوحة التحكم.</p>
+                                <p class="description">أين تنتهي رحلة العميل؟ على أساسها تحدّد الإضافة أهمية كل إجراء تلقائيًا (واتساب · اتصال · نموذج…): أيّها يُحتسب عميلًا محتملًا ويُرسل إلى جوجل ويصل عنه تنبيه. ويمكنك تغيير أي إجراء من جدول الأرقام والجرد في لوحة التحكم.</p>
                             </td>
                         </tr>
                         <tr>
@@ -327,8 +327,8 @@ class LTP_Settings {
                                 <?php foreach (self::TARGET_COUNTRIES as $code => $name): ?>
                                     <label style="margin-left:14px;white-space:nowrap;"><input type="checkbox" name="target_countries[]" value="<?php echo esc_attr($code); ?>" <?php checked(in_array($code, $tc, true)); ?>> <?php echo esc_html($name); ?></label>
                                 <?php endforeach; ?>
-                                <p style="margin-top:8px;"><input type="text" name="target_cities" class="regular-text" value="<?php echo esc_attr(LTP_Core::get('target_cities', '')); ?>" placeholder="فاضي = الدولة كلها · أو مثلاً: الرياض، جدة"></p>
-                                <p class="description">نفس الاستهداف اللي في حملات جوجل. أي زيارة إعلان من برّه الاستهداف بتتعلّم في الشيت ويوصل عليها تنبيه — ومعاها إشارات تانية (VPN · ساعة الجهاز على بلد تاني). العلامة تنبيه للمراجعة، مش حظر.</p>
+                                <p style="margin-top:8px;"><input type="text" name="target_cities" class="regular-text" value="<?php echo esc_attr(LTP_Core::get('target_cities', '')); ?>" placeholder="فارغ = الدولة كلها · أو مثلًا: الرياض، جدة"></p>
+                                <p class="description">الاستهداف نفسه الموجود في حملات جوجل. أي زيارة إعلان من خارج الاستهداف تُعلَّم في الجدول ويصل عنها تنبيه — مع إشارات أخرى (VPN · ساعة الجهاز على بلد آخر). العلامة تنبيه للمراجعة، وليست حظرًا.</p>
                             </td>
                         </tr>
                         <tr>
@@ -336,7 +336,7 @@ class LTP_Settings {
                             <td>
                                 <textarea name="click_rules" id="click_rules" class="large-text code" rows="4" dir="ltr"
                                           placeholder=".my-float-btn = wa&#10;#call-box = call"><?php echo esc_textarea(LTP_Core::get('click_rules', '')); ?></textarea>
-                                <p class="description">لو عنصر تواصل ظهر في «الجرد» تحت إنه مش متعرّف: اكتب محدده ونوعه، سطر لكل عنصر. الأنواع: wa · call · sms · email · msg · form · button · cart · checkout · map · social</p>
+                                <p class="description">إذا ظهر عنصر تواصل في «الجرد» على أنه غير معروف: اكتب محدّده ونوعه، سطرًا لكل عنصر. الأنواع: wa · call · sms · email · msg · form · button · cart · checkout · map · social</p>
                             </td>
                         </tr>
                     </table>
@@ -351,7 +351,7 @@ class LTP_Settings {
                             <td>
                                 <label>
                                     <input type="checkbox" name="consent_enabled" value="1" <?php checked($consent, 1); ?>>
-                                    تفعيل بانر الموافقة (لو الزائر رفض، بنسجّل الزيارة فقط من غير بيانات جهازه)
+                                    تفعيل شريط الموافقة (إذا رفض الزائر، نسجّل الزيارة فقط دون بيانات جهازه)
                                 </label>
                             </td>
                         </tr>
@@ -362,24 +362,24 @@ class LTP_Settings {
                                     <input type="checkbox" name="track_all" value="1" <?php checked($track_all, 1); ?>>
                                     سجّل كل زيارة بالتفصيل من أي مصدر
                                 </label>
-                                <p class="description">مفتوحة (الافتراضي من 2.3.2): كل زيارة بتتسجل بالتفصيل. لو قفلتها: زائر الإعلان بس بالتفصيل، وأي ضغطة من أي مصدر بتتسجل بمصدرها (بيوفّر مساحة الشيت وحدود جوجل).</p>
+                                <p class="description">مفعّلة (الافتراضي منذ 2.3.2): تُسجَّل كل زيارة بالتفصيل. إذا عطّلتها: يُسجَّل زائر الإعلان فقط بالتفصيل، وتُسجَّل أي نقرة من أي مصدر مع مصدرها (يوفّر مساحة الجدول وحدود جوجل).</p>
                             </td>
                         </tr>
                         <tr>
-                            <th><label for="server_host"><?php echo $this->field_label('server_host', 'دومين السيرفر'); ?></label></th>
+                            <th><label for="server_host"><?php echo $this->field_label('server_host', 'نطاق الخادم'); ?></label></th>
                             <td>
                                 <input type="text" name="server_host" id="server_host" class="regular-text" value="<?php echo esc_attr($server_host); ?>" placeholder="api.example.com">
-                                <p class="description">سيبه فاضي طول ما البيانات رايحة لجوجل شيت. لما ننقل لسيرفرنا: اكتب الدومين هنا، وحط رابط السيرفر في Webhook URL.</p>
+                                <p class="description">اتركه فارغًا ما دامت البيانات تذهب إلى Google Sheet. عند الانتقال إلى خادمنا: اكتب النطاق هنا، وضع رابط الخادم في Webhook URL.</p>
                             </td>
                         </tr>
                         <tr>
-                            <th><?php echo $this->field_label('behind_cloudflare', 'الموقع وراء كلاود فلير'); ?></th>
+                            <th><?php echo $this->field_label('behind_cloudflare', 'الموقع خلف Cloudflare'); ?></th>
                             <td>
                                 <label>
                                     <input type="checkbox" name="behind_cloudflare" value="1" <?php checked($cf, 1); ?>>
-                                    فعّلها لو الموقع شغال من خلال Cloudflare (عشان العنوان والدولة يتسجلوا صح)
+                                    فعّلها إذا كان الموقع يعمل عبر Cloudflare (ليُسجَّل العنوان والدولة بشكل صحيح)
                                 </label>
-                                <p class="description">لو مش متأكد سيبها مقفولة.</p>
+                                <p class="description">إذا لم تكن متأكدًا فاتركها معطّلة.</p>
                             </td>
                         </tr>
                         <tr>
@@ -392,11 +392,11 @@ class LTP_Settings {
                                     <?php endforeach; ?>
                                 </select>
                                 <select name="fpjs_scope">
-                                    <option value="ads" <?php selected(LTP_Core::get('fpjs_scope', 'ads'), 'ads'); ?>>زوار الإعلانات بس</option>
+                                    <option value="ads" <?php selected(LTP_Core::get('fpjs_scope', 'ads'), 'ads'); ?>>زوار الإعلانات فقط</option>
                                     <option value="all" <?php selected(LTP_Core::get('fpjs_scope', 'ads'), 'all'); ?>>كل الزوار</option>
                                 </select>
                                 <p style="margin-top:8px;"><input type="text" name="tm_key" class="regular-text code" dir="ltr" value="<?php echo esc_attr(LTP_Core::get('tm_key', '')); ?>" placeholder="ThumbmarkJS API key (اختياري)"></p>
-                                <p class="description">للمقارنة مع البصمة الحالية و«بصمة 2». حط المفتاح العام (Public) من لوحة Fingerprint — مش المفتاح السري. «زوار الإعلانات بس» بيوفّر المكالمات (الباقة المجانية 1000 في الشهر). بيانات جهاز الزائر بتروح لسيرفرات Fingerprint — لازم تتذكر في سياسة الخصوصية. فاضي = مقفول.</p>
+                                <p class="description">للمقارنة مع البصمة الحالية و«بصمة 2». ضع المفتاح العام (Public) من لوحة Fingerprint — لا المفتاح السري. «زوار الإعلانات فقط» يوفّر الطلبات (الباقة المجانية 1000 شهريًا). تذهب بيانات جهاز الزائر إلى خوادم Fingerprint — يجب ذكر ذلك في سياسة الخصوصية. فارغ = معطّل.</p>
                             </td>
                         </tr>
                         <tr>
@@ -418,7 +418,7 @@ class LTP_Settings {
                     </table>
                 </div>
 
-                <?php submit_button('💾 حفظ في Database'); ?>
+                <?php submit_button('💾 حفظ في قاعدة البيانات'); ?>
             </form>
 
             <?php if ($has_config): ?>
@@ -428,17 +428,17 @@ class LTP_Settings {
                     <p>
                         <strong>لتغيير أي إعداد:</strong>
                         <br>1. عدّل الملف <code>config.json</code> على السيرفر
-                        <br>2. حدّث الصفحة — الإعدادات هتتحدّث تلقائيًا
+                        <br>2. حدّث الصفحة — ستتحدّث الإعدادات تلقائيًا
                     </p>
 
                     <hr style="margin:20px 0;">
 
-                    <p><strong>⚠️ لحذف الإعدادات من الـ Database والرجوع لـ config.json فقط:</strong></p>
+                    <p><strong>⚠️ لحذف الإعدادات من قاعدة البيانات والاعتماد على config.json فقط:</strong></p>
                     <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>"
-                          onsubmit="return confirm('متأكد؟ هتحذف كل الإعدادات من الـ Database، وهترجع من config.json.');">
+                          onsubmit="return confirm('هل أنت متأكد؟ ستُحذف كل الإعدادات من قاعدة البيانات، وتُقرأ من config.json.');">
                         <input type="hidden" name="action" value="ltp_reset_db">
                         <?php wp_nonce_field('ltp_reset_db', '_ltp_reset_nonce'); ?>
-                        <button type="submit" class="button">🗑️ حذف الإعدادات من Database</button>
+                        <button type="submit" class="button">🗑️ حذف الإعدادات من قاعدة البيانات</button>
                     </form>
                 </div>
             <?php endif; ?>
@@ -447,7 +447,7 @@ class LTP_Settings {
     }
 
     public function save() {
-        if (!current_user_can('manage_options')) wp_die('ممنوع');
+        if (!current_user_can('manage_options')) wp_die('غير مسموح');
         check_admin_referer('ltp_save', '_ltp_nonce');
 
         LTP_Core::set('server_host',     sanitize_text_field($_POST['server_host'] ?? ''));
@@ -487,7 +487,7 @@ class LTP_Settings {
     }
 
     public function reset_db() {
-        if (!current_user_can('manage_options')) wp_die('ممنوع');
+        if (!current_user_can('manage_options')) wp_die('غير مسموح');
         check_admin_referer('ltp_reset_db', '_ltp_reset_nonce');
 
         $keys = [

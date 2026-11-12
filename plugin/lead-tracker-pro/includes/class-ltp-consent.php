@@ -38,8 +38,8 @@ class LTP_Consent {
         ?>
 <div id="ltp-cookie-banner" role="dialog" aria-label="إشعار الكوكيز" style="display:none">
     <div class="ltp-cb-text">
-        نقيس زيارات الموقع وأداء إعلاناتنا لنحسّن خدمتنا. لو وافقت نسجّل بيانات جهازك العامة،
-        ولو رفضت نسجّل الزيارة فقط بدون بيانات جهازك. اختيارك بيتحفظ وتقدر تغيّره في أي وقت. اقرأ
+        نقيس زيارات الموقع وأداء إعلاناتنا لنحسّن خدمتنا. إذا وافقت نسجّل بيانات جهازك العامة،
+        وإذا رفضت نسجّل الزيارة فقط دون بيانات جهازك. يُحفظ اختيارك ويمكنك تغييره في أي وقت. اقرأ
         <a href="<?php echo esc_url(get_privacy_policy_url() ?: home_url('/privacy-policy')); ?>" target="_blank">سياسة الخصوصية</a>.
     </div>
     <div class="ltp-cb-buttons">

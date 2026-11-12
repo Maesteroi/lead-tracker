@@ -3,7 +3,7 @@ jQuery(function ($) {
     var $btn = $(this);
     var $res = $('#ltp-test-result');
 
-    $btn.prop('disabled', true).text('⏳ جاري الاختبار...');
+    $btn.prop('disabled', true).text('⏳ جارٍ الاختبار...');
     $res.removeClass('success error').text('').hide();
 
     $.post(LTP_ADMIN.ajax, {
