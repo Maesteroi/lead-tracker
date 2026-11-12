@@ -4,7 +4,7 @@ Tags: analytics, tracking, google-ads, whatsapp, lead-tracking
 Requires at least: 5.8
 Tested up to: 6.5
 Requires PHP: 7.4
-Stable tag: 2.13.3
+Stable tag: 2.13.4
 License: GPLv2 or later
 
 تتبع احترافي لكل زيارة ونقرة اتصال/واتساب — Google Sheet + Telegram.
@@ -25,6 +25,9 @@ Lead Tracker Pro يسجّل:
 4. الصق Webhook URL و SECRET
 
 == Changelog ==
+= 2.13.4 =
+* تسجيل الزيارات: القطع تُضغط (gzip) في متصفح الزائر قبل الإرسال. كانت أول لقطة للصفحات الثقيلة تتجاوز 2 ميجابايت فيرفضها الخادم، فلا يُسجَّل أي فيديو. الآن أصغر بنحو 10 مرات وأخف على بيانات جوال الزائر.
+
 = 2.13.3 =
 * بعد أي تحديث للإضافة، يُمسح كاش صفحات الموقع تلقائيًا (LiteSpeed · WP Rocket · W3 Total Cache · WP Super Cache · SiteGround · WP Fastest Cache · Autoptimize · Breeze · Hummingbird). كانت الصفحات المخزّنة تُبقي سكريبت الإصدار القديم، فلا يعمل تسجيل الزيارات بعد التحديث.
 

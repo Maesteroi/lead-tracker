@@ -13,7 +13,8 @@ import { json, safeEqual } from './util.js';
 import { eq } from './db.js';
 
 export const BUCKET = 'replays';
-export const LIMITS = { chunk: 2 * 1024 * 1024, session: 8 * 1024 * 1024, minutes: 15, perDay: 3000, keepDays: 30 };
+// القطع المضغوطة (2.13.4): الحجم المضغوط هو اللي بيتحسب (gzChunk لكل قطعة · gzSession للزيارة كلها)
+export const LIMITS = { chunk: 2 * 1024 * 1024, session: 8 * 1024 * 1024, gzChunk: 2 * 1024 * 1024, gzSession: 6 * 1024 * 1024, minutes: 15, perDay: 3000, keepDays: 30 };
 const SITE_RE = /^[A-Za-z0-9]{6,20}$/;
 const SID_RE = /^[A-Za-z0-9_-]{4,64}$/;
 const enc = new TextEncoder();
@@ -70,6 +71,8 @@ export async function handleReplay(req, env, db) {
   const no = (why, status) => out({ ok: false, rec: false, error: why }, status || 200);
   if (String(env.REPLAY || '').toLowerCase() === 'off') return no('off');
   const len = Number(req.headers.get('content-length') || 0);
+  const u = new URL(req.url);
+  if (u.searchParams.get('z') === '1') return gzChunk(req, db, u, len, no);
   if (len > LIMITS.chunk + 4096) return no('too_big', 413);
   const text = await req.text();
   if (text.length > LIMITS.chunk + 4096) return no('too_big', 413);
@@ -88,7 +91,7 @@ export async function handleReplay(req, env, db) {
     const today = new Date(now).toISOString().slice(0, 10);
     const over = await db.select('replay_sessions?client_id=' + eq(site) + '&started_at=gte.' + today + 'T00:00:00Z&select=session_id&order=started_at.asc&limit=1&offset=' + LIMITS.perDay).catch(() => []);
     if (over && over.length) return no('daily_cap');
-    return out({ ok: true, rec: true, max_kb: Math.floor(LIMITS.session / 1024), max_min: LIMITS.minutes, chunk_kb: Math.floor(LIMITS.chunk / 1024) });
+    return out({ ok: true, rec: true, max_kb: Math.floor(LIMITS.session / 1024), max_min: LIMITS.minutes, chunk_kb: Math.floor(LIMITS.chunk / 1024), z: 1 });
   }
 
   const seq = Number(b.seq);
@@ -100,6 +103,28 @@ export async function handleReplay(req, env, db) {
   if (!row || !row.started_at) return no('session_full');
   if (Date.parse(row.started_at) < now - (LIMITS.minutes + 5) * 60e3) return no('too_long');
   await db.putObject(BUCKET, pathOf(site, dayOf(row.started_at), sid, seq), await gzip(body), 'application/gzip');
+  return out({ ok: true, rec: true, seq });
+}
+
+// قطعة مضغوطة من المتصفح (?z=1&seq=N&t=التذكرة · الجسم gzip لـJSON الأحداث). بتتخزن زي ما هي من غير فك (أخف على السيرفر).
+// صحة محتواها بتتفحص وقت المشاهدة (loadReplay بيتجاهل أي قطعة بايظة).
+async function gzChunk(req, db, u, len, no) {
+  if (len > LIMITS.gzChunk + 1024) return no('too_big', 413);
+  const buf = new Uint8Array(await req.arrayBuffer());
+  if (!buf.length || buf.length > LIMITS.gzChunk + 1024) return no('too_big', 413);
+  if (buf[0] !== 0x1f || buf[1] !== 0x8b) return no('gzip', 400);
+  const now = Date.now();
+  const tk = await checkTicket(db, u.searchParams.get('t'), now);
+  if (!tk) return no('ticket', 403);
+  if (!originAllowed(req.headers.get('origin'), tk.client.domains)) return no('origin', 403);
+  const seq = Number(u.searchParams.get('seq'));
+  if (!Number.isInteger(seq) || seq < 0 || seq > 199) return no('seq', 400);
+  const site = tk.client.id, sid = tk.sid;
+  const rows = await db.req('POST', 'rpc/replay_add', { p_site: site, p_sid: sid, p_seq: seq, p_bytes: buf.length, p_max_bytes: LIMITS.gzSession });
+  const row = Array.isArray(rows) ? rows[0] : rows;
+  if (!row || !row.started_at) return no('session_full');
+  if (Date.parse(row.started_at) < now - (LIMITS.minutes + 5) * 60e3) return no('too_long');
+  await db.putObject(BUCKET, pathOf(site, dayOf(row.started_at), sid, seq), buf, 'application/gzip');
   return out({ ok: true, rec: true, seq });
 }
 
