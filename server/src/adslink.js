@@ -27,8 +27,16 @@ async function hmacHex(secret, msg) {
 export const linkMessage = (site, exp) => 'connect:' + site + ':' + exp + ':api';
 export const saveMessage = (site, ts, rt) => 'save:' + site + ':' + ts + ':' + rt;
 
-export function adsLinkReady(env) {
-  return tokenKeyReady(env) && !!env.GOOGLE_CLIENT_ID && !!env.GOOGLE_CLIENT_SECRET && String(env.LINK_SECRET || '').length >= 32;
+export function adsLinkReady(env) { return !adsConfigMissing(env).length; }
+// أسماء الإعدادات الناقصة أو الغلط (من غير أي قيمة) — للمدير العام في لوحة الإدارة
+export function adsConfigMissing(env) {
+  const out = [];
+  if (!tokenKeyReady(env)) out.push(env.TOKEN_ENC_KEY ? 'TOKEN_ENC_KEY:length' : 'TOKEN_ENC_KEY');
+  if (!env.GOOGLE_CLIENT_ID) out.push('GOOGLE_CLIENT_ID');
+  if (!env.GOOGLE_CLIENT_SECRET) out.push('GOOGLE_CLIENT_SECRET');
+  const ls = String(env.LINK_SECRET || '');
+  if (ls.length < 20) out.push(ls ? 'LINK_SECRET:length' : 'LINK_SECRET');
+  return out;
 }
 const canManage = (sess, site) => ['owner', 'admin'].includes(roleFor(sess, site.org_id, site.id));
 

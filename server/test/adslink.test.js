@@ -120,3 +120,26 @@ test('the hourly cleanup removes expired pending tokens only when connecting is 
     assert.equal(s.w.fs.t.ads_link_pending.length, 0, 'configured: expired request removed');
   } finally { globalThis.Date = realNow; }
 });
+
+test('the super admin sees which Google Ads settings are missing on the server (names only, never values)', async () => {
+  const s = await setup({ env: { LINK_SECRET: 'short', TOKEN_ENC_KEY: '' } });   // أقل من 20 حرف = قصيرة
+  s.w.fs.t.users.find((u) => u.email === 'owner@rawda.example').platform_admin = true;
+  const ov = (await get(s.w, s.owner, '/v1/platform/overview')).body;
+  assert.deepEqual(ov.config.ads_missing, ['TOKEN_ENC_KEY', 'LINK_SECRET:length']);
+  assert.ok(!JSON.stringify(ov).includes('csecret'));
+  const s2 = await setup();
+  s2.w.fs.t.users.find((u) => u.email === 'owner@rawda.example').platform_admin = true;
+  assert.deepEqual((await get(s2.w, s2.owner, '/v1/platform/overview')).body.config.ads_missing, []);
+});
+
+test('TOKEN_ENC_KEY can be a memorable phrase of 20+ characters (or a 44-character base64 key); shorter is refused', async () => {
+  const { sealToken, openToken, tokenKeyReady } = await import('../src/crypto.js');
+  const phrase = { TOKEN_ENC_KEY: 'maestro lt shado rawda 2026' };
+  assert.equal(tokenKeyReady(phrase), true);
+  const sealed = await sealToken(phrase, 'RT-x', 'a:b');
+  assert.equal(await openToken(phrase, sealed, 'a:b'), 'RT-x');
+  await assert.rejects(openToken({ TOKEN_ENC_KEY: 'maestro lt shado rawda 2027' }, sealed, 'a:b'), 'a different phrase cannot open it');
+  assert.equal(tokenKeyReady({ TOKEN_ENC_KEY: 'short phrase' }), false);
+  assert.equal(tokenKeyReady({ TOKEN_ENC_KEY: Buffer.alloc(32, 3).toString('base64') }), true);
+  assert.equal(tokenKeyReady({}), false);
+});

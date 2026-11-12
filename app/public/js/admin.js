@@ -63,11 +63,19 @@
       ME = data.me || { owner: true, perms: ['*'] };
       $('loading').hidden = true; $('app').hidden = false;
       $('updated').textContent = T('adm.updated') + ' ' + new Date().toLocaleTimeString(LT.locale, { hour: 'numeric', minute: '2-digit' });
-      renderKpis(); renderFilter(); renderRows(); $('tg').hidden = r[1].status === 404; if (r[1].status !== 404) renderTg(r[1].ok ? r[1].body : null);
+      renderKpis(); renderFilter(); renderRows(); renderCfg(data.config); $('tg').hidden = r[1].status === 404; if (r[1].status !== 404) renderTg(r[1].ok ? r[1].body : null);
       $('role-eyebrow').textContent = ME.owner ? T('adm.role') : T('adm.role.team') + ' · ' + (ME.role || '') + (ME.scoped ? ' ' + T('adm.role.scoped') : '');
       $('tab-btn-team').hidden = !ME.owner; $('tab-btn-audit').hidden = !(ME.owner || can('audit'));
       if (current) { var o = find(current.id); if (o) { current = o; renderDrawerInfo(); } }
     });
+  }
+  // إعداد جوجل أدز (للمدير العام): أسماء الناقص بس، من غير قيم
+  function renderCfg(c) {
+    var box = $('cfg'); if (!c) { box.hidden = true; return; }
+    box.hidden = false;
+    var miss = (c.ads_missing || []).map(function (m) { var p = m.split(':'); return p[1] === 'length' ? T('adm.cfg.short', { n: p[0] }) : p[0]; });
+    $('cfg-text').textContent = miss.length ? T('adm.cfg.missing', { list: miss.join(' · ') }) : T(c.ads_pull ? 'adm.cfg.ok' : 'adm.cfg.ok_nopull');
+    $('cfg-text').className = miss.length ? 'notice warn' : 'muted';
   }
   function find(id) { for (var i = 0; i < data.orgs.length; i++) if (data.orgs[i].id === id) return data.orgs[i]; return null; }
   function showDenied() { $('loading').hidden = true; $('app').hidden = true; $('denied').hidden = false; }

@@ -7,16 +7,22 @@ const td = new TextDecoder();
 const b64 = (u8) => btoa(String.fromCharCode(...u8));
 const unb64 = (s) => Uint8Array.from(atob(String(s)), (c) => c.charCodeAt(0));
 
+// TOKEN_ENC_KEY: يا إما 32 بايت base64 (44 حرف)، يا إما عبارة سهلة تتفتكر (20 حرف أو أكتر، قرار محمود 12 نوفمبر:
+// «لو عملته 44 أكيد هانساه»). العبارة بتتحوّل لمفتاح 32 بايت بـSHA-256. نفس العبارة = نفس المفتاح دايماً.
+export const MIN_PASSPHRASE = 20;
+function rawKey(env) {
+  const v = String(env.TOKEN_ENC_KEY || '');
+  if (/^[A-Za-z0-9+/]{43}=$/.test(v)) { try { const b = unb64(v); if (b.length === 32) return { b64: b }; } catch (e) { /* عبارة */ } }
+  return v.length >= MIN_PASSPHRASE ? { phrase: v } : null;
+}
 async function importKey(env) {
-  let bytes;
-  try { bytes = unb64(env.TOKEN_ENC_KEY || ''); } catch (e) { bytes = new Uint8Array(0); }
-  if (bytes.length !== 32) throw new Error('TOKEN_ENC_KEY missing or not 32 bytes');
+  const k = rawKey(env);
+  if (!k) throw new Error('TOKEN_ENC_KEY missing or too short');
+  const bytes = k.b64 || new Uint8Array(await crypto.subtle.digest('SHA-256', te.encode('maestro-lt/token-enc/v1|' + k.phrase)));
   return crypto.subtle.importKey('raw', bytes, 'AES-GCM', false, ['encrypt', 'decrypt']);
 }
 
-export function tokenKeyReady(env) {
-  try { return unb64(env.TOKEN_ENC_KEY || '').length === 32; } catch (e) { return false; }
-}
+export function tokenKeyReady(env) { return !!rawKey(env); }
 
 export async function sealToken(env, plain, aad) {
   const key = await importKey(env);
