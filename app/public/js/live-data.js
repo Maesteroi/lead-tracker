@@ -1,5 +1,5 @@
 // البيانات الحقيقية للوحة العميل (من api.maestrolt.com/v1/dash/*). نفس شكل LTDemo، فالشاشات واحدة.
-// اللي لسه مااشتغلش على السيرفر (درجة الحماية · جوجل أدز · تنبيهات العميل) بيرجع null أو soon، والشاشة بتعرضه «قريباً» بصراحة.
+// درجة الخطر و«ليه» وطابور الموافقة شغالين (الحماية جزء 1، 12 نوفمبر). اللي لسه (الحظر جوه جوجل · كشف الحساب · تنبيهات العميل) بيرجع null أو soon، والشاشة بتعرضه «قريباً» بصراحة.
 (function () {
   'use strict';
   var LT = window.LT, me = null;
@@ -9,24 +9,27 @@
   function overviewRaw(site, range) { var k = site + '|' + range; return cache[k] || (cache[k] = get('/v1/dash/overview' + q(site, range)).finally(function () { setTimeout(function () { delete cache[k]; }, 30000); })); }
 
   function mapOverview(o) {
-    var k = o.kpi;
+    var k = o.kpi, sc = !!o.status.scoring;
     var actions = [];
+    if (k.pending) actions.push({ kind: 'pending', n: k.pending });
     if (k.open) actions.push({ kind: 'outcome', n: k.open });
     if (!o.status.ads) actions.push({ kind: 'ads' });
     if (o.status.delivery != null && o.status.delivery < 99.5) actions.push({ kind: 'delivery', pct: o.status.delivery });
     return {
-      live: o.live, currency: 'ر.س', scoring: false,
-      kpi: { billed: null, real: k.sessions, suspicious: null, blocked: null, saved: null, cost: null, leads: k.leads, contacts: k.contacts, won: k.won, open: k.open, cpl: null, pageviews: k.pageviews },
+      live: o.live, currency: 'ر.س', scoring: sc,
+      kpi: { billed: null, sessions: k.sessions, real: sc ? k.real : k.sessions, suspicious: sc ? k.suspicious : null, high: sc ? k.high : null, blocked: null, saved: null, cost: null,
+        leads: k.leads, contacts: k.contacts, won: k.won, open: k.open, cpl: null, pageviews: k.pageviews, ad_sessions: k.ad_sessions, ad_bad: k.ad_bad, pending: k.pending || 0, outside: k.outside || 0, outside_leads: k.outside_leads || 0 },
       prev: { real: o.prev.sessions, contacts: o.prev.contacts },
-      days: o.days.map(function (d) { return { day: d.day, real: d.sessions, suspicious: 0, blocked: 0, contacts: d.contacts }; }),
-      status: { protection: 'soon', delivery: o.status.delivery, ads: o.status.ads, tracking_template: null, paired: o.status.paired, scoring: false },
-      actions: actions, suspicious: [], places: o.places, sources: o.sources, devices: o.devices,
+      days: o.days.map(function (d) { return sc ? { day: d.day, real: d.real, suspicious: d.suspicious, high: d.high, contacts: d.contacts } : { day: d.day, real: d.sessions, suspicious: 0, high: 0, contacts: d.contacts }; }),
+      status: { protection: sc ? 'monitor' : 'soon', delivery: o.status.delivery, ads: o.status.ads, tracking_template: null, paired: o.status.paired, scoring: sc },
+      actions: actions, suspicious: (o.suspicious || []).map(mapVisit), places: o.places, sources: o.sources, devices: o.devices,
     };
   }
   function mapVisit(s) {
     return { id: s.id, at: s.at, city: s.city || 'مكان مش معروف', district: s.region || '', src: s.source, kw: s.detail || '', campaign: '',
       device: s.device || '—', os: s.os || '', net: null, isp: s.isp || '', pages: s.pages, dur: s.seconds == null ? null : Math.round(s.seconds), scroll: s.scroll,
-      contact: s.contact ? s.contact.split(',')[0] : '', code: s.code, score: null, status: 'none', reasons: [], visit_no: s.visit_no, landing: s.landing, automation: s.automation, journey: null };
+      contact: s.contact ? s.contact.split(',')[0] : '', code: s.code, score: s.score == null ? null : s.score, status: s.status || 'none', reasons: s.reasons || [], verdict: s.verdict || null,
+      ad: !!s.ad, outside: !!s.outside, country: s.country || '', repeats: s.repeats || 0, visit_no: s.visit_no, landing: s.landing, automation: s.automation, journey: null, live: true };
   }
 
   window.LTData = {
@@ -50,10 +53,15 @@
         }).filter(function (e) { return e.kind !== 'other' || e.text; });
       });
     },
-    protection: function () { return Promise.resolve({ soon: true }); },
+    protection: function (site, range) {
+      return get('/v1/dash/protection' + q(site, range || 7)).then(function (b) {
+        return { live: true, mode: b.mode, ads: b.ads, stats: b.stats, pending: (b.pending || []).map(mapVisit), decided: (b.decided || []).map(mapVisit), reasons: b.top_reasons || [] };
+      }, function (e) { if (String(e && e.message) === 'auth') throw e; return { soon: true }; });
+    },
+    verdict: function (site, sid, v) { return LT.api('/v1/dash/verdict', { method: 'POST', body: { site: site, sid: sid, verdict: v } }).then(function (r) { if (!r.ok) throw new Error(r.status === 403 ? 'role' : 'http'); return r.body; }); },
     leads: function (site, range) {
       return get('/v1/dash/leads' + q(site, range)).then(function (b) {
-        return { currency: 'ر.س', cost: null, list: (b.leads || []).map(function (l) { return { id: l.code || l.at, at: l.at, type: l.type, code: l.code || '—', src: l.source, kw: l.detail || '', city: l.city || '—', district: l.region || '', outcome: l.outcome, session: l.session }; }) };
+        return { currency: 'ر.س', cost: null, list: (b.leads || []).map(function (l) { return { id: l.code || l.at, at: l.at, type: l.type, code: l.code || '—', src: l.source, kw: l.detail || '', city: l.city || '—', district: l.region || '', outcome: l.outcome, session: l.session, outside: !!l.outside, outside_note: l.outside_note || '' }; }) };
       });
     },
     setOutcome: function (site, code, value) { return LT.api('/v1/dash/outcome', { method: 'POST', body: { site: site, code: code, value: value } }).then(function (r) { if (!r.ok) throw new Error(r.body.error || 'http'); return r.body; }); },
@@ -81,8 +89,9 @@
       return window.LTData.sites().then(function (sites) {
         return Promise.all(sites.map(function (s) {
           return overviewRaw(s.id, range).then(function (o) {
-            return { id: s.id, name: s.name, domain: s.domain, currency: 'ر.س', billed: null, cost: null, saved: null, bad: null, visits: o.kpi.sessions, bad_pct: null, bad_pct_prev: null,
-              leads: o.kpi.leads, won: o.kpi.won, cpl: null, pending: 0, delivery: o.status.delivery, ads: o.status.ads, template: null, open: o.kpi.open };
+            var bad = o.status.scoring ? (o.kpi.suspicious || 0) + (o.kpi.high || 0) : null;
+            return { id: s.id, name: s.name, domain: s.domain, currency: 'ر.س', billed: null, cost: null, saved: null, bad: bad, visits: o.kpi.sessions, bad_pct: bad == null || !o.kpi.sessions ? null : Math.round((bad / o.kpi.sessions) * 1000) / 10, bad_pct_prev: null,
+              leads: o.kpi.leads, won: o.kpi.won, cpl: null, pending: o.kpi.pending || 0, delivery: o.status.delivery, ads: o.status.ads, template: null, open: o.kpi.open };
           });
         }));
       });

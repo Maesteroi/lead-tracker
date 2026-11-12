@@ -21,6 +21,8 @@ language sql stable security definer set search_path = public as $$
 $$;
 
 -- ٢) الجلسات (الأحدث الأول): كل جلسة في صف، بصفاتها من أول حدث فيها وأرقامها من كل أحداثها
+-- (0010 بيوسّعها؛ الـdrop علشان التشغيل المتكرر مايفشلش)
+drop function if exists dash_sessions(text, timestamptz, int);
 create or replace function dash_sessions(p_site text, p_since timestamptz, p_limit int)
 returns table (session_id text, started_at timestamptz, last_at timestamptz, first_time text, pages bigint, seconds numeric, scroll numeric,
                contacts text, match_code text, source text, source_fine text, source_detail text, utm text, has_gclid boolean,

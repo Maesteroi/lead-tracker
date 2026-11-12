@@ -44,7 +44,8 @@ test('dash overview: every day of the range, real counts (tests excluded), sourc
   assert.equal(o.kpi.leads, 1); assert.equal(o.kpi.open, 1); assert.equal(o.kpi.won, 0);
   assert.deepEqual(o.sources.map((x) => x.name).sort(), ['google_ads', 'google_organic']);
   assert.equal(o.places[0].name, 'Riyadh');
-  assert.equal(o.status.scoring, false); assert.equal(o.status.ads, false); assert.equal(o.status.delivery, null);
+  assert.equal(o.status.scoring, true); assert.equal(o.status.ads, false); assert.equal(o.status.delivery, null);
+  assert.equal(o.kpi.real + o.kpi.suspicious + o.kpi.high, 2); assert.equal(o.days[6].real + o.days[6].suspicious + o.days[6].high, 2);
   assert.equal(o.live >= 1, true);
   assert.equal((await s.gc(s.owner, '/v1/dash/overview?range=99&site=' + s.site.id)).body.days.length, 7);
   assert.equal((await s.gc(s.owner, '/v1/dash/overview?range=30&site=' + s.site.id)).body.days.length, 30);
@@ -106,4 +107,44 @@ test('platform admin (super admin) sees and manages every site of every account;
   assert.equal((await s.gc(s.other, '/v1/sites')).body.sites.length, 0);
   assert.equal((await s.gc(s.other, '/v1/dash/overview?range=7&site=' + s.site.id)).status, 404);
   assert.equal((await s.pc(s.other, '/v1/sites/' + s.site.id + '/pair-code', {})).status, 404);
+});
+
+test('protection: suspicious ad visits wait for the owner; a verdict moves them out and changes the status; viewers cannot judge', async () => {
+  const s = await setup();
+  for (let i = 0; i < 3; i++) await s.ev({ session_id: 'BOT' + i, time: s.today + ' 12:0' + i + ':00', gclid: 'Cj0g' + i, automation: '1', seconds: 1, interactions: 0, fingerprint: 'fpbot' });
+  let p = (await s.gc(s.owner, '/v1/dash/protection?range=7&site=' + s.site.id)).body;
+  assert.equal(p.mode, 'monitor'); assert.equal(p.ads, false);
+  assert.equal(p.pending.length, 3); assert.equal(p.pending[0].status, 'high'); assert.ok(p.pending[0].reasons.some((r) => r.includes('بوت')));
+  assert.ok(p.top_reasons.length >= 1); assert.equal(p.top_reasons[0].code, 'bot'); assert.equal(p.top_reasons[0].name, 'بوتات (متصفح آلي)');
+  const v = (await s.gc(s.owner, '/v1/dash/visits?range=7&site=' + s.site.id)).body.sessions.find((x) => x.id === 'BOT0');
+  assert.equal(v.status, 'high'); assert.ok(v.score >= 70); assert.equal(v.repeats, 3);
+  assert.equal((await s.pc(s.owner, '/v1/dash/verdict', { site: s.site.id, sid: 'BOT0', verdict: 'maybe' })).status, 400);
+  assert.equal((await s.pc(s.owner, '/v1/dash/verdict', { site: s.site.id, sid: 'BOT0', verdict: 'real' })).status, 200);
+  p = (await s.gc(s.owner, '/v1/dash/protection?range=7&site=' + s.site.id)).body;
+  assert.equal(p.pending.length, 2); assert.equal(p.decided[0].id, 'BOT0'); assert.equal(p.decided[0].status, 'real');
+  assert.equal((await s.pc(s.owner, '/v1/dash/verdict', { site: s.site.id, sid: 'BOT0', verdict: null })).status, 200);
+  assert.equal((await s.gc(s.owner, '/v1/dash/protection?range=7&site=' + s.site.id)).body.pending.length, 3);
+  assert.ok(s.w.fs.t.auth_events.some((e) => e.kind === 'verdict_set'));
+  assert.equal((await s.pc(s.other, '/v1/dash/verdict', { site: s.site.id, sid: 'BOT1', verdict: 'fraud' })).status, 404);
+  const o = (await s.gc(s.owner, '/v1/dash/overview?range=7&site=' + s.site.id)).body;
+  assert.equal(o.kpi.high, 3); assert.equal(o.kpi.pending, 3); assert.equal(o.suspicious.length, 3);
+  await s.pc(s.owner, '/v1/dash/verdict', { site: s.site.id, sid: 'BOT2', verdict: 'fraud' });
+  assert.equal((await s.gc(s.owner, '/v1/dash/overview?range=7&site=' + s.site.id)).body.kpi.pending, 2);
+  s.w.fs.t.memberships.find((m) => m.org_id === s.owner.org.id).role = 'viewer';
+  assert.equal((await s.pc(s.owner, '/v1/dash/verdict', { site: s.site.id, sid: 'BOT1', verdict: 'fraud' })).status, 403);
+});
+
+test('outside the target country (Libya on a Saudi-only site): the contact is marked «بره النطاق» with a note and is not counted as waiting for an outcome', async () => {
+  const s = await setup();
+  const before = (await s.gc(s.owner, '/v1/dash/overview?range=7&site=' + s.site.id)).body.kpi;
+  await s.ev({ session_id: 'LY1', time: s.today + ' 12:00:00', source_fine: 'google_organic', country: 'LY', target_geo: 'SA|جدة' });
+  await s.ev({ session_id: 'LY1', event: 'click', time: s.today + ' 12:00:20', click_type: 'wa', match_code: 'LY29', lead_level: 'primary', country: 'LY', target_geo: 'SA|جدة' });
+  const leads = (await s.gc(s.owner, '/v1/dash/leads?range=7&site=' + s.site.id)).body.leads;
+  const ly = leads.find((l) => l.code === 'LY29');
+  assert.equal(ly.outside, true); assert.ok(ly.outside_note.includes('ليبيا'), ly.outside_note);
+  assert.equal(leads.find((l) => l.code === 'AB12').outside, false);
+  const k = (await s.gc(s.owner, '/v1/dash/overview?range=7&site=' + s.site.id)).body.kpi;
+  assert.equal(k.open, before.open); assert.equal(k.outside_leads, 1); assert.equal(k.leads, before.leads + 1);
+  const v = (await s.gc(s.owner, '/v1/dash/visits?range=7&site=' + s.site.id)).body.sessions.find((x) => x.id === 'LY1');
+  assert.equal(v.outside, true);
 });

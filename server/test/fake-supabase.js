@@ -25,7 +25,7 @@ const DEFAULTS = {
 };
 const UNIQUE = {
   clients: [['id']], devices: [['token_hash']], pair_codes: [['code']],
-  site_pair_codes: [['code_hash']], site_health: [['client_id', 'day']], daily_reports: [['kind', 'day']], ip_geo: [['ip']], tg_sessions: [['client_id', 'session_id', 'chat_id']], users: [['google_sub']], memberships: [['user_id', 'org_id']], sessions: [['token_hash']],
+  site_pair_codes: [['code_hash']], site_health: [['client_id', 'day']], protection_verdicts: [['client_id', 'session_id']], daily_reports: [['kind', 'day']], ip_geo: [['ip']], tg_sessions: [['client_id', 'session_id', 'chat_id']], users: [['google_sub']], memberships: [['user_id', 'org_id']], sessions: [['token_hash']],
   raw_events: [['client_id', 'dedupe_key']], contact_clicks: [['client_id', 'match_code', 'type']],
   persons: [['client_id', 'phone_e164']], messages: [['conversation_id', 'dedupe_key']],
   calls: [['device_id', 'started_at', 'phone_e164', 'NND']],
@@ -137,14 +137,22 @@ export function fakeSupabase() {
         const m = new Map();
         for (const e of evs.filter((e) => String(e.received_at) >= a.p_since && e.session_id).sort((x, y) => (x.received_at < y.received_at ? -1 : 1))) {
           const p = e.payload || {}, g = e.geo || {};
-          const x = m.get(e.session_id) || { session_id: e.session_id, started_at: e.received_at, first_time: e.event_time, pages: 0, seconds: null, scroll: null, contacts: null, match_code: null, source: p.source || null, source_fine: p.source_fine || null, source_detail: p.source_detail || null, utm: p.utm || null, has_gclid: !!e.gclid, device: p.device || null, os: p.os || null, browser: p.browser || null, city: g.city || p.city || null, region: g.region || null, country: g.country || p.country || null, isp: g.isp || null, visit_no: p.visit_no || null, landing_title: p.title || null, automation: false };
+          const x = m.get(e.session_id) || { session_id: e.session_id, started_at: e.received_at, first_time: e.event_time, pages: 0, seconds: null, scroll: null, contacts: null, match_code: null, source: p.source || null, source_fine: p.source_fine || null, source_detail: p.source_detail || null, utm: p.utm || null, has_gclid: !!e.gclid, device: p.device || null, os: p.os || null, browser: p.browser || null, city: g.city || p.city || null, region: g.region || null, country: g.country || p.country || null, isp: g.isp || null, visit_no: p.visit_no || null, landing_title: p.title || null, automation: false, country_code: g.country_code || p.country || null, asn: g.asn || null, mouse_moves: null, interactions: null, fingerprint: p.fingerprint || null, visitor_id: p.visitor_id || null, target_geo: p.target_geo || null, fp_ad_sessions: 0 };
           x.last_at = e.received_at;
           if (e.event === 'page_view') x.pages++;
           if (p.seconds != null) x.seconds = Math.max(Number(x.seconds) || 0, Number(p.seconds));
+          if (p.interactions != null) x.interactions = Math.max(Number(x.interactions) || 0, Number(p.interactions));
+          if (p.mouse_moves != null) x.mouse_moves = Math.max(Number(x.mouse_moves) || 0, Number(p.mouse_moves));
+          if (p.scroll_depth != null) x.scroll = Math.max(Number(x.scroll) || 0, Number(p.scroll_depth));
+          if (p.automation === '1' || p.webdriver === '1') x.automation = true;
+          if (e.gclid) x.has_gclid = true;
           if (e.event === 'click' && ['wa', 'call'].includes(e.click_type)) { x.contacts = [...new Set(((x.contacts || '') + ',' + e.click_type).split(',').filter(Boolean))].sort().join(','); x.match_code = e.match_code || x.match_code; }
           m.set(e.session_id, x);
         }
-        return resp(200, [...m.values()].sort((x, y) => (x.last_at < y.last_at ? 1 : -1)).slice(0, a.p_limit));
+        const all = [...m.values()]; const fpN = new Map();
+        for (const x of all) if (x.has_gclid && x.fingerprint) fpN.set(x.fingerprint, (fpN.get(x.fingerprint) || 0) + 1);
+        for (const x of all) x.fp_ad_sessions = x.fingerprint ? (fpN.get(x.fingerprint) || 0) : 0;
+        return resp(200, all.sort((x, y) => (x.last_at < y.last_at ? 1 : -1)).slice(0, a.p_limit));
       }
       if (fn === 'dash_session_events') return resp(200, evs.filter((e) => e.session_id === a.p_session).map((e) => ({ at: e.received_at, event_time: e.event_time, event: e.event, title: (e.payload || {}).title || null, path: (e.payload || {}).path || null, click_type: e.click_type, btn_text: (e.payload || {}).btn_text || null, seconds: null, scroll: null })));
       if (fn === 'dash_leads') {

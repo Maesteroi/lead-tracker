@@ -165,3 +165,18 @@ test('"test connection" from the plugin sends one «اختبار ناجح» mess
   assert.equal(bad.status, 403);
   assert.equal(s.n.sent.length, 1);
 });
+
+test('a visit from outside the site\'s target country (Libya on a Saudi-only site) gets no outcome buttons, just a note; the dashboard marks it and does not wait for an outcome', async () => {
+  const s = await setup();
+  // الموقع مستهدف مصر بس (EG)، والزيارة من السعودية (geo في الاختبار) = بره النطاق
+  await s.ev({ target_geo: 'EG|القاهرة' });
+  await s.ev({ event: 'click', click_type: 'wa', match_code: 'LY29', lead_level: 'primary', time: '2026-11-11 07:11:00', target_geo: 'EG|القاهرة' });
+  const ed = s.n.edits[s.n.edits.length - 1];
+  assert.equal(ed.reply_markup, undefined, 'no buttons');
+  assert.ok(ed.text.includes('🌍 <b>بره نطاقك</b>: الزيارة من السعودية، والموقع مستهدف مصر بس.'), ed.text);
+  assert.ok(ed.text.includes('مش محتاجة نتيجة'));
+  // نفس الموقع، زيارة من جوه البلد المستهدف: الزراير موجودة عادي
+  await s.ev({ session_id: 'IN1', target_geo: 'SA|' });
+  await s.ev({ session_id: 'IN1', event: 'click', click_type: 'call', match_code: 'SA11', lead_level: 'primary', time: '2026-11-11 07:12:00', target_geo: 'SA|' });
+  assert.equal(s.n.edits[s.n.edits.length - 1].reply_markup.inline_keyboard.length, 2);
+});

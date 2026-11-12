@@ -9,6 +9,7 @@
 //   • TG_ALERTS = "off" بيقفلها من غير نشر.
 import { eq } from './db.js';
 import { escHtml as esc } from './telegram.js';
+import { outsideTarget, targetCountries, countryAr } from './score.js';
 
 const SESSION_MS = 30 * 60 * 1000;      // نفس مدة جلسة الشيت
 
@@ -29,7 +30,9 @@ export function contactCode(p) {
   }
   return '';
 }
-const markupFor = (clientId, info) => (info && info.oc ? outcomeKeyboard(clientId, info.oc, info.oc_v || '') : undefined);
+// زيارة من بره البلد المستهدف: مفيش زراير نتيجة (مستحيل تبقى عميل)، والرسالة عليها ملحوظة بدلها
+export const isOutside = (info) => !!info && outsideTarget(info.cc, info.tgeo);
+const markupFor = (clientId, info) => (info && info.oc && !isOutside(info) ? outcomeKeyboard(clientId, info.oc, info.oc_v || '') : undefined);
 const MAX_LINES = 40;
 const MAX_TEXT = 3900;
 
@@ -81,10 +84,12 @@ export function eventLine(p) {
 function mergeInfo(old, p, geo) {
   const o = Object.assign({}, old || {});
   for (const k of ['source', 'source_fine', 'source_detail', 'gclid', 'utm', 'device', 'os', 'browser', 'visit_no']) if (!o[k] && p[k]) o[k] = String(p[k]).slice(0, 120);
+  if (!o.tgeo && p.target_geo) o.tgeo = String(p.target_geo).slice(0, 120);
+  if (!o.cc && /^[A-Za-z]{2}$/.test(String(p.country || ''))) o.cc = String(p.country).toUpperCase();     // لو الموقع الجغرافي لسه مااتعرفش
   o.seconds = Math.max(Number(o.seconds) || 0, Number(p.seconds) || 0);
   o.last_time = p.time || o.last_time;
   o.test = o.test || String(p.is_test) === '1';
-  if (geo && geo.country && !o.country) Object.assign(o, { country: geo.country, city: geo.city || '', region: geo.region || '', isp: geo.isp || '' });
+  if (geo && geo.country && !o.country) Object.assign(o, { country: geo.country, cc: String(geo.country_code || o.cc || '').toUpperCase().slice(0, 2), city: geo.city || '', region: geo.region || '', isp: geo.isp || '' });
   const oc = contactCode(p);
   if (oc && oc !== o.oc) { o.oc = oc; delete o.oc_v; }               // كود جديد: الاختيار القديم مايتنقلش عليه
   return o;
@@ -106,6 +111,11 @@ function render(siteName, startedAt, body, info) {
   const loc = [info.city ? info.city + ' (تقريبية)' : '', info.region && info.region !== info.city ? info.region : '', info.country].filter(Boolean).join('، ');
   if (loc) out.push('📍 ' + esc(loc));
   if (info.isp) out.push('🏢 ' + esc(info.isp));
+  if (isOutside(info)) {
+    out.push('━━━━━━━━━━━━━━━━━━━');
+    out.push('🌍 <b>بره نطاقك</b>: الزيارة من ' + esc(countryAr(info.cc, info.country)) + '، والموقع مستهدف ' + esc(targetCountries(info.tgeo).map((c) => countryAr(c)).join(' و')) + ' بس.');
+    out.push('📝 مش محتاجة نتيجة، واتسجلت في اللوحة «بره النطاق» ومش هتتحسب عليك.');
+  }
   return out.join('\n');
 }
 
