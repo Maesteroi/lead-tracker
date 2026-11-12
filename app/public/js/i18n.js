@@ -36,6 +36,6 @@
   }
   document.documentElement.lang = lang;
   document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
-  LT.t = t; LT.n = n; LT.lang = lang; LT.dir = document.documentElement.dir; LT.i18n = { apply: apply, enabled: ENABLED.slice() };
+  LT.t = t; LT.n = n; LT.lang = lang; LT.locale = lang === 'ar' ? 'ar-EG-u-nu-latn' : lang;   // التواريخ والأوقات بلغة الصفحة (أرقام غربية) LT.dir = document.documentElement.dir; LT.i18n = { apply: apply, enabled: ENABLED.slice() };
   apply();
 })();

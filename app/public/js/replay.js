@@ -138,7 +138,7 @@
         data = r.body;
         var v = data.visit;
         $('rp-h').textContent = v ? ([v.city, v.region].filter(Boolean).join(' · ') || T('visit.one')) : T('visit.one');
-        $('rp-sub').textContent = (data.site ? data.site.name + ' · ' : '') + (function () { try { return new Date(data.started_at).toLocaleString('ar-EG-u-nu-latn', { weekday: 'short', day: 'numeric', month: 'long', hour: 'numeric', minute: '2-digit' }); } catch (e) { return ''; } })();
+        $('rp-sub').textContent = (data.site ? data.site.name + ' · ' : '') + (function () { try { return new Date(data.started_at).toLocaleString(LT.locale, { weekday: 'short', day: 'numeric', month: 'long', hour: 'numeric', minute: '2-digit' }); } catch (e) { return ''; } })();
         drawVerdict(v); drawFacts(v, data); drawMarks(data.events); story(v, data); play(data);
       });
     }).catch(function () { fail(T('rp.fail.load')); });

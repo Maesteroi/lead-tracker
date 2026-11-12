@@ -36,27 +36,25 @@
   var BOTTOMS = { simple: ['overview', 'leads', 'protection', 'alerts'], detailed: ['overview', 'statement', 'visits', 'protection'] };
   var BOTTOM = BOTTOMS.detailed;
   var STATUS = { real: [T('status.real'), 'ok'], suspicious: [T('status.suspicious'), 'warn'], high: [T('status.high'), 'bad'], blocked: [T('status.blocked'), 'bad'] };
-  var SRC = { google_ads: 'إعلان جوجل', google_organic: 'بحث جوجل', google_maps: 'خرائط جوجل', direct: 'مباشر', social: 'سوشيال' };
-  var NET = { mobile: 'داتا موبايل', home: 'إنترنت منزلي', vpn: 'VPN', dc: 'شبكة سيرفرات' };
+  var NET = { mobile: T('net.mobile'), home: T('net.home'), vpn: 'VPN', dc: T('net.dc') };
   var OUT = { 'تم': 'ok', 'بيفكر': 'info', 'لغى': 'bad', 'مش جاد': 'warn', 'ماوصلش رسالة': '' };
 
   // ── أدوات ──
   function money(n, cur) { return n == null || isNaN(n) ? '—' : fmt(Math.round(n)) + ' ' + (cur || ''); }
   function nf(n) { return n == null || isNaN(n) ? '—' : fmt(n); }
-  var SRC2 = { google_ads: 'إعلان جوجل', bing_ads: 'إعلان بينج', tiktok_ads: 'إعلان تيك توك', ads_other: 'إعلان تاني', google_organic: 'بحث جوجل', google_maps: 'خرائط جوجل', search_other: 'محرك بحث تاني', facebook: 'فيسبوك', instagram: 'إنستجرام', tiktok: 'تيك توك', snapchat: 'سناب شات', youtube: 'يوتيوب', x: 'إكس', whatsapp: 'واتساب', threads: 'ثريدز', linkedin: 'لينكدإن', social_other: 'سوشيال', ai: 'ذكاء اصطناعي', listening: 'رصد', direct: 'مباشر', other_site: 'موقع تاني', social: 'سوشيال', ads: 'إعلان', maps: 'خرائط جوجل', google: 'جوجل' };
-  function srcName(k) { return SRC2[k] || SRC[k] || k || 'مباشر'; }
+  function srcName(k) { var x = T('src.' + k); return x === 'src.' + k ? (k || T('src.direct')) : x; }
   function pct(a, b) { return b ? Math.round((a / b) * 1000) / 10 : 0; }
   function delta(cur, prev, goodUp) {
     if (!prev) return null;
     var d = Math.round(((cur - prev) / prev) * 100);
-    if (!d) return el('span', { class: 'dl', text: 'زي الفترة اللي فاتت' });
+    if (!d) return el('span', { class: 'dl', text: T('delta.same') });
     var good = goodUp === null ? null : goodUp ? d > 0 : d < 0;
-    var full = (d > 0 ? 'زيادة ' : 'نقص ') + Math.abs(d) + '% عن الفترة اللي فاتت';
-    return el('span', { class: 'dl ' + (good === null ? '' : good ? 'up' : 'down'), title: full, 'aria-label': full }, [document.createTextNode((d > 0 ? '▲ ' : '▼ ') + Math.abs(d) + '%'), el('small', { text: ' عن اللي فاتت' })]);
+    var full = T(d > 0 ? 'delta.up' : 'delta.down', { p: Math.abs(d) });
+    return el('span', { class: 'dl ' + (good === null ? '' : good ? 'up' : 'down'), title: full, 'aria-label': full }, [document.createTextNode((d > 0 ? '▲ ' : '▼ ') + Math.abs(d) + '%'), el('small', { text: ' ' + T('delta.short') })]);
   }
-  function timeAr(iso) { try { return new Date(iso).toLocaleString('ar-EG-u-nu-latn', { weekday: 'short', hour: 'numeric', minute: '2-digit' }); } catch (e) { return iso; } }
-  function clock(iso) { try { return new Date(iso).toLocaleTimeString('ar-EG-u-nu-latn', { hour: 'numeric', minute: '2-digit', second: '2-digit' }); } catch (e) { return iso; } }
-  function dateAr(iso) { try { return new Date(iso).toLocaleDateString('ar-EG-u-nu-latn', { day: 'numeric', month: 'long' }); } catch (e) { return iso; } }
+  function timeAr(iso) { try { return new Date(iso).toLocaleString(LT.locale, { weekday: 'short', hour: 'numeric', minute: '2-digit' }); } catch (e) { return iso; } }
+  function clock(iso) { try { return new Date(iso).toLocaleTimeString(LT.locale, { hour: 'numeric', minute: '2-digit', second: '2-digit' }); } catch (e) { return iso; } }
+  function dateAr(iso) { try { return new Date(iso).toLocaleDateString(LT.locale, { day: 'numeric', month: 'long' }); } catch (e) { return iso; } }
   function pill(t, c) { return el('span', { class: 'pill ' + (c || ''), text: t }); }
   function card(title, children, extra) { return el('section', { class: 'panel-card' + (extra ? ' ' + extra : '') }, [title ? el('div', { class: 'sec-head' }, [el('h2', { text: title })]) : null].concat(children)); }
   function kpi(label, value, sub, cls, d) { return el('div', { class: 'kpi ' + (cls || 'info') }, [el('div', { class: 'k-label', text: label }), el('div', { class: 'k-val', text: value }), sub ? el('div', { class: 'k-sub', text: sub }) : null, d || null]); }
@@ -169,7 +167,7 @@
       // آخر المشبوهين + أكتر أماكن
       var sus = el('ul', { class: 'feed' });
       d.suspicious.forEach(function (v) {
-        var li = el('li', { tabindex: '0' }, [scoreBadge(v), el('div', {}, [el('b', { text: v.city + ' · ' + v.district + ' — ' + (SRC[v.src] || v.src) }), el('span', { text: v.reasons[0] || '' })]), el('time', { text: timeAr(v.at) })]);
+        var li = el('li', { tabindex: '0' }, [scoreBadge(v), el('div', {}, [el('b', { text: v.city + ' · ' + v.district + ' — ' + srcName(v.src) }), el('span', { text: v.reasons[0] || '' })]), el('time', { text: timeAr(v.at) })]);
         li.addEventListener('click', function () { openVisit(v); });
         li.addEventListener('keydown', function (e) { if (e.key === 'Enter') openVisit(v); });
         sus.appendChild(li);
@@ -293,10 +291,10 @@
       clear(view);
       var live = list.filter(function (v) { return Date.now() - Date.parse(v.at) < 10 * 60e3; }).length;
       var tools = el('div', { class: 'tools' });
-      var search = el('input', { type: 'search', placeholder: 'ابحث بالمدينة أو الحي أو الكلمة', 'aria-label': 'بحث' });
+      var search = el('input', { type: 'search', placeholder: T('visits.search'), 'aria-label': T('visits.search.label') });
       search.value = state.q;
       var seg = el('div', { class: 'seg' });
-      var FILT = DATA.live ? [['all', 'الكل'], ['bad', 'مشبوه'], ['contact', 'تواصلوا'], ['ads', 'من إعلانات جوجل'], ['outside', 'بره النطاق']] : [['all', 'الكل'], ['real', 'حقيقي'], ['suspicious', 'مشبوه'], ['blocked', 'محظور']];
+      var FILT = (DATA.live ? ['all', 'bad', 'contact', 'ads', 'outside'] : ['all', 'real', 'suspicious', 'blocked']).map(function (k) { return [k, T('visits.f.' + k)]; });
       if (FILT.every(function (f) { return f[0] !== state.filter; })) state.filter = 'all';
       var matchF = function (v, f) { return f === 'all' || (f === 'contact' ? !!v.contact : f === 'ads' ? (v.ad || v.src === 'google_ads') : f === 'bad' ? (v.status === 'suspicious' || v.status === 'high') : f === 'outside' ? !!v.outside : v.status === f); };
       var count = function (f) { return list.filter(function (v) { return matchF(v, f); }).length; };
@@ -315,28 +313,28 @@
         var all = list.filter(function (v) { return matchF(v, state.filter) && (!q || (v.city + v.district + v.kw + srcName(v.src)).indexOf(q) >= 0); });
         var rows = all.slice(0, shown);
         moreBtn.hidden = all.length <= shown;
-        moreBtn.textContent = 'اعرض كمان (' + fmt(all.length - shown) + ' زيارة باقية)';
+        moreBtn.textContent = T('visits.more', { n: LT.n(all.length - shown, 'visit') });
         rows.forEach(function (v) {
           var tr = el('tr', { tabindex: '0' }, [
             el('td', { class: 'first' }, [el('div', { class: 'acc-name', text: placeOf(v) }), el('span', { class: 'dim', text: timeAr(v.at) }), v.replay ? replayLink(v) : null]),
-            el('td', { 'data-l': 'المصدر' }, [el('div', { text: srcName(v.src) }), v.kw ? el('span', { class: 'dim', text: '«' + v.kw + '»' }) : null]),
-            el('td', { 'data-l': 'الجهاز', class: 'pro-only', text: v.device + (v.os ? ' · ' + v.os : '') }),
-            el('td', { 'data-l': 'الشبكة', class: 'pro-only', text: v.net ? NET[v.net] : shortIsp(v.isp) }),
-            el('td', { 'data-l': 'التفاعل', text: v.pages + ' صفحة' + (v.dur == null ? '' : ' · ' + (v.dur < 60 ? v.dur + 'ث' : Math.round(v.dur / 60) + 'د')) + (v.contact ? ' · ' + (v.contact === 'wa' ? '💬' : '📞') : '') }),
-            el('td', { 'data-l': 'الدرجة', class: 'pro-only' }, [v.score == null ? el('span', { class: 'dim', text: '—', title: 'التقييم بيشتغل مع الحماية' }) : scoreBadge(v)]),
-            el('td', { 'data-l': 'الحالة' }, [v.live ? livePill(v) : pill(STATUS[v.status][0], STATUS[v.status][1])]),
+            el('td', { 'data-l': T('visits.h.source') }, [el('div', { text: srcName(v.src) }), v.kw ? el('span', { class: 'dim', text: '«' + v.kw + '»' }) : null]),
+            el('td', { 'data-l': T('visits.h.device'), class: 'pro-only', text: v.device + (v.os ? ' · ' + v.os : '') }),
+            el('td', { 'data-l': T('visits.h.network'), class: 'pro-only', text: v.net ? NET[v.net] : shortIsp(v.isp) }),
+            el('td', { 'data-l': T('visits.h.engage'), text: LT.n(v.pages, 'page') + (v.dur == null ? '' : ' · ' + (v.dur < 60 ? T('visits.s', { n: v.dur }) : T('visits.m', { n: Math.round(v.dur / 60) }))) + (v.contact ? ' · ' + (v.contact === 'wa' ? '💬' : '📞') : '') }),
+            el('td', { 'data-l': T('visits.h.score'), class: 'pro-only' }, [v.score == null ? el('span', { class: 'dim', text: '—', title: T('visits.noscore') }) : scoreBadge(v)]),
+            el('td', { 'data-l': T('visits.h.status') }, [v.live ? livePill(v) : pill(STATUS[v.status][0], STATUS[v.status][1])]),
           ]);
           tr.addEventListener('click', function () { openVisit(v); });
           tr.addEventListener('keydown', function (e) { if (e.key === 'Enter') openVisit(v); });
           tbody.appendChild(tr);
         });
-        if (!rows.length) tbody.appendChild(el('tr', {}, [el('td', { colspan: '7', class: 'empty', text: 'مفيش زيارات بالشكل ده.' })]));
+        if (!rows.length) tbody.appendChild(el('tr', {}, [el('td', { colspan: '7', class: 'empty', text: T('visits.empty') })]));
       };
       search.addEventListener('input', function () { state.q = search.value; shown = 25; draw(); });
       draw();
-      view.appendChild(el('div', { class: 'status-strip' }, [el('span', { class: 'st live-now' }, [el('i', { class: 'dot live' }), document.createTextNode(live + ' زيارة في آخر 10 دقايق')]), el('span', { class: 'hint', text: 'دوس على أي زيارة تشوف رحلتها بالثانية، وليه اتحكم عليها كده.' })]));
-      view.appendChild(card('', [el('div', { class: 'sec-head' }, [el('h2', { text: 'كل زيارة' }), tools]),
-        el('div', { class: 'tbl-wrap' }, [el('table', { class: 'tbl' }, [el('thead', {}, [el('tr', {}, ['المكان والوقت', 'المصدر', 'الجهاز', 'الشبكة', 'التفاعل', 'الدرجة', 'الحالة'].map(function (h) { return el('th', { text: h, class: h === 'الجهاز' || h === 'الشبكة' || h === 'الدرجة' ? 'pro-only' : '' }); }))]), tbody])]), moreBtn]));
+      view.appendChild(el('div', { class: 'status-strip' }, [el('span', { class: 'st live-now' }, [el('i', { class: 'dot live' }), document.createTextNode(T('visits.live', { n: LT.n(live, 'visit') }))]), el('span', { class: 'hint', text: T('visits.hint') })]));
+      view.appendChild(card('', [el('div', { class: 'sec-head' }, [el('h2', { text: T('visits.title') }), tools]),
+        el('div', { class: 'tbl-wrap' }, [el('table', { class: 'tbl' }, [el('thead', {}, [el('tr', {}, ['place', 'source', 'device', 'network', 'engage', 'score', 'status'].map(function (h) { return el('th', { text: T('visits.h.' + h), class: h === 'device' || h === 'network' || h === 'score' ? 'pro-only' : '' }); }))]), tbody])]), moreBtn]));
     });
   }
   // حالة الزيارة الحقيقية: حكمك الأول، بعدين الدرجة، بعدين «خارج النطاق»، بعدين التواصل
