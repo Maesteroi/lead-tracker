@@ -133,3 +133,22 @@ test('replay 2.13.4: compressed chunks (?z=1, gzip body) — a big first page sn
   const huge = new Uint8Array(3 * 1024 * 1024); huge[0] = 0x1f; huge[1] = 0x8b;
   assert.equal((await z(null, 2, undefined, huge)).status, 413);
 });
+
+test('replay page: contact likelihood with evidence — the customer sees the likelihood and visit length, the platform team sees every piece of evidence', async () => {
+  const s = await setup();
+  const t = await s.tk();
+  await s.rp({ t, seq: 0, ev: s.ev(4, 1000) });
+  const env = Object.assign({}, s.w.env, { TG_ALERTS: 'off', GEO_LOOKUP: 'off' });
+  const ev = (o) => route(new Request('https://api.maestrolt.com/v1/events', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(Object.assign({ site_id: s.site.id, secret: s.key, time: '2026-11-12 10:00:00', session_id: 'SES12345', visitor_id: 'V1', gclid: 'Cj0x', source_fine: 'google_ads' }, o)) }), env, s.w.f);
+  await ev({ event: 'page_view', seconds: 95 });
+  await ev({ event: 'click', click_type: 'wa', match_code: 'AB12', time: '2026-11-12 10:01:00' });
+  let d = (await s.gc(s.owner, '/v1/dash/replay?site=' + s.site.id + '&sid=SES12345')).body;
+  assert.deepEqual([d.contact.label, d.contact.evidence], ['غير معروفة', null], 'no return yet = unknown; no evidence for the customer');
+  await ev({ event: 'contact_return', click_type: 'wa', match_code: 'AB12', away_seconds: 200, app_opened: 1, time: '2026-11-12 10:05:00' });
+  d = (await s.gc(s.owner, '/v1/dash/replay?site=' + s.site.id + '&sid=SES12345')).body;
+  assert.deepEqual([d.contact.title, d.contact.label, d.contact.visit, d.contact.evidence], ['احتمالية التواصل', 'قوية', 'مدة الزيارة: 1 د 35 ث', null]);
+  assert.ok(!JSON.stringify(d.contact).includes('رجع للموقع'));
+  s.w.fs.t.users.find((u) => u.email === 'owner@example.com').platform_admin = true;
+  d = (await s.gc(s.owner, '/v1/dash/replay?site=' + s.site.id + '&sid=SES12345')).body;
+  assert.deepEqual(d.contact.evidence.map((x) => [x.ok, x.text]), [[true, 'ضغط زر الواتساب'], [true, 'رجع للموقع بعد 3 د 20 ث من فتح الواتساب'], [null, 'مدة الزيارة كاملة: 1 د 35 ث'], [null, 'رجع لموقعك بعد 3 د 20 ث من فتح الواتساب، فغالبًا تواصل معك فعلًا']]);
+});

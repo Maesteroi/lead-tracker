@@ -1226,6 +1226,7 @@ window.LT_LANG.en = {
   'tg.make': "Create an alerts link",
   'tg.hint': "Send the link to the site owner or a salesperson: they open it in Telegram and press «Start». It works for several people for 7 days, and you can cancel it at any time.",
   'tg.err': "Could not load Telegram alerts.",
+  'rp.ev.admin': "Evidence (shown to the platform team only):",
   'ads.k.missing': "Clicks that never reached your site",
   'ads.k.missing.sub': "{p}% of link clicks. They may be people leaving before the page loaded, or automated clicks",
   'ads.k.missing.none': "Shown after the first pull from Google",

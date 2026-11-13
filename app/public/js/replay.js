@@ -71,6 +71,23 @@
     box.appendChild(acts);
   }
 
+  // احتمالية التواصل بالأدلة: العميل يشوف الاحتمالية ومدة الزيارة، وإدارة المنصة تشوف كل دليل
+  function drawContact(c) {
+    var box = $('rp-contact');
+    if (!c) { box.hidden = true; return; }
+    clear(box); box.hidden = false;
+    var cls = c.key === 'strong' ? 'ok' : c.key === 'normal' ? 'info' : c.key === 'unknown' ? '' : 'warn';
+    box.appendChild(el('div', { class: 'sec-head' }, [el('h2', { text: c.title })]));
+    box.appendChild(el('p', { class: 'rp-likely' }, [el('span', { class: 'pill ' + cls, text: c.label }), el('small', { class: 'dim', text: ' ' + T('estimate') })]));
+    if (c.visit) box.appendChild(el('p', { class: 'hint', text: c.visit }));
+    if (c.evidence && c.evidence.length) {
+      box.appendChild(el('p', { class: 'hint', text: T('rp.ev.admin') }));
+      box.appendChild(el('ul', { class: 'checks rp-ev' }, c.evidence.map(function (x) {
+        return el('li', { class: x.ok === true ? 'ok' : x.ok === false ? 'warn' : 'soon' }, [el('i', { class: 'ck', text: x.ok === true ? '✓' : x.ok === false ? '!' : '•' }), el('span', { text: x.text })]);
+      })));
+    }
+  }
+
   function drawFacts(v, d) {
     var dl = clear($('rp-facts')), rows = [];
     var dur = d.events.length > 1 ? d.events[d.events.length - 1].timestamp - d.events[0].timestamp : 0;
@@ -139,7 +156,7 @@
         var v = data.visit;
         $('rp-h').textContent = v ? ([v.city, v.region].filter(Boolean).join(' · ') || T('visit.one')) : T('visit.one');
         $('rp-sub').textContent = (data.site ? data.site.name + ' · ' : '') + (function () { try { return new Date(data.started_at).toLocaleString(LT.locale, { weekday: 'short', day: 'numeric', month: 'long', hour: 'numeric', minute: '2-digit' }); } catch (e) { return ''; } })();
-        drawVerdict(v); drawFacts(v, data); drawMarks(data.events); story(v, data); play(data);
+        drawVerdict(v); drawContact(data.contact); drawFacts(v, data); drawMarks(data.events); story(v, data); play(data);
       });
     }).catch(function () { fail(T('rp.fail.load')); });
   }
