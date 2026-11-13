@@ -9,6 +9,7 @@
 import { eq } from './db.js';
 import { sha256, safeEqual, json } from './util.js';
 import { tg, OUTCOMES, outcomeKeyboard, OUTCOME_LABEL } from './notify.js';
+import { handleBotText, chatLinked } from './tglinks.js';
 
 const CB_RE = /^o\|([A-Za-z0-9]{6,20})\|([A-Za-z0-9]{2,20})\|(\d)$/;
 const FORWARD_TIMEOUT_MS = 25000;
@@ -31,8 +32,22 @@ export async function handleTgWebhook(req, env, db, fetchImpl) {
     const site = await db.one('clients?id=' + eq(m[1]) + '&select=id,name,org_id,status');
     if (site && site.org_id) { await handleOutcome(env, db, cq, site, m[2], Number(m[3]), fetchImpl); return json({ ok: true }); }
   }
+  // /start بكود من اللوحة · /stop لشات مربوط على السيرفر (tglinks.js). غير كده: الشيت زي ما هو
+  const msg = update && update.message;
+  if (msg && /^\/(start|stop)/.test(String(msg.text || ''))) {
+    const chat = String((msg.chat || {}).id || '');
+    const reply = (text) => tg(env, 'sendMessage', { chat_id: chat, text, parse_mode: 'HTML', disable_web_page_preview: true }, fetchImpl);
+    try {
+      const r = await handleBotText(env, db, msg, reply);
+      if (r) {
+        if (r.linked && env.TG_CHAT_ID && String(env.TG_CHAT_ID) !== chat) await tg(env, 'sendMessage', { chat_id: String(env.TG_CHAT_ID), text: '🔔 شات جديد اتربط بتنبيهات <b>' + escH(r.site.name || r.site.id) + '</b>: ' + escH(r.name || chat), parse_mode: 'HTML' }, fetchImpl);
+        return json({ ok: true });
+      }
+    } catch (e) { console.error('tg start: ' + String(e && e.message || e).slice(0, 120)); return json({ ok: false }, 502); }
+  }
   return forwardToSheet(env, raw, fetchImpl);
 }
+const escH = (s) => String(s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
 
 // بيعدّي التحديث للشيت زي ما هو
 async function forwardToSheet(env, raw, fetchImpl) {
@@ -55,8 +70,8 @@ async function handleOutcome(env, db, cq, site, code, i, fetchImpl) {
     const chat = String(((cq.message || {}).chat || {}).id || '');
     const msgId = Number((cq.message || {}).message_id) || 0;
     if (!OUTCOMES[i]) return answer('زر غير صالح');
-    // المرحلة دي: محمود بس (شات العميل جاي بعدين)
-    if (!chat || !env.TG_CHAT_ID || chat !== String(env.TG_CHAT_ID)) return answer('⛔ غير مسموح لك بتسجيل نتيجة هذا الموقع');
+    // محمود، أو شات مربوط بالموقع ده من اللوحة (tg_links)
+    if (!chat || !((env.TG_CHAT_ID && chat === String(env.TG_CHAT_ID)) || await chatLinked(db, site.id, chat))) return answer('⛔ غير مسموح لك بتسجيل نتيجة هذا الموقع');
     if (site.status !== 'on') return answer('⚠️ الموقع غير مفعّل');
     const value = OUTCOMES[i][0];
     const who = [((cq.from || {}).first_name || ''), ((cq.from || {}).last_name || '')].join(' ').trim().slice(0, 40) || null;

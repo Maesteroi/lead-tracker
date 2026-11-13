@@ -10,6 +10,7 @@ import { platformTeam, platformRoleSave, platformRoleDelete, platformInvite, pla
 import { dashOverview, dashVisits, dashSession, dashLeads, dashSetup, dashOutcome, dashProtection, dashVerdict, dashReplay } from './dash.js';
 import { dashAdsLink, dashAdsAccounts, dashAdsChoose, dashAdsUnlink } from './adslink.js';
 import { dashConv, dashConvActions, dashConvAction, dashConvSend } from './convupload.js';
+import { dashTg, dashTgInvite, dashTgRemove } from './tglinks.js';
 
 const SITE_ACT = /^\/v1\/sites\/([A-Za-z0-9]{6,20})\/(rotate-key|install-status|pair-code)$/;
 const ORG_ACT = /^\/v1\/platform\/orgs\/([^/]+)$/;
@@ -93,6 +94,10 @@ export async function handleApp(req, env, db, url, p, fetchImpl) {
     else if (m === 'GET' && p === '/v1/dash/conv/actions') res = await dashConvActions(req, env, db, sess, url, fetchImpl);
     else if (m === 'POST' && p === '/v1/dash/conv/action') res = await dashConvAction(req, env, db, sess, fetchImpl);
     else if (m === 'POST' && p === '/v1/dash/conv/send') res = await dashConvSend(req, env, db, sess, fetchImpl);
+    // تنبيهات تليجرام للموقع: رابط ربط من اللوحة (tglinks.js)
+    else if (m === 'GET' && p === '/v1/dash/tg') res = await dashTg(req, env, db, sess, url);
+    else if (m === 'POST' && p === '/v1/dash/tg/invite') res = await dashTgInvite(req, env, db, sess);
+    else if (m === 'POST' && p === '/v1/dash/tg/remove') res = await dashTgRemove(req, env, db, sess);
     else res = notFound();
     return finish(res, req, env, true);
   }

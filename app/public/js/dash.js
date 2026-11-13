@@ -647,6 +647,7 @@
           [T('sites.r.own'), s.own ? true : DATA.live ? null : true, s.own ? LT.n(s.own, 'device') : T('sites.own.soon')],
         ];
         var extra = [];
+        if (DATA.tg) extra.push(tgBlock(s));
         if (DATA.pairCode && !s.paired) {
           var out = el('div', { class: 'hint' }), b = el('button', { class: 'btn ghost sm', type: 'button', text: T('sites.paircode') });
           b.addEventListener('click', function () { b.disabled = true; DATA.pairCode(s.id).then(function (r) { b.disabled = false; clear(out); out.appendChild(el('div', { class: 'code', text: r.code })); out.appendChild(document.createTextNode(T('sites.paircode.hint', { m: LT.n(r.valid_minutes, 'minute') }))); }, function (e) { b.disabled = false; clear(out); out.appendChild(document.createTextNode(T(e.message === 'role' ? 'sites.paircode.role' : 'sites.paircode.fail'))); }); });
@@ -660,6 +661,44 @@
       // راجع من موافقة جوجل: اختيار حساب الإعلانات
       if (state.adsNonce && DATA.adsAccounts) { var n = state.adsNonce; state.adsNonce = null; openAdsPicker(state.site, n); }
     });
+  }
+  // تنبيهات تليجرام للموقع: الشاتات المربوطة + رابط ربط (لأكتر من شخص، 7 أيام) للمالك والمدير
+  function tgBlock(s) {
+    var box = el('div', { class: 'tg-block' }, [el('h3', { class: 'legend', text: T('tg.title') })]);
+    var body = el('div'); box.appendChild(body);
+    var load = function () {
+      DATA.tg(s.id).then(function (d) {
+        clear(body);
+        if (d.chats.length) {
+          body.appendChild(el('ul', { class: 'tg-chats' }, d.chats.map(function (c) {
+            var rm = d.manage && c.id ? el('button', { class: 'linkish', type: 'button', text: T('tg.remove') }) : null;
+            if (rm) rm.addEventListener('click', function () {
+              if (rm.getAttribute('data-sure') !== '1') { rm.setAttribute('data-sure', '1'); rm.textContent = T('tg.remove.sure'); return; }
+              DATA.tgRemove(s.id, c.id).then(function () { toast(T('tg.removed')); load(); }, function () { toast(T('err.save')); });
+            });
+            return el('li', {}, [el('span', { text: '💬 ' + (c.name || T('tg.noname')) }), el('small', { class: 'dim', text: ' · ' + timeAr(c.at) + ' ' }), rm]);
+          })));
+        } else body.appendChild(el('p', { class: 'muted', text: T('tg.none') }));
+        if (!d.manage) return;
+        if (!d.ready) { body.appendChild(el('p', { class: 'muted', text: T('tg.not_ready') })); return; }
+        if (d.invite) {
+          var inp = el('input', { type: 'text', readonly: '', class: 'tg-link', dir: 'ltr', value: d.invite.link, 'aria-label': T('tg.link') });
+          var cp = el('button', { class: 'btn sm', type: 'button', text: T('tg.copy') });
+          cp.addEventListener('click', function () { inp.select(); (navigator.clipboard ? navigator.clipboard.writeText(d.invite.link) : Promise.reject()).then(function () { toast(T('tg.copied')); }, function () { toast(T('tg.copy.manual')); }); });
+          var rv = el('button', { class: 'linkish', type: 'button', text: T('tg.revoke') });
+          rv.addEventListener('click', function () { DATA.tgInvite(s.id, true).then(function () { toast(T('tg.revoked')); load(); }, function () { toast(T('err.save')); }); });
+          body.appendChild(el('div', { class: 'tg-row' }, [inp, cp]));
+          body.appendChild(el('p', { class: 'hint' }, [el('span', { text: T('tg.valid', { d: new Date(d.invite.expires_at).toLocaleDateString(LT.locale), n: fmt(d.invite.uses) }) + ' ' }), rv]));
+        } else {
+          var mk = el('button', { class: 'btn sm', type: 'button', text: T('tg.make') });
+          mk.addEventListener('click', function () { mk.disabled = true; DATA.tgInvite(s.id).then(function () { load(); }, function () { mk.disabled = false; toast(T('err.save')); }); });
+          body.appendChild(mk);
+        }
+        body.appendChild(el('p', { class: 'hint', text: T('tg.hint') }));
+      }, function () { clear(body); body.appendChild(el('p', { class: 'muted', text: T('tg.err') })); });
+    };
+    load();
+    return box;
   }
   // صف «جوجل أدز» في المواقع والتثبيت: مربوط · انتهى الربط · اربط (المالك والمدير بس)
   function adsRow(s) {
