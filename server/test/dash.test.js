@@ -153,7 +153,12 @@ test('leads carry the contact strength (estimate) from the visitor coming back t
   const s = await setup();
   await s.ev({ event: 'contact_return', time: s.today + ' 10:05:00', click_type: 'wa', match_code: 'AB12', away_seconds: 130, app_opened: 1 });
   const l = (await s.gc(s.owner, '/v1/dash/leads?range=7&site=' + s.site.id)).body.leads.find((x) => x.code === 'AB12');
-  assert.equal(l.strength.key, 'strong'); assert.ok(l.strength.detail.includes('2 د 10 ث'));
+  assert.equal(l.strength.key, 'strong'); assert.equal(l.strength.detail, 'مدة التواصل نحو 2 د 10 ث');
+  assert.ok(!JSON.stringify(l).includes('رجع لموقعك'), 'the customer never sees how it is measured (Mahmoud 13 Nov)');
+  // إدارة المنصة بتشوف طريقة القياس كاملة
+  s.w.fs.t.users.find((u) => u.email === 'owner@example.com').platform_admin = true;
+  const a = (await s.gc(s.owner, '/v1/dash/leads?range=7&site=' + s.site.id)).body.leads.find((x) => x.code === 'AB12');
+  assert.equal(a.strength.detail, 'رجع لموقعك بعد 2 د 10 ث من فتح الواتساب، فغالبًا تواصل معك فعلًا');
 });
 
 test('periods: last N days (1 · 7 · 14 · 30 · 90) or a custom from–to (max 92 days, never in the future); the previous period has the same length', async () => {

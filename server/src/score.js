@@ -90,5 +90,7 @@ export function contactStrength(away, opened, lang, channel) {
   lang = lang || 'ar';
   const a = Math.max(0, Math.round(Number(away) || 0));
   const key = !opened || opened === '0' ? 'no_app' : a < 10 ? 'weak' : a < 60 ? 'normal' : 'strong';
-  return { key, label: tr(lang, 's.' + key), detail: tr(lang, 's.' + key + '.d', { t: duration(lang, a), ch: tr(lang, String(channel) === 'call' ? 'ch.call' : 'ch.wa') }) };
+  const v = { t: duration(lang, a), ch: tr(lang, String(channel) === 'call' ? 'ch.call' : 'ch.wa') };
+  // detail = طريقة القياس (لإدارة المنصة بس) · brief = المدة بس (للعميل، في اللوحة وتليجرام)
+  return { key, label: tr(lang, 's.' + key), detail: tr(lang, 's.' + key + '.d', v), brief: tr(lang, 's.' + key + '.b', v) };
 }

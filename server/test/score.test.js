@@ -88,4 +88,7 @@ test('contact strength wording (Mahmoud 12 Nov): "came back to your site after X
   assert.equal(contactStrength(0, 0, 'ar', 'call').key, 'no_app');
   assert.match(contactStrength(0, 0, 'ar', 'call').detail, /^ضغط زر الاتصال ولم يُفتح التطبيق/);
   assert.equal(contactStrength(90, 1, 'en', 'wa').detail, 'Came back to your site 1m 30s after opening WhatsApp, so they likely contacted you');
+  // للعميل: المدة بس (محمود 13 نوفمبر)
+  assert.deepEqual([contactStrength(331, 1, 'ar', 'wa').brief, contactStrength(4, 1, 'ar', 'wa').brief, contactStrength(0, 0, 'ar', 'wa').brief, contactStrength(90, 1, 'en', 'wa').brief],
+    ['مدة التواصل نحو 5 د 31 ث', 'مدة التواصل 4 ثوانٍ فقط', 'لم يُفتح الواتساب', 'About 1m 30s in contact']);
 });
