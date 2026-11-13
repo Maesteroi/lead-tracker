@@ -434,7 +434,7 @@ window.LT_LANG.en = {
   'leads.err.none': "It can't go back to “no outcome”. Pick the right outcome",
   'leads.err.nocode': "This contact has no match code",
   'leads.code': "Code #{c}",
-  'leads.strength': "Contact strength: {s}",
+  'leads.strength': "Contact likelihood: {s}",
   'leads.results': "Outcomes",
   'leads.results.hint': "Record the outcome with one tap from the Telegram message you get for each contact.",
   'leads.why': "Why this matters",

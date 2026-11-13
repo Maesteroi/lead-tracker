@@ -64,8 +64,8 @@ export function eventLine(p) {
   if (e === 'sign_up') return '📝 ' + t + ' · حساب جديد';
   if (e === 'contact_return' && String(p.is_test) !== '1') {   // بلجن 2.13.1: قوة التواصل (تقديري)
     const st = contactStrength(p.away_seconds, p.app_opened, 'ar', p.click_type || p.ct);
-    const icon = st.key === 'strong' ? '💪' : st.key === 'normal' ? '↩️' : '⚠️';
-    return icon + ' ' + t + ' · ' + esc(st.brief) + ' · قوة التواصل: <b>' + st.label + '</b> (تقديرية)';   // للعميل: المدة بس (محمود 13 نوفمبر)
+    const icon = st.customer.key === 'strong' ? '💪' : st.customer.key === 'normal' ? '↩️' : '⚠️';
+    return icon + ' ' + t + ' · احتمالية التواصل: <b>' + st.customer.label + '</b> (تقديرية)';   // للعميل: الاحتمالية بس، من غير مدة ولا طريقة القياس (محمود 13 نوفمبر)
   }
   if (e !== 'click') return '';
   const lv = String(p.lead_level || '');

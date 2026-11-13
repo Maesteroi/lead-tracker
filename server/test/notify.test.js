@@ -183,9 +183,9 @@ test('a visit from outside the site\'s target country (Libya on a Saudi-only sit
 
 test('contact strength line: after a WhatsApp click the visitor came back after 3m20s → "تواصل قوي (تقديري)"; app not opened → warning', () => {
   const l = eventLine({ event: 'contact_return', time: '2026-11-12 10:05:00', click_type: 'wa', away_seconds: 200, app_opened: 1 });
-  assert.ok(l.includes('💪') && l.includes('مدة التواصل نحو 3 د 20 ث') && l.includes('<b>قوية</b>') && l.includes('تقديرية'), l);
-  assert.ok(!l.includes('رجع لموقعك'), 'Telegram goes to the customer: duration only, not how it is measured');
+  assert.ok(l.includes('💪') && l.includes('احتمالية التواصل: <b>قوية</b>') && l.includes('تقديرية'), l);
+  assert.ok(!/رجع لموقعك|3 د 20 ث|الواتساب/.test(l), 'Telegram goes to the customer: likelihood only, no time and no method');
   const n = eventLine({ event: 'contact_return', time: '2026-11-12 10:05:00', click_type: 'call', away_seconds: 0, app_opened: 0 });
-  assert.ok(n.includes('⚠️') && n.includes('لم يُفتح الاتصال'), n);
+  assert.ok(n.includes('⚠️') && n.includes('<b>ضعيفة</b>') && !n.includes('لم يُفتح'), n);
   assert.equal(eventLine({ event: 'contact_return', is_test: '1', away_seconds: 5, app_opened: 1 }), '');
 });

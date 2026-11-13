@@ -91,6 +91,8 @@ export function contactStrength(away, opened, lang, channel) {
   const a = Math.max(0, Math.round(Number(away) || 0));
   const key = !opened || opened === '0' ? 'no_app' : a < 10 ? 'weak' : a < 60 ? 'normal' : 'strong';
   const v = { t: duration(lang, a), ch: tr(lang, String(channel) === 'call' ? 'ch.call' : 'ch.wa') };
-  // detail = طريقة القياس (لإدارة المنصة بس) · brief = المدة بس (للعميل، في اللوحة وتليجرام)
-  return { key, label: tr(lang, 's.' + key), detail: tr(lang, 's.' + key + '.d', v), brief: tr(lang, 's.' + key + '.b', v) };
+  // للعميل: «احتمالية التواصل» قوية · متوسطة · ضعيفة بس (التطبيق اللي مااتفتحش = ضعيفة)، من غير مدة الواتساب أو الاتصال (محمود 13 نوفمبر)
+  const ck = key === 'no_app' ? 'weak' : key;
+  return { key, label: tr(lang, 's.' + key), detail: tr(lang, 's.' + key + '.d', v), away: tr(lang, 's.away', v),
+    customer: { key: ck, label: tr(lang, 's.' + ck) } };
 }
