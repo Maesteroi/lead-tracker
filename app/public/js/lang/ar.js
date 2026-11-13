@@ -312,7 +312,7 @@ window.LT_LANG.ar = {
   'leads.err.none': 'لا يمكن إعادتها إلى «دون نتيجة». اختر النتيجة الصحيحة',
   'leads.err.nocode': 'هذا التواصل بلا رمز مطابقة',
   'leads.code': 'رمز #{c}',
-  'leads.strength': 'قوة التواصل: {s}',
+  'leads.strength': 'احتمالية التواصل: {s}',
   'leads.results': 'النتائج',
   'leads.results.hint': 'تُسجَّل النتيجة بنقرة من رسالة تيليجرام التي تصلك مع كل تواصل.',
   'leads.why': 'لماذا يهمك هذا',

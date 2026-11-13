@@ -508,7 +508,7 @@
           DATA.setOutcome(state.site, l.code, v).then(function () { l.outcome = v; sel.disabled = false; toast(T('leads.saved', { o: outName(v), c: ' (#' + l.code + ')' })); }, function () { sel.value = before; sel.disabled = false; toast(T('err.save')); });
         });
         tb.appendChild(el('tr', {}, [
-          el('td', { class: 'first' }, [el('b', { text: (l.type === 'wa' ? '💬 ' + T('wa') : '📞 ' + T('call')) + ' · ' + T('leads.code', { c: l.code }) }), el('div', { class: 'dim', text: timeAr(l.at) }), l.strength ? el('div', { class: 'strength' }, [pill(T('leads.strength', { s: l.strength.label }), l.strength.key === 'strong' ? 'ok' : l.strength.key === 'normal' ? 'info' : 'warn'), el('small', { class: 'dim', text: ' ' + l.strength.detail + ' · ' + T('estimate') })]) : null]),
+          el('td', { class: 'first' }, [el('b', { text: (l.type === 'wa' ? '💬 ' + T('wa') : '📞 ' + T('call')) + ' · ' + T('leads.code', { c: l.code }) }), el('div', { class: 'dim', text: timeAr(l.at) }), l.strength ? el('div', { class: 'strength' }, [pill(T('leads.strength', { s: l.strength.label }), l.strength.key === 'strong' ? 'ok' : l.strength.key === 'normal' ? 'info' : 'warn'), el('small', { class: 'dim', text: ' ' + (l.strength.detail ? l.strength.detail + ' · ' : '') + T('estimate') })]) : null]),
           el('td', { 'data-l': T('visits.h.source'), class: 'pro-only' }, [el('div', { text: srcName(l.src) }), l.kw ? el('span', { class: 'dim', text: '«' + l.kw + '»' }) : null]),
           el('td', { 'data-l': T('f.place'), text: l.city + (l.district ? ' · ' + l.district : '') }),
           el('td', { 'data-l': T('leads.h.outcome') }, [sel]),
