@@ -281,3 +281,71 @@ test('platform: video recording (replay) can be turned off/on per account; only 
   await P({ replay: true }); assert.equal(s.org().replay, true);
   assert.ok(s.w.fs.t.auth_events.some((e) => e.kind === 'platform_org_update' && /replay=false/.test(e.reason || '')));
 });
+
+// ── ربط تنبيهات تليجرام من اللوحة (13 نوفمبر): رابط لأكتر من شخص لحد ما ينتهي أو يتلغى ──
+const tgEnv = { TOKEN_ENC_KEY: Buffer.alloc(32, 3).toString('base64') };
+const startMsg = (chat, text, first) => ({ message: { text, chat: { id: Number(chat), type: 'private' }, from: { first_name: first || 'عميل' } } });
+
+test('tg link: the owner makes a link in the dashboard; it works for several people (not once), each gets the site alerts', async () => {
+  const s = await setup(tgEnv);
+  const inv = await s.pc(s.cust, '/v1/dash/tg/invite', { site: s.site.site.id });
+  assert.equal(inv.status, 200);
+  const link = new URL(inv.body.invite.link);
+  assert.equal(link.origin + link.pathname, 'https://t.me/LeadTrackerpro_Bot');
+  const start = link.searchParams.get('start');
+  assert.ok(start.startsWith(s.site.site.id + '_'));
+  assert.ok(!JSON.stringify(s.w.fs.t.tg_invites).includes(start.split('_')[1]), 'the code is not stored in plain text');
+  for (const [chat, who] of [['9001', 'سارة'], ['9002', 'أحمد']]) {
+    assert.equal((await s.hook(startMsg(chat, '/start ' + start, who))).status, 200);
+  }
+  assert.deepEqual(s.w.fs.t.tg_links.map((x) => [x.chat_id, x.name]), [['9001', 'سارة'], ['9002', 'أحمد']]);
+  assert.equal(s.n.sheet.length, 0, 'our links are not sent to the sheet');
+  assert.ok(s.n.by('sendMessage').some((c) => c.body.chat_id === '9001' && /تم ربطك بتنبيهات/.test(c.body.text)));
+  assert.ok(s.n.by('sendMessage').some((c) => c.body.chat_id === '5550001' && /شات جديد/.test(c.body.text)), 'Mahmoud is told');
+  assert.equal(s.w.fs.t.tg_invites[0].uses, 2);
+  // التنبيه بيوصل لمحمود وللاتنين
+  await s.ev({ event: 'click', click_type: 'wa', match_code: 'AB12', session_id: 'S9' });
+  const to = s.n.by('sendMessage').filter((c) => /روضة/.test(c.body.text || '') && c.body.reply_markup).map((c) => c.body.chat_id).sort();
+  assert.deepEqual(to, ['5550001', '9001', '9002']);
+  // الدشبورد بيعرض الشاتات والرابط الشغال
+  const st = (await s.gc(s.cust, '/v1/dash/tg?site=' + s.site.site.id)).body;
+  assert.equal(st.chats.length, 2); assert.equal(st.invite.link, inv.body.invite.link); assert.equal(st.invite.uses, 2);
+});
+
+test('tg link: a linked customer can press the result buttons; revoking stops new joins; /stop unlinks; old sheet links still go to the sheet', async () => {
+  const s = await setup(tgEnv);
+  const start = new URL((await s.pc(s.cust, '/v1/dash/tg/invite', { site: s.site.site.id })).body.invite.link).searchParams.get('start');
+  await s.hook(startMsg('9001', '/start ' + start));
+  await s.hook({ callback_query: { id: 'cb1', data: 'o|' + s.site.site.id + '|AB12|0', from: { first_name: 'سارة' }, message: { message_id: 801, chat: { id: 9001 } } } });
+  assert.equal(s.w.fs.t.outcomes.length, 1, 'the linked customer recorded a result');
+  await s.hook({ callback_query: { id: 'cb2', data: 'o|' + s.site.site.id + '|AB12|0', message: { message_id: 802, chat: { id: 7777 } } } });
+  assert.equal(s.w.fs.t.outcomes.length, 1, 'a stranger cannot');
+  // إلغاء الرابط
+  await s.pc(s.cust, '/v1/dash/tg/invite', { site: s.site.site.id, revoke: true });
+  await s.hook(startMsg('9003', '/start ' + start));
+  assert.ok(!s.w.fs.t.tg_links.some((x) => x.chat_id === '9003'));
+  assert.ok(s.n.by('sendMessage').some((c) => c.body.chat_id === '9003' && /انتهت صلاحية هذا الرابط أو أُلغي/.test(c.body.text)));
+  // /stop
+  await s.hook(startMsg('9001', '/stop'));
+  assert.equal(s.w.fs.t.tg_links.length, 0);
+  assert.ok(s.n.by('sendMessage').some((c) => c.body.chat_id === '9001' && /تم إيقاف التنبيهات/.test(c.body.text)));
+  // رابط قديم من الشيت (كود مش عندنا) ← الشيت زي ما هو
+  await s.hook(startMsg('9004', '/start ' + s.site.site.id + '_abcdefghij'));
+  await s.hook(startMsg('9004', '/start ' + s.site.site.id + '_abcdefghijklmnopqrst'));
+  assert.equal(s.n.sheet.length, 2);
+});
+
+test('tg link: only the owner or an admin makes links or removes chats; staff see the list without chat ids', async () => {
+  const s = await setup(tgEnv);
+  const staff = await loggedIn(s.w, 'staff@example.com');
+  s.w.fs.t.memberships.push({ user_id: staff.me.user.id, org_id: s.cust.org.id, role: 'staff', site_ids: null });
+  assert.equal((await s.pc(staff, '/v1/dash/tg/invite', { site: s.site.site.id })).status, 403);
+  assert.equal((await s.pc(staff, '/v1/dash/tg/remove', { site: s.site.site.id, chat: '9001' })).status, 403);
+  const st = (await s.gc(staff, '/v1/dash/tg?site=' + s.site.site.id)).body;
+  assert.deepEqual([st.manage, st.invite], [false, null]);
+  const start = new URL((await s.pc(s.cust, '/v1/dash/tg/invite', { site: s.site.site.id })).body.invite.link).searchParams.get('start');
+  await s.hook(startMsg('9001', '/start ' + start));
+  assert.equal((await s.gc(staff, '/v1/dash/tg?site=' + s.site.site.id)).body.chats[0].id, null);
+  assert.equal((await s.pc(s.cust, '/v1/dash/tg/remove', { site: s.site.site.id, chat: '9001' })).status, 200);
+  assert.equal(s.w.fs.t.tg_links.length, 0);
+});

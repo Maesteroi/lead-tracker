@@ -70,6 +70,10 @@ function fakeApi(over) {
       st.dashCalls = (st.dashCalls || []).concat([p + u.search]);
       const today = new Date(Date.now() + 3 * 3600e3).toISOString().slice(0, 10);
       const range = Number(u.searchParams.get('range')) || 7;
+      // تنبيهات تليجرام (tglinks.js)
+      if (p === '/v1/dash/tg') return j(200, Object.assign({ ok: true }, st.tg || { manage: true, ready: true, invite: null, chats: [] }));
+      if (p === '/v1/dash/tg/invite') { const b = JSON.parse(req.postData()); st.tgCalls2 = (st.tgCalls2 || []).concat([b]); st.tg = st.tg || { manage: true, ready: true, chats: [] }; st.tg.invite = b.revoke ? null : { link: 'https://t.me/LeadTrackerpro_Bot?start=SiteId123456_0123456789abcdef0123', expires_at: new Date(Date.now() + 7 * 864e5).toISOString(), uses: 0 }; return j(200, { ok: true, invite: st.tg.invite }); }
+      if (p === '/v1/dash/tg/remove') { const b = JSON.parse(req.postData()); st.tg.chats = st.tg.chats.filter((c) => c.id !== b.chat); return j(200, { ok: true }); }
       // رفع العملاء المؤكدين (convupload.js)
       if (p === '/v1/dash/conv') return j(200, Object.assign({ ok: true }, st.conv || { linked: false, manage: true }));
       if (p === '/v1/dash/conv/actions') return j(200, { ok: true, actions: [{ id: '222', name: 'Offline leads' }] });
@@ -599,6 +603,24 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
   await pg.waitForFunction(() => document.getElementById('page-title').textContent === 'الزيارات' && document.querySelector('#view .tbl tbody tr'));
   t('simple visits: device, network and score columns hidden', await pg.locator('#view .tbl th', { hasText: 'الشبكة' }).isHidden() && await pg.locator('#view .tbl th', { hasText: 'الدرجة' }).isHidden() && await pg.locator('#view .tbl th', { hasText: 'الحالة' }).isVisible());
   t('simple views: no console errors and no CSP violations', pg.errors.length === 0 && pg.csp.length === 0);
+  await pg.context().close(); }
+
+// 23) تنبيهات تليجرام من اللوحة (13 نوفمبر): رابط لأكتر من شخص · الشاتات المربوطة · فصل
+{ const api = fakeApi({ signedIn: true, sites: [{ id: 'SiteId123456', name: 'روضة الصالحين', domains: ['rawda.site'], paired: true }], tg: { manage: true, ready: true, invite: null, chats: [{ id: '9001', name: 'سارة', at: new Date().toISOString() }] } });
+  const pg = await page(api, { viewport: { width: 1200, height: 900 } });
+  await pg.goto('https://app.maestrolt.com/#/sites');
+  await pg.waitForSelector('.tg-block .tg-chats li');
+  t('tg: the site card lists who is linked (سارة) and offers «أنشئ رابط تنبيهات»', /سارة/.test(await pg.locator('.tg-block').innerText()) && (await pg.getByRole('button', { name: 'أنشئ رابط تنبيهات' }).count()) === 1);
+  await pg.getByRole('button', { name: 'أنشئ رابط تنبيهات' }).click();
+  await pg.waitForSelector('.tg-block .tg-link');
+  t('tg: the link shows with copy, valid for 7 days, several people, cancellable', /t\.me\/LeadTrackerpro_Bot\?start=SiteId123456_/.test(await pg.locator('.tg-link').inputValue()) && /لأكثر من شخص لمدة 7 أيام/.test(await pg.locator('.tg-block').innerText()) && (await pg.getByRole('button', { name: 'ألغِ الرابط' }).count()) === 1);
+  await shot(pg, 'tg-link');
+  await pg.locator('.tg-chats').getByRole('button', { name: 'افصل' }).click();
+  await pg.getByRole('button', { name: 'اضغط مرة أخرى للفصل' }).click();
+  await pg.waitForFunction(() => /لا يوجد أحد مربوط/.test(document.querySelector('.tg-block').innerText));
+  t('tg: disconnecting a chat asks once more, then it is gone', true);
+  t('tg: no console errors, no CSP violations', pg.errors.length === 0 && pg.csp.length === 0);
+  if (pg.errors.length || pg.csp.length) console.log(pg.errors, pg.csp);
   await pg.context().close(); }
 
 // 22) إرسال العملاء المؤكدين لجوجل أدز (13 نوفمبر): اختيار إجراء التحويل ← القايمة ← موافقة بضغطتين ← إرسال

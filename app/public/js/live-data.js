@@ -96,6 +96,10 @@
     adsAccounts: function (site, n) { return LT.api('/v1/dash/ads/accounts?site=' + encodeURIComponent(site) + '&n=' + encodeURIComponent(n)).then(function (r) { if (!r.ok) throw new Error(r.body && r.body.error || 'http'); return r.body.accounts || []; }); },
     adsChoose: function (site, n, cid) { return LT.api('/v1/dash/ads/choose', { method: 'POST', body: { site: site, n: n, customer_id: cid } }).then(function (r) { if (!r.ok) throw new Error(r.body && r.body.error || 'http'); return r.body; }); },
     adsUnlink: function (site) { return LT.api('/v1/dash/ads/unlink', { method: 'POST', body: { site: site } }).then(function (r) { if (!r.ok) throw new Error(r.body && r.body.error || 'http'); return r.body; }); },
+    // تنبيهات تليجرام للموقع: رابط ربط لأكتر من شخص (tglinks.js على السيرفر)
+    tg: function (site) { return LT.api('/v1/dash/tg?site=' + encodeURIComponent(site)).then(function (r) { if (!r.ok) throw new Error('http'); return r.body; }); },
+    tgInvite: function (site, revoke) { return LT.api('/v1/dash/tg/invite', { method: 'POST', body: { site: site, revoke: !!revoke } }).then(function (r) { if (!r.ok) throw new Error(r.body && r.body.error || 'http'); return r.body.invite; }); },
+    tgRemove: function (site, chat) { return LT.api('/v1/dash/tg/remove', { method: 'POST', body: { site: site, chat: chat } }).then(function (r) { if (!r.ok) throw new Error('http'); return r.body; }); },
     // رفع العملاء المؤكدين لجوجل أدز بموافقة العميل (convupload.js على السيرفر)
     conv: function (site) { return LT.api('/v1/dash/conv?site=' + encodeURIComponent(site)).then(function (r) { if (!r.ok) throw new Error('http'); return r.body; }); },
     convActions: function (site) { return LT.api('/v1/dash/conv/actions?site=' + encodeURIComponent(site)).then(function (r) { if (!r.ok) throw new Error(r.body && r.body.error || 'http'); return r.body.actions || []; }); },

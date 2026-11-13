@@ -8,6 +8,7 @@
 //   • بعد الرد على البلجن (ctx.waitUntil) وبعد تحديد المكان، فمابيأخّرش الحدث، وأي فشل في تليجرام مابيأثرش عليه.
 //   • TG_ALERTS = "off" بيقفلها من غير نشر.
 import { eq } from './db.js';
+import { chatsFor } from './tglinks.js';
 import { escHtml as esc } from './telegram.js';
 import { outsideTarget, targetCountries, countryAr, contactStrength } from './score.js';
 
@@ -149,14 +150,27 @@ export async function tg(env, method, payload, fetchImpl) {
 const key = (clientId, sid, chat) => 'tg_sessions?client_id=' + eq(clientId) + '&session_id=' + eq(sid) + '&chat_id=' + eq(chat);
 
 // حدث واحد ← رسالة الجلسة (جديدة أو تعديل). مابيرميش أي خطأ أبداً.
+// كل شاتات الموقع: محمود (TG_CHAT_ID) + الشاتات المربوطة من اللوحة (tg_links). كل شات ليه رسالة جلسة لوحده.
 export async function notifyEvent(env, db, client, payload, geo, fetchImpl) {
   try {
-    if (!env.TG_TOKEN || !env.TG_CHAT_ID || String(env.TG_ALERTS || '').toLowerCase() === 'off') return { skipped: 'off' };
+    if (!env.TG_TOKEN || String(env.TG_ALERTS || '').toLowerCase() === 'off') return { skipped: 'off' };
     if (!client || !client.org_id) return { skipped: 'sheet-site' };              // الشيت بيبعت تنبيهات المواقع دي
+    const chats = [...new Set([env.TG_CHAT_ID ? String(env.TG_CHAT_ID) : null].concat(await chatsFor(db, client.id)).filter(Boolean))];
+    if (!chats.length) return { skipped: 'no-chat' };
+    const out = [];
+    for (const chat of chats) out.push(await notifyChat(env, db, client, payload, geo, fetchImpl, chat));
+    return out.length === 1 ? out[0] : { chats: out };
+  } catch (e) {
+    console.error('notify: ' + String(e && e.message || e).slice(0, 120));
+    return { failed: true };
+  }
+}
+
+async function notifyChat(env, db, client, payload, geo, fetchImpl, chat) {
+  try {
     const line = eventLine(payload || {});
     const sid = String(payload.session_id || '').slice(0, 64);
     if (!line || !sid) return { skipped: 'no-line' };
-    const chat = String(env.TG_CHAT_ID);
     const name = client.name || client.id;
     const now = new Date().toISOString();
 
