@@ -443,3 +443,5 @@ svg.geo { width: 100%; height: auto; aspect-ratio: 1.7; display: block; backgrou
 .tg-chats { list-style: none; margin: 0 0 8px; padding: 0; display: grid; gap: 6px; }
 .tg-row { display: flex; gap: 8px; align-items: center; }
 .tg-link { flex: 1; min-width: 0; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; font: inherit; font-size: 13px; background: var(--card); color: inherit; }
+.tg-aud { margin: 12px 0 4px; display: grid; gap: 6px; }
+.chip.soon, .chip:disabled { opacity: .55; cursor: not-allowed; border-style: dashed; }

@@ -67,7 +67,7 @@ textarea { width: 100%; resize: vertical; min-height: 84px; }
 .seg { display: inline-flex; background: var(--bg); border: 1px solid var(--line); border-radius: 12px; padding: 3px; gap: 2px; flex-wrap: wrap; }
 .seg button { font: inherit; font-size: 14px; font-weight: 700; color: var(--muted); background: transparent; border: 0; border-radius: 9px; padding: 6px 12px; cursor: pointer; min-height: 34px; }
 .seg button:hover { color: var(--ink); }
-.seg button[aria-pressed="true"], .seg button[aria-checked="true"] { background: var(--card); color: var(--ink); box-shadow: 0 1px 3px rgba(15, 42, 74, .14); }
+.seg button[aria-pressed="true"], .seg button[aria-checked="true"], .seg button[aria-selected="true"] { background: var(--card); color: var(--ink); box-shadow: 0 1px 3px rgba(15, 42, 74, .14); }
 .seg button .n { font-size: 12px; color: var(--muted); margin-inline-start: 4px; font-variant-numeric: tabular-nums; }
 .seg.wide { display: grid; grid-template-columns: repeat(4, 1fr); width: 100%; }
 .seg.wide button { white-space: nowrap; padding-inline: 6px; font-size: 13.5px; }
@@ -198,3 +198,18 @@ input.mini { width: 56px; padding: 2px 6px; text-align: center; font-weight: 800
 .linkish { background: none; border: 0; padding: 0; font: inherit; font-weight: 700; color: var(--accent); cursor: pointer; text-decoration: none; }
 .linkish:hover, .linkish:focus-visible { text-decoration: underline; }
 td .linkish { margin-inline-start: 8px; }
+/* شكل التنبيهات */
+.al-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 22px; margin-top: 12px; align-items: start; }
+@media (max-width: 900px) { .al-grid { grid-template-columns: 1fr; } }
+.al-fields { display: grid; gap: 4px; }
+.al-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.al-acts { display: flex; gap: 10px; margin-top: 14px; }
+.al-preview { background: #e9f1fb; border-radius: 14px; padding: 14px; }
+.tg-msg { background: #fff; color: #10203a; border-radius: 12px; padding: 12px 14px; font-size: 14px; line-height: 1.7; box-shadow: 0 1px 2px rgba(0,0,0,.08); white-space: normal; }
+.tg-msg code { font-family: ui-monospace, monospace; font-size: 13px; color: #1a6fe8; }
+.tg-btns { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 6px; }
+.tg-btns span { background: rgba(255,255,255,.75); border-radius: 8px; text-align: center; padding: 7px 4px; font-size: 13px; color: #10203a; }
+button.switch { flex: none; width: 46px; height: 28px; border-radius: 999px; border: 0; background: var(--c-mute, #b7c2d4); position: relative; cursor: pointer; transition: background .15s; }
+button.switch::after { content: ""; position: absolute; top: 3px; inset-inline-start: 3px; width: 22px; height: 22px; border-radius: 50%; background: #fff; transition: inset-inline-start .15s; box-shadow: 0 1px 3px rgba(0, 0, 0, .2); }
+button.switch[aria-checked="true"] { background: var(--accent); }
+button.switch[aria-checked="true"]::after { inset-inline-start: 21px; }

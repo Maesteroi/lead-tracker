@@ -48,7 +48,7 @@ test('first event of a session sends one message to Mahmoud with the sheet\'s lo
   assert.equal(s.n.sent.length, 1);
   const m = s.n.sent[0];
   assert.equal(m.chat_id, '5550001'); assert.equal(m.parse_mode, 'HTML');
-  for (const part of ['🌐 <b>المعقب الذهبي</b>', '🕒 بدأت الجلسة 07:09', '👤 زيارة #1', '👁️ 07:09 · الرئيسية', '🧭 إعلان جوجل', '🎯 GCLID: <code>Cj0KCQiAnsvXBhCq...</code>', '📱 موبايل · Android · Chrome', '📍 Riyadh (تقريبي)، Riyadh Region، Saudi Arabia', '🏢 STC'])
+  for (const part of ['🌐 <b>المعقب الذهبي</b>', '🕒 بدأت الزيارة 07:09', '👤 زيارة #1', '👁️ 07:09 · الرئيسية', '🧭 إعلان جوجل', '🎯 GCLID: <code>Cj0KCQiAnsvXBhCq...</code>', '📱 موبايل · Android · Chrome', '📍 Riyadh (تقريبي)، Riyadh Region، Saudi Arabia', '🏢 STC'])
     assert.ok(m.text.includes(part), part + '\n' + m.text);
   assert.equal(s.w.fs.t.tg_sessions[0].message_id, 901);
 });

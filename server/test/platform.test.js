@@ -349,3 +349,46 @@ test('tg link: only the owner or an admin makes links or removes chats; staff se
   assert.equal((await s.pc(s.cust, '/v1/dash/tg/remove', { site: s.site.site.id, chat: '9001' })).status, 200);
   assert.equal(s.w.fs.t.tg_links.length, 0);
 });
+
+// ── شكل التنبيهات لكل نوع مستلم (13 نوفمبر) ──
+test('alert format: Mahmoud gets every detail; the site owner gets a simple message; staff get it without the keyword', async () => {
+  const s = await setup(tgEnv);
+  const startOf = async (audience) => new URL((await s.pc(s.cust, '/v1/dash/tg/invite', { site: s.site.site.id, audience })).body.invite.link).searchParams.get('start');
+  await s.hook(startMsg('9001', '/start ' + await startOf('owner'), 'صاحب'));
+  await s.hook(startMsg('9002', '/start ' + await startOf('staff'), 'موظف'));
+  assert.deepEqual(s.w.fs.t.tg_links.map((x) => [x.chat_id, x.audience]), [['9001', 'owner'], ['9002', 'staff']]);
+  await s.ev({ gclid: 'Cj0KCQiAnsvXBhCqARIs', source: 'ads', source_fine: 'google_ads', source_detail: 'تعقيب الدمام', session_id: 'S7' });
+  await s.ev({ event: 'click', click_type: 'wa', match_code: 'QP74', target_num: '966554912921', btn_text: 'WhatsApp', btn_pos: 'عائم', lead_level: 'primary', session_id: 'S7', time: '2026-11-11 07:11:02' });
+  const last = (chat) => s.n.by('sendMessage').concat(s.n.by('editMessageText')).filter((c) => c.body.chat_id === chat && /روضة/.test(c.body.text || '')).pop().body;
+  const boss = last('5550001').text, owner = last('9001'), staff = last('9002').text;
+  for (const part of ['GCLID', '966554912921', 'عائم', '🎯 أساسي', 'تعقيب الدمام']) assert.ok(boss.includes(part), 'platform: ' + part);
+  for (const part of ['GCLID', '966554912921', 'عائم', '🎯 أساسي']) assert.ok(!owner.text.includes(part), 'owner must not see: ' + part);
+  assert.ok(owner.text.includes('💬 واتساب · رمز <b>#QP74</b>') && owner.text.includes('تعقيب الدمام') && owner.text.includes('الزيارة الأولى'), owner.text);
+  assert.ok(owner.reply_markup, 'the owner has the result buttons');
+  assert.ok(!staff.includes('تعقيب الدمام') && staff.includes('إعلان جوجل'), 'staff: source without the keyword');
+});
+
+test('alert format: the admin panel turns parts on or off per recipient type (with a preview); others cannot', async () => {
+  const s = await setup(tgEnv);
+  const g = await s.gc(s.boss, '/v1/platform/tg-templates');
+  assert.equal(g.status, 200); assert.ok(g.body.fields.length >= 15); assert.equal(g.body.audiences.owner.gclid, false); assert.equal(g.body.audiences.platform.gclid, true);
+  assert.equal((await s.gc(s.cust, '/v1/platform/tg-templates')).status, 404);
+  assert.equal((await s.pc(s.cust, '/v1/platform/tg-templates', { audience: 'owner', fields: { place: false } })).status, 404);
+  const pv = await s.pc(s.boss, '/v1/platform/tg-templates/preview', { fields: Object.assign({}, g.body.audiences.owner, { place: false }) });
+  assert.ok(pv.body.text.includes('واتساب') && !pv.body.text.includes('📍') && !pv.body.text.includes('GCLID'), pv.body.text);
+  const sv = await s.pc(s.boss, '/v1/platform/tg-templates', { audience: 'owner', fields: Object.assign({}, g.body.audiences.owner, { place: false }) });
+  assert.equal(sv.status, 200); assert.equal(sv.body.fields.place, false);
+  const start = new URL((await s.pc(s.cust, '/v1/dash/tg/invite', { site: s.site.site.id })).body.invite.link).searchParams.get('start');
+  await s.hook(startMsg('9001', '/start ' + start));
+  await s.ev({ session_id: 'S8', device: 'موبايل' });
+  const owner = s.n.by('sendMessage').filter((c) => c.body.chat_id === '9001' && /روضة/.test(c.body.text || '')).pop().body.text;
+  const boss = s.n.by('sendMessage').filter((c) => c.body.chat_id === '5550001' && /روضة/.test(c.body.text || '')).pop().body.text;
+  assert.ok(owner.includes('📱 موبايل') && boss.includes('📱 موبايل'), 'device shows for both');
+  await s.pc(s.boss, '/v1/platform/tg-templates', { audience: 'owner', fields: Object.assign({}, g.body.audiences.owner, { device: false }) });
+  await s.ev({ session_id: 'S9', device: 'موبايل' });
+  const owner2 = s.n.by('sendMessage').filter((c) => c.body.chat_id === '9001' && /روضة/.test(c.body.text || '')).pop().body.text;
+  const boss2 = s.n.by('sendMessage').filter((c) => c.body.chat_id === '5550001' && /روضة/.test(c.body.text || '')).pop().body.text;
+  assert.ok(!owner2.includes('📱') && boss2.includes('📱 موبايل'), 'only the owner format changed');
+  const rs = await s.pc(s.boss, '/v1/platform/tg-templates', { audience: 'owner', reset: true });
+  assert.deepEqual([rs.body.fields.place, rs.body.fields.device], [true, true], 'reset to the default');
+});

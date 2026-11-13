@@ -9,6 +9,7 @@
 //   • TG_ALERTS = "off" بيقفلها من غير نشر.
 import { eq } from './db.js';
 import { chatsFor } from './tglinks.js';
+import { loadTemplates, ALL_ON } from './tgtemplates.js';
 import { escHtml as esc } from './telegram.js';
 import { outsideTarget, targetCountries, countryAr, contactStrength } from './score.js';
 
@@ -35,7 +36,7 @@ export function contactCode(p) {
 }
 // زيارة من بره البلد المستهدف: مفيش زراير نتيجة (مستحيل تبقى عميل)، والرسالة عليها ملحوظة بدلها
 export const isOutside = (info) => !!info && outsideTarget(info.cc, info.tgeo);
-const markupFor = (clientId, info) => (info && info.oc && !isOutside(info) ? outcomeKeyboard(clientId, info.oc, info.oc_v || '') : undefined);
+const markupFor = (clientId, info, tpl) => (info && info.oc && !isOutside(info) && (!tpl || tpl.actions !== false) ? outcomeKeyboard(clientId, info.oc, info.oc_v || '') : undefined);
 const MAX_LINES = 40;
 const MAX_TEXT = 3900;
 
@@ -54,16 +55,19 @@ function dur(s) {
 }
 
 // الحدث ده يستاهل سطر في التنبيه؟ (نفس قاعدة الشيت: الضغطات «العادية» وخدمة العملاء لأ، ورقم المطوّر لأ)
-export function eventLine(p) {
+export function eventLine(p, tpl) {
+  const on = (k) => !tpl || tpl[k] !== false;            // من غير قالب = كل حاجة (إدارة المنصة)
   const t = hhmm(p.time);
   const e = String(p.event || '');
-  if (e === 'page_view') return '👁️ ' + t + ' · ' + esc(String(p.title || p.path || '/').slice(0, 90));
+  if (e === 'page_view') return on('pages') ? '👁️ ' + t + ' · ' + esc(String(p.title || p.path || '/').slice(0, 90)) : '';
+  if (['view_item', 'add_to_cart', 'begin_checkout', 'purchase', 'sign_up'].includes(e) && !on('store')) return '';
   if (e === 'view_item') return '🛍️ ' + t + ' · ' + esc(String(p.product_name || p.title || 'منتج').slice(0, 90));
   if (e === 'add_to_cart') return '🛒 ' + t + ' · ' + esc(String(p.product_name || p.btn_text || 'منتج').slice(0, 90)) + (p.quantity ? ' ×' + esc(p.quantity) : '');
   if (e === 'begin_checkout') return '💳 ' + t + ' · بدء الدفع' + (p.cart_total ? ' (' + esc(p.cart_total) + ')' : '');
   if (e === 'purchase') return '💰 ' + t + ' · <b>شراء: ' + esc(p.order_total || 0) + ' ' + esc(p.currency || '') + '</b>';
   if (e === 'sign_up') return '📝 ' + t + ' · حساب جديد';
   if (e === 'contact_return' && String(p.is_test) !== '1') {   // بلجن 2.13.1: قوة التواصل (تقديري)
+    if (!on('strength')) return '';
     const st = contactStrength(p.away_seconds, p.app_opened, 'ar', p.click_type || p.ct);
     const icon = st.customer.key === 'strong' ? '💪' : st.customer.key === 'normal' ? '↩️' : '⚠️';
     return icon + ' ' + t + ' · احتمالية التواصل: <b>' + st.customer.label + '</b> (تقديرية)';   // للعميل: الاحتمالية بس، من غير مدة ولا طريقة القياس (محمود 13 نوفمبر)
@@ -73,14 +77,17 @@ export function eventLine(p) {
   if (lv === 'normal' || lv === 'support') return '';
   if (/:ext/.test(String(p.detect_via || ''))) return '';
   const ct = String(p.click_type || p.ct || '');
+  const isContact = ct === 'wa' || ct === 'call';
+  if (!on(isContact ? 'contact' : 'buttons')) return '';
+  const detail = on('btn_detail');
   let line = (String(p.is_test) === '1' ? '🧪 ' : '🎯 ') + t + ' · ' + (CT_AR[ct] || '🔘 زر');
-  if (LEVEL_AR[lv]) line += ' · ' + LEVEL_AR[lv];
+  if (detail && LEVEL_AR[lv]) line += ' · ' + LEVEL_AR[lv];
   if (p.match_code) line += ' · رمز <b>#' + esc(String(p.match_code).replace(/^#/, '').slice(0, 20)) + '</b>';
   const bt = String(p.btn_text || p.bt || '').trim();
-  if (bt && bt !== '—') line += ' — "' + esc(bt.slice(0, 40)) + '"';
-  if (p.btn_pos) line += ' [' + esc(String(p.btn_pos).slice(0, 30)) + ']';
-  if (p.target_num) line += '\n   📱 <code>' + esc(String(p.target_num).slice(0, 20)) + '</code>';
-  if (p.href && !['wa', 'call', 'sms'].includes(ct)) {
+  if (bt && bt !== '—' && (detail || !isContact)) line += ' — "' + esc(bt.slice(0, 40)) + '"';
+  if (detail && p.btn_pos) line += ' [' + esc(String(p.btn_pos).slice(0, 30)) + ']';
+  if (on('target_num') && p.target_num) line += '\n   📱 <code>' + esc(String(p.target_num).slice(0, 20)) + '</code>';
+  if (detail && p.href && !['wa', 'call', 'sms'].includes(ct)) {
     let h = String(p.href).replace(/^https?:\/\//, '').split('?')[0];
     if (h.length > 70) h = h.slice(0, 70) + '...';
     line += '\n   🔗 <code>' + esc(h) + '</code>';
@@ -103,23 +110,27 @@ function mergeInfo(old, p, geo) {
   return o;
 }
 
-function render(siteName, startedAt, body, info) {
+function render(siteName, startedAt, body, info, tpl) {
+  const on = (k) => !tpl || tpl[k] !== false;
   const out = ['🌐 <b>' + esc(siteName) + '</b>'];
   const d = Math.max(secs(info.last_time) - secs(startedAt), Number(info.seconds) || 0);
-  out.push((info.test ? '🧪 تجربة · ' : '') + '🕒 بدأت الجلسة ' + hhmm(startedAt) + (d > 0 ? ' · ⏱️ ' + dur(d) : '') + ' · 👤 زيارة #' + esc(info.visit_no || 1));
+  if (on('start') || on('visit_no') || info.test) {
+    const parts = [];
+    if (on('start')) parts.push('🕒 بدأت الزيارة ' + hhmm(startedAt) + (d > 0 ? ' · ⏱️ ' + dur(d) : ''));
+    if (on('visit_no')) parts.push('👤 ' + (tpl && !tpl.btn_detail ? visitWord(info.visit_no) : 'زيارة #' + esc(info.visit_no || 1)));
+    out.push((info.test ? '🧪 تجربة · ' : '') + parts.join(' · '));
+  }
   out.push('━━━━━━━━━━━━━━━━━━━');
   out.push(...body);
   out.push('━━━━━━━━━━━━━━━━━━━');
-  if (info.source_fine || info.source) {
-    out.push('🧭 ' + esc(SRC2_AR[info.source_fine] || SRC_AR[info.source] || info.source || info.source_fine) + (info.source_detail ? ' · ' + esc(info.source_detail) : ''));
-    if (info.gclid) out.push('🎯 GCLID: <code>' + esc(String(info.gclid).slice(0, 20)) + '...</code>');
-    if (info.utm) out.push('📊 ' + esc(info.utm));
-  }
-  if (info.device) out.push('📱 ' + esc([info.device, info.os, info.browser].filter(Boolean).join(' · ')));
-  const loc = [info.city ? info.city + ' (تقريبي)' : '', info.region && info.region !== info.city ? info.region : '', info.country].filter(Boolean).join('، ');
-  if (loc) out.push('📍 ' + esc(loc));
-  if (info.isp) out.push('🏢 ' + esc(info.isp));
-  if (isOutside(info)) {
+  if (on('source') && (info.source_fine || info.source)) out.push('🧭 ' + esc(SRC2_AR[info.source_fine] || SRC_AR[info.source] || info.source || info.source_fine) + (on('keyword') && info.source_detail ? ' · ' + esc(info.source_detail) : ''));
+  if (on('gclid') && info.gclid) out.push('🎯 GCLID: <code>' + esc(String(info.gclid).slice(0, 20)) + '...</code>');
+  if (on('utm') && info.utm) out.push('📊 ' + esc(info.utm));
+  if (on('device') && info.device) out.push('📱 ' + esc((on('btn_detail') ? [info.device, info.os, info.browser] : [info.device]).filter(Boolean).join(' · ')));
+  const loc = on('btn_detail') ? [info.city ? info.city + ' (تقريبي)' : '', info.region && info.region !== info.city ? info.region : '', info.country].filter(Boolean).join('، ') : [info.city, info.country].filter(Boolean).join('، ');
+  if (on('place') && loc) out.push('📍 ' + esc(loc));
+  if (on('isp') && info.isp) out.push('🏢 ' + esc(info.isp));
+  if (on('outside') && isOutside(info)) {
     out.push('━━━━━━━━━━━━━━━━━━━');
     out.push('🌍 <b>خارج النطاق المستهدف</b>: الزيارة من ' + esc(countryAr(info.cc, info.country)) + '، وموقعك يستهدف ' + esc(targetCountries(info.tgeo).map((c) => countryAr(c)).join(' و')) + ' فقط.');
     out.push('📝 لا تحتاج إلى نتيجة، وسُجّلت في لوحة التحكم «خارج النطاق» ولن تُحتسب عليك.');
@@ -128,10 +139,12 @@ function render(siteName, startedAt, body, info) {
 }
 
 // نص الرسالة. لو طويل على تليجرام: أقدم السطور بتتشال (من غير ما نقطع وسط وسم HTML)
-export function sessionText(siteName, startedAt, lines, info) {
+const ORD = ['الأولى', 'الثانية', 'الثالثة', 'الرابعة', 'الخامسة'];
+const visitWord = (n) => { n = Math.max(1, Number(n) || 1); return 'الزيارة ' + (ORD[n - 1] || 'رقم ' + n); };
+export function sessionText(siteName, startedAt, lines, info, tpl) {
   let body = (lines || []).filter(Boolean);
-  let text = render(siteName, startedAt, body, info || {});
-  while (text.length > MAX_TEXT && body.length > 1) { body = body.slice(1); text = render(siteName, startedAt, ['…'].concat(body), info || {}); }
+  let text = render(siteName, startedAt, body, info || {}, tpl);
+  while (text.length > MAX_TEXT && body.length > 1) { body = body.slice(1); text = render(siteName, startedAt, ['…'].concat(body), info || {}, tpl); }
   return text;
 }
 
@@ -155,10 +168,14 @@ export async function notifyEvent(env, db, client, payload, geo, fetchImpl) {
   try {
     if (!env.TG_TOKEN || String(env.TG_ALERTS || '').toLowerCase() === 'off') return { skipped: 'off' };
     if (!client || !client.org_id) return { skipped: 'sheet-site' };              // الشيت بيبعت تنبيهات المواقع دي
-    const chats = [...new Set([env.TG_CHAT_ID ? String(env.TG_CHAT_ID) : null].concat(await chatsFor(db, client.id)).filter(Boolean))];
+    // كل شات بشكل نوعه: إدارة المنصة · صاحب الموقع والمديرين · الموظف (tgtemplates.js)
+    const tpls = await loadTemplates(db);
+    const chats = [];
+    if (env.TG_CHAT_ID) chats.push({ chat: String(env.TG_CHAT_ID), audience: 'platform' });
+    for (const c of await chatsFor(db, client.id)) if (!chats.some((x) => x.chat === c.chat)) chats.push(c);
     if (!chats.length) return { skipped: 'no-chat' };
     const out = [];
-    for (const chat of chats) out.push(await notifyChat(env, db, client, payload, geo, fetchImpl, chat));
+    for (const c of chats) out.push(await notifyChat(env, db, client, payload, geo, fetchImpl, c.chat, tpls[c.audience] || tpls.owner));
     return out.length === 1 ? out[0] : { chats: out };
   } catch (e) {
     console.error('notify: ' + String(e && e.message || e).slice(0, 120));
@@ -166,9 +183,9 @@ export async function notifyEvent(env, db, client, payload, geo, fetchImpl) {
   }
 }
 
-async function notifyChat(env, db, client, payload, geo, fetchImpl, chat) {
+async function notifyChat(env, db, client, payload, geo, fetchImpl, chat, tpl) {
   try {
-    const line = eventLine(payload || {});
+    const line = eventLine(payload || {}, tpl);
     const sid = String(payload.session_id || '').slice(0, 64);
     if (!line || !sid) return { skipped: 'no-line' };
     const name = client.name || client.id;
@@ -183,13 +200,13 @@ async function notifyChat(env, db, client, payload, geo, fetchImpl, chat) {
       const info = mergeInfo({}, payload, geo);
       const ins = await db.insert('tg_sessions', [{ client_id: client.id, session_id: sid, chat_id: chat, started_at: String(payload.time || ''), lines: [line], info, updated_at: now }], { ignoreDuplicates: true, onConflict: 'client_id,session_id,chat_id' });
       if (ins && ins[0]) {
-        const sent = await tg(env, 'sendMessage', { chat_id: chat, text: sessionText(name, payload.time, [line], info), parse_mode: 'HTML', disable_web_page_preview: true, reply_markup: markupFor(client.id, info) }, fetchImpl);
+        const sent = await tg(env, 'sendMessage', { chat_id: chat, text: sessionText(name, payload.time, [line], info, tpl), parse_mode: 'HTML', disable_web_page_preview: true, reply_markup: markupFor(client.id, info, tpl) }, fetchImpl);
         if (!sent.ok) { await db.req('DELETE', key(client.id, sid, chat)); console.error('telegram send ' + sent.status); return { failed: true }; }
         await db.update(key(client.id, sid, chat), { message_id: sent.j.result.message_id });
         // حدث تاني من نفس الجلسة وصل وإحنا بنبعت: نعدّل الرسالة علشان يبان
         const after = await db.one(key(client.id, sid, chat) + '&select=lines,info,started_at');
         if (after && Array.isArray(after.lines) && after.lines.length > 1) {
-          await tg(env, 'editMessageText', { chat_id: chat, message_id: sent.j.result.message_id, text: sessionText(name, after.started_at, after.lines, after.info || info), parse_mode: 'HTML', disable_web_page_preview: true, reply_markup: markupFor(client.id, after.info || info) }, fetchImpl);
+          await tg(env, 'editMessageText', { chat_id: chat, message_id: sent.j.result.message_id, text: sessionText(name, after.started_at, after.lines, after.info || info, tpl), parse_mode: 'HTML', disable_web_page_preview: true, reply_markup: markupFor(client.id, after.info || info, tpl) }, fetchImpl);
         }
         return { sent: true };
       }
@@ -200,7 +217,7 @@ async function notifyChat(env, db, client, payload, geo, fetchImpl, chat) {
     const info = mergeInfo(row.info, payload, geo);
     await db.update(key(client.id, sid, chat), { lines, info, updated_at: now });
     if (!row.message_id) return { queued: true };                                   // الرسالة الأولى لسه بتتبعت، وهي هتعدّل نفسها
-    const ed = await tg(env, 'editMessageText', { chat_id: chat, message_id: row.message_id, text: sessionText(name, row.started_at, lines, info), parse_mode: 'HTML', disable_web_page_preview: true, reply_markup: markupFor(client.id, info) }, fetchImpl);
+    const ed = await tg(env, 'editMessageText', { chat_id: chat, message_id: row.message_id, text: sessionText(name, row.started_at, lines, info, tpl), parse_mode: 'HTML', disable_web_page_preview: true, reply_markup: markupFor(client.id, info, tpl) }, fetchImpl);
     if (!ed.ok && !/not modified/i.test(String(ed.j && ed.j.description || ''))) { console.error('telegram edit ' + ed.status); return { failed: true }; }
     return { edited: true };
   } catch (e) {
@@ -227,4 +244,17 @@ export async function notifyTest(env, client, fetchImpl) {
 export async function cleanupSessions(db) {
   await db.req('DELETE', 'tg_sessions?updated_at=lt.' + encodeURIComponent(new Date(Date.now() - 2 * 864e5).toISOString()));
   return { ok: true };
+}
+
+// معاينة شكل التنبيه (لوحة الإدارة): زيارة نموذجية من إعلان جوجل بضغطة واتساب
+export function previewText(tpl) {
+  const ev = [
+    { event: 'page_view', time: '2026-11-13 16:14:02', title: 'الإنجاز السريع' },
+    { event: 'click', time: '2026-11-13 16:14:40', click_type: 'button', lead_level: 'important', btn_text: 'الأوراق المطلوبة', btn_pos: 'داخل المحتوى', href: 'https://enjaz.biz/docs' },
+    { event: 'click', time: '2026-11-13 16:15:01', click_type: 'wa', lead_level: 'primary', match_code: '9B5W', btn_text: 'WhatsApp', btn_pos: 'عائم', target_num: '966544908507' },
+    { event: 'contact_return', time: '2026-11-13 16:19:12', click_type: 'wa', away_seconds: 250, app_opened: 1 },
+  ];
+  const info = { source: 'ads', source_fine: 'google_ads', source_detail: 'تعقيب معاملات الدمام', gclid: 'Cj0KCQiAh9vXBhDKARIsAB12', device: 'موبايل', os: 'Android', browser: 'Chrome', visit_no: 1, city: 'الدمام', region: 'المنطقة الشرقية', country: 'السعودية', cc: 'SA', isp: 'Etihad Etisalat', seconds: 54, last_time: '2026-11-13 16:15:01', oc: '9B5W' };
+  const lines = ev.map((p) => eventLine(p, tpl)).filter(Boolean);
+  return { text: sessionText('الإنجاز السريع', '2026-11-13 16:14:02', lines, info, tpl), buttons: !!markupFor('SITE', info, tpl) };
 }

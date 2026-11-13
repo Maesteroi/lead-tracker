@@ -42,6 +42,9 @@ function fakeApi(over) {
       if (!st.platformAdmin) return j(404, { ok: false, error: 'not_found' });
       if (p === '/v1/platform/overview') return j(200, Object.assign({}, st.overview, { me: st.member ? { owner: false, role: st.member.role, perms: st.member.perms, scoped: true } : { owner: true, perms: ['*'] } }));
       if (st.member && (p === '/v1/platform/telegram' || p === '/v1/platform/team' || p.startsWith('/v1/platform/roles') || p.startsWith('/v1/platform/invites') || p === '/v1/platform/members')) return j(404, { ok: false });
+      if (p === '/v1/platform/tg-templates/preview') { const b = JSON.parse(req.postData()); return j(200, { ok: true, buttons: b.fields.actions !== false, text: '🌐 <b>الإنجاز السريع</b>\n💬 واتساب · رمز <b>#9B5W</b>' + (b.fields.place !== false ? '\n📍 الدمام، السعودية' : '') + (b.fields.gclid !== false ? '\n🎯 GCLID: <code>Cj0KCQ...</code>' : '') }); }
+      if (p === '/v1/platform/tg-templates' && req.method() === 'POST') { const b = JSON.parse(req.postData()); st.tplSaved = (st.tplSaved || []).concat([b]); return j(200, { ok: true, audience: b.audience, fields: b.fields }); }
+      if (p === '/v1/platform/tg-templates') { const F = [['place', 'المكان'], ['gclid', 'رقم النقرة من جوجل (GCLID)'], ['actions', 'أزرار النتيجة']]; const own = { place: true, gclid: false, actions: true }, all = { place: true, gclid: true, actions: true }; return j(200, { ok: true, fields: F.map((x) => ({ key: x[0], label: x[1] })), audiences: { owner: Object.assign({}, own), staff: Object.assign({}, own), platform: Object.assign({}, all) }, defaults: { owner: own, staff: own, platform: all } }); }
       if (p === '/v1/platform/team') return j(200, st.team);
       if (p === '/v1/platform/audit') return j(200, { ok: true, events: [{ at: new Date().toISOString(), kind: 'platform_role_create', ok: true, reason: 'دعم: orgs_view', who: 'محمود' }, { at: new Date().toISOString(), kind: 'verdict_set', ok: true, reason: 'SiteId BOT1 fraud', who: 'سارة' }] });
       if (p.startsWith('/v1/platform/roles') || p.startsWith('/v1/platform/invites') || p === '/v1/platform/members') {
@@ -72,7 +75,7 @@ function fakeApi(over) {
       const range = Number(u.searchParams.get('range')) || 7;
       // تنبيهات تليجرام (tglinks.js)
       if (p === '/v1/dash/tg') return j(200, Object.assign({ ok: true }, st.tg || { manage: true, ready: true, invite: null, chats: [] }));
-      if (p === '/v1/dash/tg/invite') { const b = JSON.parse(req.postData()); st.tgCalls2 = (st.tgCalls2 || []).concat([b]); st.tg = st.tg || { manage: true, ready: true, chats: [] }; st.tg.invite = b.revoke ? null : { link: 'https://t.me/LeadTrackerpro_Bot?start=SiteId123456_0123456789abcdef0123', expires_at: new Date(Date.now() + 7 * 864e5).toISOString(), uses: 0 }; return j(200, { ok: true, invite: st.tg.invite }); }
+      if (p === '/v1/dash/tg/invite') { const b = JSON.parse(req.postData()); st.tgCalls2 = (st.tgCalls2 || []).concat([b]); st.tg = st.tg || { manage: true, ready: true, chats: [] }; st.tg.invites = st.tg.invites || {}; st.tg.invites[b.audience] = b.revoke ? null : { link: 'https://t.me/LeadTrackerpro_Bot?start=SiteId123456_' + (b.audience === 'staff' ? 'ffff' : '0123') + '456789abcdef0123', expires_at: new Date(Date.now() + 7 * 864e5).toISOString(), uses: 0 }; return j(200, { ok: true, invite: st.tg.invites[b.audience] }); }
       if (p === '/v1/dash/tg/remove') { const b = JSON.parse(req.postData()); st.tg.chats = st.tg.chats.filter((c) => c.id !== b.chat); return j(200, { ok: true }); }
       // رفع العملاء المؤكدين (convupload.js)
       if (p === '/v1/dash/conv') return j(200, Object.assign({ ok: true }, st.conv || { linked: false, manage: true }));
@@ -385,6 +388,7 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
     await pg.waitForFunction((x) => document.getElementById('page-title').textContent === x && !document.querySelector('.view .loading'), title);
     t('demo: ' + r + ' opens and its menu item is marked current', (await pg.locator('.side-nav a[aria-current="page"]').getAttribute('data-r')) === r);
     await shot(pg, 'demo-' + r);
+    if (r === 'alerts') t('demo alerts: WhatsApp shows as a channel marked «soon» and cannot be turned on yet', (await pg.locator('.chip.soon', { hasText: 'واتساب · قريبًا' }).count()) >= 1 && await pg.locator('.chip.soon').first().isDisabled());
   }
   await pg.locator('.side-nav a[data-r="statement"]').click();
   await pg.waitForFunction(() => document.getElementById('page-title').textContent === 'كشف الحساب' && document.querySelector('.callout'));
@@ -606,14 +610,14 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
   await pg.context().close(); }
 
 // 23) تنبيهات تليجرام من اللوحة (13 نوفمبر): رابط لأكتر من شخص · الشاتات المربوطة · فصل
-{ const api = fakeApi({ signedIn: true, sites: [{ id: 'SiteId123456', name: 'روضة الصالحين', domains: ['rawda.site'], paired: true }], tg: { manage: true, ready: true, invite: null, chats: [{ id: '9001', name: 'سارة', at: new Date().toISOString() }] } });
+{ const api = fakeApi({ signedIn: true, sites: [{ id: 'SiteId123456', name: 'روضة الصالحين', domains: ['rawda.site'], paired: true }], tg: { manage: true, ready: true, invites: { owner: null, staff: null }, chats: [{ id: '9001', name: 'سارة', audience: 'owner', at: new Date().toISOString() }] } });
   const pg = await page(api, { viewport: { width: 1200, height: 900 } });
   await pg.goto('https://app.maestrolt.com/#/sites');
   await pg.waitForSelector('.tg-block .tg-chats li');
-  t('tg: the site card lists who is linked (سارة) and offers «أنشئ رابط تنبيهات»', /سارة/.test(await pg.locator('.tg-block').innerText()) && (await pg.getByRole('button', { name: 'أنشئ رابط تنبيهات' }).count()) === 1);
-  await pg.getByRole('button', { name: 'أنشئ رابط تنبيهات' }).click();
+  t('tg: the site card lists who is linked (سارة · صاحب الموقع) and offers two links: owner and managers · staff', /سارة · صاحب الموقع والمديرين/.test(await pg.locator('.tg-block').innerText()) && (await pg.getByRole('button', { name: 'أنشئ رابط صاحب الموقع والمديرين' }).count()) === 1 && (await pg.getByRole('button', { name: 'أنشئ رابط الموظفين' }).count()) === 1);
+  await pg.getByRole('button', { name: 'أنشئ رابط الموظفين' }).click();
   await pg.waitForSelector('.tg-block .tg-link');
-  t('tg: the link shows with copy, valid for 7 days, several people, cancellable', /t\.me\/LeadTrackerpro_Bot\?start=SiteId123456_/.test(await pg.locator('.tg-link').inputValue()) && /لأكثر من شخص لمدة 7 أيام/.test(await pg.locator('.tg-block').innerText()) && (await pg.getByRole('button', { name: 'ألغِ الرابط' }).count()) === 1);
+  t('tg: the staff link is made for staff, shows with copy, valid for 7 days, several people, cancellable', api.tgCalls2[0].audience === 'staff' && /start=SiteId123456_ffff/.test(await pg.locator('.tg-link').inputValue()) && /لأكثر من شخص لمدة 7 أيام/.test(await pg.locator('.tg-block').innerText()) && (await pg.getByRole('button', { name: 'ألغِ الرابط' }).count()) === 1 && (await pg.getByRole('button', { name: 'أنشئ رابط صاحب الموقع والمديرين' }).count()) === 1);
   await shot(pg, 'tg-link');
   await pg.locator('.tg-chats').getByRole('button', { name: 'افصل' }).click();
   await pg.getByRole('button', { name: 'اضغط مرة أخرى للفصل' }).click();
@@ -822,6 +826,16 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
   await pg.waitForSelector('#rows tr');
   await pg.locator('#rows tr', { hasText: 'Digital Avenue' }).click();
   t('super admin: the admin drawer links each site to its dashboard', (await pg.locator('#d-sites .open-dash').first().getAttribute('href')).startsWith('/?site=RAgH4vV49gjd'));
+  await pg.keyboard.press('Escape').catch(() => {});
+  await pg.locator('#tab-btn-alerts').click();
+  await pg.waitForSelector('#al-preview .tg-msg');
+  t('admin «alert format»: per recipient type, switches per part, and a live preview (owner default hides GCLID)', (await pg.locator('#tab-alerts .al-row').count()) === 3 && /الدمام/.test(await pg.locator('#al-preview').innerText()) && !/GCLID/.test(await pg.locator('#al-preview').innerText()) && (await pg.locator('#al-preview .tg-btns span').count()) === 5);
+  await pg.locator('#tab-alerts .al-row', { hasText: 'المكان' }).locator('button.switch').click();
+  await pg.waitForFunction(() => !/الدمام/.test(document.getElementById('al-preview').innerText));
+  await pg.locator('#al-save').click();
+  await pg.waitForFunction(() => /حُفظ شكل تنبيهات/.test(document.getElementById('toast').textContent));
+  t('admin «alert format»: turning «place» off updates the preview, and saving sends it for the site owner type', api.tplSaved[0].audience === 'owner' && api.tplSaved[0].fields.place === false);
+  await shot(pg, 'admin-alerts');
   t('super admin: no console errors or CSP violations', pg.errors.length === 0 && pg.csp.length === 0);
   await pg.context().close(); }
 
