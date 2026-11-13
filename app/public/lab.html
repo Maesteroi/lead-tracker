@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>تجربة الساعتين · Maestro LT</title>
+<link rel="icon" href="/favicon.png" type="image/png">
+<link rel="stylesheet" href="/css/app.css">
+<link rel="stylesheet" href="/css/lab.css">
+</head>
+<body>
+<main class="lab">
+  <h1>تجربة: هل كان الموبايل صاحيًا أثناء التواصل؟</h1>
+  <p class="lab-hint">اختر التجربة، ثم اضغط الزر، ونفّذ المطلوب، ثم ارجع لهذه الصفحة. تظهر النتيجة في الجدول تحت.</p>
+  <fieldset class="lab-pick" id="pick">
+    <legend>التجربة</legend>
+    <label><input type="radio" name="sc" value="wa_chat" checked> 1) واتساب: اكتب واقرأ في محادثة دقيقتين</label>
+    <label><input type="radio" name="sc" value="wa_lock"> 2) واتساب: افتحه ثم اقفل الشاشة دقيقتين</label>
+    <label><input type="radio" name="sc" value="call_talk"> 3) اتصال: مكالمة حقيقية دقيقتين</label>
+    <label><input type="radio" name="sc" value="call_lock"> 4) اتصال: افتح شاشة الاتصال ثم اقفل الشاشة دقيقتين</label>
+  </fieldset>
+  <div class="lab-btns">
+    <a class="btn" id="wa" href="https://wa.me/?text=%D8%AA%D8%AC%D8%B1%D8%A8%D8%A9%20Maestro%20LT">افتح واتساب</a>
+    <a class="btn ghost" id="call" href="tel:">افتح الاتصال</a>
+  </div>
+  <p class="lab-live" id="live" aria-live="polite"></p>
+  <table class="lab-tbl">
+    <thead><tr><th>التجربة</th><th>الوقت الحقيقي</th><th>وقت صحوة الموبايل</th><th>النسبة</th><th>نبضات</th><th>أطول نوم</th></tr></thead>
+    <tbody id="rows"></tbody>
+  </table>
+  <button class="btn" type="button" id="copy">انسخ النتائج</button>
+  <p class="lab-hint" id="copied"></p>
+  <pre class="lab-raw" id="raw"></pre>
+</main>
+<script src="/js/lab.js"></script>
+</body>
+</html>
