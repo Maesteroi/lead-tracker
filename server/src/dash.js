@@ -263,5 +263,28 @@ export async function dashReplay(req, env, db, sess, url) {
   if (!rp) return json({ ok: false, error: 'no_replay' }, 404);
   const list = await scoredSessions(db, site.id, new Date(Date.parse(rp.started_at) - 864e5).toISOString(), 2000, langOf(url.searchParams.get('lang'))).catch(() => []);
   const v = list.find((x) => x.session_id === sid);
-  return json(Object.assign({ ok: true, site: { id: site.id, name: site.name }, visit: v ? sessionView(v) : null }, rp));
+  const contact = v && v.contacts ? await contactEvidence(db, site.id, sid, v, sess, langOf(url.searchParams.get('lang'))).catch(() => null) : null;
+  return json(Object.assign({ ok: true, site: { id: site.id, name: site.name }, visit: v ? sessionView(v) : null, contact }, rp));
+}
+
+// احتمالية التواصل لزيارة واحدة بالأدلة (صفحة الفيديو). العميل: الاحتمالية ومدة الزيارة · إدارة المنصة: كل دليل
+async function contactEvidence(db, siteId, sid, v, sess, lang) {
+  const evs = (await db.select('raw_events?client_id=' + eq(siteId) + '&session_id=' + eq(sid) + '&event=in.(click,contact_return)&select=event,click_type,payload,received_at&order=received_at.asc&limit=200')) || [];
+  const clicks = evs.filter((e) => e.event === 'click' && ['wa', 'call'].includes(e.click_type));
+  const ret = evs.filter((e) => e.event === 'contact_return').pop();
+  const ct = (ret && ((ret.payload || {}).click_type || (ret.payload || {}).ct)) || (clicks[0] && clicks[0].click_type) || 'wa';
+  const ch = tr(lang, ct === 'call' ? 'ch.call' : 'ch.wa');
+  const visit = v.seconds == null ? null : duration(lang, Math.round(Number(v.seconds) || 0));
+  const st = ret ? contactStrength((ret.payload || {}).away_seconds, (ret.payload || {}).app_opened, lang, ct) : null;
+  const platformSide = isPlatform(sess) || !!(sess && sess.platform && Array.isArray(sess.platform.perms) && sess.platform.perms.length);
+  const out = { title: tr(lang, 's.likely'), key: st ? st.customer.key : 'unknown', label: st ? st.customer.label : tr(lang, 's.unknown'), estimate: true, visit: visit ? tr(lang, 's.visit', { t: visit }) : null, evidence: null };
+  if (!platformSide) return out;
+  const ev = [];
+  ev.push({ ok: true, text: clicks.length > 1 ? tr(lang, 'ev.many', { n: clicks.length }) : tr(lang, 'ev.clicked', { ch }) });
+  if (!ret) ev.push({ ok: null, text: tr(lang, 'ev.noback', { ch }) });
+  else if (st.key === 'no_app') ev.push({ ok: false, text: tr(lang, 'ev.noapp', { ch }) });
+  else ev.push({ ok: st.key === 'strong' ? true : st.key === 'weak' ? false : null, text: tr(lang, 'ev.back', { t: duration(lang, Math.round(Number((ret.payload || {}).away_seconds) || 0)), ch }) });
+  if (visit) ev.push({ ok: null, text: tr(lang, 's.visit.full', { t: visit }) });
+  if (st) ev.push({ ok: null, text: st.detail });
+  return Object.assign(out, { key: st ? st.key : 'unknown', label: st ? st.label : tr(lang, 's.unknown'), evidence: ev });
 }

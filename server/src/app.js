@@ -11,6 +11,8 @@ import { dashOverview, dashVisits, dashSession, dashLeads, dashSetup, dashOutcom
 import { dashAdsLink, dashAdsAccounts, dashAdsChoose, dashAdsUnlink } from './adslink.js';
 import { dashConv, dashConvActions, dashConvAction, dashConvSend } from './convupload.js';
 import { dashTg, dashTgInvite, dashTgRemove } from './tglinks.js';
+import { tgTemplatesGet, tgTemplatesSave } from './tgtemplates.js';
+import { previewText } from './notify.js';
 
 const SITE_ACT = /^\/v1\/sites\/([A-Za-z0-9]{6,20})\/(rotate-key|install-status|pair-code)$/;
 const ORG_ACT = /^\/v1\/platform\/orgs\/([^/]+)$/;
@@ -61,6 +63,10 @@ export async function handleApp(req, env, db, url, p, fetchImpl) {
     else if (m === 'POST' && p === '/v1/platform/invites/cancel') res = await platformInviteCancel(req, env, db, sess);
     else if (m === 'POST' && p === '/v1/platform/members') res = await platformMember(req, env, db, sess);
     else if (m === 'GET' && p === '/v1/platform/audit') res = await platformAudit(req, env, db, sess);
+    // شكل تنبيهات تليجرام لكل نوع مستلم (tgtemplates.js) + معاينة
+    else if (m === 'GET' && p === '/v1/platform/tg-templates') res = await tgTemplatesGet(req, env, db, sess);
+    else if (m === 'POST' && p === '/v1/platform/tg-templates') res = await tgTemplatesSave(req, env, db, sess);
+    else if (m === 'POST' && p === '/v1/platform/tg-templates/preview') res = await tgPreview(req, sess);
     else res = notFound();
     return finish(res, req, env, true);
   }
@@ -115,3 +121,13 @@ export async function handleApp(req, env, db, url, p, fetchImpl) {
 }
 
 export { authStatus };
+
+// معاينة الشكل من غير حفظ (لوحة الإدارة)
+async function tgPreview(req, sess) {
+  const { FIELDS } = await import('./tgtemplates.js');
+  const { hasPerm, isPlatform } = await import('./sites.js');
+  if (!(isPlatform(sess) || hasPerm(sess, 'telegram'))) return json({ ok: false, error: 'not_found' }, 404);
+  const b = await req.json().catch(() => ({}));
+  const tpl = {}; for (const [k] of FIELDS) tpl[k] = !b.fields || b.fields[k] !== false;
+  return json(Object.assign({ ok: true }, previewText(tpl)));
+}

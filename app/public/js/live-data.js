@@ -98,7 +98,7 @@
     adsUnlink: function (site) { return LT.api('/v1/dash/ads/unlink', { method: 'POST', body: { site: site } }).then(function (r) { if (!r.ok) throw new Error(r.body && r.body.error || 'http'); return r.body; }); },
     // تنبيهات تليجرام للموقع: رابط ربط لأكتر من شخص (tglinks.js على السيرفر)
     tg: function (site) { return LT.api('/v1/dash/tg?site=' + encodeURIComponent(site)).then(function (r) { if (!r.ok) throw new Error('http'); return r.body; }); },
-    tgInvite: function (site, revoke) { return LT.api('/v1/dash/tg/invite', { method: 'POST', body: { site: site, revoke: !!revoke } }).then(function (r) { if (!r.ok) throw new Error(r.body && r.body.error || 'http'); return r.body.invite; }); },
+    tgInvite: function (site, revoke, audience) { return LT.api('/v1/dash/tg/invite', { method: 'POST', body: { site: site, revoke: !!revoke, audience: audience || 'owner' } }).then(function (r) { if (!r.ok) throw new Error(r.body && r.body.error || 'http'); return r.body.invite; }); },
     tgRemove: function (site, chat) { return LT.api('/v1/dash/tg/remove', { method: 'POST', body: { site: site, chat: chat } }).then(function (r) { if (!r.ok) throw new Error('http'); return r.body; }); },
     // رفع العملاء المؤكدين لجوجل أدز بموافقة العميل (convupload.js على السيرفر)
     conv: function (site) { return LT.api('/v1/dash/conv?site=' + encodeURIComponent(site)).then(function (r) { if (!r.ok) throw new Error('http'); return r.body; }); },

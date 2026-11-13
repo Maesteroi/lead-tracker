@@ -613,13 +613,14 @@
   function vAlerts(view) {
     return DATA.alerts(state.site).then(function (d) {
       clear(view);
-      var CH = { tg: T('alerts.ch.tg'), push: T('alerts.ch.push'), email: T('alerts.ch.email') };
+      var CH = { tg: T('alerts.ch.tg'), wa: T('alerts.ch.wa'), push: T('alerts.ch.push'), email: T('alerts.ch.email') };   // واتساب: قريبًا لحد ما محمود يفعّله
       var list = el('div', { class: 'rules' });
       d.rules.forEach(function (r) {
         var sw = r.soon ? pill(T('soon'), '') : el('button', { class: 'switch', type: 'button', role: 'switch', 'aria-checked': String(r.on), 'aria-label': r.name });
         if (!r.soon) sw.addEventListener('click', function () { if (DATA.live) { toast(T('alerts.soon_toggle')); return; } r.on = !r.on; sw.setAttribute('aria-checked', String(r.on)); demoAct(T(r.on ? 'alerts.on' : 'alerts.off', { n: r.name })); });
         var chips = el('div', { class: 'chips' }, Object.keys(CH).map(function (c) {
           var b = el('button', { class: 'chip' + (r.ch.indexOf(c) >= 0 ? ' on' : ''), type: 'button', 'aria-pressed': String(r.ch.indexOf(c) >= 0), text: CH[c] });
+          if (c === 'wa') { b.disabled = true; b.classList.add('soon'); b.setAttribute('aria-pressed', 'false'); b.title = T('alerts.ch.wa.soon'); return b; }
           b.addEventListener('click', function () { var i = r.ch.indexOf(c); if (i >= 0) r.ch.splice(i, 1); else r.ch.push(c); b.classList.toggle('on'); b.setAttribute('aria-pressed', String(i < 0)); });
           return b;
         }));
@@ -676,24 +677,30 @@
               if (rm.getAttribute('data-sure') !== '1') { rm.setAttribute('data-sure', '1'); rm.textContent = T('tg.remove.sure'); return; }
               DATA.tgRemove(s.id, c.id).then(function () { toast(T('tg.removed')); load(); }, function () { toast(T('err.save')); });
             });
-            return el('li', {}, [el('span', { text: '💬 ' + (c.name || T('tg.noname')) }), el('small', { class: 'dim', text: ' · ' + timeAr(c.at) + ' ' }), rm]);
+            return el('li', {}, [el('span', { text: '💬 ' + (c.name || T('tg.noname')) }), el('small', { class: 'dim', text: ' · ' + T('tg.aud.' + (c.audience || 'owner')) + ' · ' + timeAr(c.at) + ' ' }), rm]);
           })));
         } else body.appendChild(el('p', { class: 'muted', text: T('tg.none') }));
         if (!d.manage) return;
         if (!d.ready) { body.appendChild(el('p', { class: 'muted', text: T('tg.not_ready') })); return; }
-        if (d.invite) {
-          var inp = el('input', { type: 'text', readonly: '', class: 'tg-link', dir: 'ltr', value: d.invite.link, 'aria-label': T('tg.link') });
-          var cp = el('button', { class: 'btn sm', type: 'button', text: T('tg.copy') });
-          cp.addEventListener('click', function () { inp.select(); (navigator.clipboard ? navigator.clipboard.writeText(d.invite.link) : Promise.reject()).then(function () { toast(T('tg.copied')); }, function () { toast(T('tg.copy.manual')); }); });
-          var rv = el('button', { class: 'linkish', type: 'button', text: T('tg.revoke') });
-          rv.addEventListener('click', function () { DATA.tgInvite(s.id, true).then(function () { toast(T('tg.revoked')); load(); }, function () { toast(T('err.save')); }); });
-          body.appendChild(el('div', { class: 'tg-row' }, [inp, cp]));
-          body.appendChild(el('p', { class: 'hint' }, [el('span', { text: T('tg.valid', { d: new Date(d.invite.expires_at).toLocaleDateString(LT.locale), n: fmt(d.invite.uses) }) + ' ' }), rv]));
-        } else {
-          var mk = el('button', { class: 'btn sm', type: 'button', text: T('tg.make') });
-          mk.addEventListener('click', function () { mk.disabled = true; DATA.tgInvite(s.id).then(function () { load(); }, function () { mk.disabled = false; toast(T('err.save')); }); });
-          body.appendChild(mk);
-        }
+        // رابطين: صاحب الموقع والمديرين · الموظفين (لكل نوع شكل رسالة من لوحة الإدارة)
+        ['owner', 'staff'].forEach(function (a) {
+          var inv = (d.invites || {})[a] || null;
+          var sub = el('div', { class: 'tg-aud' }, [el('b', { text: T('tg.aud.' + a) }), el('small', { class: 'dim', text: ' · ' + T('tg.aud.' + a + '.d') })]);
+          if (inv) {
+            var inp = el('input', { type: 'text', readonly: '', class: 'tg-link', dir: 'ltr', value: inv.link, 'aria-label': T('tg.link') + ' · ' + T('tg.aud.' + a) });
+            var cp = el('button', { class: 'btn sm', type: 'button', text: T('tg.copy') });
+            cp.addEventListener('click', function () { inp.select(); (navigator.clipboard ? navigator.clipboard.writeText(inv.link) : Promise.reject()).then(function () { toast(T('tg.copied')); }, function () { toast(T('tg.copy.manual')); }); });
+            var rv = el('button', { class: 'linkish', type: 'button', text: T('tg.revoke') });
+            rv.addEventListener('click', function () { DATA.tgInvite(s.id, true, a).then(function () { toast(T('tg.revoked')); load(); }, function () { toast(T('err.save')); }); });
+            sub.appendChild(el('div', { class: 'tg-row' }, [inp, cp]));
+            sub.appendChild(el('p', { class: 'hint' }, [el('span', { text: T('tg.valid', { d: new Date(inv.expires_at).toLocaleDateString(LT.locale), n: fmt(inv.uses) }) + ' ' }), rv]));
+          } else {
+            var mk = el('button', { class: 'btn sm' + (a === 'staff' ? ' ghost' : ''), type: 'button', text: T('tg.make.' + a) });
+            mk.addEventListener('click', function () { mk.disabled = true; DATA.tgInvite(s.id, false, a).then(function () { load(); }, function () { mk.disabled = false; toast(T('err.save')); }); });
+            sub.appendChild(el('div', {}, [mk]));
+          }
+          body.appendChild(sub);
+        });
         body.appendChild(el('p', { class: 'hint', text: T('tg.hint') }));
       }, function () { clear(body); body.appendChild(el('p', { class: 'muted', text: T('tg.err') })); });
     };

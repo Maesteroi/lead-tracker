@@ -15,8 +15,9 @@ const BOT = (env) => String(env.TG_BOT_USERNAME || 'LeadTrackerpro_Bot').replace
 const canManage = (sess, site) => ['owner', 'admin'].includes(roleFor(sess, site.org_id, site.id));
 const linkOf = (env, siteId, code) => 'https://t.me/' + BOT(env) + '?start=' + siteId + '_' + code;
 
+export const LINK_AUDIENCES = ['owner', 'staff'];   // صاحب الموقع والمديرين · الموظف (شكل الرسالة من tgtemplates.js)
 export async function chatsFor(db, siteId) {
-  try { return ((await db.select('tg_links?client_id=' + eq(siteId) + '&select=chat_id&limit=50')) || []).map((r) => String(r.chat_id)); }
+  try { return ((await db.select('tg_links?client_id=' + eq(siteId) + '&select=chat_id,audience&limit=50')) || []).map((r) => ({ chat: String(r.chat_id), audience: LINK_AUDIENCES.includes(r.audience) ? r.audience : 'owner' })); }
   catch (e) { return []; }   // قبل 0015
 }
 export async function chatLinked(db, siteId, chatId) {
@@ -24,8 +25,8 @@ export async function chatLinked(db, siteId, chatId) {
 }
 
 // ── اللوحة ──
-async function activeInvite(env, db, siteId) {
-  const r = await db.one('tg_invites?client_id=' + eq(siteId) + '&revoked_at=is.null&expires_at=gt.' + encodeURIComponent(new Date().toISOString()) + '&select=id,code_enc,expires_at,uses&order=created_at.desc');
+async function activeInvite(env, db, siteId, audience) {
+  const r = await db.one('tg_invites?client_id=' + eq(siteId) + '&audience=eq.' + audience + '&revoked_at=is.null&expires_at=gt.' + encodeURIComponent(new Date().toISOString()) + '&select=id,code_enc,expires_at,uses&order=created_at.desc');
   if (!r) return null;
   let code = null;
   try { code = await openToken(env, r.code_enc, 'tginv:' + siteId); } catch (e) { return null; }
@@ -36,10 +37,11 @@ export async function dashTg(req, env, db, sess, url) {
   const site = await loadSite(db, sess, url.searchParams.get('site'));
   if (!site) return notFound();
   const manage = canManage(sess, site);
-  const chats = ((await db.select('tg_links?client_id=' + eq(site.id) + '&select=chat_id,name,created_at&order=created_at.asc&limit=50').catch(() => [])) || []);
-  return json({ ok: true, manage, ready: !!env.TG_TOKEN && tokenKeyReady(env),
-    invite: manage ? await activeInvite(env, db, site.id).catch(() => null) : null,
-    chats: chats.map((c) => ({ id: manage ? String(c.chat_id) : null, name: c.name || '', at: c.created_at })) });
+  const chats = ((await db.select('tg_links?client_id=' + eq(site.id) + '&select=chat_id,name,audience,created_at&order=created_at.asc&limit=50').catch(() => [])) || []);
+  const invites = {};
+  if (manage) for (const a of LINK_AUDIENCES) invites[a] = await activeInvite(env, db, site.id, a).catch(() => null);
+  return json({ ok: true, manage, ready: !!env.TG_TOKEN && tokenKeyReady(env), invites: manage ? invites : null, invite: manage ? invites.owner : null,
+    chats: chats.map((c) => ({ id: manage ? String(c.chat_id) : null, name: c.name || '', audience: LINK_AUDIENCES.includes(c.audience) ? c.audience : 'owner', at: c.created_at })) });
 }
 
 export async function dashTgInvite(req, env, db, sess) {
@@ -49,14 +51,15 @@ export async function dashTgInvite(req, env, db, sess) {
   if (!canManage(sess, site)) return json({ ok: false, error: 'role' }, 403);
   if (!env.TG_TOKEN || !tokenKeyReady(env)) return json({ ok: false, error: 'not_configured' }, 503);
   const now = new Date().toISOString();
-  // رابط واحد شغال للموقع: الجديد بيلغي القديم
-  await db.update('tg_invites?client_id=' + eq(site.id) + '&revoked_at=is.null', { revoked_at: now });
+  const audience = LINK_AUDIENCES.includes(b.audience) ? b.audience : 'owner';
+  // رابط واحد شغال لكل نوع مستلم في الموقع: الجديد بيلغي القديم من نفس النوع
+  await db.update('tg_invites?client_id=' + eq(site.id) + '&audience=eq.' + audience + '&revoked_at=is.null', { revoked_at: now });
   if (b.revoke === true) { await audit(db, sess.user.id, 'tg_invite_revoked', true, site.id); return json({ ok: true, invite: null }); }
   const code = randomToken(10);   // 20 حرف hex
   const exp = new Date(Date.now() + INVITE_DAYS * 864e5).toISOString();
-  await db.insert('tg_invites', [{ client_id: site.id, code_hash: await sha256('tginv|' + code), code_enc: await sealToken(env, code, 'tginv:' + site.id), created_by: sess.user.id, expires_at: exp }], { returning: false });
-  await audit(db, sess.user.id, 'tg_invite_created', true, site.id);
-  return json({ ok: true, invite: { link: linkOf(env, site.id, code), expires_at: exp, uses: 0 } });
+  await db.insert('tg_invites', [{ client_id: site.id, audience, code_hash: await sha256('tginv|' + code), code_enc: await sealToken(env, code, 'tginv:' + site.id), created_by: sess.user.id, expires_at: exp }], { returning: false });
+  await audit(db, sess.user.id, 'tg_invite_created', true, site.id + ' ' + audience);
+  return json({ ok: true, audience, invite: { link: linkOf(env, site.id, code), expires_at: exp, uses: 0 } });
 }
 
 export async function dashTgRemove(req, env, db, sess) {
@@ -80,7 +83,7 @@ export async function handleBotText(env, db, msg, reply) {
   const name = String((msg.chat || {}).title || [((msg.from || {}).first_name || ''), ((msg.from || {}).last_name || '')].join(' ')).trim().slice(0, 60);
   const m = START_RE.exec(text);
   if (m) {
-    const inv = await db.one('tg_invites?code_hash=eq.' + await sha256('tginv|' + m[2]) + '&select=id,client_id,expires_at,revoked_at,uses').catch(() => null);
+    const inv = await db.one('tg_invites?code_hash=eq.' + await sha256('tginv|' + m[2]) + '&select=id,client_id,audience,expires_at,revoked_at,uses').catch(() => null);
     if (!inv) return null;   // كود مش بتاعنا: غالبًا رابط من الشيت
     if (inv.client_id !== m[1] || inv.revoked_at || Date.parse(inv.expires_at) < Date.now()) {
       await reply('⚠️ انتهت صلاحية هذا الرابط أو أُلغي. اطلب رابطًا جديدًا من صاحب الموقع.');
@@ -88,7 +91,8 @@ export async function handleBotText(env, db, msg, reply) {
     }
     const site = await db.one('clients?id=' + eq(inv.client_id) + '&select=id,name');
     if (!site) { await reply('⚠️ الموقع غير موجود.'); return { linked: false }; }
-    await db.insert('tg_links', [{ client_id: site.id, chat_id: chat, name: name || null, invite_id: inv.id }], { onConflict: 'client_id,chat_id', ignoreDuplicates: true, returning: false });
+    // نفس الشات بيفتح رابط تاني للموقع ← نوعه بيتحدّث (مثلًا من موظف لمدير)
+    await db.insert('tg_links', [{ client_id: site.id, chat_id: chat, name: name || null, invite_id: inv.id, audience: LINK_AUDIENCES.includes(inv.audience) ? inv.audience : 'owner' }], { onConflict: 'client_id,chat_id', merge: true, returning: false });
     await db.update('tg_invites?id=' + eq(inv.id), { uses: (Number(inv.uses) || 0) + 1 });
     await reply('✅ تم ربطك بتنبيهات <b>' + esc(site.name || site.id) + '</b>.\nستصلك هنا زيارات الموقع وطلبات التواصل أولًا بأول.\nلإيقافها أرسل /stop');
     return { linked: true, site, name };
