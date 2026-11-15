@@ -66,18 +66,19 @@ async function setup() {
   return { w, env, owner, pc, gc, site };
 }
 
-test('negatives by the method: [زواج] exact, «خطابة» phrase with its written forms, «عقد زواج» narrowed; service terms are never negatives; adding sends every form', async () => {
+test('negatives by the method: [زواج] exact, «خطابة» phrase with its written forms, a negative that hits a bad keyword says so; service terms are never negatives; adding sends every form', async () => {
   const s = await setup();
   const r = (await s.gc(s.owner, '/v1/dash/negatives?site=' + s.site.id)).body;
   const by = Object.fromEntries(r.suggestions.map((x) => [x.text + '|' + x.match, x]));
   assert.equal(by['زواج|EXACT'].reason, 'generic', 'a bare word from your own vocabulary: exact only');
   assert.deepEqual([by['خطابة|PHRASE'].clicks, by['خطابة|PHRASE'].conv, by['خطابة|PHRASE'].variants.length], [14, 3, 5]);
-  assert.equal(by['إنشاء عقد زواج|PHRASE'].narrowed.from, 'عقد زواج');
-  assert.equal(by['جمعية الزواج في جدة|EXACT'].reason, 'off_offer', 'does not name the service, 2 clicks, no result');
+  assert.deepEqual(by['عقد زواج|PHRASE'].blocks_own, ['توثيق عقد زواج سعودي من أجنبية'], 'your own keyword contains a «not your service» phrase: it is not protected, and the negative says it will block it too');
+  assert.ok(!by['جمعية الزواج في جدة|EXACT'], 'same topic but does not name the service: watched, not suggested at 2 clicks');
   assert.ok(!by['عايز اتجوز من السعوديه|EXACT'], 'one click is not enough to judge');
-  assert.ok(!Object.keys(by).some((k) => /شروط|سعودية من اجنبي|ابشر|أبشر/.test(k)), 'questions are watched, service terms are kept, and no unsafe negative is offered');
+  assert.ok(!Object.keys(by).some((k) => /شروط|سعودية من اجنبي/.test(k)), 'questions are watched and service terms are kept');
   assert.deepEqual(r.audit.bad_keywords.map((k) => [k.keyword, k.word]).sort(), [['أبشر تصريح زواج', 'أبشر'], ['توثيق عقد زواج سعودي من أجنبية', 'عقد زواج']], 'keywords in the account that contain a «not your service» word are pointed out for the owner to decide');
-  assert.deepEqual([r.audit.broad_pct > 50, r.audit.adj_conv, r.audit.info_clicks, r.audit.unsafe], [true, 4, 5, ['عقد زواج', 'أبشر']], 'Google counted conversions on «not your service» searches; words with no safe negative are listed');
+  assert.deepEqual(by['أبشر|PHRASE'].blocks_own, ['أبشر تصريح زواج']);
+  assert.deepEqual([r.audit.broad_pct > 50, r.audit.adj_conv, r.audit.unsafe], [true, 4, []], 'Google counted conversions on «not your service» searches');
   const a = await s.pc(s.owner, '/v1/dash/negatives/decide', { site: s.site.id, id: by['خطابة|PHRASE'].id, decision: 'add' });
   assert.equal(a.status, 200);
   assert.deepEqual(s.w.g.negMutations.map((m) => m.keyword.text), ['خطابة', 'خطابه', 'الخطابة', 'الخطابه', 'خطابات']);
