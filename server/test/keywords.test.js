@@ -22,8 +22,8 @@ async function setup() {
   const day = new Date(Date.now() - 2 * 864e5).toISOString().slice(0, 10);
   const t = (term, o) => Object.assign({ client_id: site.id, customer_id: CID, day, search_term: term, keyword: 'تصميم داخلي', match_type: 'PHRASE', campaign_id: '11', campaign_name: 'شادو', ad_group_id: '501', ad_group_name: 'تصميم', clicks: 1, impressions: 10, cost_micros: 1000000, conversions: 0 }, o);
   w.fs.t.ads_search_terms = [
-    t('محلات ديكور جدة', { clicks: 3, conversions: 1 }),                       // جابت تحويل
-    t('شركة تصميم داخلي في الرياض', { clicks: 2 }),                             // من كلمة بتجيب عملاء (عبارة)
+    t('محلات ديكور جدة', { clicks: 3, conversions: 1, won_conv: 1 }),          // جوجل نسب لها «عميل مؤكد»
+    t('شركة تصميم داخلي في الرياض', { clicks: 2, real_conv: 1 }),              // جوجل نسب لها «تواصل حقيقي»
     t('تصميم داخلي', { clicks: 6, conversions: 2 }),                            // موجودة ككلمة أصلًا
     t('تصميم داخلي مجاني', { clicks: 3, conversions: 1 }),                      // نية بعيدة
     t('ديكور شقق', { clicks: 1, keyword: 'ديكور', ad_group_id: '502' }),       // نقرة واحدة من غير نتيجة
@@ -35,11 +35,11 @@ async function setup() {
   return { w, env, owner, pc, gc, site };
 }
 
-test('keywords: suggests a converting term and a term from a keyword that brings contacts; never an existing keyword, a far-intent term, or a single click', async () => {
+test('keywords: suggests full search terms that brought a deal («done») or a real conversation, by outcome; never an existing keyword, a far-intent term, or clicks alone', async () => {
   const s = await setup();
   const r = (await s.gc(s.owner, '/v1/dash/keywords?site=' + s.site.id)).body;
   assert.equal(r.linked, true);
-  assert.deepEqual(r.suggestions.map((x) => [x.text, x.reason]), [['محلات ديكور جدة', 'conv'], ['شركة تصميم داخلي في الرياض', 'contacts']]);
+  assert.deepEqual(r.suggestions.map((x) => [x.text, x.reason, x.match]), [['محلات ديكور جدة', 'won', 'EXACT'], ['شركة تصميم داخلي في الرياض', 'real', 'EXACT']]);
   assert.deepEqual(r.suggestions[0].group, { id: '501', name: 'تصميم', campaign: 'شادو' });
   assert.equal((s.w.g.kwMutations || []).length, 0, 'nothing is added by itself');
 });
@@ -71,10 +71,26 @@ test('keywords: Google refusing is shown with its message and the suggestion sta
 
 test('keywords: only terms that name the service (from the business brief); no brief = no suggestions, just «describe your business first»', async () => {
   const s = await setup();
-  s.w.fs.t.ads_search_terms.push(Object.assign({}, s.w.fs.t.ads_search_terms[0], { search_term: 'جمعية ديكور خيرية', clicks: 4, conversions: 2 }), Object.assign({}, s.w.fs.t.ads_search_terms[0], { search_term: 'عايز اتجوز من السعوديه', clicks: 3, conversions: 1 }));
+  s.w.fs.t.ads_search_terms.push(Object.assign({}, s.w.fs.t.ads_search_terms[0], { search_term: 'جمعية ديكور خيرية', clicks: 4, conversions: 2, won_conv: 0 }), Object.assign({}, s.w.fs.t.ads_search_terms[0], { search_term: 'عايز اتجوز من السعوديه', clicks: 3, conversions: 1, won_conv: 0 }));
   const r = (await s.gc(s.owner, '/v1/dash/keywords?site=' + s.site.id)).body;
   assert.ok(!r.suggestions.some((x) => /جمعية|اتجوز/.test(x.text)), 'an excluded word or a term without the service is never suggested, even with Google conversions');
   s.w.fs.t.site_brief = [];
   const n = (await s.gc(s.owner, '/v1/dash/keywords?site=' + s.site.id)).body;
   assert.deepEqual([n.suggestions.length, n.need_brief], [0, true]);
+});
+
+test('keywords by outcome: a part shared by two different terms that brought deals becomes a phrase keyword; Google conversions alone need two and only before real-conversation data', async () => {
+  const s = await setup();
+  const base = s.w.fs.t.ads_search_terms[0];
+  s.w.fs.t.ads_search_terms.push(Object.assign({}, base, { search_term: 'افضل شركة تصميم داخلي', won_conv: 1, conversions: 1 }), Object.assign({}, base, { search_term: 'مهندس ديكور', conversions: 3, won_conv: 0 }));
+  let r = (await s.gc(s.owner, '/v1/dash/keywords?site=' + s.site.id)).body;
+  const g = r.suggestions.find((x) => x.reason === 'group');
+  assert.deepEqual([g.text, g.match, g.terms.length], ['شركة تصميم داخلي', 'PHRASE', 2]);
+  assert.ok(r.suggestions.some((x) => x.text === 'مهندس ديكور' && x.reason === 'conv' && x.weak), 'Google conversions only: shown as weak evidence');
+  s.w.fs.t.ads_search_terms.push(Object.assign({}, base, { search_term: 'ديكورات', real_conv: 3, won_conv: 0 }));
+  r = (await s.gc(s.owner, '/v1/dash/keywords?site=' + s.site.id)).body;
+  assert.ok(!r.suggestions.some((x) => x.text === 'مهندس ديكور'), 'with real-conversation data, Google conversions alone are not enough');
+  const a = await s.pc(s.owner, '/v1/dash/keywords/decide', { site: s.site.id, id: r.suggestions.find((x) => x.reason === 'group').id, decision: 'add' });
+  assert.equal(a.status, 200);
+  assert.equal(s.w.g.kwMutations.at(-1).keyword.matchType, 'PHRASE');
 });

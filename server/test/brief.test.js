@@ -51,12 +51,17 @@ test('brief: the owner saves what the business offers and does not; negatives th
   assert.equal((await s.pc(staff, '/v1/dash/brief', Object.assign({ site: s.site.id }, BRIEF))).status, 403);
 });
 
-test('brief: a term with no service word that spent without a result is suggested as «does not name your service» (exact)', async () => {
+test('brief: a term with no result is judged by money against the cost per result, not by clicks; below the line it is watched with what is left', async () => {
   const s = await setup();
   s.w.fs.t.site_brief = [{ client_id: s.site.id, offer: BRIEF.offer, exclude: [] }];
-  s.w.fs.t.ads_search_terms.push(Object.assign({}, s.w.fs.t.ads_search_terms[0], { search_term: 'محامي طلاق في جدة', clicks: 2, conversions: 0 }), Object.assign({}, s.w.fs.t.ads_search_terms[0], { search_term: 'جمعية الزواج في جدة', clicks: 2, conversions: 0 }));
+  const n0 = (await s.gc(s.owner, '/v1/dash/negatives?site=' + s.site.id)).body;
+  assert.equal(n0.level, 'conv', 'no real-contact or confirmed-customer uploads yet: judged by Google conversions, said plainly');
+  const T = n0.target, base = s.w.fs.t.ads_search_terms[0];
+  s.w.fs.t.ads_search_terms.push(Object.assign({}, base, { search_term: 'محامي طلاق في جدة', clicks: 2, conversions: 0, cost_micros: Math.round(T * 4 * 1e6) }),
+    Object.assign({}, base, { search_term: 'جمعية الزواج في جدة', clicks: 9, conversions: 0, cost_micros: Math.round(T * 0.8 * 1e6) }));
   const n = (await s.gc(s.owner, '/v1/dash/negatives?site=' + s.site.id)).body;
-  assert.equal(n.suggestions.find((x) => x.text === 'محامي طلاق في جدة').reason, 'off_offer', 'off the topic entirely, 2 clicks, no result: exact');
-  assert.ok(!n.suggestions.some((x) => x.text === 'جمعية الزواج في جدة'), 'same topic (has «زواج») but does not name the service: watched until 5 clicks');
+  assert.equal(n.suggestions.find((x) => x.text === 'محامي طلاق في جدة').reason, 'no_result', 'spent well over 1.5× the cost of one result, none came: exact');
+  assert.ok(!n.suggestions.some((x) => x.text === 'جمعية الزواج في جدة'), '9 clicks but under the money line: not suggested');
+  assert.ok(n.watch.some((w) => w.term === 'جمعية الزواج في جدة' && w.left > 0), 'watched, with what is left before judging');
   assert.deepEqual(frequentWords([{ search_term: 'تصريح زواج', clicks: 1 }], { offer: ['تصريح زواج'], exclude: [] }).map((w) => w.word), [], 'the service words themselves are not offered for classifying');
 });

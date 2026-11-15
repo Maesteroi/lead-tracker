@@ -150,9 +150,9 @@ test('operations are counted per request, the run is logged, and no developer to
   const s = await setup();
   const out = await s.tick();
   assert.equal(out.operations, s.g.calls.length);                                                 // customer · campaigns · policy · يوم · أنواع · عبارات · ضغطات · أماكن
-  assert.equal(out.operations, 8);
+  assert.equal(out.operations, 9);
   const run = s.fs.t.ads_pull_runs[0];
-  assert.deepEqual([run.source, run.ok, run.operations, run.day], ['server', true, 8, '2026-11-09']);
+  assert.deepEqual([run.source, run.ok, run.operations, run.day], ['server', true, 9, '2026-11-09']);
   assert.deepEqual(run.rows, { campaigns: 2, terms: 3, clicks: 3, places: 3 });
   assert.equal(s.g.devTokenSeen, false);
   assert.ok(s.g.calls.every((c) => c.version === 'v26' && c.customer === CID));
@@ -160,7 +160,7 @@ test('operations are counted per request, the run is logged, and no developer to
   // (كان الاختبار بيقع لوحده بعد 11 نوفمبر 06:00 UTC)
   s.fs.t.ads_pull_runs.forEach((r) => { r.at = new Date().toISOString(); });
   const st = await s.call('GET', '/v1/admin/ads/status', undefined, admin);
-  assert.equal(st.body.operations_24h.server, 8); assert.equal(st.body.limit, 15000);
+  assert.equal(st.body.operations_24h.server, 9); assert.equal(st.body.limit, 15000);
 });
 
 test('one account-day per tick; older days follow newest first; then idle', async () => {
@@ -297,8 +297,8 @@ test('usage warning at 70% rides on the daily health message', async () => {
   await s.call('POST', '/v1/admin/ads/usage', { source: 'apps_script', operations: 10600 }, admin);
   s.fs.t.ads_pull_runs[0].at = new Date(NOW.getTime() - 3600000).toISOString();
   await s.tick();
-  assert.match(s.g.telegram[0].text, /استهلاك الـAPI 10608 من 15000/);
-  assert.equal(s.fs.t.ads_account_health[0].usage_24h, 10608);
+  assert.match(s.g.telegram[0].text, /استهلاك الـAPI 10609 من 15000/);
+  assert.equal(s.fs.t.ads_account_health[0].usage_24h, 10609);
   assert.equal((await s.call('POST', '/v1/admin/ads/usage', { operations: -1 }, admin)).status, 400);
 });
 

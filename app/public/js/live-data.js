@@ -128,6 +128,7 @@
     conv: function (site) { return LT.api('/v1/dash/conv?site=' + encodeURIComponent(site)).then(function (r) { if (!r.ok) throw new Error('http'); return r.body; }); },
     convActions: function (site) { return LT.api('/v1/dash/conv/actions?site=' + encodeURIComponent(site)).then(function (r) { if (!r.ok) throw new Error(r.body && r.body.error || 'http'); return r.body.actions || []; }); },
     convAction: function (site, body) { return LT.api('/v1/dash/conv/action', { method: 'POST', body: Object.assign({ site: site }, body) }).then(function (r) { if (!r.ok) throw new Error(r.body && r.body.error || 'http'); return r.body.action; }); },
+    convSendReal: function (site) { return LT.api('/v1/dash/conv/send', { method: 'POST', body: { site: site, kind: 'real' } }).then(function (r) { if (!r.ok) throw new Error(r.body && r.body.error || 'http'); return r.body; }); },
     convSend: function (site, codes) { return LT.api('/v1/dash/conv/send', { method: 'POST', body: { site: site, codes: codes } }).then(function (r) { if (!r.ok) throw new Error(r.body && r.body.error || 'http'); return r.body; }); },
     pairCode: function (site) { return LT.api('/v1/sites/' + encodeURIComponent(site) + '/pair-code', { method: 'POST' }).then(function (r) { if (r.status !== 201) throw new Error(r.status === 403 ? 'role' : 'http'); return r.body; }); },
     clients: function (range) {

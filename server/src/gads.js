@@ -85,6 +85,11 @@ export const Q = {
     'search_term_view.search_term, metrics.clicks, metrics.impressions, metrics.cost_micros, metrics.conversions ' +
     "FROM search_term_view WHERE segments.date = '" + day1(d) + "' AND metrics.impressions > 0",
 
+  // عبارة البحث ← إجراء التحويل (all_conversions علشان الإجراء الثانوي «تواصل حقيقي» مابيدخلش في conversions)
+  searchTermActions: (d) => 'SELECT campaign.id, ad_group.id, segments.keyword.info.text, segments.keyword.info.match_type, search_term_view.search_term, ' +
+    'segments.conversion_action_name, metrics.all_conversions ' +
+    "FROM search_term_view WHERE segments.date = '" + day1(d) + "' AND metrics.all_conversions > 0",
+
   // نفس حقول سكريبت الحساب المجرّب (google-ads-script/click-collector.js)
   clicks: (d) => 'SELECT click_view.gclid, campaign.id, campaign.name, ad_group.name, click_view.keyword_info.text, click_view.keyword_info.match_type, ' +
     'segments.date, segments.device, segments.ad_network_type, segments.click_type, segments.slot, click_view.page_number, ' +
