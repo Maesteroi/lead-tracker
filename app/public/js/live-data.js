@@ -84,7 +84,7 @@
         return (b.sites || []).map(function (s) {
           return { id: s.id, name: s.name, domain: (s.domains || [])[0] || '', installed: s.installed, paired: s.paired, plugin: s.plugin || null,
             delivery: s.delivery.slice().reverse().map(function (d) { return d.pct; }), ads: s.ads, ads_state: s.ads_state || null, role: s.role || null,
-            account: s.ads_state && s.ads_state.account ? s.ads_state.account.replace(/^(\d{3})(\d{3})(\d+)$/, '$1-$2-$3') : '', template: null, own: 0, last_event: s.last_event };
+            account: s.ads_state && s.ads_state.account ? s.ads_state.account.replace(/^(\d{3})(\d{3})(\d+)$/, '$1-$2-$3') : '', template: null, own: s.own || 0, last_event: s.last_event };
         });
       });
     },
@@ -106,6 +106,11 @@
     // الاشتراك والدفع بالإيصال (billing.js · payments.js)
     billing: function (org) { return LT.api('/v1/dash/billing?org=' + encodeURIComponent(org)).then(function (r) { if (!r.ok) throw new Error('http'); return r.body; }); },
     billingPay: function (body) { return LT.api('/v1/dash/billing/pay', { method: 'POST', body: body }).then(function (r) { if (!r.ok) throw new Error(r.body && r.body.error || 'http'); return r.body; }); },
+    // «امنعه في جوجل» و«هذه زيارتي» (blocks.js)
+    blockIp: function (site, sid, reason) { return LT.api('/v1/dash/block', { method: 'POST', body: { site: site, sid: sid, reason: reason } }).then(function (r) { if (!r.ok) { var e = new Error(r.body && r.body.error || 'http'); e.detail = r.body && r.body.detail; throw e; } return r.body; }); },
+    unblockIp: function (site, id) { return LT.api('/v1/dash/unblock', { method: 'POST', body: { site: site, id: id } }).then(function (r) { if (!r.ok) throw new Error('http'); return r.body; }); },
+    blocks: function (site) { return LT.api('/v1/dash/blocks?site=' + encodeURIComponent(site)).then(function (r) { if (!r.ok) throw new Error('http'); return r.body; }); },
+    ownDevice: function (site, sid, remove) { return LT.api('/v1/dash/own', { method: 'POST', body: remove ? { site: site, remove: remove } : { site: site, sid: sid } }).then(function (r) { if (!r.ok) throw new Error(r.body && r.body.error || 'http'); return r.body; }); },
     // فهم النشاط (brief.js)
     brief: function (site) { return LT.api('/v1/dash/brief?site=' + encodeURIComponent(site)).then(function (r) { if (!r.ok) throw new Error('http'); return r.body; }); },
     briefSave: function (site, b) { return LT.api('/v1/dash/brief', { method: 'POST', body: { site: site, offer: b.offer, exclude: b.exclude, about: b.about || '', fears: b.fears || [] } }).then(function (r) { if (!r.ok) { var e = new Error(r.body && r.body.error || 'http'); e.label = r.body && r.body.label; throw e; } return r.body; }); },

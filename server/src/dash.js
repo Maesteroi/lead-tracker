@@ -19,6 +19,7 @@ import { replaySet, loadReplay } from './replay.js';
 import { adsState } from './adslink.js';
 import { adsSummary } from './adsdash.js';
 import { sourceTree } from './sources.js';
+import { ownSet, isOwn } from './blocks.js';
 
 const RANGES = new Set([1, 7, 14, 30, 90]);
 const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -48,7 +49,12 @@ export async function scoredSessions(db, siteId, sinceTs, limit, lang) {
   const list = (await db.req('POST', 'rpc/dash_sessions', { p_site: siteId, p_since: sinceTs, p_limit: limit })) || [];
   const verdicts = (await db.select('protection_verdicts?client_id=' + eq(siteId) + '&select=session_id,verdict').catch(() => [])) || [];
   const vm = new Map(verdicts.map((v) => [v.session_id, v.verdict]));
-  return list.map((s) => Object.assign({}, s, scoreSession(s, vm.get(s.session_id), lang), { lang: lang || 'ar', verdict: vm.get(s.session_id) || null, outside: outsideTarget(s.country_code, s.target_geo) }));
+  // زيارات أجهزة صاحب الموقع وفريقه («هذه زيارتي») مابتتحسبش في أي رقم
+  const own = await ownSet(db, siteId);
+  const out = list.filter((s) => !isOwn(own, s)).map((s) => Object.assign({}, s, scoreSession(s, vm.get(s.session_id), lang), { lang: lang || 'ar', verdict: vm.get(s.session_id) || null, outside: outsideTarget(s.country_code, s.target_geo) }));
+  // اللي اتشال (علشان الأرقام اليومية تتظبط هي كمان)
+  Object.defineProperty(out, 'own', { value: list.filter((s) => isOwn(own, s)), enumerable: false });
+  return out;
 }
 const dayOf = (s) => (/^\d{4}-\d{2}-\d{2}/.test(String(s.first_time || '')) ? String(s.first_time).slice(0, 10) : riyadhDay(Date.parse(s.started_at)));
 
@@ -73,6 +79,8 @@ export async function dashOverview(req, env, db, sess, url) {
   const [all, rp] = await Promise.all([scoredSessions(db, site.id, sinceTs, 2000, lang), replaySet(db, site.id, sinceTs)]);
   const sessions = all.filter(inPeriod(pd));
   for (const x of sessions) x.replay = rp.has(x.session_id);
+  // زيارات أجهزة صاحب الموقع («هذه زيارتي») بتتشال من الأرقام اليومية كمان
+  for (const o of (all.own || []).filter(inPeriod(pd))) { const d = days.find((x) => x.day === dayOf(o)); if (d) { d.sessions = Math.max(0, d.sessions - 1); d.pageviews = Math.max(0, d.pageviews - num(o.pages)); if (o.contacts) d.contacts = Math.max(0, d.contacts - String(o.contacts).split(',').filter(Boolean).length); } }
   const sc = new Map();
   for (const x of sessions) { const k = dayOf(x); const c = sc.get(k) || { real: 0, suspicious: 0, high: 0 }; c[x.status]++; sc.set(k, c); }
   for (const d of days) { const c = sc.get(d.day) || { real: 0, suspicious: 0, high: 0 }; d.real = c.real; d.suspicious = c.suspicious; d.high = c.high; }
@@ -236,7 +244,7 @@ export async function dashSetup(req, env, db, sess) {
     const last = await db.one('raw_events?client_id=' + eq(c.id) + '&select=received_at&order=received_at.desc');
     const d = deliv.filter((r) => r.client_id === c.id);
     out.push({ id: c.id, name: c.name, domains: c.domains || [], status: c.status, paired: !!c.paired_at, installed: !!last, last_event: last ? last.received_at : null,
-      plugin: d[0] ? d[0].plugin_version : null, delivery: d.map((r) => ({ day: r.day, pct: r.pv_pct, ok: r.ok })), ads: await adsLinked(db, c.id), ads_state: await adsState(db, c.id), role: roleFor(sess, c.org_id, c.id) });
+      plugin: d[0] ? d[0].plugin_version : null, delivery: d.map((r) => ({ day: r.day, pct: r.pv_pct, ok: r.ok })), ads: await adsLinked(db, c.id), ads_state: await adsState(db, c.id), own: ((await db.select('own_devices?client_id=' + eq(c.id) + '&select=id').catch(() => [])) || []).length, role: roleFor(sess, c.org_id, c.id) });
   }
   return json({ ok: true, sites: out });
 }

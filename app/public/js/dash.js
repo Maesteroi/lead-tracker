@@ -393,6 +393,28 @@
   }
 
   // زيارة حقيقية (من السيرفر): الدرجة والأسباب من الحماية، والمسار بيتحمّل لما تفتح الزيارة
+  // «امنعه في جوجل» (بتأكيد) و«هذه زيارتي» من تفاصيل الزيارة (15 نوفمبر)
+  function visitActions(v, after) {
+    var box = el('section', { class: 'd-sec v-acts' }, [el('h3', { class: 'legend', text: T('va.title') })]);
+    var row = el('div', { class: 'v-acts-row' });
+    if (state.adsOn !== false && v.status !== 'real' && v.verdict !== 'real' && v.ad !== false) {
+      var blk = el('button', { class: 'btn sm', type: 'button', text: T('va.block') }), sure = false;
+      blk.addEventListener('click', function () {
+        if (!sure) { sure = true; blk.textContent = T('va.block.sure'); return; }
+        blk.disabled = true;
+        DATA.blockIp(state.site, v.id, (v.reasons || [])[0] || '').then(function (r) {
+          toast(r.already ? T('va.block.again') : T(r.dc ? 'va.block.dc' : 'va.block.ok')); blk.textContent = T('va.blocked'); if (after) after();
+        }, function (e) { blk.disabled = false; sure = false; blk.textContent = T('va.block'); var k = 'va.e.' + e.message; toast(T(k) === k ? T('va.e.google') : T(k)); });
+      });
+      row.appendChild(blk);
+    }
+    var mine = el('button', { class: 'btn ghost sm', type: 'button', text: T('va.own') });
+    mine.addEventListener('click', function () { mine.disabled = true; DATA.ownDevice(state.site, v.id).then(function () { toast(T('va.own.ok')); closeDrawer(); if (after) after(); }, function () { mine.disabled = false; toast(T('err.save')); }); });
+    row.appendChild(mine);
+    box.appendChild(row);
+    box.appendChild(el('p', { class: 'hint', text: T('va.hint') }));
+    return box;
+  }
   function openLiveVisit(v, after) {
     var body = clear($('d-body'));
     $('d-title').textContent = placeOf(v);
@@ -417,6 +439,7 @@
       [T('f.source'), srcName(v.src) + (v.kw ? ' · ' + v.kw : '')], [T('f.device'), v.device + (v.os ? ' · ' + v.os : '')], [T('f.network'), shortIsp(v.isp)], [T('f.landing'), v.landing || '—'],
       [T('f.duration'), v.dur == null ? '—' : LT.n(v.dur, 'second')], [T('f.visit_no'), String(v.visit_no || 1)], [T('f.code'), v.code ? '#' + v.code : '—'],
     ].concat(v.repeats > 1 ? [[T('f.repeats'), LT.n(v.repeats, 'time')]] : []).reduce(function (a, f) { a.push(el('dt', { text: f[0] })); a.push(el('dd', { text: f[1] })); return a; }, []))]));
+    if (DATA.blockIp) body.appendChild(visitActions(v, after));
     setFoot(scored && DATA.verdict ? verdictButtons(v, function () { openLiveVisit(v, after); if (after) after(); }) : null);
     openDrawer();
     DATA.session(state.site, v.id).then(function (ev) {
@@ -1457,8 +1480,28 @@
         });
         view.appendChild(card(T('prot.decided'), [dq], 'pro-only'));
       }
-      var sc = soonCard(T('ov.soon.title'), [T('prot.ads.1'), T('prot.ads.2'), T('ov.soon.3')]); sc.classList.add('pro-only'); view.appendChild(sc);
+      state.adsOn = !!p.ads;
+      if (DATA.blocks) { var bx = el('div'); view.appendChild(bx); blocksCard(bx, redraw); }
     });
+  }
+  // الممنوعون في جوجل · أجهزتك المستثناة
+  function blocksCard(box, redraw) {
+    DATA.blocks(state.site).then(function (b) {
+      clear(box);
+      var rows = b.blocks.map(function (x) {
+        var un = b.manage ? el('button', { class: 'linkish', type: 'button', text: T('bk.unblock') }) : null;
+        if (un) un.addEventListener('click', function () { un.disabled = true; DATA.unblockIp(state.site, x.id).then(function () { toast(T('bk.unblocked')); redraw(); }, function () { un.disabled = false; toast(T('va.e.google')); }); });
+        return el('li', {}, [el('span', { class: 'pill ' + (x.dc ? 'bad' : 'warn'), text: x.dc ? T('bk.dc') : T('bk.net') }), el('div', {}, [el('b', { class: 'ltr', text: x.ip }), el('small', { class: 'dim', text: (x.network ? x.network + ' · ' : '') + T('bk.until', { d: dateAr(x.expires_at) }) })]), un]);
+      });
+      var own = b.own.map(function (o) {
+        var rm = el('button', { class: 'linkish', type: 'button', text: T('bk.own.remove') });
+        rm.addEventListener('click', function () { DATA.ownDevice(state.site, null, o.id).then(function () { redraw(); }); });
+        return el('li', {}, [el('span', { class: 'pill info', text: '📱' }), el('div', {}, [el('b', { text: o.label || T('bk.own.device') }), el('small', { class: 'dim', text: dateAr(o.created_at) })]), rm]);
+      });
+      box.appendChild(card(T('bk.title'), [el('p', { class: 'hint', text: T('bk.intro', { n: fmt(b.blocks.length), m: fmt(b.max) }) }),
+        rows.length ? el('ul', { class: 'feed bk-list' }, rows) : el('p', { class: 'muted', text: state.adsOn === false ? T('bk.not_linked') : T('bk.none') }),
+        el('h3', { class: 'legend', text: T('bk.own') }), own.length ? el('ul', { class: 'feed bk-list' }, own) : el('p', { class: 'muted', text: T('bk.own.none') })]));
+    }, function () { clear(box); });
   }
   // ════════ الفريق (G-29): مين يدخل حسابك وبيعمل إيه ════════
   var ROLE_AR = {}; ['owner', 'admin', 'staff', 'viewer'].forEach(function (r) { ROLE_AR[r] = [T('team.role.' + r), T('team.role.' + r + '.d')]; });
