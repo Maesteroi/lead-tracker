@@ -85,16 +85,17 @@ function fakeApi(over) {
       if (p === '/v1/dash/negatives') return j(200, Object.assign({ ok: true, linked: true, manage: true, currency: 'USD', days: 30, cpc: 1.3, total_cost: 19.5, terms: 6, waste: 11, need_brief: false, audit: { broad_pct: 82, off_pct: 41, off_cost: 74.33, adj_clicks: 27, adj_cost: 23.44, adj_conv: 5, info_clicks: 31, info_cost: 11.79, bad_keywords: [{ keyword: 'أبشر تصريح زواج', match: 'BROAD', word: 'أبشر', why: 'يريد التقديم بنفسه', clicks: 2 }], unsafe: [] }, decided: st.negDecided || [] }, { suggestions: (st.negSug || [{ id: 'aaaa1111', text: 'وظائف', match: 'PHRASE', reason: 'intent_jobs', variants: ['وظائف', 'الوظائف'], narrowed: null, clicks: 2, cost: 2, conv: 0, terms: ['وظائف تصريح زواج', 'وظائف مكتب تعقيب'], campaigns: [{ id: '11', name: 'تصاريح' }, { id: '12', name: 'تعقيب' }], protect: false }, { id: 'bbbb2222', text: 'زواج', match: 'EXACT', reason: 'generic', variants: ['زواج'], narrowed: null, clicks: 4, cost: 9, conv: 0, terms: ['زواج'], campaigns: [{ id: '11', name: 'تصاريح' }], protect: true }, { id: 'cccc3333', text: 'إنشاء عقد زواج', match: 'PHRASE', reason: 'not_offer', why: 'لا ننشئ عقود الزواج', variants: ['إنشاء عقد زواج', 'انشاء عقد زواج'], narrowed: { from: 'عقد زواج', blocked: ['توثيق عقد زواج سعودي من أجنبية'] }, clicks: 1, cost: 1, conv: 1, terms: ['إنشاء عقد زواج إلكتروني'], campaigns: [{ id: '11', name: 'تصاريح' }], protect: false }]).filter((x) => !(st.negDone || []).includes(x.id)) }));
       if (p === '/v1/dash/negatives/decide') { const b = JSON.parse(req.postData()); st.negCalls = (st.negCalls || []).concat([Object.assign({ csrf: req.headers()['x-csrf-token'] }, b)]); st.negDone = (st.negDone || []).concat([b.id]); st.negDecided = (st.negDecided || []).concat([{ text: b.id === 'aaaa1111' ? 'وظائف' : 'شروط', match_type: 'PHRASE', decision: b.decision, at: new Date().toISOString(), applied_at: b.decision === 'add' ? new Date().toISOString() : null }]); return j(200, { ok: true, decision: b.decision, campaigns: 2 }); }
       // تحليل الحملة (analysis.js)
-      if (p === '/v1/dash/analysis') return j(200, { ok: true, linked: true, manage: true, currency: 'SAR', score: st.anFixed ? 58 : 46, weakest: 'measure', at: new Date().toISOString(), pagespeed: true, sections: [
-        { key: 'measure', weight: 20, score: 0, items: [{ status: 'bad', code: 'no_upload', data: { n: 1 }, fix: { go: 'leads' } }, { status: 'bad', code: 'conv_inflated', data: { g: 20, won: 1 } }] },
-        { key: 'protect', weight: 10, score: 10, items: [{ status: 'ok', code: 'suspicious', data: { n: 9, of: 124, p: 7, blocks: 2 } }] },
-        { key: 'keywords', weight: 15, score: 0, items: [{ status: 'bad', code: 'broad', data: { p: 85 } }].concat(st.anFixed ? [] : [{ status: 'bad', code: 'bad_keyword', data: { k: 'أبشر تصريح زواج', w: 'أبشر', why: 'يريد التقديم بنفسه', match: 'BROAD' }, fix: { action: 'pause_keyword', keyword: 'أبشر تصريح زواج', match: 'BROAD' } }]) },
-        { key: 'terms', weight: 10, score: 5, items: [{ status: 'warn', code: 'negatives', data: { n: 9, waste: 31.2, off: 38 }, fix: { go: 'negatives' } }] },
-        { key: 'ads', weight: 10, score: 5, items: [{ status: 'warn', code: 'promise', data: { promise: 'الدفع بعد الإنجاز', fear: 'النصب' } }] },
-        { key: 'landing', weight: 15, score: 7, items: [{ status: 'ok', code: 'contact_rate', data: { p: 22, visits: 124 } }, { status: 'bad', code: 'speed', data: { score: 42, lcp: 5.2 } }] },
-        { key: 'location', weight: 5, score: 2, items: [{ status: 'warn', code: 'geo_interest', data: { campaign: 'تصاريح', p: 12, outside: 15 }, fix: { action: 'geo_presence', campaign: '11', name: 'تصاريح' } }] },
-        { key: 'budget', weight: 5, score: 5, items: [{ status: 'ok', code: 'budget_ok', data: {} }] },
-        { key: 'followup', weight: 10, score: 5, items: [{ status: 'warn', code: 'outcomes', data: { n: 29, done: 20, p: 69 }, fix: { go: 'leads' } }, { status: 'bad', code: 'close_rate', data: { won: 1, of: 20, p: 5 } }] }] });
+      if (p === '/v1/dash/analysis') return j(200, { ok: true, linked: true, manage: true, currency: 'SAR', score: st.anFixed ? 58 : 46, weakest: 'measure', at: new Date().toISOString(), pagespeed: true, funnel: { cost: 1830, clicks: 277, visits: 124, real: 115, contacts: 29, outcomes: 20, convos: 6, won: 1 }, leak: { from: 'outcomes', to: 'convos', rate: 30, bench: 60, section: 'terms' }, fixes: (st.anFixed ? [{ id: 2, code: 'bad_keyword', key: 'bad_keyword:أبشر تصريح زواج', mode: 'auto', action: 'pause_keyword', target: { keyword: 'أبشر تصريح زواج', match: 'BROAD' }, note: st.anFix[0].note || '', at: new Date().toISOString(), days: 0, metric: 'convo_rate', verdict: 'wait', before: { contact_rate: 23.4, convo_rate: 4.8, won_rate: 0.8, cost_contact: 63.1, cost_won: 1830 }, after: { contact_rate: null, convo_rate: null, won_rate: null, cost_contact: null, cost_won: null } }] : []).concat(st.anDone ? [{ id: 1, code: 'speed', key: 'speed:', mode: 'manual', action: null, target: {}, note: st.anDone.note, at: new Date(Date.now() - 9 * 864e5).toISOString(), days: 9, metric: 'convo_rate', verdict: 'better', before: { contact_rate: 18, convo_rate: 4, won_rate: 0.5, cost_contact: 80, cost_won: 2000 }, after: { contact_rate: 26, convo_rate: 7.5, won_rate: 1.2, cost_contact: 55, cost_won: 1100 } }] : []), sections: [
+        { key: 'measure', weight: 20, score: 0, items: [{ status: 'bad', code: 'no_upload', key: 'no_upload:', data: { n: 1 }, fix: { go: 'leads' } }, { status: 'bad', code: 'conv_inflated', key: 'conv_inflated:', data: { g: 20, won: 1 } }] },
+        { key: 'protect', weight: 10, score: 10, items: [{ status: 'ok', code: 'suspicious', key: 'suspicious:', data: { n: 9, of: 124, p: 7, blocks: 2 } }] },
+        { key: 'keywords', weight: 15, score: 0, items: [{ status: 'bad', code: 'broad', key: 'broad:', data: { p: 85 } }].concat(st.anFixed ? [] : [{ status: 'bad', code: 'bad_keyword', key: 'bad_keyword:أبشر تصريح زواج', data: { k: 'أبشر تصريح زواج', w: 'أبشر', why: 'يريد التقديم بنفسه', match: 'BROAD' }, fix: { action: 'pause_keyword', keyword: 'أبشر تصريح زواج', match: 'BROAD' } }]) },
+        { key: 'terms', weight: 10, score: 5, items: [{ status: 'warn', code: 'negatives', key: 'negatives:', data: { n: 9, waste: 31.2, off: 38 }, fix: { go: 'negatives' } }] },
+        { key: 'ads', weight: 10, score: 5, items: [{ status: 'warn', code: 'promise', key: 'promise:', data: { promise: 'الدفع بعد الإنجاز', fear: 'النصب' } }] },
+        { key: 'landing', weight: 15, score: 7, items: [{ status: 'ok', code: 'contact_rate', key: 'contact_rate:', data: { p: 22, visits: 124 } }, { status: 'bad', code: 'speed', key: 'speed:', data: { score: 42, lcp: 5.2 } }] },
+        { key: 'location', weight: 5, score: 2, items: [{ status: 'warn', code: 'geo_interest', key: 'geo_interest:تصاريح', data: { campaign: 'تصاريح', p: 12, outside: 15 }, fix: { action: 'geo_presence', campaign: '11', name: 'تصاريح' } }] },
+        { key: 'budget', weight: 5, score: 5, items: [{ status: 'ok', code: 'budget_ok', key: 'budget_ok:', data: {} }] },
+        { key: 'followup', weight: 10, score: 5, items: [{ status: 'warn', code: 'outcomes', key: 'outcomes:', data: { n: 29, done: 20, p: 69 }, fix: { go: 'leads' } }, { status: 'bad', code: 'close_rate', key: 'close_rate:', data: { won: 1, of: 20, p: 5 } }] }] });
+      if (p === '/v1/dash/analysis/done') { const b = JSON.parse(req.postData()); st.anDone = Object.assign({ csrf: req.headers()['x-csrf-token'] }, b); return j(200, { ok: true }); }
       if (p === '/v1/dash/analysis/fix') { const b = JSON.parse(req.postData()); st.anFix = (st.anFix || []).concat([Object.assign({ csrf: req.headers()['x-csrf-token'] }, b)]); if (b.action === 'pause_keyword') st.anFixed = true; return j(200, { ok: true, paused: 1 }); }
       // «امنعه في جوجل» و«هذه زيارتي» (blocks.js)
       if (p === '/v1/dash/block') { const b = JSON.parse(req.postData()); st.blockCalls = (st.blockCalls || []).concat([Object.assign({ csrf: req.headers()['x-csrf-token'] }, b)]); st.blocked = true; return j(200, { ok: true, ip: '51.36.1.2', dc: true, expires_at: new Date(Date.now() + 90 * 864e5).toISOString() }); }
@@ -711,18 +712,26 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
 { const api = fakeApi({ signedIn: true, sites: [{ id: 'SiteId123456', name: 'الإنجاز', domains: ['enjaz.biz'], paired: true }] });
   const pg = await page(api, { viewport: { width: 1280, height: 900 } });
   await pg.goto('https://app.maestrolt.com/#/analysis');
-  await pg.waitForSelector('.an-sec');
+  await pg.waitForSelector('.dx');
   const v = await pg.locator('#view').innerText();
-  t('analysis: the score, the weakest link (measurement), and 9 sections in the method order with evidence', /46/.test(await pg.locator('.an-ring').innerText()) && /أضعف حلقة الآن: القياس/.test(v) && (await pg.locator('.an-sec').count()) === 9 && /جوجل احتسب 20 تحويلًا، وعملاؤك المؤكدون 1/.test(v) && /سرعة صفحة الهبوط على الجوال: 42\/100 · تظهر بعد 5.2 ثانية/.test(v) && /وعدك «الدفع بعد الإنجاز»/.test(v) && /تم الاتفاق مع 1 من 20/.test(v));
-  t('analysis: each item links to its tool (real customers, keywords) when it is not ok', (await pg.locator('.an-sec').first().getByRole('link', { name: 'العملاء الحقيقيون' }).count()) === 1);
+  t('analysis: the score, the weakest link, and a journey diagram by conversion (ad visits → real → contacted → real conversation → done) with the biggest leak and the cost per customer', /46/.test(await pg.locator('.an-ring').innerText()) && /أضعف حلقة الآن: القياس/.test(v) && (await pg.locator('.fn-step').count()) === 5 && (await pg.locator('.fn-step.leak', { hasText: 'محادثة فعلية' }).count()) === 1 && /من يتواصل ليس الشخص المناسب/.test(await pg.locator('.fn-note').innerText()) && /1,830/.test(await pg.locator('.fn-money').innerText()));
+  t('analysis: every problem is a card with what · why · the fix step by step; healthy items are folded away; 9 sections with points', (await pg.locator('.dx').count()) === 10 && /جوجل احتسب 20 تحويلًا، وعملاؤك المؤكدون 1/.test(v) && (await pg.locator('.dx', { hasText: 'سرعة صفحة الهبوط' }).locator('.dx-how li').count()) === 4 && (await pg.locator('.an-bars li').count()) === 9 && /السليم \(3\)/.test(v));
+  t('analysis: problems link to the tool to do it («open … and do it») and offer «I did it myself»', (await pg.locator('.dx').first().getByRole('link', { name: /ادخل ونفّذ في العملاء الحقيقيون/ }).count()) === 1 && (await pg.locator('.dx').first().getByRole('button', { name: 'نفّذته بنفسي' }).count()) === 1);
   await shot(pg, 'analysis');
-  const kw = pg.locator('.an-it', { hasText: 'أبشر تصريح زواج' });
-  await kw.getByRole('button', { name: 'أوقف الكلمة' }).click();
+  const sp = pg.locator('.dx', { hasText: 'سرعة صفحة الهبوط' });
+  await sp.getByRole('button', { name: 'أضف ملاحظة' }).click();
+  await sp.locator('.dx-note').fill('صغّرت صور الصفحة الرئيسية');
+  await sp.getByRole('button', { name: 'نفّذته بنفسي' }).click();
+  await pg.waitForSelector('.an-fixes .fx');
+  t('analysis «I did it myself»: sent with the note and CSRF; the fix tracking shows before/after per 100 visits and «improved conversions»', api.anDone.code === 'speed' && api.anDone.key === 'speed:' && api.anDone.note === 'صغّرت صور الصفحة الرئيسية' && api.anDone.csrf === 'csrf-token-123' && /حسّن التحويل/.test(await pg.locator('.an-fixes').innerText()) && (await pg.locator('.fx-tbl td.up').count()) >= 3 && /صغّرت صور/.test(await pg.locator('.fx-note').innerText()));
+  t('analysis: a fixed item shows «done by you» instead of the buttons', /نفّذته/.test(await pg.locator('.dx.fixed', { hasText: 'سرعة صفحة الهبوط' }).innerText()));
+  const kw = pg.locator('.dx', { hasText: 'أبشر تصريح زواج' });
+  await kw.getByRole('button', { name: /صلّح الآن · أوقف الكلمة/ }).click();
   t('analysis fix: the first press only asks to confirm', !api.anFix && (await kw.getByRole('button', { name: /اضغط مرة أخرى/ }).count()) === 1);
   await kw.getByRole('button', { name: /اضغط مرة أخرى/ }).click();
   await pg.waitForFunction(() => /أُوقفت الكلمة/.test(document.getElementById('toast').textContent));
-  await pg.waitForFunction(() => !/أبشر تصريح زواج/.test(document.getElementById('view').innerText));
-  t('analysis fix: pausing the keyword is sent with CSRF, and the analysis is run again', api.anFix[0].action === 'pause_keyword' && api.anFix[0].keyword === 'أبشر تصريح زواج' && api.anFix[0].csrf === 'csrf-token-123' && /58/.test(await pg.locator('.an-ring').innerText()));
+  await pg.waitForFunction(() => /58/.test(document.querySelector('.an-ring') && document.querySelector('.an-ring').innerText));
+  t('analysis fix: pausing the keyword is sent with CSRF and its key, the analysis runs again, and the fix is tracked («waiting for data»)', api.anFix[0].action === 'pause_keyword' && api.anFix[0].keyword === 'أبشر تصريح زواج' && api.anFix[0].key === 'bad_keyword:أبشر تصريح زواج' && api.anFix[0].csrf === 'csrf-token-123' && /ننتظر البيانات/.test(await pg.locator('.an-fixes').innerText()));
   await pg.setViewportSize({ width: 390, height: 844 });
   t('analysis mobile: no sideways scrolling', await pg.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1));
   t('analysis: no console errors, no CSP violations', pg.errors.length === 0 && pg.csp.length === 0);
@@ -1103,9 +1112,10 @@ for (const [days, kind, re] of [[1.5, 'warn', /متبقٍ يومين من تجر
   await pg.getByPlaceholder('القيمة').fill('150');
   await pg.getByPlaceholder('عدد المرات').fill('10');
   await pg.locator('.bl-check', { hasText: 'أول دفعة فقط' }).locator('input').check();
+  const reloaded = pg.waitForResponse((r) => r.url().endsWith('/v1/platform/billing'));
   await pg.getByRole('button', { name: 'إضافة الكوبون' }).click();
   await pg.waitForFunction(() => /تم الحفظ/.test(document.getElementById('toast').textContent));
-  await pg.waitForSelector('#tab-billing .bl-planbox');
+  await reloaded; await pg.waitForTimeout(200);
   t('admin coupons: a fixed-amount coupon with its currency, max uses and «first payment only»', api.blCalls.some((x) => x.path === '/v1/platform/billing/coupon' && x.code === 'ramadan' && x.kind === 'amount' && x.value === 150 && x.currency === 'SAR' && x.max_uses === 10 && x.first_only === true));
   await pg.locator('.m-add select').selectOption('vodafone_cash');
   await pg.locator('.m-add input').first().fill('12345');

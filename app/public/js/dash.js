@@ -28,6 +28,7 @@
     billing: 'M3 6h18v12H3zM3 10h18M7 15h4',
     install: 'M12 3v12M7 10l5 5 5-5M5 21h14',
     analysis: 'M3 3v18h18M7 15l4-4 3 3 6-7M17 7h3v3',
+    admin: 'M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1M15 4v4M9 10v4M17 16v4',
   };
   function icon(name) {
     var svg = document.createElementNS(NS, 'svg'); svg.setAttribute('viewBox', '0 0 24 24'); svg.setAttribute('class', 'ic'); svg.setAttribute('aria-hidden', 'true');
@@ -90,6 +91,8 @@
   }
   function installBtn(cls) { var b = el('button', { class: cls, type: 'button' }, [icon('install'), el('span', { text: T('inst.btn') })]); b.addEventListener('click', function () { closeDrawer(); doInstall(); }); return b; }
   function drawInstall() { var box = $('side-install'); if (!box) return; clear(box); if (!installed()) box.appendChild(installBtn('side-install-btn')); }
+  // شاشة البداية (اللوجو المتحرك) لحد أول رسم للصفحة
+  function hideBoot() { var b = $('boot'); if (!b || b.classList.contains('out')) return; b.classList.add('out'); setTimeout(function () { if (b.parentNode) b.parentNode.removeChild(b); }, 400); }
   function openMore() {
     var body = clear($('d-body'));
     $('d-title').textContent = T('frame.more'); $('d-sub').textContent = '';
@@ -102,8 +105,11 @@
     sw.addEventListener('click', function () { closeDrawer(); setLevel(state.level === 'simple' ? 'detailed' : 'simple'); });
     body.appendChild(sw);
     if (!installed()) body.appendChild(installBtn('more-link'));
+    // إدارة المنصة (للمدير بس) في نسخة الموبايل والتطبيق: مكانها في القائمة الجانبية مش ظاهر هنا
+    if (state.admin) body.appendChild(el('a', { class: 'more-link more-admin', href: '/admin' }, [icon('admin'), el('span', { text: T('frame.admin.short') })]));
     var ls = LT.i18n.switcher();
     if (ls) { ls.className = 'more-link'; body.appendChild(ls); }
+    if (DATA.live) { var lo = el('button', { class: 'more-link', type: 'button' }, [el('span', { text: T('frame.logout') })]); lo.addEventListener('click', function () { LT.logout().then(function () { location.replace('/login'); }); }); body.appendChild(lo); }
     openDrawer();
   }
   function buildTop() {
@@ -1520,47 +1526,136 @@
   }
   // ════════ تحليل الحملة وإصلاحها بضغطة (15 نوفمبر · المنهجية بند 10–12) ════════
   var AN_GO = { leads: 'leads', protection: 'protection', negatives: 'negatives', visits: 'visits' };
+  // ── تحليل الحملة (إعادة تصميم 15 نوفمبر · محمود: «مهمة مش مفهومة · زوّد diagram · مع كل تشخيص اكتب الحل · صلّح الآن · ادخل ونفّذ ·
+  //    خانة ملاحظات · ومراقبة نتيجة الإصلاح في التحويل مش الزيارات») ──
+  // ١) الدرجة وأضعف حلقة · ٢) رسم القمع بالتحويل وأكبر تسريب · ٣) التشخيصات: المشكلة · ليه مهمة · الحل خطوة خطوة · صلّح الآن / ادخل ونفّذ /
+  // نفّذته + ملاحظات · ٤) متابعة الإصلاحات: قبل وبعد لكل 100 زيارة · ٥) الأقسام بدرجاتها والسليم.
   function vAnalysis(view) {
     clear(view);
     if (!DATA.analysis) { view.appendChild(soonCard(T('nav.analysis'), [T('an.demo.1'), T('an.demo.2'), T('an.demo.3')])); return Promise.resolve(); }
     view.appendChild(el('div', { class: 'loading' }, [el('span', { class: 'spinner' }), document.createTextNode(T('an.running'))]));
-    return DATA.analysis(state.site).then(function (d) {
-      clear(view);
-      if (!d.linked) { view.appendChild(card(T('nav.analysis'), [el('p', {}, [el('span', { text: T('conv.not_linked') + ' ' }), el('a', { class: 'linkish', href: '#/sites', text: T('nav.sites') })])])); return; }
-      var ring = el('div', { class: 'an-ring' }); C.ring(ring, d.score, { label: T('an.score'), text: String(d.score) });
-      var weak = d.sections.filter(function (x) { return x.key === d.weakest; })[0];
-      var again = el('button', { class: 'btn ghost sm', type: 'button', text: T('an.again') }); again.addEventListener('click', function () { vAnalysis(view); });
-      view.appendChild(el('section', { class: 'panel-card an-hero' }, [ring, el('div', { class: 'an-hero-t' }, [
-        el('h2', { text: T('an.title') }), el('p', { class: 'muted', text: T('an.sub') }),
-        weak ? el('p', { class: 'an-weak' }, [el('b', { text: T('an.weakest') + ' ' }), el('span', { text: T('an.s.' + weak.key) })]) : el('p', { class: 'an-weak ok', text: T('an.allgood') }),
-        el('div', { class: 'an-meta' }, [el('small', { class: 'dim', text: T('an.at', { t: timeAr(d.at) }) }), again])])]));
-      d.sections.forEach(function (sx, i) {
-        var items = sx.items.map(function (it) { return anItem(it, d, view); });
-        var st = sx.items.some(function (x) { return x.status === 'bad'; }) ? 'bad' : sx.items.some(function (x) { return x.status === 'warn'; }) ? 'warn' : 'ok';
-        view.appendChild(el('section', { class: 'panel-card an-sec ' + st + (sx.key === d.weakest ? ' weakest' : '') }, [
-          el('div', { class: 'an-sec-h' }, [el('span', { class: 'an-n', text: String(i + 1) }), el('h3', { text: T('an.s.' + sx.key) }), el('span', { class: 'an-pts', text: T('an.pts', { a: sx.score, b: sx.weight }) })]),
-          el('ul', { class: 'an-items' }, items)]));
-      });
-    }, function () { clear(view); view.appendChild(el('p', { class: 'muted', text: T('an.err') })); });
+    return DATA.analysis(state.site).then(function (d) { drawAnalysis(view, d); }, function () { clear(view); view.appendChild(el('p', { class: 'muted', text: T('an.err') })); });
   }
-  function anItem(it, d, view) {
-    var dd = it.data || {}, cur = d.currency === 'SAR' ? T('sar') : d.currency;
-    var v = { n: fmt(dd.n), of: fmt(dd.of), p: dd.p, g: fmt(dd.g), won: fmt(dd.won), k: dd.k || '', w: dd.w || '', why: dd.why || '', blocks: fmt(dd.blocks), waste: money2(dd.waste, cur), off: dd.off, weak: fmt(dd.weak), disapproved: fmt(dd.disapproved),
+  function drawAnalysis(view, d) {
+    clear(view);
+    if (!d.linked) { view.appendChild(card(T('nav.analysis'), [el('p', {}, [el('span', { text: T('conv.not_linked') + ' ' }), el('a', { class: 'linkish', href: '#/sites', text: T('nav.sites') })])])); return; }
+    var cur = d.currency === 'SAR' ? T('sar') : d.currency, fixes = d.fixes || [], fixedBy = {};
+    fixes.forEach(function (f) { if (!fixedBy[f.key]) fixedBy[f.key] = f; });
+    // ١) الدرجة
+    var ring = el('div', { class: 'an-ring' }); C.ring(ring, d.score, { label: T('an.score'), text: String(d.score) });
+    var weak = d.sections.filter(function (x) { return x.key === d.weakest; })[0];
+    var again = el('button', { class: 'btn ghost sm', type: 'button', text: T('an.again') }); again.addEventListener('click', function () { vAnalysis(view); });
+    view.appendChild(el('section', { class: 'panel-card an-hero' }, [ring, el('div', { class: 'an-hero-t' }, [
+      el('h2', { text: T('an.title') }), el('p', { class: 'muted', text: T('an.sub2') }),
+      weak ? el('p', { class: 'an-weak' }, [el('b', { text: T('an.weakest') + ' ' }), el('span', { text: T('an.s.' + weak.key) })]) : el('p', { class: 'an-weak ok', text: T('an.allgood') }),
+      el('div', { class: 'an-meta' }, [el('small', { class: 'dim', text: T('an.at', { t: timeAr(d.at) }) }), again])])]));
+    // ٢) القمع
+    if (d.funnel) view.appendChild(funnelCard(d.funnel, d.leak, cur));
+    // ٣) التشخيصات (المشاكل بس، بترتيب المنهجية، وأضعف قسم الأول)
+    var probs = [];
+    d.sections.forEach(function (sx, si) { sx.items.forEach(function (it) { if (it.status !== 'ok') probs.push({ it: it, sx: sx, si: si }); }); });
+    var rank = { bad: 0, warn: 1, info: 2 };
+    probs.sort(function (a, b) { return (a.sx.key === d.weakest ? -1 : 0) - (b.sx.key === d.weakest ? -1 : 0) || rank[a.it.status] - rank[b.it.status] || a.si - b.si; });
+    var list = el('div', { class: 'an-dx-list' }, probs.map(function (p, i) { return dxCard(p.it, p.sx, i + 1, d, view, cur, fixedBy[p.it.key]); }));
+    view.appendChild(el('section', { class: 'panel-card' }, [el('div', { class: 'sec-head' }, [el('h2', { text: T('an.dx.title', { n: probs.filter(function (p) { return p.it.status !== 'info'; }).length }) })]),
+      el('p', { class: 'muted', text: T('an.dx.sub') }), probs.length ? list : el('p', { class: 'an-weak ok', text: T('an.allgood') })]));
+    // ٤) متابعة الإصلاحات
+    if (fixes.length) view.appendChild(fixesCard(fixes, cur));
+    // ٥) الأقسام والسليم
+    var oks = []; d.sections.forEach(function (sx) { sx.items.forEach(function (it) { if (it.status === 'ok') oks.push(it); }); });
+    view.appendChild(el('section', { class: 'panel-card' }, [el('div', { class: 'sec-head' }, [el('h2', { text: T('an.secs') })]),
+      el('ol', { class: 'an-bars' }, d.sections.map(function (sx) {
+        var st = sx.items.some(function (x) { return x.status === 'bad'; }) ? 'bad' : sx.items.some(function (x) { return x.status === 'warn'; }) ? 'warn' : 'ok';
+        var bar = el('i', { class: 'an-bar ' + st }, [el('i')]); bar.firstChild.style.width = Math.round(sx.score / sx.weight * 100) + '%';
+        return el('li', { class: sx.key === d.weakest ? 'weakest' : '' }, [el('span', { text: T('an.s.' + sx.key) }), bar, el('b', { text: T('an.pts', { a: sx.score, b: sx.weight }) })]);
+      })),
+      oks.length ? el('details', { class: 'an-ok' }, [el('summary', { text: T('an.oks', { n: oks.length }) }), el('ul', {}, oks.map(function (it) { return el('li', { text: '✓ ' + T('an.i.' + it.code, anVars(it, cur)) }); }))]) : null]));
+  }
+  function anVars(it, cur) {
+    var dd = it.data || {};
+    return { n: fmt(dd.n), of: fmt(dd.of), p: dd.p, g: fmt(dd.g), won: fmt(dd.won), k: dd.k || '', w: dd.w || '', why: dd.why || '', blocks: fmt(dd.blocks), waste: money2(dd.waste, cur), off: dd.off, weak: fmt(dd.weak), disapproved: fmt(dd.disapproved),
       missing: (dd.missing || []).map(function (m) { return T('an.asset.' + m); }).join('، '), promise: dd.promise || '', fear: dd.fear || '', page: dd.page || '', visits: fmt(dd.visits), avg: dd.avg, score: dd.score, lcp: dd.lcp, campaign: dd.campaign || '', outside: fmt(dd.outside), done: fmt(dd.done), names: (dd.names || []).join('، ') };
-    var kids = [el('i', { class: 'an-ic', text: it.status === 'ok' ? '✓' : it.status === 'info' ? 'i' : '!' }), el('div', { class: 'an-txt' }, [el('span', { text: T('an.i.' + it.code, v) }),
-      T('an.f.' + it.code) !== 'an.f.' + it.code && it.status !== 'ok' ? el('small', { class: 'dim', text: T('an.f.' + it.code, v) }) : null])];
-    var f = it.fix;
-    if (f && f.go && it.status !== 'ok') kids.push(el('a', { class: 'btn ghost sm', href: '#/' + (AN_GO[f.go] || 'overview'), text: T('an.go.' + f.go) }));
-    if (f && f.action && d.manage) {
-      var b = el('button', { class: 'btn sm', type: 'button', text: T('an.do.' + f.action) }), sure = false;
-      b.addEventListener('click', function () {
-        if (!sure) { sure = true; b.textContent = T('an.do.sure'); return; }
-        b.disabled = true;
-        DATA.analysisFix(state.site, f).then(function () { toast(T('an.done.' + f.action)); vAnalysis(view); }, function (e) { b.disabled = false; sure = false; b.textContent = T('an.do.' + f.action); toast(T('va.e.google') + (e.detail ? ' (' + String(e.detail).slice(0, 80) + ')' : '')); });
-      });
-      kids.push(b);
+  }
+  // رسم القمع: كل خطوة بعددها ونسبتها من اللي قبلها · أكبر تسريب بالأحمر ومعاه القسم اللي بيصلحه
+  function funnelCard(f, leak, cur) {
+    var steps = [['visits', f.visits, null], ['real', f.real, 'visits'], ['contacts', f.contacts, 'real'], ['convos', f.convos, 'outcomes'], ['won', f.won, 'convos']];
+    var max = Math.max(1, f.visits);
+    var rows = steps.map(function (s) {
+      var prev = s[2] ? f[s[2]] : null, rate = prev ? Math.round(s[1] / prev * 100) : null, isLeak = leak && leak.to === s[0];
+      var bar = el('i', { class: 'fn-bar' }, [el('i')]); bar.firstChild.style.width = Math.max(2, Math.round(Math.sqrt(s[1] / max) * 100)) + '%';   // جذر: علشان «تم» الصغيرة تبان
+      return el('li', { class: 'fn-step' + (isLeak ? ' leak' : '') }, [
+        el('div', { class: 'fn-h' }, [el('span', { text: T('an.fn.' + s[0]) }), el('b', { text: fmt(s[1]) }), rate != null ? el('small', { class: 'dim', text: s[0] === 'convos' ? T('an.fn.of_out', { p: rate, n: fmt(f.outcomes) }) : T('an.fn.of', { p: rate }) }) : null,
+          isLeak ? el('span', { class: 'pill bad', text: T('an.fn.leak') }) : null]),
+        bar]);
+    });
+    var money = el('div', { class: 'fn-money' }, [
+      el('div', {}, [el('span', { text: T('an.fn.cost') }), el('b', { text: money2(f.cost, cur) })]),
+      el('div', {}, [el('span', { text: T('an.fn.cpc') }), el('b', { text: f.contacts ? money2(f.cost / f.contacts, cur) : '—' })]),
+      el('div', {}, [el('span', { text: T('an.fn.cpw') }), el('b', { text: f.won ? money2(f.cost / f.won, cur) : '—' })])]);
+    return el('section', { class: 'panel-card an-funnel' }, [el('div', { class: 'sec-head' }, [el('h2', { text: T('an.fn.title') })]), el('p', { class: 'muted', text: T('an.fn.sub') }),
+      el('ol', { class: 'fn' }, rows), money,
+      leak ? el('p', { class: 'fn-note bad' }, [el('b', { text: T('an.fn.leak') + ': ' }), el('span', { text: T('an.leak.' + leak.section, { p: leak.rate, b: leak.bench }) })]) : el('p', { class: 'fn-note ok', text: T('an.fn.noleak') }),
+      f.outcomes < f.contacts / 2 ? el('p', { class: 'hint', text: T('an.fn.need_out', { n: fmt(f.contacts - f.outcomes) }) }) : null]);
+  }
+  // بطاقة تشخيص: المشكلة · ليه مهمة · الحل خطوة خطوة · التنفيذ (صلّح الآن في جوجل · ادخل ونفّذ · نفّذته) + ملاحظات
+  function dxCard(it, sx, n, d, view, cur, done) {
+    var v = anVars(it, cur), how = T('an.how.' + it.code), f = it.fix || {};
+    var kids = [el('div', { class: 'dx-h' }, [el('span', { class: 'dx-n', text: String(n) }), el('span', { class: 'pill ' + (it.status === 'bad' ? 'bad' : it.status === 'warn' ? 'warn' : 'info'), text: T('an.st.' + it.status) }), el('small', { class: 'dim', text: T('an.s.' + sx.key) })]),
+      el('p', { class: 'dx-what', text: T('an.i.' + it.code, v) })];
+    if (T('an.f.' + it.code) !== 'an.f.' + it.code) kids.push(el('p', { class: 'dx-why' }, [el('b', { text: T('an.why') + ' ' }), el('span', { text: T('an.f.' + it.code, v) })]));
+    if (how !== 'an.how.' + it.code) kids.push(el('div', { class: 'dx-how' }, [el('b', { text: T('an.how') }), el('ol', {}, T('an.how.' + it.code, v).split('|').map(function (x) { return el('li', { text: x }); }))]));
+    if (done) {
+      kids.push(el('p', { class: 'dx-done' }, [el('b', { text: T(done.mode === 'auto' ? 'an.done.auto' : 'an.done.manual', { d: dateAr(done.at) }) + ' ' }), el('span', { text: T('an.v.' + done.verdict) })]));
+      return el('article', { class: 'dx ' + it.status + ' fixed' }, kids);
     }
-    return el('li', { class: 'an-it ' + it.status }, kids);
+    if (d.manage) {
+      var acts = el('div', { class: 'dx-acts' }), noteBox = el('textarea', { class: 'dx-note', rows: '2', maxlength: '1000', placeholder: T('an.note.ph'), 'aria-label': T('an.note') }); noteBox.hidden = true;
+      var addNote = el('button', { class: 'linkish', type: 'button', text: T('an.note.add') });
+      addNote.addEventListener('click', function () { noteBox.hidden = !noteBox.hidden; if (!noteBox.hidden) noteBox.focus(); });
+      if (f.action) {
+        var b = el('button', { class: 'btn sm', type: 'button', text: T('an.fixnow') + ' · ' + T('an.do.' + f.action) }), sure = false;
+        b.addEventListener('click', function () {
+          if (!sure) { sure = true; b.textContent = T('an.do.sure'); return; }
+          b.disabled = true;
+          DATA.analysisFix(state.site, Object.assign({ key: it.key, note: noteBox.value.trim() }, f)).then(function () { toast(T('an.done.' + f.action) + ' ' + T('an.tracking')); vAnalysis(view); },
+            function (e) { b.disabled = false; sure = false; b.textContent = T('an.fixnow') + ' · ' + T('an.do.' + f.action); toast(T('va.e.google') + (e.detail ? ' (' + String(e.detail).slice(0, 80) + ')' : '')); });
+        });
+        acts.appendChild(b);
+      }
+      if (f.go) acts.appendChild(el('a', { class: 'btn ghost sm', href: '#/' + (AN_GO[f.go] || 'overview'), text: T('an.goin', { p: T('an.go.' + f.go) }) }));
+      if (it.status !== 'info' || f.go) {
+        var mine = el('button', { class: 'btn ghost sm', type: 'button', text: T('an.mine') });
+        mine.addEventListener('click', function () {
+          mine.disabled = true;
+          DATA.analysisDone(state.site, { code: it.code, key: it.key, note: noteBox.value.trim() }).then(function () { toast(T('an.mine.ok')); vAnalysis(view); }, function () { mine.disabled = false; toast(T('err.save')); });
+        });
+        acts.appendChild(mine);
+      }
+      acts.appendChild(addNote);
+      kids.push(acts, noteBox);
+    }
+    return el('article', { class: 'dx ' + it.status }, kids);
+  }
+  // متابعة الإصلاحات: قبل (14 يوم) وبعد، لكل 100 زيارة · المقياس الأساسي «تم» ثم المحادثة ثم التواصل
+  function fixesCard(fixes, cur) {
+    var row = function (k, b, a, money, main) {
+      var fmtv = function (x) { return x == null ? '—' : money ? money2(x, cur) : String(x); };
+      var better = a != null && b != null && (money ? a < b : a > b), worse = a != null && b != null && (money ? a > b : a < b);
+      return el('tr', { class: main ? 'main' : '' }, [el('th', { text: T('an.m.' + k) }), el('td', { text: fmtv(b) }), el('td', { class: better ? 'up' : worse ? 'down' : '', text: fmtv(a) })]);
+    };
+    return el('section', { class: 'panel-card an-fixes' }, [el('div', { class: 'sec-head' }, [el('h2', { text: T('an.fx.title') })]), el('p', { class: 'muted', text: T('an.fx.sub') }),
+      el('div', { class: 'fx-list' }, fixes.map(function (f) {
+        var tgt = f.target && (f.target.keyword || f.target.name) || (f.key.split(':')[1] || '');
+        return el('article', { class: 'fx ' + f.verdict }, [
+          el('div', { class: 'fx-h' }, [el('b', { text: T('an.c.' + f.code) !== 'an.c.' + f.code ? T('an.c.' + f.code) : f.code }), tgt ? el('span', { class: 'dim', text: '«' + tgt + '»' }) : null,
+            el('span', { class: 'pill ' + (f.verdict === 'better' ? 'ok' : f.verdict === 'worse' ? 'bad' : f.verdict === 'same' ? 'info' : 'warn'), text: T('an.v.' + f.verdict) })]),
+          el('small', { class: 'dim', text: T(f.mode === 'auto' ? 'an.done.auto' : 'an.done.manual', { d: dateAr(f.at) }) + (f.verdict === 'wait' ? ' · ' + T('an.v.wait.s', { n: f.days }) : ' · ' + T('an.v.days', { n: f.days })) }),
+          f.note ? el('p', { class: 'fx-note', text: '📝 ' + f.note }) : null,
+          el('div', { class: 'tbl-wrap' }, [el('table', { class: 'tbl fx-tbl' }, [el('thead', {}, [el('tr', {}, [el('th', { text: '' }), el('th', { text: T('an.fx.before') }), el('th', { text: T('an.fx.after') })])]), el('tbody', {}, [
+            row('won_rate', f.before.won_rate, f.after.won_rate, false, f.metric === 'won_rate'), row('convo_rate', f.before.convo_rate, f.after.convo_rate, false, f.metric === 'convo_rate'),
+            row('contact_rate', f.before.contact_rate, f.after.contact_rate, false, f.metric === 'contact_rate'), row('cost_contact', f.before.cost_contact, f.after.cost_contact, true), row('cost_won', f.before.cost_won, f.after.cost_won, true)])])]),
+        ]);
+      }))]);
   }
   // ════════ الفريق (G-29): مين يدخل حسابك وبيعمل إيه ════════
   var ROLE_AR = {}; ['owner', 'admin', 'staff', 'viewer'].forEach(function (r) { ROLE_AR[r] = [T('team.role.' + r), T('team.role.' + r + '.d')]; });
@@ -1838,6 +1933,7 @@
     document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !$('drawer').hidden) closeDrawer(); });
     window.addEventListener('hashchange', function () { closeDrawer(); render(); });
     var boot = DATA.init ? DATA.init() : Promise.resolve(null);
+    setTimeout(hideBoot, 8000);   // أمان: شاشة البداية ماتعلقش أبدًا
     boot.then(function (m) {
       if (DATA.init && !m) { location.replace('/login'); return; }
       if (m) {
@@ -1846,6 +1942,7 @@
         var who = $('who'); if (who) who.textContent = m.user.name || m.user.email || '';
         var out = $('out'); if (out) { out.hidden = false; out.addEventListener('click', function () { LT.logout().then(function () { location.replace('/login'); }); }); }
         var adm = $('admin-link'); if (adm && m.user.platform_admin) adm.hidden = false;
+        state.admin = !!m.user.platform_admin;
       }
       return DATA.sites().then(function (s) {
         state.sites = s; state.site = s[0] && s[0].id;
@@ -1856,7 +1953,7 @@
         if (adsN && /^[a-f0-9]{48}$/.test(adsN) && DATA.adsAccounts) { state.adsNonce = adsN; try { history.replaceState(null, '', location.pathname + '#/sites'); } catch (e) { /* عادي */ } location.hash = '#/sites'; }
         buildNav(); buildTop();
         if (!s.length && DATA.live) { location.hash = '#/sites'; }
-        render();
+        render(); hideBoot();
       });
     }).catch(function () { var v = clear($('view')); v.appendChild(card(T('frame.load_fail'), [el('p', { text: T('frame.load_fail_hint') })])); });
   }

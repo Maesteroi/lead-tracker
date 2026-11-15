@@ -1,7 +1,7 @@
 // محاكي صغير لـSupabase (PostgREST + Storage) للاختبارات، من غير إنترنت.
 // بيدعم بس اللي السيرفر بيستخدمه: eq · neq · gt · gte · lt · lte · is · not.is · like · in · order (nullsfirst) · limit · on_conflict.
 
-const SERIAL = new Set(['own_devices', 'ip_blocks', 'raw_events', 'contact_clicks', 'messages', 'outcomes', 'ai_calls', 'ads_clicks', 'ads_search_terms', 'ads_campaign_daily', 'ads_account_health', 'ads_pull_runs', 'auth_events']);
+const SERIAL = new Set(['analysis_fixes', 'own_devices', 'ip_blocks', 'raw_events', 'contact_clicks', 'messages', 'outcomes', 'ai_calls', 'ads_clicks', 'ads_search_terms', 'ads_campaign_daily', 'ads_account_health', 'ads_pull_runs', 'auth_events']);
 const DEFAULTS = {
   clients: () => ({ paired_at: null, org_id: null, domains: [], created_at: new Date().toISOString(), status: 'on', timezone: 'Asia/Riyadh', country_code: '966', thresholds: { serious_call_s: 120, weak_call_s: 30, wa_match_min: 10, call_match_s: 90 }, consents: {}, ai_budget_month: 10 }),
   devices: () => ({ status: 'on', health: {} }),
