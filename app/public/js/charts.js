@@ -186,7 +186,7 @@
     });
     var tv = s('text', { x: 70, y: 70, class: 'd-val', 'text-anchor': 'middle' }); tv.textContent = opts.center != null ? opts.center : fmt(total); svg.appendChild(tv);
     var tl = s('text', { x: 70, y: 90, class: 'd-cap', 'text-anchor': 'middle' }); tl.textContent = opts.caption || ''; svg.appendChild(tl);
-    var leg = el('ul', { class: 'd-legend' }, items.map(function (x) { return el('li', {}, [el('i', { class: 'sw ' + (x.cls || 'c-data') }), el('span', { text: x.label }), el('b', { text: (total ? Math.round((x.value / total) * 100) : 0) + '%' })]); }));
+    var leg = el('ul', { class: 'd-legend' }, items.map(function (x) { if (opts.item) return opts.item(x, total ? Math.round((x.value / total) * 100) : 0); return el('li', {}, [el('i', { class: 'sw ' + (x.cls || 'c-data') }), el('span', { text: x.label }), el('b', { text: (total ? Math.round((x.value / total) * 100) : 0) + '%' })]); }));
     var wrap = el('div', { class: 'donut-wrap' }, [svg, leg]);
     box.appendChild(wrap);
     return wrap;
