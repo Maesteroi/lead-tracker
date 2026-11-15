@@ -14,7 +14,8 @@ import { dashTg, dashTgInvite, dashTgRemove } from './tglinks.js';
 import { tgTemplatesGet, tgTemplatesSave } from './tgtemplates.js';
 import { previewText } from './notify.js';
 import { contactLab } from './contactlab.js';
-import { dashBilling, platformBilling, platformPlanSave, platformBillingSettings, platformMethodSave, platformOwnPayments, platformCountrySave } from './billing.js';
+import { dashBilling, platformBilling, platformPlanSave, platformBillingSettings, platformMethodSave, platformOwnPayments, platformCountrySave, dashCoupon } from './billing.js';
+import { platformPlanDelete, platformFeatureSave, platformCouponSave } from './plans.js';
 import { dashPay, platformPayments, platformReceipt, platformPaymentReview } from './payments.js';
 import { dashNegatives, dashNegativesExisting, dashNegativeDecide } from './negatives.js';
 import { dashKeywords, dashKeywordDecide } from './keywords.js';
@@ -84,6 +85,9 @@ export async function handleApp(req, env, db, url, p, fetchImpl) {
     else if (m === 'POST' && p === '/v1/platform/billing/method') res = await platformMethodSave(req, env, db, sess);
     else if (m === 'POST' && p === '/v1/platform/billing/own') res = await platformOwnPayments(req, env, db, sess);
     else if (m === 'POST' && p === '/v1/platform/billing/country') res = await platformCountrySave(req, env, db, sess);
+    else if (m === 'POST' && p === '/v1/platform/billing/plan/delete') res = await platformPlanDelete(req, env, db, sess);
+    else if (m === 'POST' && p === '/v1/platform/billing/feature') res = await platformFeatureSave(req, env, db, sess);
+    else if (m === 'POST' && p === '/v1/platform/billing/coupon') res = await platformCouponSave(req, env, db, sess);
     // المدفوعات: المراجعة بالإيصال (payments.js)
     else if (m === 'GET' && p === '/v1/platform/payments') res = await platformPayments(req, env, db, sess, url);
     else if (m === 'GET' && p === '/v1/platform/payments/receipt') res = await platformReceipt(req, env, db, sess, url);
@@ -132,6 +136,7 @@ export async function handleApp(req, env, db, url, p, fetchImpl) {
     // الاشتراك: الباقات بأسعار عملة الحساب ووسائل الدفع المتاحة (billing.js)
     else if (m === 'GET' && p === '/v1/dash/billing') res = await dashBilling(req, env, db, sess, url);
     else if (m === 'POST' && p === '/v1/dash/billing/pay') res = await dashPay(req, env, db, sess, fetchImpl);
+    else if (m === 'POST' && p === '/v1/dash/billing/coupon') res = await dashCoupon(req, env, db, sess);
     // الكلمات السلبية: اقتراحات من عبارات البحث + قرار صاحب الموقع + الإضافة لجوجل بموافقته (negatives.js)
     else if (m === 'GET' && p === '/v1/dash/negatives') res = await dashNegatives(req, env, db, sess, url);
     else if (m === 'GET' && p === '/v1/dash/negatives/existing') res = await dashNegativesExisting(req, env, db, sess, url, fetchImpl);

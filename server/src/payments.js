@@ -8,7 +8,7 @@ import { eq } from './db.js';
 import { json } from './util.js';
 import { isPlatform, hasPerm, notFound, roleFor } from './sites.js';
 import { audit } from './auth.js';
-import { loadBilling, priceFor, discountFor, methodsFor, ctxFor, countryOf, ORG_BILL } from './billing.js';
+import { loadBilling, methodsFor, ctxFor, countryOf, ORG_BILL, quoteFor } from './billing.js';
 import { sendTelegram, escHtml } from './telegram.js';
 import { tg } from './notify.js';
 
@@ -56,9 +56,9 @@ export async function dashPay(req, env, db, sess, fetchImpl) {
   const methods = await methodsFor(db, org, currency);
   const method = methods.find((m) => m.id === b.method_id);
   if (!method || !MANUAL.includes(method.kind)) return json({ ok: false, error: 'method' }, 400);
-  const disc = discountFor(org, bill, Date.now());
-  const price = priceFor(plan, ctx, bill.settings, disc);
-  if (!price) return json({ ok: false, error: 'plan' }, 400);
+  // السعر النهائي من السيرفر: أحسن خصم واحد من (المؤسسين · خصم الباقة · الكوبون)
+  const q = await quoteFor(db, org, bill, plan, ctx, b.period, b.units, b.coupon);
+  if (q.error) return json({ ok: false, error: q.error }, 400);
   const bytes = fromDataUrl(b.receipt);
   if (!bytes || bytes.length < 200) return json({ ok: false, error: 'receipt' }, 400);
   if (bytes.length > MAX_BYTES) return json({ ok: false, error: 'too_big' }, 413);
@@ -74,16 +74,14 @@ export async function dashPay(req, env, db, sess, fetchImpl) {
   const id = crypto.randomUUID();
   const path = org.id + '/' + id + '.' + mime.split('/')[1];
   await db.putObject(BUCKET, path, bytes, mime);
-  // باقة بالمشروع: السعر × عدد المشاريع (بحد أدنى min_units)
-  const units = plan.unit === 'project' ? Math.round(Number(b.units)) : 1;
-  if (!(units >= (plan.min_units || 1) && units <= 1000)) return json({ ok: false, error: 'units' }, 400);
-  const amount = Math.round((b.period === 'year' ? price.yearly_now : price.monthly_now) * units * 100) / 100;
-  const founder = !org.founder_no && disc > 0 && disc === bill.settings.founders_pct;
+  const units = q.units, amount = q.total, disc = q.discount;
+  const founder = !org.founder_no && q.source === 'founder';
+  const coupon = q.source === 'coupon' ? q.coupon : null;
   await db.insert('payments', [{ id, org_id: org.id, plan_id: plan.id, period: b.period, amount, currency, method_id: method.id, ref, receipt_path: path, receipt_hash: hash, receipt_mime: mime,
-    dup_of: dup ? dup.id : null, founder, discount: disc, units, status: 'pending', created_by: sess.user.id, created_at: new Date().toISOString() }], { returning: false });
+    dup_of: dup ? dup.id : null, founder, discount: disc, units, coupon_code: coupon ? coupon.code : null, coupon_off: coupon ? coupon.off : null, status: 'pending', created_by: sess.user.id, created_at: new Date().toISOString() }], { returning: false });
   await audit(db, sess.user.id, 'payment_submitted', true, org.id + ' ' + plan.id + ' ' + b.period + ' ' + amount + ' ' + currency);
-  await sendTelegram(env, ['💳 <b>إيصال جديد للمراجعة</b>', 'الحساب: ' + escHtml(org.name || org.id), 'الباقة: ' + (PLAN_AR[plan.id] || plan.id) + (units > 1 ? ' · ' + units + ' مشاريع' : '') + ' · ' + (b.period === 'year' ? 'سنوي' : 'شهري'),
-    'المبلغ: ' + money(amount, currency) + (disc ? ' (خصم ' + disc + '%)' : ''), 'الوسيلة: ' + (KIND_AR[method.kind] || method.kind) + ' · رقم العملية: <code>' + escHtml(ref) + '</code>',
+  await sendTelegram(env, ['💳 <b>إيصال جديد للمراجعة</b>', 'الحساب: ' + escHtml(org.name || org.id), 'الباقة: ' + (plan.name_ar || PLAN_AR[plan.id] || plan.id) + (units > 1 ? ' · ' + units + ' مشاريع' : '') + ' · ' + (b.period === 'year' ? 'سنوي' : 'شهري'),
+    'المبلغ: ' + money(amount, currency) + (coupon ? ' (كوبون ' + escHtml(coupon.code) + ')' : disc ? ' (خصم ' + disc + '%)' : ''), 'الوسيلة: ' + (KIND_AR[method.kind] || method.kind) + ' · رقم العملية: <code>' + escHtml(ref) + '</code>',
     dup ? '⚠️ نفس صورة إيصال اترفعت قبل كده' : null, '', '<a href="https://app.maestrolt.com/admin#billing">افتح للمراجعة</a>'].filter((x) => x != null).join('\n'), fetchImpl);
   return json({ ok: true, id, amount, currency, status: 'pending' });
 }
@@ -143,7 +141,7 @@ export async function platformPaymentReview(req, env, db, sess, fetchImpl) {
   const b = await req.json().catch(() => ({}));
   if (!UUID_RE.test(String(b.id || ''))) return notFound();
   if (!['approve', 'reject'].includes(b.decision)) return json({ ok: false, error: 'bad_request' }, 400);
-  const p = await db.one('payments?id=' + eq(b.id) + '&select=id,org_id,plan_id,period,amount,currency,method_id,founder,units,status');
+  const p = await db.one('payments?id=' + eq(b.id) + '&select=id,org_id,plan_id,period,amount,currency,method_id,founder,units,coupon_code,status');
   if (!p || !(await visible(db, rv, [p])).length) return notFound();
   if (p.status !== 'pending') return json({ ok: false, error: 'done' }, 409);
   const now = new Date().toISOString();
@@ -166,6 +164,7 @@ export async function platformPaymentReview(req, env, db, sess, fetchImpl) {
     if (bill.founders.used < bill.founders.limit) { seat = bill.founders.used + 1; patch.founder_no = seat; patch.founder_since = now; }
   }
   await db.update('payments?id=' + eq(p.id) + '&status=eq.pending', { status: 'approved', reviewed_by: sess.user.id, reviewed_at: now, period_end: end });
+  if (p.coupon_code) { const c = await db.one('coupons?code=' + eq(p.coupon_code) + '&select=used').catch(() => null); if (c) await db.update('coupons?code=' + eq(p.coupon_code), { used: (c.used || 0) + 1 }).catch(() => {}); }
   await db.update('organizations?id=' + eq(p.org_id), patch);
   await audit(db, sess.user.id, 'payment_approved', true, p.org_id + ' ' + p.plan_id + ' ' + p.period + ' → ' + end.slice(0, 10) + (seat ? ' founder#' + seat : ''));
   await tellOwners(env, db, p.org_id, '✅ <b>تم تفعيل اشتراكك</b>\nالباقة: ' + (PLAN_AR[p.plan_id] || p.plan_id) + '\nحتى: ' + end.slice(0, 10) + (seat ? '\n🎖️ أنت من المؤسسين (رقم ' + seat + ')' : ''), fetchImpl);
