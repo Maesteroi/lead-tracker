@@ -15,6 +15,7 @@ import { tgTemplatesGet, tgTemplatesSave } from './tgtemplates.js';
 import { previewText } from './notify.js';
 import { contactLab } from './contactlab.js';
 import { dashBilling, platformBilling, platformPlanSave, platformBillingSettings, platformMethodSave, platformOwnPayments } from './billing.js';
+import { dashPay, platformPayments, platformReceipt, platformPaymentReview } from './payments.js';
 import { dashNegatives, dashNegativesExisting, dashNegativeDecide } from './negatives.js';
 import { dashKeywords, dashKeywordDecide } from './keywords.js';
 import { dashSuffix, dashSuffixSet } from './suffix.js';
@@ -79,6 +80,10 @@ export async function handleApp(req, env, db, url, p, fetchImpl) {
     else if (m === 'POST' && p === '/v1/platform/billing/settings') res = await platformBillingSettings(req, env, db, sess);
     else if (m === 'POST' && p === '/v1/platform/billing/method') res = await platformMethodSave(req, env, db, sess);
     else if (m === 'POST' && p === '/v1/platform/billing/own') res = await platformOwnPayments(req, env, db, sess);
+    // المدفوعات: المراجعة بالإيصال (payments.js)
+    else if (m === 'GET' && p === '/v1/platform/payments') res = await platformPayments(req, env, db, sess, url);
+    else if (m === 'GET' && p === '/v1/platform/payments/receipt') res = await platformReceipt(req, env, db, sess, url);
+    else if (m === 'POST' && p === '/v1/platform/payments/review') res = await platformPaymentReview(req, env, db, sess, fetchImpl);
     else res = notFound();
     return finish(res, req, env, true);
   }
@@ -114,6 +119,7 @@ export async function handleApp(req, env, db, url, p, fetchImpl) {
     else if (m === 'POST' && p === '/v1/dash/conv/send') res = await dashConvSend(req, env, db, sess, fetchImpl);
     // الاشتراك: الباقات بأسعار عملة الحساب ووسائل الدفع المتاحة (billing.js)
     else if (m === 'GET' && p === '/v1/dash/billing') res = await dashBilling(req, env, db, sess, url);
+    else if (m === 'POST' && p === '/v1/dash/billing/pay') res = await dashPay(req, env, db, sess, fetchImpl);
     // الكلمات السلبية: اقتراحات من عبارات البحث + قرار صاحب الموقع + الإضافة لجوجل بموافقته (negatives.js)
     else if (m === 'GET' && p === '/v1/dash/negatives') res = await dashNegatives(req, env, db, sess, url);
     else if (m === 'GET' && p === '/v1/dash/negatives/existing') res = await dashNegativesExisting(req, env, db, sess, url, fetchImpl);

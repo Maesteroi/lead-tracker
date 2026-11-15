@@ -49,6 +49,10 @@ function fakeApi(over) {
       if (p === '/v1/platform/billing/method') { const b = JSON.parse(req.postData()); st.blCalls = (st.blCalls || []).concat([b]); return b.details && b.details.numbers && !b.details.numbers.every((x) => /^01[0125]\d{8}$/.test(x)) ? j(400, { ok: false, error: 'numbers' }) : j(200, { ok: true, id: 'm-new' }); }
       if (p.startsWith('/v1/platform/billing/')) { st.blCalls = (st.blCalls || []).concat([Object.assign({ path: p }, JSON.parse(req.postData() || '{}'))]); return j(200, { ok: true }); }
       if (p === '/v1/platform/billing') return j(200, { ok: true, super: true, founders: { used: 3, limit: 100 }, settings: { trial_days: 7, annual_months: 10, founders_limit: 100, founders_pct: 50, founders_months: 12, founders_after_pct: 20 }, plans: [{ id: 'basic', sites: 1, clicks: 2000, prices: { SAR: 149, EGP: 1499, AED: 149 } }, { id: 'pro', sites: 3, clicks: 10000, prices: { SAR: 349, EGP: 3499, AED: 349 } }, { id: 'agency', sites: 10, clicks: 40000, prices: { SAR: 899, EGP: 8999, AED: 899 } }], methods: [{ id: 'm1', owner_id: null, kind: 'instapay', enabled: true, label: '', details: { handle: 'maestro@instapay', name: 'Maestro' }, currencies: ['EGP'] }], members: [{ user_id: 'u9', email: 'sara@maestro.example', name: 'سارة', own_payments: false }] });
+      // المدفوعات (payments.js)
+      if (p === '/v1/platform/payments') return j(200, { ok: true, status: u.searchParams.get('status'), payments: (u.searchParams.get('status') || 'pending') === 'pending' && !st.payReviewed ? [{ id: 'pay-1', org: { id: 'o1', name: 'شادو ديزاين', plan: null, status: 'trial' }, plan: 'pro', period: 'year', amount: 17495, currency: 'EGP', method: { kind: 'instapay', label: '' }, ref: 'IPN-778899', dup: true, founder: true, discount: 50, status: 'pending', reason: '', at: new Date(Date.now() - 21 * 36e5).toISOString(), hours: 21 }] : [] });
+      if (p === '/v1/platform/payments/receipt') return j(200, { ok: true, src: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==' });
+      if (p === '/v1/platform/payments/review') { const b = JSON.parse(req.postData()); st.payReviews = (st.payReviews || []).concat([Object.assign({ csrf: req.headers()['x-csrf-token'] }, b)]); st.payReviewed = true; return j(200, { ok: true, status: b.decision === 'approve' ? 'approved' : 'rejected', founder_no: b.decision === 'approve' ? 4 : null }); }
       if (p === '/v1/platform/team') return j(200, st.team);
       if (p === '/v1/platform/audit') return j(200, { ok: true, events: [{ at: new Date().toISOString(), kind: 'platform_role_create', ok: true, reason: 'دعم: orgs_view', who: 'محمود' }, { at: new Date().toISOString(), kind: 'verdict_set', ok: true, reason: 'SiteId BOT1 fraud', who: 'سارة' }] });
       if (p.startsWith('/v1/platform/roles') || p.startsWith('/v1/platform/invites') || p === '/v1/platform/members') {
@@ -80,6 +84,13 @@ function fakeApi(over) {
       // الكلمات السلبية (negatives.js)
       if (p === '/v1/dash/negatives') return j(200, Object.assign({ ok: true, linked: true, manage: true, currency: 'USD', days: 30, cpc: 1.3, total_cost: 19.5, terms: 6, waste: 11, decided: st.negDecided || [] }, { suggestions: (st.negSug || [{ id: 'aaaa1111', text: 'وظائف', match: 'PHRASE', reason: 'intent_jobs', clicks: 2, cost: 2, conv: 0, terms: ['وظائف تصريح زواج', 'وظائف مكتب تعقيب'], campaigns: [{ id: '11', name: 'تصاريح' }, { id: '12', name: 'تعقيب' }], protect: false }, { id: 'bbbb2222', text: 'شروط زواج سعودي من مصرية', match: 'EXACT', reason: 'waste', clicks: 4, cost: 9, conv: 0, terms: ['شروط زواج سعودي من مصرية'], campaigns: [{ id: '11', name: 'تصاريح' }], protect: true }]).filter((x) => !(st.negDone || []).includes(x.id)) }));
       if (p === '/v1/dash/negatives/decide') { const b = JSON.parse(req.postData()); st.negCalls = (st.negCalls || []).concat([Object.assign({ csrf: req.headers()['x-csrf-token'] }, b)]); st.negDone = (st.negDone || []).concat([b.id]); st.negDecided = (st.negDecided || []).concat([{ text: b.id === 'aaaa1111' ? 'وظائف' : 'شروط', match_type: 'PHRASE', decision: b.decision, at: new Date().toISOString(), applied_at: b.decision === 'add' ? new Date().toISOString() : null }]); return j(200, { ok: true, decision: b.decision, campaigns: 2 }); }
+      // الاشتراك والدفع بالإيصال (billing.js · payments.js)
+      if (p === '/v1/dash/billing') return j(200, { ok: true, manage: true, currency: 'EGP', org: { id: 'org-1', name: 'شادو', status: 'trial', plan: null, trial_ends_at: new Date(Date.now() + 2.5 * 864e5).toISOString(), plan_period_end: null, founder: false },
+        settings: { trial_days: 7, annual_months: 10, founders_months: 12, founders_after_pct: 20 }, founders: { left: 87, limit: 100, pct: 50 },
+        plans: [['basic', 1, 2000, 1499], ['pro', 3, 10000, 3499], ['agency', 10, 40000, 8999]].map(([id, sites, clicks, m]) => ({ id, sites, clicks, price: { currency: 'EGP', monthly: m, yearly: m * 10, discount: 50, monthly_now: m / 2, yearly_now: m * 5 } })),
+        methods: [{ id: 'm-ip', kind: 'instapay', label: '', details: { handle: 'maestro@instapay', name: 'Maestro LT' } }, { id: 'm-vf', kind: 'vodafone_cash', label: '', details: { numbers: ['01012345678'], name: 'Maestro LT' } }],
+        payments: st.paid ? [{ id: 'p1', plan: 'pro', period: 'year', amount: 17495, currency: 'EGP', status: 'pending', reason: '', discount: 50, at: new Date().toISOString() }] : [{ id: 'p0', plan: 'basic', period: 'month', amount: 749.5, currency: 'EGP', status: 'rejected', reason: 'المبلغ غير مطابق', discount: 50, at: new Date(Date.now() - 864e5).toISOString() }] });
+      if (p === '/v1/dash/billing/pay') { const b = JSON.parse(req.postData()); st.payCalls = (st.payCalls || []).concat([Object.assign({ csrf: req.headers()['x-csrf-token'] }, b)]); if (b.ref === 'USED-0001') return j(409, { ok: false, error: 'ref_used' }); st.paid = true; return j(200, { ok: true, status: 'pending', amount: 17495, currency: 'EGP' }); }
       // الكلمات الإيجابية (keywords.js) ولاحقة الرابط (suffix.js)
       if (p === '/v1/dash/keywords') return j(200, { ok: true, linked: true, manage: true, currency: 'SAR', days: 30, decided: st.kwDecided || [], suggestions: [{ id: 'kw000001', text: 'محلات ديكور جدة', reason: 'conv', clicks: 3, impressions: 40, cost: 11, conv: 1, group: { id: '501', name: 'تصميم', campaign: 'شادو' }, from: [{ text: 'تصميم داخلي', match: 'PHRASE' }] }, { id: 'kw000002', text: 'شركة تصميم داخلي في الرياض', reason: 'contacts', clicks: 2, impressions: 20, cost: 9, conv: 0, group: { id: '501', name: 'تصميم', campaign: 'شادو' }, from: [] }].filter((x) => !(st.kwDone || []).includes(x.id)) });
       if (p === '/v1/dash/keywords/decide') { const b = JSON.parse(req.postData()); st.kwCalls = (st.kwCalls || []).concat([Object.assign({ csrf: req.headers()['x-csrf-token'] }, b)]); st.kwDone = (st.kwDone || []).concat([b.id]); st.kwDecided = (st.kwDecided || []).concat([{ text: 'محلات ديكور جدة', match_type: 'EXACT', decision: b.decision, at: new Date().toISOString(), applied_at: new Date().toISOString() }]); return j(200, { ok: true, decision: b.decision }); }
@@ -369,7 +380,7 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
   const apiCalls = []; pg.on('request', (r) => { if (r.url().startsWith('https://api.maestrolt.com')) apiCalls.push(r.url()); });
   await pg.goto('https://app.maestrolt.com/demo');
   await pg.waitForSelector('.answers .ans');
-  t('demo simple (default): 3 big answers, a short menu (7, with the team and negative keywords), no tables or charts', (await pg.locator('.answers .ans').count()) === 3 && (await pg.locator('.side-nav a').count()) === 7 && (await pg.locator('#view table, #view svg.svg').count()) === 0 && (await pg.locator('#page-title').innerText()) === 'الخلاصة');
+  t('demo simple (default): 3 big answers, a short menu (8, with the team, keywords and subscription), no tables or charts', (await pg.locator('.answers .ans').count()) === 3 && (await pg.locator('.side-nav a').count()) === 8 && (await pg.locator('#view table, #view svg.svg').count()) === 0 && (await pg.locator('#page-title').innerText()) === 'الخلاصة');
   t('demo simple: "is your ad protected?" answers in words, at most 3 action cards', /محمي/.test(await pg.locator('.ans').first().innerText()) && (await pg.locator('.act').count()) <= 3);
   t('demo simple: the checklist counts the done steps and offers how-to for the missing ones', /\d من 6/.test(await pg.locator('.progress').innerText()) && (await pg.locator('.steps-check li').count()) === 6);
   t('demo simple: the week summary reads as a sentence', /وصلك .* زائر/.test(await pg.locator('.story').innerText()));
@@ -379,7 +390,7 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
   await shot(pg, 'demo-0-simple');
   await pg.locator('#level').getByRole('button', { name: 'احترافي' }).click();
   await pg.waitForSelector('.kpis .kpi');
-  t('demo: switching to detailed shows the full menu (11)', (await pg.locator('.side-nav a').count()) === 11);
+  t('demo: switching to detailed shows the full menu (12)', (await pg.locator('.side-nav a').count()) === 12);
   t('demo: the pro home — 8 KPI cards (with Google clicks and money protected), the status strip and the action cards', (await pg.locator('.kpis .kpi').count()) === 8 && /نقرات احتسبها جوجل/.test(await pg.locator('.kpis').innerText()) && /الحماية: تراقب كل زيارة/.test(await pg.locator('.status-strip').innerText()) && (await pg.locator('.act').count()) >= 2);
   t('demo: the traffic curve draws 3 smooth lines with a legend, plus donuts, visit cards and the hours heatmap', (await pg.locator('.area-chart .a-line').count()) === 3 && (await pg.locator('.chart-legend').first().locator('.lg').count()) === 3 && (await pg.locator('.donut').count()) === 2 && (await pg.locator('.vcard').count()) >= 3 && (await pg.locator('.heat .h-cell').count()) === 168);
   await pg.locator('.area-chart .hit').nth(2).hover();
@@ -656,6 +667,44 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
   if (pg.errors.length || pg.csp.length) console.log(pg.errors, pg.csp);
   await pg.context().close(); }
 
+// 25) الاشتراك والدفع بالإيصال (15 نوفمبر): الحالة · عرض المؤسسين · الباقات · الوسيلة والمبلغ · رقم العملية والإيصال · قيد المراجعة
+{ const api = fakeApi({ signedIn: true, sites: [{ id: 'SiteId123456', name: 'شادو', domains: ['shado.design'], paired: true, org_id: 'org-1' }] });
+  const pg = await page(api, { viewport: { width: 1200, height: 900 } });
+  await pg.goto('https://app.maestrolt.com/#/billing');
+  await pg.waitForSelector('.bl-plan');
+  const v0 = await pg.locator('#view').innerText();
+  t('billing: the trial with days left, the launch offer with seats left, three plans in EGP with the old price struck through', /متبقٍ 3 أيام|متبقٍ يومين/.test(v0) && /عرض الإطلاق: خصم 50%/.test(v0) && /متبقٍ 87 مقعدًا من 100/.test(v0) && (await pg.locator('.bl-plan').count()) === 3 && /749.5 ج.م/.test(await pg.locator('.bl-plan').first().innerText()) && (await pg.locator('.bl-plan s').count()) === 3);
+  t('billing: past payments show the rejection reason', /مرفوض/.test(v0) && /المبلغ غير مطابق/.test(v0));
+  await pg.getByRole('button', { name: /سنوي/ }).click();
+  t('billing: yearly = 10 months (save 2), and the monthly equivalent is shown', /17,495 ج.م/.test(await pg.locator('.bl-plan.best').innerText()) && /وفّر شهرين/.test(await pg.locator('.bl-period').innerText()));
+  await pg.locator('.bl-plan.best').getByRole('button', { name: 'اختر هذه الباقة' }).click();
+  await pg.waitForSelector('#bl-checkout');
+  t('billing: checkout shows the exact amount, InstaPay address with copy, and switching to Vodafone Cash shows the wallet number', /17,495 ج.م/.test(await pg.locator('.bl-amount').innerText()) && /maestro@instapay/.test(await pg.locator('.bl-methods').innerText()));
+  await pg.locator('.bl-m', { hasText: 'فودافون كاش' }).locator('input').check();
+  await pg.waitForFunction(() => /01012345678/.test(document.querySelector('.bl-methods').innerText));
+  await pg.getByRole('button', { name: /أرسل للمراجعة/ }).click();
+  t('billing: sending without the transaction number asks for it (nothing sent)', !api.payCalls);
+  await pg.locator('.bl-ref').fill('USED-0001');
+  await pg.getByRole('button', { name: /أرسل للمراجعة/ }).click();
+  t('billing: … and without the receipt asks for it', !api.payCalls && /أرفق صورة الإيصال/.test(await pg.locator('#toast').innerText()));
+  await pg.locator('#bl-file').setInputFiles(path.resolve(path.dirname(new URL(import.meta.url).pathname), 'fixtures-receipt.png'));
+  await pg.waitForSelector('.bl-prev:not([hidden])');
+  await shot(pg, 'billing-checkout');
+  await pg.getByRole('button', { name: /أرسل للمراجعة/ }).click();
+  await pg.waitForFunction(() => /استُخدم من قبل/.test(document.getElementById('toast').textContent));
+  t('billing: a used transaction number is said plainly', api.payCalls.length === 1);
+  await pg.locator('.bl-ref').fill('IPN-123456');
+  await pg.getByRole('button', { name: /أرسل للمراجعة/ }).click();
+  await pg.waitForSelector('.bl-pend');
+  const c = api.payCalls[1];
+  t('billing: sent with CSRF — plan, yearly, the wallet, the number and the receipt as a compressed picture; then «under review, max 24 hours»', c.csrf === 'csrf-token-123' && c.plan === 'pro' && c.period === 'year' && c.method_id === 'm-vf' && c.ref === 'IPN-123456' && /^data:image\/(jpeg|png);base64,/.test(c.receipt) && /بحد أقصى 24 ساعة/.test(await pg.locator('#view').innerText()) && (await pg.locator('.bl-plan button:disabled').count()) === 3);
+  await shot(pg, 'billing-pending');
+  await pg.setViewportSize({ width: 390, height: 844 });
+  t('billing mobile: no sideways scrolling', await pg.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1));
+  t('billing: no console errors, no CSP violations', pg.errors.length === 0 && pg.csp.length === 0);
+  if (pg.errors.length || pg.csp.length) console.log(pg.errors, pg.csp);
+  await pg.context().close(); }
+
 // 24) الكلمات السلبية (15 نوفمبر): اقتراحات · «أضِفها» بضغطتين · «اتركها» · الموجود في الحساب
 { const api = fakeApi({ signedIn: true, sites: [{ id: 'SiteId123456', name: 'الإنجاز', domains: ['enjaz.biz'], paired: true }] });
   const pg = await page(api, { viewport: { width: 1200, height: 900 } });
@@ -865,7 +914,7 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
   const pg = await page(api, { viewport: { width: 1440, height: 900 } });
   await pg.goto('https://app.maestrolt.com/');
   await pg.waitForSelector('.kpis .kpi');
-  t('live agency: an agency account opens on the detailed level', (await pg.locator('.side-nav a').count()) === 11);
+  t('live agency: an agency account opens on the detailed level', (await pg.locator('.side-nav a').count()) === 12);
   await pg.locator('.side-nav a[data-r="clients"]').click();
   await pg.waitForFunction(() => document.querySelectorAll('#view .tbl tbody tr').length === 2);
   t('live agency: all clients with real visits/contacts/customers', /60/.test(await pg.locator('#view .tbl').innerText()) && /دون نتيجة/.test(await pg.locator('#view .tbl').innerText()));
@@ -915,6 +964,20 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
   await pg.waitForFunction(() => /رقم المحفظة غير صحيح/.test(document.getElementById('toast').textContent));
   t('admin «plans & payment»: a wrong wallet number is refused with a clear message', true);
   await shot(pg, 'admin-billing');
+  // المدفوعات: الإيصال المستني فوق
+  t('admin payments: the waiting receipt on top — account, plan, amount, founders offer, «same picture uploaded before», «waiting 21 hours»', /شادو ديزاين/.test(await pg.locator('.pay-item').innerText()) && /17,495 EGP/.test(await pg.locator('.pay-item').innerText()) && /الصورة نفسها رُفعت من قبل/.test(await pg.locator('.pay-item').innerText()) && /منتظر منذ 21 ساعة/.test(await pg.locator('.pay-item').innerText()) && (await pg.locator('.pay-item.late').count()) === 1);
+  await pg.getByRole('button', { name: 'اعرض الإيصال' }).click();
+  await pg.waitForSelector('.pay-pic');
+  t('admin payments: the receipt opens as a picture (no CSP problem)', (await pg.locator('.pay-pic').getAttribute('src')).startsWith('data:image/png;base64,'));
+  await pg.getByRole('button', { name: 'رفض بسبب' }).click();
+  await pg.getByRole('button', { name: 'أرسل الرفض' }).click();
+  t('admin payments: rejecting needs a reason (nothing sent)', !api.payReviews);
+  await pg.getByRole('button', { name: 'موافقة وتفعيل' }).click();
+  t('admin payments: approving asks once more naming the plan and period', !api.payReviews && (await pg.getByRole('button', { name: /اضغط مرة أخرى لتفعيل النمو \(سنوي\)/ }).count()) === 1);
+  await shot(pg, 'admin-payments');
+  await pg.getByRole('button', { name: /اضغط مرة أخرى لتفعيل/ }).click();
+  await pg.waitForFunction(() => /مقعد المؤسس رقم 4/.test(document.getElementById('toast').textContent));
+  t('admin payments: approved with CSRF; the founder seat number is said; the list empties', api.payReviews[0].decision === 'approve' && api.payReviews[0].id === 'pay-1' && api.payReviews[0].csrf === 'csrf-token-123');
   t('super admin: no console errors or CSP violations', pg.errors.length === 0 && pg.csp.length === 0);
   await pg.context().close(); }
 

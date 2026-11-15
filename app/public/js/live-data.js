@@ -103,6 +103,9 @@
     // الكلمات السلبية (negatives.js على السيرفر)
     negatives: function (site) { return LT.api('/v1/dash/negatives?site=' + encodeURIComponent(site)).then(function (r) { if (!r.ok) throw new Error('http'); return r.body; }); },
     negExisting: function (site) { return LT.api('/v1/dash/negatives/existing?site=' + encodeURIComponent(site)).then(function (r) { if (!r.ok) throw new Error('http'); return r.body; }); },
+    // الاشتراك والدفع بالإيصال (billing.js · payments.js)
+    billing: function (org) { return LT.api('/v1/dash/billing?org=' + encodeURIComponent(org)).then(function (r) { if (!r.ok) throw new Error('http'); return r.body; }); },
+    billingPay: function (body) { return LT.api('/v1/dash/billing/pay', { method: 'POST', body: body }).then(function (r) { if (!r.ok) throw new Error(r.body && r.body.error || 'http'); return r.body; }); },
     // الكلمات الإيجابية (keywords.js) ولاحقة الرابط (suffix.js)
     keywords: function (site) { return LT.api('/v1/dash/keywords?site=' + encodeURIComponent(site)).then(function (r) { if (!r.ok) throw new Error('http'); return r.body; }); },
     kwDecide: function (site, id, decision) { return LT.api('/v1/dash/keywords/decide', { method: 'POST', body: { site: site, id: id, decision: decision } }).then(function (r) { if (!r.ok) { var e = new Error(r.body && r.body.error || 'http'); e.detail = r.body && r.body.detail; throw e; } return r.body; }); },

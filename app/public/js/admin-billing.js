@@ -65,11 +65,75 @@
     }))], T('adm.bl.own.sub'));
   }
 
+  // المدفوعات (المرحلة 2): الإيصالات المستنية فوق، بالصورة ورقم العملية وتحذير التكرار · «موافقة» أو «رفض بسبب»
+  var payTab = 'pending';
+  function money(v, c) { return (Math.round(Number(v) * 100) / 100).toLocaleString('en-US') + ' ' + c; }
+  function paymentsCard() {
+    var wrap = el('section', { class: 'panel-card pay-card' }), seg = el('div', { class: 'seg', role: 'tablist' }), list = el('div', { class: 'pay-list' });
+    ['pending', 'approved', 'rejected'].forEach(function (k) {
+      var b = el('button', { type: 'button', role: 'tab', 'aria-selected': payTab === k ? 'true' : 'false', text: T('adm.pay.t.' + k) });
+      b.addEventListener('click', function () { payTab = k; load(); }); seg.appendChild(b);
+    });
+    wrap.appendChild(el('div', { class: 'sec-head' }, [el('h2', { text: T('adm.pay.title') }), seg]));
+    wrap.appendChild(list);
+    list.appendChild(el('p', {}, [el('span', { class: 'spinner' }), el('span', { text: T('adm.loading') })]));
+    LT.api('/v1/platform/payments?status=' + payTab).then(function (r) {
+      clear(list);
+      if (!r.ok) { list.appendChild(el('p', { class: 'muted', text: T('adm.load.fail') })); return; }
+      var ps = r.body.payments || [];
+      if (!ps.length) { list.appendChild(el('p', { class: 'muted', text: T('adm.pay.none.' + payTab) })); return; }
+      ps.forEach(function (p) { list.appendChild(payItem(p)); });
+    });
+    return wrap;
+  }
+  function payItem(p) {
+    var img = el('button', { class: 'pay-img', type: 'button', text: T('adm.pay.show') });
+    img.addEventListener('click', function () {
+      img.disabled = true;
+      LT.api('/v1/platform/payments/receipt?id=' + encodeURIComponent(p.id)).then(function (r) {
+        if (!r.ok) { img.disabled = false; toast(T('adm.load.fail'), true); return; }
+        var pic = el('img', { src: r.body.src, alt: T('adm.pay.receipt'), class: 'pay-pic' });
+        pic.addEventListener('click', function () { pic.classList.toggle('big'); });
+        img.parentNode.replaceChild(pic, img);
+      });
+    });
+    var acts = el('div', { class: 'pay-acts' });
+    if (p.status === 'pending') {
+      var ok = el('button', { class: 'btn sm', type: 'button', text: T('adm.pay.approve') }), no = el('button', { class: 'btn ghost sm', type: 'button', text: T('adm.pay.reject') });
+      var why = el('input', { type: 'text', class: 'bl-in', maxlength: '300', placeholder: T('adm.pay.reason'), hidden: '' }), sure = false;
+      ok.addEventListener('click', function () {
+        if (!sure) { sure = true; ok.textContent = T('adm.pay.approve.sure', { p: T('adm.plan.' + p.plan), d: T(p.period === 'year' ? 'adm.pay.year' : 'adm.pay.month') }); return; }
+        ok.disabled = no.disabled = true;
+        api('/v1/platform/payments/review', { id: p.id, decision: 'approve' }).then(function (r) { if (r.ok) { toast(T('adm.pay.approved') + (r.body.founder_no ? ' ' + T('adm.pay.seat', { n: r.body.founder_no }) : '')); load(); } else { ok.disabled = no.disabled = false; toast(T('err.save'), true); } });
+      });
+      no.addEventListener('click', function () {
+        if (why.hidden) { why.hidden = false; why.focus(); no.textContent = T('adm.pay.reject.send'); return; }
+        if (why.value.trim().length < 3) { toast(T('adm.pay.reason.need'), true); why.focus(); return; }
+        ok.disabled = no.disabled = true;
+        api('/v1/platform/payments/review', { id: p.id, decision: 'reject', reason: why.value.trim() }).then(function (r) { if (r.ok) { toast(T('adm.pay.rejected')); load(); } else { ok.disabled = no.disabled = false; toast(T('err.save'), true); } });
+      });
+      acts.appendChild(ok); acts.appendChild(no); acts.appendChild(why);
+    }
+    var late = p.status === 'pending' && p.hours >= 20;
+    return el('div', { class: 'pay-item' + (late ? ' late' : '') }, [
+      el('div', { class: 'pay-main' }, [
+        el('div', { class: 'pay-h' }, [el('b', { text: p.org.name || p.org.id }), el('span', { class: 'pill', text: T('adm.plan.' + p.plan) + ' · ' + T(p.period === 'year' ? 'adm.pay.year' : 'adm.pay.month') }),
+          p.founder ? el('span', { class: 'pill info', text: T('adm.pay.founder') }) : null, p.dup ? el('span', { class: 'pill bad', text: T('adm.pay.dup') }) : null, late ? el('span', { class: 'pill warn', text: T('adm.pay.late', { h: p.hours }) }) : null]),
+        el('div', { class: 'pay-amt' }, [el('bdi', { dir: 'ltr', text: money(p.amount, p.currency) }), p.discount ? el('small', { class: 'dim', text: ' · ' + T('adm.pay.disc', { d: p.discount }) }) : null]),
+        el('div', { class: 'dim', text: T('adm.bl.k.' + p.method.kind) + (p.method.label ? ' · ' + p.method.label : '') + ' · ' + T('adm.pay.ref') + ' ' + p.ref }),
+        el('small', { class: 'dim', text: new Date(p.at).toLocaleString(LT.locale) + (p.reason ? ' · ' + T('adm.pay.why', { r: p.reason }) : '') + (p.period_end ? ' · ' + T('adm.pay.until', { d: String(p.period_end).slice(0, 10) }) : '') }),
+        acts,
+      ]),
+      el('div', { class: 'pay-side' }, [img]),
+    ]);
+  }
+
   function load() {
     api('/v1/platform/billing').then(function (r) {
       clear(box);
       if (!r.ok) { box.appendChild(el('p', { class: 'muted', text: T('adm.load.fail') })); return; }
       data = r.body;
+      box.appendChild(paymentsCard());
       if (data.super) { box.appendChild(plansCard()); box.appendChild(settingsCard()); }
       box.appendChild(methodsCard());
       var mc = membersCard(); if (mc) box.appendChild(mc);

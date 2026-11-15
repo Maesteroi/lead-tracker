@@ -487,3 +487,57 @@ svg.geo { width: 100%; height: auto; aspect-ratio: 1.7; display: block; backgrou
 .seg.kw-tabs { display: grid; grid-template-columns: 1fr 1fr; width: 100%; max-width: 560px; margin-bottom: 16px; }
 .seg.kw-tabs button { white-space: normal; line-height: 1.4; }
 .checks li .sfx { grid-column: 2 / -1; }
+
+/* ── الاشتراك (15 نوفمبر) ── */
+.bl-hero { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 20px 22px; border-radius: 20px; margin-bottom: 14px; background: linear-gradient(135deg, var(--info-bg), var(--card)); border: 1px solid var(--line); }
+.bl-hero.ok { background: linear-gradient(135deg, var(--ok-bg), var(--card)); }
+.bl-hero.warn { background: linear-gradient(135deg, var(--warn-bg), var(--card)); }
+.bl-hero.bad { background: linear-gradient(135deg, var(--bad-bg), var(--card)); }
+.bl-hero > div { display: grid; gap: 6px; min-width: 0; flex: 1; }
+.bl-k { font-size: 13px; font-weight: 700; color: var(--muted); }
+.bl-v { font: 800 26px/1.3 var(--font-head); color: var(--ink); }
+.bl-badge { flex: none; padding: 6px 12px; border-radius: 999px; background: var(--card); border: 1px solid var(--line); font-weight: 800; font-size: 13px; }
+.bl-bar { display: block; height: 8px; border-radius: 6px; background: color-mix(in srgb, var(--line) 70%, transparent); overflow: hidden; max-width: 420px; }
+.bl-bar > i { display: block; height: 100%; border-radius: 6px; background: var(--accent); transition: width .6s ease; }
+.bl-hero.warn .bl-bar > i { background: var(--warn); } .bl-hero.bad .bl-bar > i { background: var(--bad); }
+.bl-offer { display: grid; gap: 6px; padding: 16px 20px; margin-bottom: 14px; border-radius: 18px; color: #fff; background: linear-gradient(120deg, var(--brand), var(--accent)); box-shadow: var(--shadow); }
+.bl-offer b { font: 800 20px/1.3 var(--font-head); }
+.bl-offer span, .bl-offer small { opacity: .92; }
+.bl-offer .bl-bar { background: rgba(255, 255, 255, .25); }
+.bl-offer .bl-bar > i { background: #fff; }
+.bl-pend { font-weight: 700; margin: 0 0 6px; }
+.seg.bl-period { margin: 4px 0 16px; }
+.bl-plans { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px; }
+.bl-plan { position: relative; display: grid; align-content: start; gap: 10px; padding: 20px; border-radius: 18px; border: 1px solid var(--line); background: var(--card); transition: border-color .15s, box-shadow .15s, transform .15s; }
+.bl-plan:hover { box-shadow: var(--shadow); transform: translateY(-2px); }
+.bl-plan.best { border: 2px solid var(--accent); }
+.bl-plan.on { box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 22%, transparent); }
+.bl-plan h3 { margin: 0; font: 800 19px var(--font-head); }
+.bl-tag { position: absolute; top: -11px; inset-inline-start: 16px; padding: 3px 10px; border-radius: 999px; background: var(--accent); color: #fff; font-size: 12px; font-weight: 800; }
+.bl-price { display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px; }
+.bl-price s { color: var(--muted); font-size: 15px; }
+.bl-price b { font: 800 28px/1.1 var(--font-head); color: var(--ink); font-variant-numeric: tabular-nums; }
+.bl-price span { color: var(--muted); font-size: 13px; }
+.bl-feat { list-style: none; margin: 4px 0 6px; padding: 0; display: grid; gap: 7px; font-size: 14px; }
+.bl-feat li { padding-inline-start: 22px; position: relative; }
+.bl-feat li::before { content: '✓'; position: absolute; inset-inline-start: 0; color: var(--growth); font-weight: 900; }
+.bl-plan .btn { width: 100%; justify-content: center; margin-top: auto; }
+.bl-pay { scroll-margin-top: 140px; }
+.bl-step { display: grid; grid-template-columns: 30px 1fr; gap: 12px; padding: 14px 0; border-bottom: 1px solid var(--line); }
+.bl-step > div { display: grid; gap: 8px; min-width: 0; }
+.bl-n { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: var(--info-bg); color: var(--info); font: 800 14px var(--font-head); font-style: normal; }
+.bl-amount { display: flex; align-items: center; gap: 12px; }
+.bl-amount span { font: 800 26px var(--font-head); font-variant-numeric: tabular-nums; }
+.bl-methods { display: grid; gap: 8px; }
+.bl-m { display: grid; grid-template-columns: 20px 1fr; gap: 10px; align-items: start; padding: 12px 14px; border-radius: 14px; border: 1px solid var(--line); cursor: pointer; }
+.bl-m.on { border-color: var(--accent); background: color-mix(in srgb, var(--info-bg) 60%, var(--card)); }
+.bl-m > div { display: grid; gap: 6px; min-width: 0; }
+.bl-acc { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.bl-acc code { font-size: 16px; font-weight: 700; direction: ltr; unicode-bidi: isolate; padding: 4px 10px; border-radius: 8px; background: var(--bg); }
+.bl-ref { padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--card); color: var(--ink); font: 600 16px var(--font-body); direction: ltr; max-width: 320px; }
+.bl-drop { display: grid; gap: 4px; justify-items: center; padding: 18px; border: 2px dashed var(--line); border-radius: 14px; cursor: pointer; text-align: center; font-weight: 700; color: var(--accent); }
+.bl-drop:hover, #bl-file:focus-visible + .bl-drop { border-color: var(--accent); background: var(--info-bg); }
+.bl-prev { max-width: 220px; max-height: 300px; border-radius: 12px; border: 1px solid var(--line); object-fit: contain; }
+.bl-go { display: grid; gap: 6px; justify-items: start; padding-top: 16px; }
+.bad-text { color: var(--bad); }
+@media (max-width: 640px) { .bl-hero { flex-direction: column; align-items: flex-start; } .bl-v { font-size: 22px; } .bl-go .btn { width: 100%; justify-content: center; } }
