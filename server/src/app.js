@@ -14,6 +14,7 @@ import { dashTg, dashTgInvite, dashTgRemove } from './tglinks.js';
 import { tgTemplatesGet, tgTemplatesSave } from './tgtemplates.js';
 import { previewText } from './notify.js';
 import { contactLab } from './contactlab.js';
+import { dashBilling, platformBilling, platformPlanSave, platformBillingSettings, platformMethodSave, platformOwnPayments } from './billing.js';
 import { dashNegatives, dashNegativesExisting, dashNegativeDecide } from './negatives.js';
 
 const SITE_ACT = /^\/v1\/sites\/([A-Za-z0-9]{6,20})\/(rotate-key|install-status|pair-code)$/;
@@ -70,6 +71,12 @@ export async function handleApp(req, env, db, url, p, fetchImpl) {
     else if (m === 'POST' && p === '/v1/platform/tg-templates') res = await tgTemplatesSave(req, env, db, sess);
     else if (m === 'POST' && p === '/v1/platform/tg-templates/preview') res = await tgPreview(req, sess);
     else if (m === 'GET' && p === '/v1/platform/contact-lab') res = await contactLab(req, env, db, sess);
+    // الباقات والأسعار ووسائل الدفع (billing.js)
+    else if (m === 'GET' && p === '/v1/platform/billing') res = await platformBilling(req, env, db, sess);
+    else if (m === 'POST' && p === '/v1/platform/billing/plan') res = await platformPlanSave(req, env, db, sess);
+    else if (m === 'POST' && p === '/v1/platform/billing/settings') res = await platformBillingSettings(req, env, db, sess);
+    else if (m === 'POST' && p === '/v1/platform/billing/method') res = await platformMethodSave(req, env, db, sess);
+    else if (m === 'POST' && p === '/v1/platform/billing/own') res = await platformOwnPayments(req, env, db, sess);
     else res = notFound();
     return finish(res, req, env, true);
   }
@@ -103,6 +110,8 @@ export async function handleApp(req, env, db, url, p, fetchImpl) {
     else if (m === 'GET' && p === '/v1/dash/conv/actions') res = await dashConvActions(req, env, db, sess, url, fetchImpl);
     else if (m === 'POST' && p === '/v1/dash/conv/action') res = await dashConvAction(req, env, db, sess, fetchImpl);
     else if (m === 'POST' && p === '/v1/dash/conv/send') res = await dashConvSend(req, env, db, sess, fetchImpl);
+    // الاشتراك: الباقات بأسعار عملة الحساب ووسائل الدفع المتاحة (billing.js)
+    else if (m === 'GET' && p === '/v1/dash/billing') res = await dashBilling(req, env, db, sess, url);
     // الكلمات السلبية: اقتراحات من عبارات البحث + قرار صاحب الموقع + الإضافة لجوجل بموافقته (negatives.js)
     else if (m === 'GET' && p === '/v1/dash/negatives') res = await dashNegatives(req, env, db, sess, url);
     else if (m === 'GET' && p === '/v1/dash/negatives/existing') res = await dashNegativesExisting(req, env, db, sess, url, fetchImpl);

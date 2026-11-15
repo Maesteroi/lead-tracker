@@ -46,6 +46,9 @@ function fakeApi(over) {
       if (p === '/v1/platform/tg-templates' && req.method() === 'POST') { const b = JSON.parse(req.postData()); st.tplSaved = (st.tplSaved || []).concat([b]); return j(200, { ok: true, audience: b.audience, fields: b.fields }); }
       if (p === '/v1/platform/tg-templates') { const F = [['place', 'المكان'], ['gclid', 'رقم النقرة من جوجل (GCLID)'], ['actions', 'أزرار النتيجة']]; const own = { place: true, gclid: false, actions: true }, all = { place: true, gclid: true, actions: true }; return j(200, { ok: true, fields: F.map((x) => ({ key: x[0], label: x[1] })), audiences: { owner: Object.assign({}, own), staff: Object.assign({}, own), platform: Object.assign({}, all) }, defaults: { owner: own, staff: own, platform: all } }); }
       if (p === '/v1/platform/contact-lab') return j(200, { ok: true, days: 30, total: 9, rows: [{ bucket: 'chat', n: 5, won: 3, nomsg: 0, other: 1, open: 1, won_pct: 75, nomsg_pct: 0 }, { bucket: 'mid', n: 0, won: 0, nomsg: 0, other: 0, open: 0, won_pct: null, nomsg_pct: null }, { bucket: 'lock', n: 3, won: 0, nomsg: 2, other: 1, open: 0, won_pct: 0, nomsg_pct: 67 }, { bucket: 'ios', n: 1, won: 0, nomsg: 0, other: 0, open: 1, won_pct: null, nomsg_pct: null }, { bucket: 'none', n: 0, won: 0, nomsg: 0, other: 0, open: 0, won_pct: null, nomsg_pct: null }] });
+      if (p === '/v1/platform/billing/method') { const b = JSON.parse(req.postData()); st.blCalls = (st.blCalls || []).concat([b]); return b.details && b.details.numbers && !b.details.numbers.every((x) => /^01[0125]\d{8}$/.test(x)) ? j(400, { ok: false, error: 'numbers' }) : j(200, { ok: true, id: 'm-new' }); }
+      if (p.startsWith('/v1/platform/billing/')) { st.blCalls = (st.blCalls || []).concat([Object.assign({ path: p }, JSON.parse(req.postData() || '{}'))]); return j(200, { ok: true }); }
+      if (p === '/v1/platform/billing') return j(200, { ok: true, super: true, founders: { used: 3, limit: 100 }, settings: { trial_days: 7, annual_months: 10, founders_limit: 100, founders_pct: 50, founders_months: 12, founders_after_pct: 20 }, plans: [{ id: 'basic', sites: 1, clicks: 2000, prices: { SAR: 149, EGP: 1499, AED: 149 } }, { id: 'pro', sites: 3, clicks: 10000, prices: { SAR: 349, EGP: 3499, AED: 349 } }, { id: 'agency', sites: 10, clicks: 40000, prices: { SAR: 899, EGP: 8999, AED: 899 } }], methods: [{ id: 'm1', owner_id: null, kind: 'instapay', enabled: true, label: '', details: { handle: 'maestro@instapay', name: 'Maestro' }, currencies: ['EGP'] }], members: [{ user_id: 'u9', email: 'sara@maestro.example', name: 'سارة', own_payments: false }] });
       if (p === '/v1/platform/team') return j(200, st.team);
       if (p === '/v1/platform/audit') return j(200, { ok: true, events: [{ at: new Date().toISOString(), kind: 'platform_role_create', ok: true, reason: 'دعم: orgs_view', who: 'محمود' }, { at: new Date().toISOString(), kind: 'verdict_set', ok: true, reason: 'SiteId BOT1 fraud', who: 'سارة' }] });
       if (p.startsWith('/v1/platform/roles') || p.startsWith('/v1/platform/invites') || p === '/v1/platform/members') {
@@ -868,6 +871,19 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
   await pg.waitForSelector('#tab-lab table tbody tr');
   t('admin «contact measurement (trial)»: screen reading vs results, with the «no message» rate per reading', (await pg.locator('#tab-lab tbody tr').count()) === 5 && /قريب من شاشة مقفولة/.test(await pg.locator('#tab-lab').innerText()) && /67%/.test(await pg.locator('#tab-lab').innerText()));
   await shot(pg, 'admin-lab');
+  await pg.locator('#tab-btn-billing').click();
+  await pg.waitForSelector('#tab-billing .bl-tbl tbody tr');
+  t('admin «plans & payment»: 3 plans with a monthly price per currency, the launch offer (3 of 100 seats), the methods and the admins switch', (await pg.locator('#tab-billing .bl-tbl tbody tr').count()) === 3 && /3 من 100/.test(await pg.locator('#tab-billing').innerText()) && /maestro@instapay/.test(await pg.locator('#tab-billing').innerText()) && /سارة/.test(await pg.locator('#tab-billing').innerText()));
+  await pg.locator('#tab-billing .bl-tbl tbody tr').nth(1).locator('input').nth(2).fill('299');
+  await pg.locator('#tab-billing .bl-tbl tbody tr').nth(1).getByRole('button', { name: 'احفظ' }).click();
+  await pg.waitForFunction(() => /تم الحفظ/.test(document.getElementById('toast').textContent));
+  t('admin «plans & payment»: changing the Growth SAR price sends it for that plan', (() => { const c = api.blCalls.find((x) => x.path === '/v1/platform/billing/plan'); return c && c.id === 'pro' && c.prices.SAR === 299 && c.prices.EGP === 3499; })());
+  await pg.locator('.bl-add select').selectOption('vodafone_cash');
+  await pg.locator('.bl-add input').first().fill('12345');
+  await pg.locator('.bl-add').getByRole('button', { name: 'أضف' }).click();
+  await pg.waitForFunction(() => /رقم المحفظة غير صحيح/.test(document.getElementById('toast').textContent));
+  t('admin «plans & payment»: a wrong wallet number is refused with a clear message', true);
+  await shot(pg, 'admin-billing');
   t('super admin: no console errors or CSP violations', pg.errors.length === 0 && pg.csp.length === 0);
   await pg.context().close(); }
 
