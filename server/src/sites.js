@@ -79,7 +79,7 @@ export const notFound = () => json({ ok: false, error: 'not_found' }, 404);
 
 export async function me(req, env, db, sess) {
   const orgIds = sess.memberships.map((m) => m.org_id);
-  const orgs = orgIds.length ? (await db.select('organizations?id=in.(' + orgIds.join(',') + ')&select=id,name,type,status,trial_ends_at')) || [] : [];
+  const orgs = orgIds.length ? (await db.select('organizations?id=in.(' + orgIds.join(',') + ')&select=id,name,type,status,trial_ends_at,plan,plan_period_end')) || [] : [];
   const pl = sess.platform;
   return json({ ok: true, user: { id: sess.user.id, email: sess.user.email, name: sess.user.name, platform_admin: sess.user.platform_admin === true },
     platform: isPlatform(sess) ? { owner: true, perms: ['*'] } : pl ? { owner: false, role: pl.role, perms: pl.perms, scoped: !allScope(pl) } : null,

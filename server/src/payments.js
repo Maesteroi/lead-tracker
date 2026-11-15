@@ -8,7 +8,7 @@ import { eq } from './db.js';
 import { json } from './util.js';
 import { isPlatform, hasPerm, notFound, roleFor } from './sites.js';
 import { audit } from './auth.js';
-import { loadBilling, priceFor, discountFor, methodsFor } from './billing.js';
+import { loadBilling, priceFor, discountFor, methodsFor, ctxFor, countryOf, ORG_BILL } from './billing.js';
 import { sendTelegram, escHtml } from './telegram.js';
 import { tg } from './notify.js';
 
@@ -44,7 +44,7 @@ export async function dashPay(req, env, db, sess, fetchImpl) {
   const role = roleFor(sess, orgId);
   if (!role) return notFound();
   if (role !== 'owner') return json({ ok: false, error: 'role' }, 403);
-  const org = await db.one('organizations?id=' + eq(orgId) + '&select=id,name,status,plan,currency,market,plan_period_end,founder_no,founder_since,billing_owner');
+  const org = await db.one('organizations?id=' + eq(orgId) + '&select=' + ORG_BILL);
   if (!org) return notFound();
   if (!['month', 'year'].includes(b.period)) return json({ ok: false, error: 'period' }, 400);
   const ref = String(b.ref || '').trim();
@@ -52,12 +52,12 @@ export async function dashPay(req, env, db, sess, fetchImpl) {
   const bill = await loadBilling(db);
   const plan = bill.plans.find((p) => p.id === b.plan && p.active);
   if (!plan) return json({ ok: false, error: 'plan' }, 400);
-  const currency = /^[A-Z]{3}$/.test(String(org.currency || '')) ? org.currency : org.market === 'EG' ? 'EGP' : 'SAR';
+  const ctx = ctxFor(bill, await countryOf(db, org)), currency = ctx.currency;
   const methods = await methodsFor(db, org, currency);
   const method = methods.find((m) => m.id === b.method_id);
   if (!method || !MANUAL.includes(method.kind)) return json({ ok: false, error: 'method' }, 400);
   const disc = discountFor(org, bill, Date.now());
-  const price = priceFor(plan, currency, bill.settings, disc);
+  const price = priceFor(plan, ctx, bill.settings, disc);
   if (!price) return json({ ok: false, error: 'plan' }, 400);
   const bytes = fromDataUrl(b.receipt);
   if (!bytes || bytes.length < 200) return json({ ok: false, error: 'receipt' }, 400);
@@ -74,12 +74,15 @@ export async function dashPay(req, env, db, sess, fetchImpl) {
   const id = crypto.randomUUID();
   const path = org.id + '/' + id + '.' + mime.split('/')[1];
   await db.putObject(BUCKET, path, bytes, mime);
-  const amount = b.period === 'year' ? price.yearly_now : price.monthly_now;
+  // باقة بالمشروع: السعر × عدد المشاريع (بحد أدنى min_units)
+  const units = plan.unit === 'project' ? Math.round(Number(b.units)) : 1;
+  if (!(units >= (plan.min_units || 1) && units <= 1000)) return json({ ok: false, error: 'units' }, 400);
+  const amount = Math.round((b.period === 'year' ? price.yearly_now : price.monthly_now) * units * 100) / 100;
   const founder = !org.founder_no && disc > 0 && disc === bill.settings.founders_pct;
   await db.insert('payments', [{ id, org_id: org.id, plan_id: plan.id, period: b.period, amount, currency, method_id: method.id, ref, receipt_path: path, receipt_hash: hash, receipt_mime: mime,
-    dup_of: dup ? dup.id : null, founder, discount: disc, status: 'pending', created_by: sess.user.id, created_at: new Date().toISOString() }], { returning: false });
+    dup_of: dup ? dup.id : null, founder, discount: disc, units, status: 'pending', created_by: sess.user.id, created_at: new Date().toISOString() }], { returning: false });
   await audit(db, sess.user.id, 'payment_submitted', true, org.id + ' ' + plan.id + ' ' + b.period + ' ' + amount + ' ' + currency);
-  await sendTelegram(env, ['💳 <b>إيصال جديد للمراجعة</b>', 'الحساب: ' + escHtml(org.name || org.id), 'الباقة: ' + (PLAN_AR[plan.id] || plan.id) + ' · ' + (b.period === 'year' ? 'سنوي' : 'شهري'),
+  await sendTelegram(env, ['💳 <b>إيصال جديد للمراجعة</b>', 'الحساب: ' + escHtml(org.name || org.id), 'الباقة: ' + (PLAN_AR[plan.id] || plan.id) + (units > 1 ? ' · ' + units + ' مشاريع' : '') + ' · ' + (b.period === 'year' ? 'سنوي' : 'شهري'),
     'المبلغ: ' + money(amount, currency) + (disc ? ' (خصم ' + disc + '%)' : ''), 'الوسيلة: ' + (KIND_AR[method.kind] || method.kind) + ' · رقم العملية: <code>' + escHtml(ref) + '</code>',
     dup ? '⚠️ نفس صورة إيصال اترفعت قبل كده' : null, '', '<a href="https://app.maestrolt.com/admin#billing">افتح للمراجعة</a>'].filter((x) => x != null).join('\n'), fetchImpl);
   return json({ ok: true, id, amount, currency, status: 'pending' });
@@ -87,8 +90,8 @@ export async function dashPay(req, env, db, sess, fetchImpl) {
 
 // سجل المدفوعات للعميل (في صفحة الاشتراك)
 export async function orgPayments(db, orgId) {
-  const rows = (await db.select('payments?org_id=' + eq(orgId) + '&select=id,plan_id,period,amount,currency,status,reason,discount,created_at,reviewed_at,period_end&order=created_at.desc&limit=20').catch(() => [])) || [];
-  return rows.map((p) => ({ id: p.id, plan: p.plan_id, period: p.period, amount: Number(p.amount), currency: p.currency, status: p.status, reason: p.reason || '', discount: p.discount || 0, at: p.created_at, reviewed_at: p.reviewed_at, period_end: p.period_end }));
+  const rows = (await db.select('payments?org_id=' + eq(orgId) + '&select=id,plan_id,period,amount,currency,status,reason,discount,units,created_at,reviewed_at,period_end&order=created_at.desc&limit=20').catch(() => [])) || [];
+  return rows.map((p) => ({ id: p.id, plan: p.plan_id, period: p.period, amount: Number(p.amount), currency: p.currency, status: p.status, reason: p.reason || '', discount: p.discount || 0, units: p.units || 1, at: p.created_at, reviewed_at: p.reviewed_at, period_end: p.period_end }));
 }
 
 // ── الإدارة ──
@@ -107,7 +110,7 @@ export async function platformPayments(req, env, db, sess, url) {
   const rv = await reviewer(db, sess);
   if (!rv) return notFound();
   const st = ['pending', 'approved', 'rejected'].includes(url.searchParams.get('status')) ? url.searchParams.get('status') : 'pending';
-  let rows = (await db.select('payments?status=eq.' + st + '&select=id,org_id,plan_id,period,amount,currency,method_id,ref,dup_of,founder,discount,status,reason,created_at,reviewed_at,period_end&order=created_at.' + (st === 'pending' ? 'asc' : 'desc') + '&limit=100')) || [];
+  let rows = (await db.select('payments?status=eq.' + st + '&select=id,org_id,plan_id,period,amount,currency,method_id,ref,dup_of,founder,discount,units,status,reason,created_at,reviewed_at,period_end&order=created_at.' + (st === 'pending' ? 'asc' : 'desc') + '&limit=100')) || [];
   rows = await visible(db, rv, rows);
   const ids = (k) => [...new Set(rows.map((r) => r[k]).filter(Boolean))];
   const orgs = ids('org_id').length ? (await db.select('organizations?id=in.(' + ids('org_id').join(',') + ')&select=id,name,plan,status,plan_period_end,founder_no')) || [] : [];
@@ -117,7 +120,7 @@ export async function platformPayments(req, env, db, sess, url) {
     const o = orgs.find((x) => x.id === p.org_id) || {}, m = methods.find((x) => x.id === p.method_id) || {};
     return { id: p.id, org: { id: p.org_id, name: o.name || '', plan: o.plan || null, status: o.status || '', period_end: o.plan_period_end || null, founder_no: o.founder_no || null },
       plan: p.plan_id, period: p.period, amount: Number(p.amount), currency: p.currency, method: { kind: m.kind || '', label: m.label || '' }, ref: p.ref, dup: !!p.dup_of,
-      founder: !!p.founder, discount: p.discount || 0, status: p.status, reason: p.reason || '', at: p.created_at, hours: Math.floor((now - Date.parse(p.created_at)) / 36e5), reviewed_at: p.reviewed_at, period_end: p.period_end };
+      founder: !!p.founder, discount: p.discount || 0, units: p.units || 1, status: p.status, reason: p.reason || '', at: p.created_at, hours: Math.floor((now - Date.parse(p.created_at)) / 36e5), reviewed_at: p.reviewed_at, period_end: p.period_end };
   }) });
 }
 
@@ -140,7 +143,7 @@ export async function platformPaymentReview(req, env, db, sess, fetchImpl) {
   const b = await req.json().catch(() => ({}));
   if (!UUID_RE.test(String(b.id || ''))) return notFound();
   if (!['approve', 'reject'].includes(b.decision)) return json({ ok: false, error: 'bad_request' }, 400);
-  const p = await db.one('payments?id=' + eq(b.id) + '&select=id,org_id,plan_id,period,amount,currency,method_id,founder,status');
+  const p = await db.one('payments?id=' + eq(b.id) + '&select=id,org_id,plan_id,period,amount,currency,method_id,founder,units,status');
   if (!p || !(await visible(db, rv, [p])).length) return notFound();
   if (p.status !== 'pending') return json({ ok: false, error: 'done' }, 409);
   const now = new Date().toISOString();
@@ -156,7 +159,7 @@ export async function platformPaymentReview(req, env, db, sess, fetchImpl) {
   // التفعيل: من آخر المدة الحالية لو لسه شغالة، وإلا من دلوقتي
   const base = org && org.plan_period_end && Date.parse(org.plan_period_end) > Date.now() ? org.plan_period_end : now;
   const end = addMonths(base, p.period === 'year' ? 12 : 1);
-  const patch = { plan: p.plan_id, status: 'active', plan_period_end: end, status_changed_at: now };
+  const patch = { plan: p.plan_id, status: 'active', plan_period_end: end, status_changed_at: now, plan_units: p.units || 1 };
   let seat = null;
   if (p.founder && org && !org.founder_no) {
     const bill = await loadBilling(db);

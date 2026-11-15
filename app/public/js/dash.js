@@ -163,8 +163,28 @@
     $('site').parentNode.hidden = r === 'clients';
     if (r === 'overview' && state.level === 'simple') $('page-title').textContent = T('nav.overview.simple');
     if (state.level === 'simple' && NAV.simple.indexOf(r) < 0) { /* شاشة تفصيلية من رابط: بتتفتح عادي */ }
+    trialBar(r);
     view.appendChild(el('div', { class: 'loading' }, [el('span', { class: 'spinner' }), document.createTextNode(T('frame.loading'))]));
     (r === 'overview' && state.level === 'simple' ? (DATA.live ? lSimple : vSimple) : (DATA.live && LIVE_VIEWS[r]) || VIEWS[r])(view).then(function () { var l = view.querySelector('.loading'); if (l) l.remove(); window.scrollTo(0, 0); });
+  }
+
+  // شريط الاشتراك فوق كل الصفحات (15 نوفمبر): قبل نهاية التجربة بـ3 أيام · بعد نهايتها (الحماية متوقفة) · قبل نهاية الاشتراك بـ5 أيام
+  function trialBar(r) {
+    var old = $('trial-bar'); if (old) old.remove();
+    if (!DATA.live || !DATA.me || r === 'billing') return;
+    var me = DATA.me() || {}, site = (state.sites || []).filter(function (x) { return x.id === state.site; })[0];
+    var org = site && (me.orgs || []).filter(function (o) { return o.id === site.org_id; })[0];
+    if (!org) return;
+    var now = Date.now(), kind = null, n = 0;
+    if (org.status === 'trial' && org.trial_ends_at) { n = Math.ceil((Date.parse(org.trial_ends_at) - now) / 864e5); kind = n <= 0 ? 'over' : n <= 3 ? 'soon' : null; }
+    else if (org.status === 'off' || org.status === 'past_due') kind = 'over';
+    else if (org.status === 'active' && org.plan_period_end) { n = Math.ceil((Date.parse(org.plan_period_end) - now) / 864e5); kind = n <= 0 ? 'over' : n <= 5 ? 'renew' : null; }
+    if (!kind) return;
+    var bar = el('div', { id: 'trial-bar', class: 'trial-bar ' + (kind === 'over' ? 'bad' : 'warn'), role: 'status' }, [
+      el('span', { text: kind === 'over' ? T('tb.over') : kind === 'soon' ? T('tb.soon', { n: LT.n(n, 'day') }) : T('tb.renew', { n: LT.n(n, 'day') }) }),
+      el('a', { class: 'btn sm', href: '#/billing', text: T(kind === 'renew' ? 'tb.renew.go' : 'tb.go') }),
+    ]);
+    var v = $('view'); v.parentNode.insertBefore(bar, v);
   }
 
   // ════════ 1) الرئيسية ════════
@@ -1367,7 +1387,7 @@
   // ════════ الفريق (G-29): مين يدخل حسابك وبيعمل إيه ════════
   var ROLE_AR = {}; ['owner', 'admin', 'staff', 'viewer'].forEach(function (r) { ROLE_AR[r] = [T('team.role.' + r), T('team.role.' + r + '.d')]; });
   // ── الاشتراك (الدفع، المرحلة 2 · 15 نوفمبر): حالتك · عرض المؤسسين · الباقات بعملة حسابك · التحويل بالإيصال · سجل المدفوعات ──
-  var bill = { period: 'month', plan: null, method: null, receipt: null };
+  var bill = { period: 'month', plan: null, method: null, receipt: null, units: {} };
   function vBilling(view) {
     clear(view);
     if (!DATA.billing) { view.appendChild(soonCard(T('nav.billing'), [T('bl.demo.1'), T('bl.demo.2'), T('bl.demo.3')])); return Promise.resolve(); }
@@ -1408,33 +1428,47 @@
     });
     var grid = el('div', { class: 'bl-plans' });
     d.plans.forEach(function (p) {
-      var pr = p.price, yr = bill.period === 'year', now2 = yr ? pr.yearly_now : pr.monthly_now, was = yr ? pr.yearly : pr.monthly;
+      var pr = p.price, yr = bill.period === 'year', now2 = yr ? pr.yearly_now : pr.monthly_now, was = yr ? pr.yearly : pr.monthly, proj = p.unit === 'project';
+      var n = proj ? Math.max(p.min_units || 1, bill.units[p.id] || p.min_units || 1) : 1;
+      var stepper = null;
+      if (proj) {
+        var minus = el('button', { type: 'button', class: 'st-b', 'aria-label': T('bl.units.less'), text: '−' }), plus = el('button', { type: 'button', class: 'st-b', 'aria-label': T('bl.units.more'), text: '+' });
+        minus.disabled = n <= (p.min_units || 1);
+        minus.addEventListener('click', function () { bill.units[p.id] = Math.max(p.min_units || 1, n - 1); drawBilling(view, d, org); });
+        plus.addEventListener('click', function () { bill.units[p.id] = Math.min(500, n + 1); drawBilling(view, d, org); });
+        stepper = el('div', { class: 'bl-units' }, [el('span', { text: T('bl.units') }), el('div', { class: 'st' }, [minus, el('b', { text: fmt(n) }), plus]), el('small', { class: 'dim', text: T('bl.units.total', { a: price2(now2 * n, pr.currency) }) })]);
+      }
       var choose = el('button', { class: 'btn' + (bill.plan === p.id ? '' : ' ghost'), type: 'button', text: o.status === 'active' && o.plan === p.id ? T('bl.renew') : T('bl.choose') });
       choose.disabled = !!pend || !d.manage;
       choose.addEventListener('click', function () { bill.plan = p.id; bill.receipt = null; drawBilling(view, d, org); var c = document.getElementById('bl-checkout'); if (c) c.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
       grid.appendChild(el('div', { class: 'bl-plan' + (p.id === 'pro' ? ' best' : '') + (bill.plan === p.id ? ' on' : '') }, [
         p.id === 'pro' ? el('span', { class: 'bl-tag', text: T('bl.best') }) : null,
         el('h3', { text: T('bl.plan.' + p.id) }),
-        el('div', { class: 'bl-price' }, [pr.discount ? el('s', { text: price2(was, pr.currency) }) : null, el('b', { text: price2(now2, pr.currency) }), el('span', { text: yr ? T('bl.per.year') : T('bl.per.month') })]),
+        el('div', { class: 'bl-price' }, [pr.discount ? el('s', { text: price2(was, pr.currency) }) : null, el('b', { text: price2(now2, pr.currency) }), el('span', { text: (proj ? T('bl.per.project') + ' ' : '') + (yr ? T('bl.per.year') : T('bl.per.month')) })]),
         yr ? el('small', { class: 'dim', text: T('bl.year.eq', { m: price2(now2 / 12, pr.currency) }) }) : null,
-        el('ul', { class: 'bl-feat' }, [el('li', { text: T('bl.f.sites', { n: LT.n(p.sites, 'site') }) }), el('li', { text: T('bl.f.clicks', { n: fmt(p.clicks) }) })].concat(T('bl.f.' + p.id).split('|').map(function (f) { return el('li', { text: f }); }))),
+        el('ul', { class: 'bl-feat' }, (proj ? [el('li', { text: T('bl.f.project', { c: LT.n(p.campaigns_per_unit || 2, 'campaign') }) }), el('li', { text: T('bl.f.min', { n: fmt(p.min_units || 1) }) })]
+          : [el('li', { text: T('bl.f.sites', { n: LT.n(p.sites, 'site') }) }), el('li', { text: T('bl.f.clicks', { n: fmt(p.clicks) }) })]).concat(T('bl.f.' + p.id).split('|').map(function (f) { return el('li', { text: f }); }))),
+        stepper,
         choose,
       ]));
     });
-    view.appendChild(card(T('bl.plans'), [el('p', { class: 'hint', text: T('bl.cur', { c: curName(d.currency) }) }), seg, grid]));
+    var fxNote = d.pricing && d.pricing.mode === 'usd' && d.pricing.source ? el('p', { class: 'hint' }, [el('span', { text: T('bl.fx', { r: Number(d.pricing.rate).toLocaleString('en-US', { maximumFractionDigits: 2 }), c: curName(d.currency) }) + ' ' }), el('a', { href: d.pricing.source, target: '_blank', rel: 'noopener', text: 'Rates By Exchange Rate API' })]) : null;
+    view.appendChild(card(T('bl.plans'), [el('p', { class: 'hint', text: T('bl.cur', { c: curName(d.currency) }) }), seg, grid, fxNote]));
     // ٥) الدفع
     if (bill.plan && !pend && d.manage) view.appendChild(checkout(view, d, org));
     if (!d.manage) view.appendChild(el('p', { class: 'muted', text: T('bl.owner_only') }));
     // ٦) السجل
     if ((d.payments || []).length) view.appendChild(card(T('bl.history'), [el('ul', { class: 'feed' }, d.payments.map(function (p) {
       return el('li', {}, [el('span', { class: 'pill ' + (p.status === 'approved' ? 'ok' : p.status === 'rejected' ? 'bad' : 'warn'), text: T('bl.s.' + p.status) }),
-        el('div', {}, [el('span', { text: T('bl.plan.' + p.plan) + ' · ' + T(p.period === 'year' ? 'bl.p.year.short' : 'bl.p.month') + ' · ' + price2(p.amount, p.currency) }), p.reason ? el('small', { class: 'bad-text', text: T('bl.reason', { r: p.reason }) }) : null, p.period_end ? el('small', { class: 'dim', text: T('bl.until.short', { d: dateAr(p.period_end) }) }) : null]),
+        el('div', {}, [el('span', { text: T('bl.plan.' + p.plan) + (p.units > 1 ? ' · ' + LT.n(p.units, 'project') : '') + ' · ' + T(p.period === 'year' ? 'bl.p.year.short' : 'bl.p.month') + ' · ' + price2(p.amount, p.currency) }), p.reason ? el('small', { class: 'bad-text', text: T('bl.reason', { r: p.reason }) }) : null, p.period_end ? el('small', { class: 'dim', text: T('bl.until.short', { d: dateAr(p.period_end) }) }) : null]),
         el('time', { text: dateAr(p.at) })]);
     }))]));
   }
   function checkout(view, d, org) {
-    var p = d.plans.filter(function (x) { return x.id === bill.plan; })[0], yr = bill.period === 'year', amount = yr ? p.price.yearly_now : p.price.monthly_now;
-    var box = el('section', { class: 'panel-card bl-pay', id: 'bl-checkout' }, [el('div', { class: 'sec-head' }, [el('h2', { text: T('bl.pay.title', { p: T('bl.plan.' + p.id) }) })])]);
+    var p = d.plans.filter(function (x) { return x.id === bill.plan; })[0], yr = bill.period === 'year';
+    var units = p.unit === 'project' ? Math.max(p.min_units || 1, bill.units[p.id] || p.min_units || 1) : 1;
+    var amount = Math.round((yr ? p.price.yearly_now : p.price.monthly_now) * units * 100) / 100;
+    var box = el('section', { class: 'panel-card bl-pay', id: 'bl-checkout' }, [el('div', { class: 'sec-head' }, [el('h2', { text: T('bl.pay.title', { p: T('bl.plan.' + p.id) }) + (units > 1 ? ' · ' + LT.n(units, 'project') : '') })])]);
     if (!d.methods.length) { box.appendChild(el('p', { class: 'muted', text: T('bl.no_methods') })); return box; }
     if (!bill.method || !d.methods.some(function (m) { return m.id === bill.method; })) bill.method = d.methods[0].id;
     var copy = function (txt) { return function () { (navigator.clipboard ? navigator.clipboard.writeText(String(txt)) : Promise.reject()).then(function () { toast(T('bl.copied')); }, function () { toast(T('tg.copy.manual')); }); }; };
@@ -1471,7 +1505,7 @@
       if (!/^[A-Za-z0-9\-_.#/ ]{4,40}$/.test(r)) { toast(T('bl.e.ref')); ref.focus(); return; }
       if (!bill.receipt) { toast(T('bl.e.need')); return; }
       send.disabled = true; send.textContent = T('bl.sending');
-      DATA.billingPay({ org: org, plan: p.id, period: bill.period, method_id: bill.method, ref: r, receipt: bill.receipt }).then(function () {
+      DATA.billingPay({ org: org, plan: p.id, period: bill.period, method_id: bill.method, ref: r, receipt: bill.receipt, units: units }).then(function () {
         bill.plan = null; bill.receipt = null; toast(T('bl.sent')); render();
       }, function (e) { send.disabled = false; send.textContent = T('bl.send', { a: price2(amount, p.price.currency) }); var k = 'bl.e.' + e.message; toast(T(k) === k ? T('err.save') : T(k)); });
     });

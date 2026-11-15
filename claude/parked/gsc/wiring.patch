@@ -1,0 +1,136 @@
+diff --git a/server/src/app.js b/server/src/app.js
+index 274b7c9..06ce625 100644
+--- a/server/src/app.js
++++ b/server/src/app.js
+@@ -19,6 +19,7 @@ import { dashPay, platformPayments, platformReceipt, platformPaymentReview } fro
+ import { dashNegatives, dashNegativesExisting, dashNegativeDecide } from './negatives.js';
+ import { dashKeywords, dashKeywordDecide } from './keywords.js';
+ import { dashSuffix, dashSuffixSet } from './suffix.js';
++import { gscStart, gscCallback, gscChoose, gscUnlink } from './gsc.js';
+ 
+ const SITE_ACT = /^\/v1\/sites\/([A-Za-z0-9]{6,20})\/(rotate-key|install-status|pair-code)$/;
+ const ORG_ACT = /^\/v1\/platform\/orgs\/([^/]+)$/;
+@@ -130,6 +131,11 @@ export async function handleApp(req, env, db, url, p, fetchImpl) {
+     // لاحقة الرابط في حساب الإعلانات: فحص · وضبط بضغطة واحدة (suffix.js)
+     else if (m === 'GET' && p === '/v1/dash/suffix') res = await dashSuffix(req, env, db, sess, url, fetchImpl);
+     else if (m === 'POST' && p === '/v1/dash/suffix') res = await dashSuffixSet(req, env, db, sess, fetchImpl);
++    // Search Console: كلمات بحث جوجل المجاني (gsc.js) · البداية والرجوع تنقّل من المتصفح بالجلسة
++    else if (m === 'GET' && p === '/v1/dash/gsc/start') return finish(await gscStart(req, env, db, sess, url), req, env, false);
++    else if (m === 'GET' && p === '/v1/dash/gsc/callback') return finish(await gscCallback(req, env, db, sess, url, fetchImpl), req, env, false);
++    else if (m === 'POST' && p === '/v1/dash/gsc/choose') res = await gscChoose(req, env, db, sess);
++    else if (m === 'POST' && p === '/v1/dash/gsc/unlink') res = await gscUnlink(req, env, db, sess);
+     // تنبيهات تليجرام للموقع: رابط ربط من اللوحة (tglinks.js)
+     else if (m === 'GET' && p === '/v1/dash/tg') res = await dashTg(req, env, db, sess, url);
+     else if (m === 'POST' && p === '/v1/dash/tg/invite') res = await dashTgInvite(req, env, db, sess);
+diff --git a/server/src/cron.js b/server/src/cron.js
+index 25038cb..96d6a1b 100644
+--- a/server/src/cron.js
++++ b/server/src/cron.js
+@@ -8,6 +8,7 @@ import { cleanupReplays } from './replay.js';
+ import { dailyDeliveryReport } from './health.js';
+ import { dailyClicksReports } from './clicksreport.js';
+ import { remindPending } from './payments.js';
++import { gscPull } from './gsc.js';
+ import { cleanPending, adsLinkReady } from './adslink.js';
+ 
+ const H = 3600 * 1000;
+@@ -105,6 +106,8 @@ export async function runScheduled(env, db, opts) {
+   try { out.delivery = await dailyDeliveryReport(env, db, opts && opts.fetchImpl); } catch (e) { out.delivery = { error: String(e && e.message || e).slice(0, 80) }; }
+   // تقرير النقرات اليومي لكل موقع مربوط بجوجل أدز (بعد ما يوم أمس يتسحب): مستقل
+   try { out.clicks = await dailyClicksReports(env, db, opts && opts.fetchImpl); } catch (e) { out.clicks = { error: String(e && e.message || e).slice(0, 80) }; }
++  // Search Console: سحب كلمات البحث المجاني (5 مواقع في اللفة، 7 أيام لكل موقع): مستقل
++  try { out.gsc = await gscPull(env, db, opts && opts.fetchImpl); } catch (e) { out.gsc = { error: String(e && e.message || e).slice(0, 80) }; }
+   // إيصالات مستنية أكتر من 20 ساعة ← تذكير للإدارة مرة واحدة (payments.js)
+   try { out.payments = await remindPending(env, db, opts && opts.fetchImpl); } catch (e) { out.payments = { error: String(e && e.message || e).slice(0, 80) }; }
+   // طلبات ربط جوجل أدز اللي ماكملتش (مرة في الساعة، ولو الربط متظبّط بس): مستقل
+diff --git a/server/src/dash.js b/server/src/dash.js
+index 916e240..5015472 100644
+--- a/server/src/dash.js
++++ b/server/src/dash.js
+@@ -19,6 +19,7 @@ import { replaySet, loadReplay } from './replay.js';
+ import { adsState } from './adslink.js';
+ import { adsSummary } from './adsdash.js';
+ import { sourceTree } from './sources.js';
++import { gscState, organicSummary } from './gsc.js';
+ 
+ const RANGES = new Set([1, 7, 14, 30, 90]);
+ const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
+@@ -100,6 +101,7 @@ export async function dashOverview(req, env, db, sess, url) {
+     cities: geoTally(sessions, (s) => (s.city ? s.city + '|' + (s.country_code || '') : null)).slice(0, 15).map((c) => Object.assign(c, { name: c.key.split('|')[0], cc: c.key.split('|')[1] || '' })),
+     sources_conv: sourcesConv(sessions, leads),
+     ads: await adsSummary(db, site, pd, sessions, leads).catch(() => null),
++    organic: await organicSummary(db, site, pd).catch(() => null),
+     targets: [...new Set(sessions.flatMap((s) => targetCountries(s.target_geo)))].slice(0, 20),
+     reasons: reasonsOf(sessions, lang),
+     hours: hoursOf(sessions),
+@@ -236,7 +238,7 @@ export async function dashSetup(req, env, db, sess) {
+     const last = await db.one('raw_events?client_id=' + eq(c.id) + '&select=received_at&order=received_at.desc');
+     const d = deliv.filter((r) => r.client_id === c.id);
+     out.push({ id: c.id, name: c.name, domains: c.domains || [], status: c.status, paired: !!c.paired_at, installed: !!last, last_event: last ? last.received_at : null,
+-      plugin: d[0] ? d[0].plugin_version : null, delivery: d.map((r) => ({ day: r.day, pct: r.pv_pct, ok: r.ok })), ads: await adsLinked(db, c.id), ads_state: await adsState(db, c.id), role: roleFor(sess, c.org_id, c.id) });
++      plugin: d[0] ? d[0].plugin_version : null, delivery: d.map((r) => ({ day: r.day, pct: r.pv_pct, ok: r.ok })), ads: await adsLinked(db, c.id), ads_state: await adsState(db, c.id), gsc: await gscState(db, c.id), role: roleFor(sess, c.org_id, c.id) });
+   }
+   return json({ ok: true, sites: out });
+ }
+diff --git a/server/test/fake-google.js b/server/test/fake-google.js
+index 839ff52..a236c53 100644
+--- a/server/test/fake-google.js
++++ b/server/test/fake-google.js
+@@ -88,6 +88,7 @@ export function fakeGoogle(opts) {
+   }
+ 
+   // ── الدخول بحساب جوجل (مشروع منفصل): الكود بيتصدر بـissueCode، والبدل بيتحقق من PKCE والسر ورابط الرجوع ──
++  g.gsc = { codes: {}, sites: [], rows: {}, queries: [], revoked: false };
+   g.signin = { clientId: 'signin-id.apps.googleusercontent.com', clientSecret: 'signin-secret', codes: {}, tokenCalls: 0 };
+   g.issueCode = (profile, params) => { const code = 'code-' + Math.random().toString(36).slice(2); g.signin.codes[code] = { profile, params, used: false }; return code; };
+   const b64u = (o) => Buffer.from(typeof o === 'string' ? o : JSON.stringify(o)).toString('base64url');
+@@ -112,6 +113,16 @@ export function fakeGoogle(opts) {
+     if (u.hostname === 'oauth2.googleapis.com') {
+       g.oauthCalls++;
+       const b = new URLSearchParams(init.body);
++      // Search Console (gsc.js): عميل الدخول، من غير PKCE
++      if (b.get('grant_type') === 'authorization_code' && g.gsc.codes[b.get('code')]) {
++        if (b.get('client_id') !== g.signin.clientId || b.get('client_secret') !== g.signin.clientSecret || !/\/v1\/dash\/gsc\/callback$/.test(b.get('redirect_uri') || '')) return resp(401, { error: 'invalid_client' });
++        const c = g.gsc.codes[b.get('code')]; delete g.gsc.codes[b.get('code')];
++        return resp(200, { access_token: 'AT-gsc', refresh_token: c.noRefresh ? undefined : 'RT-gsc', scope: c.scope || 'https://www.googleapis.com/auth/webmasters.readonly', expires_in: 3599 });
++      }
++      if (b.get('grant_type') === 'refresh_token' && b.get('refresh_token') === 'RT-gsc') {
++        if (b.get('client_id') !== g.signin.clientId) return resp(401, { error: 'invalid_client' });
++        return g.gsc.revoked ? resp(400, { error: 'invalid_grant' }) : resp(200, { access_token: 'AT-gsc', expires_in: 3599 });
++      }
+       if (b.get('grant_type') === 'authorization_code') return signinToken(b);
+       if (b.get('client_id') !== g.clientId || b.get('client_secret') !== g.clientSecret) return resp(401, { error: 'invalid_client' });
+       const access = g.tokens[b.get('refresh_token')];
+@@ -120,6 +131,19 @@ export function fakeGoogle(opts) {
+       return resp(200, { access_token: access, expires_in: 3599, token_type: 'Bearer' });
+     }
+     // Data Manager API (رفع التحويلات): صلاحية datamanager لازم تكون في التوكن
++    // Search Console API (webmasters v3): قايمة الخصائص · searchAnalytics.query
++    if (u.hostname === 'www.googleapis.com' && u.pathname.startsWith('/webmasters/v3/')) {
++      if (String(headers.Authorization || '') !== 'Bearer AT-gsc') return resp(401, { error: { code: 401, message: 'Invalid Credentials' } });
++      if (u.pathname === '/webmasters/v3/sites') return resp(200, { siteEntry: g.gsc.sites });
++      const m = /^\/webmasters\/v3\/sites\/([^/]+)\/searchAnalytics\/query$/.exec(u.pathname);
++      if (m && (init.method || 'GET') === 'POST') {
++        const b = JSON.parse(init.body || '{}'); const prop = decodeURIComponent(m[1]);
++        g.gsc.queries.push(Object.assign({ property: prop }, b));
++        const rows = (g.gsc.rows[prop] || []).filter((r) => r.keys[0] >= b.startDate && r.keys[0] <= b.endDate);
++        return resp(200, { rows: rows.slice(b.startRow || 0, (b.startRow || 0) + (b.rowLimit || 1000)), responseAggregationType: 'byPage' });
++      }
++      return resp(404, { error: { code: 404 } });
++    }
+     if (u.hostname === 'datamanager.googleapis.com') {
+       const tok = String(headers.Authorization || '').replace(/^Bearer /, '');
+       const body = JSON.parse(init.body || '{}');
+diff --git a/server/test/fake-supabase.js b/server/test/fake-supabase.js
+index d33d6dd..b4b7c26 100644
+--- a/server/test/fake-supabase.js
++++ b/server/test/fake-supabase.js
+@@ -33,7 +33,7 @@ const DEFAULTS = {
+ const UNIQUE = {
+   clients: [['id']], ads_link_pending: [['id']], devices: [['token_hash']], pair_codes: [['code']],
+   site_pair_codes: [['code_hash']], site_health: [['client_id', 'day']], protection_verdicts: [['client_id', 'session_id']], replay_sessions: [['client_id', 'session_id']], daily_reports: [['kind', 'day']], ip_geo: [['ip']], tg_sessions: [['client_id', 'session_id', 'chat_id']], users: [['google_sub']], memberships: [['user_id', 'org_id']], platform_members: [['user_id']], platform_roles: [['name']], sessions: [['token_hash']],
+-  raw_events: [['client_id', 'dedupe_key']], conv_uploads: [['client_id', 'match_code', 'conversion_action_id']], tg_links: [['client_id', 'chat_id']], tg_invites: [['code_hash']], tg_templates: [['audience']], neg_decisions: [['client_id', 'text', 'match_type']], kw_decisions: [['client_id', 'text', 'match_type']], plans: [['id']], plan_prices: [['plan_id', 'currency']], billing_settings: [['id']], contact_clicks: [['client_id', 'match_code', 'type']],
++  raw_events: [['client_id', 'dedupe_key']], conv_uploads: [['client_id', 'match_code', 'conversion_action_id']], tg_links: [['client_id', 'chat_id']], tg_invites: [['code_hash']], tg_templates: [['audience']], neg_decisions: [['client_id', 'text', 'match_type']], kw_decisions: [['client_id', 'text', 'match_type']], gsc_credentials: [['client_id']], gsc_queries: [['client_id', 'day', 'query', 'page']], plans: [['id']], plan_prices: [['plan_id', 'currency']], billing_settings: [['id']], contact_clicks: [['client_id', 'match_code', 'type']],
+   persons: [['client_id', 'phone_e164']], messages: [['conversation_id', 'dedupe_key']],
+   calls: [['device_id', 'started_at', 'phone_e164', 'NND']],
+ };
