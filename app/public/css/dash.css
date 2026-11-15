@@ -580,3 +580,7 @@ svg.geo { width: 100%; height: auto; aspect-ratio: 1.7; display: block; backgrou
 .au-list li.bad i { background: var(--bad-bg); color: var(--bad); } .au-list li.warn i { background: var(--warn-bg); color: var(--warn); } .au-list li.info i { background: var(--info-bg); color: var(--info); }
 .bf-about { width: 100%; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--card); color: var(--ink); font: 500 15px/1.7 var(--font-body); resize: vertical; }
 .bf-chip.fear { background: var(--info-bg); color: var(--info); }
+/* إجراءات الزيارة والممنوعون (15 نوفمبر) */
+.v-acts-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.bk-list li { grid-template-columns: auto 1fr auto; align-items: center; }
+.ltr { direction: ltr; unicode-bidi: isolate; }

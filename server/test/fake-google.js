@@ -12,7 +12,7 @@ import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 
 const CV_SEGMENTS = new Set(['segments.date', 'segments.device', 'segments.ad_network_type', 'segments.ad_sub_network_type', 'segments.click_type', 'segments.slot', 'segments.month_of_year']);
-const RESOURCES = new Set(['campaign_criterion', 'shared_criterion', 'conversion_action', 'customer', 'customer_client', 'campaign', 'search_term_view', 'click_view', 'ad_group_ad', 'geo_target_constant']);
+const RESOURCES = new Set(['customer_negative_criterion', 'campaign_criterion', 'shared_criterion', 'conversion_action', 'customer', 'customer_client', 'campaign', 'search_term_view', 'click_view', 'ad_group_ad', 'geo_target_constant']);
 
 export function fakeGoogle(opts) {
   opts = opts || {};
@@ -56,6 +56,7 @@ export function fakeGoogle(opts) {
     const camp = (id) => (acct.campaigns || []).find((c) => String(c.id) === String(id)) || { id, name: '' };
     let results = [];
     if (p.from === 'customer') results = [{ customer: acct.customer }];
+    else if (p.from === 'customer_negative_criterion') results = (acct.ipBlocks || []).map((b, i) => ({ customerNegativeCriterion: { id: String(7000 + i), ipBlock: { ipAddress: b.ip } } }));
     else if (p.from === 'campaign_criterion') results = (acct.negatives || []).map((n) => ({ campaign: { id: n.campaignId, name: n.campaignName || '' }, campaignCriterion: { keyword: { text: n.text, matchType: n.matchType } } }));
     else if (p.from === 'shared_criterion') results = (acct.sharedNegatives || []).map((n) => ({ sharedSet: { name: n.list }, sharedCriterion: { keyword: { text: n.text, matchType: n.matchType } } }));
     else if (p.from === 'conversion_action') results = (acct.convActions || []).filter((c) => c.type === 'UPLOAD_CLICKS' && c.status === 'ENABLED').map((c) => ({ conversionAction: c }));
@@ -139,6 +140,21 @@ export function fakeGoogle(opts) {
       g.negMutations = (g.negMutations || []).concat(ops.map((o) => Object.assign({ customer: cid }, o.create)));
       acct.negatives = (acct.negatives || []).concat(ops.map((o) => ({ campaignId: o.create.campaign.split('/').pop(), text: o.create.keyword.text, matchType: o.create.keyword.matchType })));
       return resp(200, { results: ops.map((o, i) => ({ resourceName: 'customers/' + cid + '/campaignCriteria/' + o.create.campaign.split('/').pop() + '~' + (1000 + i) })) });
+    }
+    // استبعاد على مستوى الحساب (CustomerNegativeCriterionService): create { ipBlock } · remove resourceName
+    if (u.hostname === 'googleads.googleapis.com' && /\/customerNegativeCriteria:mutate$/.test(u.pathname)) {
+      const tok = String(headers.Authorization || '').replace(/^Bearer /, '');
+      if (!issued.has(tok)) return apiErr(401, 'UNAUTHENTICATED', 'invalid credentials');
+      const cid = u.pathname.split('/')[3]; const acct = g.accounts[cid];
+      if (!acct) return apiErr(403, 'PERMISSION_DENIED', 'USER_PERMISSION_DENIED');
+      const ops = JSON.parse(init.body || '{}').operations || [];
+      acct.ipBlocks = acct.ipBlocks || [];
+      const results = ops.map((o) => {
+        if (o.create) { const rn = 'customers/' + cid + '/customerNegativeCriteria/' + (8000 + acct.ipBlocks.length); acct.ipBlocks.push({ ip: o.create.ipBlock.ipAddress, rn }); return { resourceName: rn }; }
+        acct.ipBlocks = acct.ipBlocks.filter((b) => b.rn !== o.remove); return { resourceName: o.remove };
+      });
+      g.ipMutations = (g.ipMutations || []).concat(ops);
+      return resp(200, { results });
     }
     // كلمة جديدة في مجموعة إعلانية (AdGroupCriterionService.MutateAdGroupCriteria)
     if (u.hostname === 'googleads.googleapis.com' && /\/adGroupCriteria:mutate$/.test(u.pathname)) {

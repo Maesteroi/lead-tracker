@@ -19,6 +19,7 @@ import { dashPay, platformPayments, platformReceipt, platformPaymentReview } fro
 import { dashNegatives, dashNegativesExisting, dashNegativeDecide } from './negatives.js';
 import { dashKeywords, dashKeywordDecide } from './keywords.js';
 import { dashBrief, dashBriefSave } from './brief.js';
+import { dashBlockIp, dashUnblockIp, dashBlocks, dashOwnDevice } from './blocks.js';
 import { dashSuffix, dashSuffixSet } from './suffix.js';
 
 const SITE_ACT = /^\/v1\/sites\/([A-Za-z0-9]{6,20})\/(rotate-key|install-status|pair-code)$/;
@@ -108,6 +109,11 @@ export async function handleApp(req, env, db, url, p, fetchImpl) {
     else if (m === 'POST' && p === '/v1/dash/outcome') res = await dashOutcome(req, env, db, sess);
     else if (m === 'GET' && p === '/v1/dash/protection') res = await dashProtection(req, env, db, sess, url);
     else if (m === 'POST' && p === '/v1/dash/verdict') res = await dashVerdict(req, env, db, sess);
+    // «امنعه في جوجل» (استبعاد IP على مستوى الحساب بموافقة) · «هذه زيارتي» (blocks.js)
+    else if (m === 'POST' && p === '/v1/dash/block') res = await dashBlockIp(req, env, db, sess, fetchImpl);
+    else if (m === 'POST' && p === '/v1/dash/unblock') res = await dashUnblockIp(req, env, db, sess, fetchImpl);
+    else if (m === 'GET' && p === '/v1/dash/blocks') res = await dashBlocks(req, env, db, sess, url);
+    else if (m === 'POST' && p === '/v1/dash/own') res = await dashOwnDevice(req, env, db, sess);
     else if (m === 'GET' && p === '/v1/dash/replay') res = await dashReplay(req, env, db, sess, url);
     // ربط جوجل أدز من اللوحة (adslink.js)
     else if (m === 'POST' && p === '/v1/dash/ads/link') res = await dashAdsLink(req, env, db, sess);

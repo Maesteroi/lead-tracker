@@ -168,6 +168,11 @@ export async function notifyEvent(env, db, client, payload, geo, fetchImpl) {
   try {
     if (!env.TG_TOKEN || String(env.TG_ALERTS || '').toLowerCase() === 'off') return { skipped: 'off' };
     if (!client || !client.org_id) return { skipped: 'sheet-site' };              // الشيت بيبعت تنبيهات المواقع دي
+    // زيارة من جهاز صاحب الموقع أو فريقه («هذه زيارتي»): مفيش تنبيه
+    if (payload && payload.visitor_id) {
+      const own = await db.one('own_devices?client_id=' + eq(client.id) + '&visitor_id=' + eq(String(payload.visitor_id).slice(0, 64)) + '&select=id').catch(() => null);
+      if (own) return { skipped: 'own' };
+    }
     // كل شات بشكل نوعه: إدارة المنصة · صاحب الموقع والمديرين · الموظف (tgtemplates.js)
     const tpls = await loadTemplates(db);
     const chats = [];
