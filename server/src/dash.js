@@ -18,6 +18,7 @@ import { tr, countryName, langOf, duration } from './i18n.js';
 import { replaySet, loadReplay } from './replay.js';
 import { adsState } from './adslink.js';
 import { adsSummary } from './adsdash.js';
+import { sourceTree } from './sources.js';
 
 const RANGES = new Set([1, 7, 14, 30, 90]);
 const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -91,6 +92,7 @@ export async function dashOverview(req, env, db, sess, url) {
     suspicious: sessions.filter((x) => x.status !== 'real').sort((a, b) => b.score - a.score).slice(0, 5).map(sessionView),
     status: { scoring: true, ads: await adsLinked(db, site.id), delivery: lastDeliv ? lastDeliv.pv_pct : null, delivery_day: lastDeliv ? lastDeliv.day : null, paired: !!site.paired_at },
     sources: tally(sessions, (s) => s.source_fine || s.source || 'direct').slice(0, 8),
+    source_tree: sourceTree(sessions),
     places: tally(sessions, (s) => s.city || null).slice(0, 6),
     devices: tally(sessions, (s) => s.device || null).slice(0, 4),
     // للرئيسية الاحترافية: البلاد · أسباب الاشتباه · أوقات الزيارات (يوم × ساعة بتوقيت الرياض) · أول صفحة · آخر الزيارات

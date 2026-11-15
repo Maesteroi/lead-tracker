@@ -65,7 +65,7 @@ export function fakeGoogle(opts) {
       results = want.filter((n) => (acct.geo || {})[n.split('/')[1]]).map((n) => { const x = acct.geo[n.split('/')[1]]; return { geoTargetConstant: { resourceName: n, id: n.split('/')[1], name: x.name, targetType: x.type, countryCode: x.cc } }; });
     } else if (p.from === 'ad_group_ad') results = (acct.ads || []).map((a) => ({ campaign: { id: String(a.campaignId) }, adGroupAd: { policySummary: { approvalStatus: a.approval } } }));
     else if (p.from === 'campaign' && !day) {
-      results = (acct.campaigns || []).filter((c) => c.status !== 'REMOVED').map((c) => ({ campaign: { id: String(c.id), name: c.name, status: c.status, primaryStatus: c.primaryStatus || 'ELIGIBLE', primaryStatusReasons: c.reasons || [] }, campaignBudget: { amountMicros: String(c.budgetMicros || 0) } }));
+      results = (acct.campaigns || []).filter((c) => c.status !== 'REMOVED').map((c) => ({ campaign: { id: String(c.id), name: c.name, status: c.status, primaryStatus: c.primaryStatus || 'ELIGIBLE', primaryStatusReasons: c.reasons || [], finalUrlSuffix: c.finalUrlSuffix || undefined }, campaignBudget: { amountMicros: String(c.budgetMicros || 0) } }));
     } else if (p.from === 'campaign' && p.select.includes('segments.click_type')) {
       for (const [id, m] of Object.entries(d.campaigns || {})) for (const [t, n] of Object.entries(m.clickTypes || {})) results.push({ campaign: { id }, segments: { date: day, clickType: t }, metrics: { clicks: String(n) } });
     } else if (p.from === 'campaign') {
@@ -139,6 +139,29 @@ export function fakeGoogle(opts) {
       g.negMutations = (g.negMutations || []).concat(ops.map((o) => Object.assign({ customer: cid }, o.create)));
       acct.negatives = (acct.negatives || []).concat(ops.map((o) => ({ campaignId: o.create.campaign.split('/').pop(), text: o.create.keyword.text, matchType: o.create.keyword.matchType })));
       return resp(200, { results: ops.map((o, i) => ({ resourceName: 'customers/' + cid + '/campaignCriteria/' + o.create.campaign.split('/').pop() + '~' + (1000 + i) })) });
+    }
+    // كلمة جديدة في مجموعة إعلانية (AdGroupCriterionService.MutateAdGroupCriteria)
+    if (u.hostname === 'googleads.googleapis.com' && /\/adGroupCriteria:mutate$/.test(u.pathname)) {
+      const tok = String(headers.Authorization || '').replace(/^Bearer /, '');
+      if (!issued.has(tok)) return apiErr(401, 'UNAUTHENTICATED', 'invalid credentials');
+      const cid = u.pathname.split('/')[3]; const acct = g.accounts[cid];
+      if (!acct) return apiErr(403, 'PERMISSION_DENIED', 'USER_PERMISSION_DENIED');
+      if (g.mutateFail) return apiErr(400, 'INVALID_ARGUMENT', 'Request contains an invalid argument.');
+      const ops = JSON.parse(init.body || '{}').operations || [];
+      g.kwMutations = (g.kwMutations || []).concat(ops.map((o) => Object.assign({ customer: cid }, o.create)));
+      return resp(200, { results: ops.map((o, i) => ({ resourceName: o.create.adGroup.replace('/adGroups/', '/adGroupCriteria/') + '~' + (5000 + i) })) });
+    }
+    // تعديل الحساب نفسه (CustomerService.MutateCustomer): update + updateMask بس
+    if (u.hostname === 'googleads.googleapis.com' && /^\/v\d+\/customers\/\d+:mutate$/.test(u.pathname)) {
+      const tok = String(headers.Authorization || '').replace(/^Bearer /, '');
+      if (!issued.has(tok)) return apiErr(401, 'UNAUTHENTICATED', 'invalid credentials');
+      const cid = u.pathname.split('/')[3].replace(':mutate', ''); const acct = g.accounts[cid];
+      if (!acct) return apiErr(403, 'PERMISSION_DENIED', 'USER_PERMISSION_DENIED');
+      const op = JSON.parse(init.body || '{}').operation || {};
+      if (!op.update || !op.updateMask || op.update.resourceName !== 'customers/' + cid) return apiErr(400, 'INVALID_ARGUMENT', 'FieldMaskError');
+      g.customerMutations = (g.customerMutations || []).concat([{ customer: cid, mask: op.updateMask, update: op.update }]);
+      if (op.updateMask === 'finalUrlSuffix') acct.customer = Object.assign({}, acct.customer, { finalUrlSuffix: op.update.finalUrlSuffix });
+      return resp(200, { result: { resourceName: 'customers/' + cid } });
     }
     if (u.hostname === 'googleads.googleapis.com' && /\/conversionActions:mutate$/.test(u.pathname)) {
       const tok = String(headers.Authorization || '').replace(/^Bearer /, '');

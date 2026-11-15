@@ -611,8 +611,57 @@
   }
 
   // ════════ الكلمات السلبية: اقتراحات من عبارات البحث · «أضِفها» لجوجل بموافقتك · «اتركها» ════════
+  // صفحة «الكلمات» (15 نوفمبر): تبويبين · سلبية (بتضيّع فلوسك) · إيجابية (بتجيب عملاء ومش موجودة ككلمة)
+  var kwTab = 'neg';
   function vNegatives(view) {
     if (!DATA.negatives) { clear(view); view.appendChild(soonCard(T('neg.title'), [T('neg.soon.1'), T('neg.soon.2'), T('neg.soon.3')])); return Promise.resolve(); }
+    clear(view);
+    var tabs = el('div', { class: 'seg kw-tabs', role: 'tablist' }), body = el('div');
+    [['neg', T('kw.tab.neg')], ['pos', T('kw.tab.pos')]].forEach(function (t) {
+      var b = el('button', { type: 'button', role: 'tab', 'aria-selected': kwTab === t[0] ? 'true' : 'false', text: t[1] });
+      b.addEventListener('click', function () { if (kwTab === t[0]) return; kwTab = t[0]; vNegatives(view); });
+      tabs.appendChild(b);
+    });
+    view.appendChild(tabs); view.appendChild(body);
+    body.appendChild(el('p', { class: 'loading', text: T('frame.loading') }));
+    return (kwTab === 'pos' && DATA.keywords ? vPositive(body) : vNegList(body)).catch(function () { clear(body); body.appendChild(el('p', { class: 'muted', text: T('frame.load_fail') })); });
+  }
+  function vPositive(view) {
+    return DATA.keywords(state.site).then(function (d) {
+      clear(view);
+      if (!d.linked) { view.appendChild(card(T('kw.title'), [el('p', {}, [el('span', { text: T('conv.not_linked') + ' ' }), el('a', { class: 'linkish', href: '#/sites', text: T('nav.sites') })])])); return; }
+      var cur = d.currency === 'SAR' ? T('sar') : d.currency;
+      var list = el('div', { class: 'neg-list' });
+      if (!d.suggestions.length) list.appendChild(el('p', { class: 'muted', text: T('kw.none') }));
+      d.suggestions.forEach(function (x) {
+        var acts = el('div', { class: 'neg-acts' });
+        if (d.manage) {
+          var add = el('button', { class: 'btn sm', type: 'button', text: T('kw.add') }), keep = el('button', { class: 'btn ghost sm', type: 'button', text: T('neg.keep') });
+          var sure = false;
+          add.addEventListener('click', function () {
+            if (!sure) { sure = true; add.textContent = T('kw.add.sure', { g: x.group.name || x.group.id }); return; }
+            add.disabled = keep.disabled = true;
+            DATA.kwDecide(state.site, x.id, 'add').then(function () { toast(T('kw.added', { k: x.text })); render(); }, function (e) { add.disabled = keep.disabled = false; sure = false; add.textContent = T('kw.add'); toast(T('neg.err') + (e.detail ? ' (' + String(e.detail).slice(0, 80) + ')' : '')); });
+          });
+          keep.addEventListener('click', function () { keep.disabled = add.disabled = true; DATA.kwDecide(state.site, x.id, 'keep').then(function () { toast(T('neg.kept', { k: x.text })); render(); }, function () { keep.disabled = add.disabled = false; toast(T('err.save')); }); });
+          acts.appendChild(add); acts.appendChild(keep);
+        }
+        list.appendChild(el('div', { class: 'neg-item kw-item' }, [
+          el('div', { class: 'neg-h' }, [el('b', { text: x.text }), el('span', { class: 'pill', text: T('neg.m.exact') }), el('span', { class: 'pill ok', text: T('kw.r.' + x.reason) })]),
+          el('p', { class: 'dim', text: T('kw.stats', { c: fmt(x.clicks), v: fmt(x.conv), m: money2(x.cost, cur) }) }),
+          el('p', { class: 'hint', text: T('kw.where', { g: x.group.name || x.group.id, c: x.group.campaign || '—' }) + (x.from.length ? ' · ' + T('kw.from', { k: x.from.map(function (f) { return f.text; }).join('، ') }) : '') }),
+          acts,
+        ]));
+      });
+      view.appendChild(card(T('kw.title'), [el('p', { class: 'hint', text: T('kw.intro', { d: d.days }) }), list]));
+      if (d.decided.length) {
+        view.appendChild(card(T('neg.decided'), [el('ul', { class: 'feed' }, d.decided.map(function (x) {
+          return el('li', {}, [el('span', { class: 'pill ' + (x.decision === 'add' ? (x.applied_at ? 'ok' : 'warn') : ''), text: T(x.decision === 'add' ? (x.applied_at ? 'neg.d.added' : 'neg.d.failed') : 'neg.d.kept') }), el('div', {}, [el('span', { text: x.text + ' · ' + T('neg.m.exact') })]), el('time', { text: timeAr(x.at) })]);
+        }))]));
+      }
+    });
+  }
+  function vNegList(view) {
     return DATA.negatives(state.site).then(function (d) {
       clear(view);
       if (!d.linked) { view.appendChild(card(T('neg.title'), [el('p', {}, [el('span', { text: T('conv.not_linked') + ' ' }), el('a', { class: 'linkish', href: '#/sites', text: T('nav.sites') })])])); return; }
@@ -698,7 +747,7 @@
           [T('sites.r.installed'), s.installed, s.installed ? (s.plugin ? T('sites.plugin', { v: s.plugin }) : T('sites.plugin.on')) + ' · ' + T('sites.last', { t: timeAr(s.last_event) }) : T(s.paired ? 'sites.paired_wait' : 'sites.not_paired')],
           [T('sites.r.delivery'), avg == null ? null : avg >= 99.5, avg == null ? T('sites.delivery.none') : T('sites.delivery', { p: avg })],
           adsRow(s),
-          [T('sites.r.suffix'), s.template == null ? null : s.template, s.template == null ? T(s.ads ? 'sites.suffix.optional' : 'sites.suffix.after') : T(s.template ? 'sites.suffix.ok' : 'sites.suffix.missing')],
+          suffixRow(s),
           [T('sites.r.own'), s.own ? true : DATA.live ? null : true, s.own ? LT.n(s.own, 'device') : T('sites.own.soon')],
         ];
         var extra = [];
@@ -1065,7 +1114,8 @@
       C.area(ch, rows, (sc ? [{ key: 'real', label: T('ov.real'), cls: 'c-real' }, { key: 'bad', label: T('ov.bad'), cls: 'c-sus' }] : [{ key: 'real', label: T('kpi.visits'), cls: 'c-real' }]).concat([{ key: 'contacts', label: T('ov.contacts'), cls: 'c-ok' }]), { label: T('ov.traffic') });
       var srcBox = el('div');
       var SRC_CLS = ['c-real', 'c-data', 'c-ok', 'c-sus', 'c-acc', 'c-blk', 'c-mute', 'c-mute'];
-      if (d.sources.length) C.donut(srcBox, d.sources.map(function (x, i) { return { label: srcName(x.name), value: x.n, cls: SRC_CLS[i] || 'c-mute' }; }), { caption: T('ov.donut.cap'), label: T('ov.sources') });
+      var tree = d.source_tree || srcTree(d.sources);
+      if (tree.length) { C.donut(srcBox, tree.map(function (x, i) { return { label: T('srcg.' + x.key), value: x.n, cls: SRC_CLS[i] || 'c-mute', g: x }; }), { caption: T('ov.donut.cap'), label: T('ov.sources'), item: srcItem }); srcBox.appendChild(el('p', { class: 'hint', text: T('ov.src.more') })); }
       else srcBox.appendChild(el('p', { class: 'muted', text: T('ov.no_visits') }));
       view.appendChild(el('div', { class: 'grid-ov' }, [panel(T('ov.traffic'), T('ov.traffic.i'), [ch]), panel(T('ov.sources'), T('ov.sources.i'), [srcBox])]));
       if ((d.sources_conv || []).length) view.appendChild(convPanel(d.sources_conv, sc));
@@ -1098,6 +1148,29 @@
       else if (!d.status.ads) view.appendChild(soonCard(T('ov.soon.title'), [T('ov.soon.1'), T('ov.soon.2'), T('ov.soon.3')]));
     });
   }
+  // لاحقة الرابط (15 نوفمبر): بنضبطها إحنا في حساب الإعلانات بضغطة واحدة من صاحب الموقع (بتاعة أي أداة تانية بتفضل زي ما هي)
+  function suffixRow(s) {
+    var linked = s.ads_state && s.ads_state.linked, st = linked ? s.ads_state.suffix : null;
+    if (!linked || !DATA.suffixSet) return [T('sites.r.suffix'), null, T(s.ads ? 'sites.suffix.optional' : 'sites.suffix.after')];
+    if (st === true) return [T('sites.r.suffix'), true, T('sites.suffix.auto_ok')];
+    var manage = s.role === 'owner' || s.role === 'admin' || !s.role;
+    var box = el('div', { class: 'sfx' });
+    if (manage) {
+      var b = el('button', { class: 'btn sm', type: 'button', text: T('sites.suffix.set') }), sure = false;
+      b.addEventListener('click', function () {
+        if (!sure) { sure = true; b.textContent = T('sites.suffix.sure'); return; }
+        b.disabled = true;
+        DATA.suffixSet(s.id).then(function (r) { toast(T('sites.suffix.done') + (r.kept ? ' ' + T('sites.suffix.kept') : '')); render(); }, function (e) { b.disabled = false; sure = false; b.textContent = T('sites.suffix.set'); toast(T('sites.suffix.err') + (e.detail ? ' (' + String(e.detail).slice(0, 80) + ')' : '')); });
+      });
+      box.appendChild(b);
+    }
+    return [T('sites.r.suffix'), st === false ? false : null, T(st === false ? 'sites.suffix.missing' : 'sites.suffix.unchecked'), box];
+  }
+  // الجداول الصغيرة على الموبايل بتتحول لكروت: كل خانة رقم جنبها اسمها (15 نوفمبر)
+  function cardRows(table, head) {
+    Array.prototype.forEach.call(table.querySelectorAll('tbody tr'), function (tr) { Array.prototype.forEach.call(tr.children, function (td, i) { if (i && head[i]) td.setAttribute('data-l', head[i]); }); });
+    return table;
+  }
   // المصادر والتحويل: لكل منصة الزيارات · تواصلوا · نسبة التحويل · تم الاتفاق · المشبوهة
   function convPanel(rows, sc) {
     var best = rows.filter(function (r) { return r.visits >= 3; }).sort(function (a, b) { return b.rate - a.rate; })[0];
@@ -1115,7 +1188,7 @@
         sc ? el('td', { class: 'n', text: pct(r.bad, r.visits) + '%' }) : null,
       ]));
     });
-    var table = el('div', { class: 'conv' }, [el('table', { class: 'mini' }, [el('thead', {}, [el('tr', {}, head.map(function (h, i) { return el('th', { class: i ? 'n' : '', text: h }); }))]), tb])]);
+    var table = el('div', { class: 'conv' }, [cardRows(el('table', { class: 'mini cards-m' }, [el('thead', {}, [el('tr', {}, head.map(function (h, i) { return el('th', { class: i ? 'n' : '', text: h }); }))]), tb]), head)]);
     return panel(T('ov.conv'), T('ov.conv.i'), [best && best.rate > 0 ? el('p', { class: 'muted', text: T('ov.conv.best', { s: srcName(best.source), r: best.rate }) }) : null, table]);
   }
   // خريطة الزيارات وجنبها الأرقام (الدول والمدن، ولون كل صف بنفس لون الخريطة)
@@ -1140,7 +1213,7 @@
     var strip = el('div', { class: 'ads-strip' }, [
       ['ads.s.impr', fmt(t.impressions)], ['ads.s.clicks', fmt(t.clicks)], ['ads.s.cost', money(t.cost, cur)], ['ads.s.cpc', money2(t.cpc, cur)], ['ads.s.invalid', fmt(t.invalid)], ['ads.s.conv', fmt(t.conversions)],
     ].map(function (x) { return el('div', {}, [el('span', { text: T(x[0]) }), el('b', { text: x[1] })]); }));
-    var tbl = function (head, rows) { return el('div', { class: 'conv ads-tbl' }, [el('table', { class: 'mini' }, [el('thead', {}, [el('tr', {}, head.map(function (h, i) { return el('th', { class: i ? 'n' : '', text: h }); }))]), el('tbody', {}, rows)])]); };
+    var tbl = function (head, rows) { return el('div', { class: 'conv ads-tbl' }, [cardRows(el('table', { class: 'mini cards-m' }, [el('thead', {}, [el('tr', {}, head.map(function (h, i) { return el('th', { class: i ? 'n' : '', text: h }); }))]), el('tbody', {}, rows)]), head)]); };
     var camps = tbl([T('ads.h.campaign'), T('ads.s.clicks'), T('ads.s.cost'), T('ads.s.invalid'), T('ads.s.conv')], (a.campaigns || []).map(function (c) { return el('tr', {}, [el('td', {}, [el('b', { text: c.name })]), el('td', { class: 'n', text: fmt(c.clicks) }), el('td', { class: 'n', text: money(c.cost, cur) }), el('td', { class: 'n', text: fmt(c.invalid) }), el('td', { class: 'n', text: fmt(c.conversions) })]); }));
     var kws = tbl([T('ads.h.keyword'), T('ads.s.clicks'), T('ads.h.visits'), T('ads.h.contacts'), T('ads.h.won')].concat(sc ? [T('ads.h.bad')] : []).concat([T('ads.s.cost')]), (a.keywords || []).map(function (k) {
       return el('tr', { class: k.won ? 'conv-best' : '' }, [el('td', {}, [el('b', { text: k.keyword || T('ads.kw.none') }), /^(EXACT|PHRASE|BROAD)$/.test(k.match || '') ? el('small', { class: 'dim', text: ' · ' + T('ads.m.' + k.match.toLowerCase()) }) : null]), el('td', { class: 'n', text: fmt(k.clicks) }), el('td', { class: 'n', text: fmt(k.visits) }), el('td', { class: 'n', text: fmt(k.contacts) }), el('td', { class: 'n', text: fmt(k.won) })].concat(sc ? [el('td', { class: 'n', text: fmt(k.bad) })] : []).concat([el('td', { class: 'n', text: k.cost ? money(k.cost, cur) : '—' })]));
@@ -1152,6 +1225,29 @@
       sub(T('ads.p.keywords'), T('ads.p.keywords.i'), [(a.keywords || []).length ? kws : el('p', { class: 'muted', text: T('ads.p.none') })]),
       el('div', { class: 'grid-ov ads-two' }, [sub(T('ads.p.campaigns'), '', [(a.campaigns || []).length ? camps : el('p', { class: 'muted', text: T('ads.p.none') })]), sub(T('ads.p.terms'), T('ads.p.terms.i'), [(a.terms || []).length ? terms : el('p', { class: 'muted', text: T('ads.p.none') })])]),
     ]);
+  }
+  // مصادر الزيارات بالتفصيل (15 نوفمبر): المجموعة ← تحتها مين بالظبط (محرك · ذكاء اصطناعي · شبكة · موقع)
+  var SRC_GROUP = { google_ads: 'google_ads', google_organic: 'google_organic', google: 'google_organic', google_maps: 'google_maps', maps: 'google_maps', search_other: 'search_other', bing: 'search_other', ai: 'ai',
+    facebook: 'social', instagram: 'social', tiktok: 'social', snapchat: 'social', youtube: 'social', x: 'social', whatsapp: 'social', threads: 'social', linkedin: 'social', social_other: 'social', social: 'social',
+    bing_ads: 'ads_other', tiktok_ads: 'ads_other', ads_other: 'ads_other', ads: 'ads_other', listening: 'listening', direct: 'direct' };
+  function srcTree(sources) {
+    var m = {}, out = [];
+    (sources || []).forEach(function (x) { var k = SRC_GROUP[x.name] || 'other_site'; if (!m[k]) { m[k] = { key: k, n: 0, members: [] }; out.push(m[k]); } m[k].n += x.n; if (k === 'social' || k === 'ads_other') m[k].members.push({ key: x.name, label: null, n: x.n }); });
+    return out.sort(function (a, b) { return b.n - a.n; });
+  }
+  function srcItem(x, pct) {
+    var g = x.g || { members: [] }, mem = g.members || [];
+    var head = [el('i', { class: 'sw ' + x.cls }), el('span', { text: x.label }), el('b', { text: pct + '%' })];
+    if (!mem.length) return el('li', {}, head);
+    var top = mem[0].n || 1;
+    var list = el('ul', { class: 'src-m', hidden: '' }, mem.map(function (m) {
+      var name = m.label || (m.key === 'unknown' ? T('srcg.unknown') : srcName(m.key));
+      var fill = el('i', { class: x.cls }); fill.style.width = Math.max(4, Math.round(m.n / top * 100)) + '%';
+      return el('li', {}, [el('span', { text: name }), el('i', { class: 'bar' }, [fill]), el('b', { text: fmt(m.n) })]);
+    }));
+    var btn = el('button', { type: 'button', class: 'src-g', 'aria-expanded': 'false' }, head.concat([el('em', { class: 'chev', 'aria-hidden': 'true' })]));
+    btn.addEventListener('click', function () { var open = btn.getAttribute('aria-expanded') !== 'true'; btn.setAttribute('aria-expanded', open ? 'true' : 'false'); if (open) list.removeAttribute('hidden'); else list.setAttribute('hidden', ''); });
+    return el('li', { class: 'has-m' }, [btn, list]);
   }
   function money2(n, cur) { return n == null || isNaN(n) ? '—' : (Math.round(n * 100) / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ' + (cur || ''); }
   // بطاقة بعنوان وعلامة ⓘ («اتحسب إزاي»)

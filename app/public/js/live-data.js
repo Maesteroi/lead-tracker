@@ -22,7 +22,7 @@
       prev: { real: o.prev.sessions, contacts: o.prev.contacts },
       days: o.days.map(function (d) { return sc ? { day: d.day, sessions: d.sessions, real: d.real, suspicious: d.suspicious, high: d.high, contacts: d.contacts } : { day: d.day, sessions: d.sessions, real: d.sessions, suspicious: 0, high: 0, contacts: d.contacts }; }),
       status: { protection: sc ? 'monitor' : 'soon', delivery: o.status.delivery, ads: o.status.ads, tracking_template: null, paired: o.status.paired, scoring: sc },
-      actions: actions, suspicious: (o.suspicious || []).map(mapVisit), places: o.places, sources: o.sources, devices: o.devices,
+      actions: actions, suspicious: (o.suspicious || []).map(mapVisit), places: o.places, sources: o.sources, source_tree: o.source_tree || null, devices: o.devices,
       period: o.period || null, countries: o.countries || [], cities: o.cities || [], sources_conv: o.sources_conv || [], targets: o.targets || [], reasons: o.reasons || [], hours: o.hours || null, landing: o.landing || [], recent: (o.recent || []).map(mapVisit),
     };
   }
@@ -103,6 +103,10 @@
     // الكلمات السلبية (negatives.js على السيرفر)
     negatives: function (site) { return LT.api('/v1/dash/negatives?site=' + encodeURIComponent(site)).then(function (r) { if (!r.ok) throw new Error('http'); return r.body; }); },
     negExisting: function (site) { return LT.api('/v1/dash/negatives/existing?site=' + encodeURIComponent(site)).then(function (r) { if (!r.ok) throw new Error('http'); return r.body; }); },
+    // الكلمات الإيجابية (keywords.js) ولاحقة الرابط (suffix.js)
+    keywords: function (site) { return LT.api('/v1/dash/keywords?site=' + encodeURIComponent(site)).then(function (r) { if (!r.ok) throw new Error('http'); return r.body; }); },
+    kwDecide: function (site, id, decision) { return LT.api('/v1/dash/keywords/decide', { method: 'POST', body: { site: site, id: id, decision: decision } }).then(function (r) { if (!r.ok) { var e = new Error(r.body && r.body.error || 'http'); e.detail = r.body && r.body.detail; throw e; } return r.body; }); },
+    suffixSet: function (site) { return LT.api('/v1/dash/suffix', { method: 'POST', body: { site: site } }).then(function (r) { if (!r.ok) { var e = new Error(r.body && r.body.error || 'http'); e.detail = r.body && r.body.detail; throw e; } return r.body; }); },
     negDecide: function (site, id, decision) { return LT.api('/v1/dash/negatives/decide', { method: 'POST', body: { site: site, id: id, decision: decision } }).then(function (r) { if (!r.ok) { var e = new Error(r.body && r.body.error || 'http'); e.detail = r.body && r.body.detail; throw e; } return r.body; }); },
     // رفع العملاء المؤكدين لجوجل أدز بموافقة العميل (convupload.js على السيرفر)
     conv: function (site) { return LT.api('/v1/dash/conv?site=' + encodeURIComponent(site)).then(function (r) { if (!r.ok) throw new Error('http'); return r.body; }); },
