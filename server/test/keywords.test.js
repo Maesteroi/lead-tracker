@@ -18,6 +18,7 @@ async function setup() {
   const site = reg.site;
   w.fs.t.ads_credentials = [{ id: 'c1', client_id: site.id, customer_id: CID, status: 'on', currency: 'SAR', refresh_token_enc: await sealToken(env, RT, site.id + ':' + CID), updated_at: new Date().toISOString() }];
   w.g.tokens[RT] = AT; w.g.accounts[CID] = { customer: { id: CID } };
+  w.fs.t.site_brief = [{ client_id: site.id, offer: ['تصميم داخلي', 'ديكور'], exclude: [{ word: 'جمعية', why: 'لسنا جمعية' }] }];
   const day = new Date(Date.now() - 2 * 864e5).toISOString().slice(0, 10);
   const t = (term, o) => Object.assign({ client_id: site.id, customer_id: CID, day, search_term: term, keyword: 'تصميم داخلي', match_type: 'PHRASE', campaign_id: '11', campaign_name: 'شادو', ad_group_id: '501', ad_group_name: 'تصميم', clicks: 1, impressions: 10, cost_micros: 1000000, conversions: 0 }, o);
   w.fs.t.ads_search_terms = [
@@ -66,4 +67,14 @@ test('keywords: Google refusing is shown with its message and the suggestion sta
   const a = await s.pc(s.owner, '/v1/dash/keywords/decide', { site: s.site.id, id: r.suggestions[0].id, decision: 'add' });
   assert.deepEqual([a.status, a.body.error], [502, 'google']);
   assert.match(a.body.detail, /invalid argument/);
+});
+
+test('keywords: only terms that name the service (from the business brief); no brief = no suggestions, just «describe your business first»', async () => {
+  const s = await setup();
+  s.w.fs.t.ads_search_terms.push(Object.assign({}, s.w.fs.t.ads_search_terms[0], { search_term: 'جمعية ديكور خيرية', clicks: 4, conversions: 2 }), Object.assign({}, s.w.fs.t.ads_search_terms[0], { search_term: 'عايز اتجوز من السعوديه', clicks: 3, conversions: 1 }));
+  const r = (await s.gc(s.owner, '/v1/dash/keywords?site=' + s.site.id)).body;
+  assert.ok(!r.suggestions.some((x) => /جمعية|اتجوز/.test(x.text)), 'an excluded word or a term without the service is never suggested, even with Google conversions');
+  s.w.fs.t.site_brief = [];
+  const n = (await s.gc(s.owner, '/v1/dash/keywords?site=' + s.site.id)).body;
+  assert.deepEqual([n.suggestions.length, n.need_brief], [0, true]);
 });

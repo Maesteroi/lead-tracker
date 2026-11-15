@@ -106,6 +106,9 @@
     // الاشتراك والدفع بالإيصال (billing.js · payments.js)
     billing: function (org) { return LT.api('/v1/dash/billing?org=' + encodeURIComponent(org)).then(function (r) { if (!r.ok) throw new Error('http'); return r.body; }); },
     billingPay: function (body) { return LT.api('/v1/dash/billing/pay', { method: 'POST', body: body }).then(function (r) { if (!r.ok) throw new Error(r.body && r.body.error || 'http'); return r.body; }); },
+    // فهم النشاط (brief.js)
+    brief: function (site) { return LT.api('/v1/dash/brief?site=' + encodeURIComponent(site)).then(function (r) { if (!r.ok) throw new Error('http'); return r.body; }); },
+    briefSave: function (site, offer, exclude) { return LT.api('/v1/dash/brief', { method: 'POST', body: { site: site, offer: offer, exclude: exclude } }).then(function (r) { if (!r.ok) throw new Error(r.body && r.body.error || 'http'); return r.body; }); },
     // الكلمات الإيجابية (keywords.js) ولاحقة الرابط (suffix.js)
     keywords: function (site) { return LT.api('/v1/dash/keywords?site=' + encodeURIComponent(site)).then(function (r) { if (!r.ok) throw new Error('http'); return r.body; }); },
     kwDecide: function (site, id, decision) { return LT.api('/v1/dash/keywords/decide', { method: 'POST', body: { site: site, id: id, decision: decision } }).then(function (r) { if (!r.ok) { var e = new Error(r.body && r.body.error || 'http'); e.detail = r.body && r.body.detail; throw e; } return r.body; }); },

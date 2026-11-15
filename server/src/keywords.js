@@ -14,10 +14,11 @@ import { accessToken, adsClient } from './gads.js';
 import { loadSite, notFound, roleFor } from './sites.js';
 import { audit } from './auth.js';
 import { INTENT } from './negatives.js';
+import { loadBrief, briefMatch, norm as briefNorm } from './brief.js';
 
 const DAYS = 30;
 const canManage = (sess, site) => ['owner', 'admin'].includes(roleFor(sess, site.org_id, site.id));
-const norm = (t) => String(t || '').trim().toLowerCase().replace(/\s+/g, ' ').replace(/[أإآ]/g, 'ا').replace(/ة\b/g, 'ه').replace(/ى\b/g, 'ي');
+const norm = briefNorm;   // تطبيع واحد للعربي (brief.js)
 const INTENT_RE = INTENT.map(([w]) => new RegExp('(^|\\s)' + norm(w).replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(\\s|$)'));
 const micros = (v) => Math.round((Number(v) || 0) / 10000) / 100;
 // جوجل: نص الكلمة لحد 80 حرف و10 كلمات
@@ -39,6 +40,9 @@ export async function suggestPositive(db, site, cred, now) {
   const since = new Date((now || Date.now()) - DAYS * 864e5).toISOString().slice(0, 10);
   const terms = (await db.select('ads_search_terms?client_id=' + eq(site.id) + '&customer_id=' + eq(cred.customer_id) + '&day=gte.' + since + '&select=search_term,keyword,match_type,campaign_id,campaign_name,ad_group_id,ad_group_name,clicks,impressions,cost_micros,conversions&limit=50000')) || [];
   const decided = new Set(((await db.select('kw_decisions?client_id=' + eq(site.id) + '&select=text').catch(() => [])) || []).map((d) => norm(d.text)));
+  const brief = await loadBrief(db, site.id), bm = briefMatch(brief);
+  // من غير وصف للنشاط (اللي بنقدمه) مافيش اقتراحات إيجابية: العبارة لازم تذكر الخدمة
+  if (!bm.hasOffer) return { suggestions: [], need_brief: true };
   const good = await goodKeywords(db, site, cred, since);
   const existing = new Set(terms.map((t) => norm(t.keyword)).filter(Boolean));
   const agg = new Map();
@@ -54,6 +58,7 @@ export async function suggestPositive(db, site, cred, now) {
   const list = [];
   for (const [k, x] of agg) {
     if (existing.has(k) || decided.has(k) || !okText(k) || INTENT_RE.some((re) => re.test(k))) continue;
+    if (!bm.offer(k) || bm.excluded(k)) continue;   // لازم تذكر خدمتك، ومافيهاش حاجة مش خدمتك
     if (!x.groups.size) continue;
     const viaGood = [...x.from.entries()].some(([nk, f]) => good.has(nk) && f.match !== 'EXACT');
     let reason = null;
@@ -65,7 +70,7 @@ export async function suggestPositive(db, site, cred, now) {
       group: { id: g.id, name: g.name, campaign: g.campaign }, from: [...x.from.values()].slice(0, 3) });
   }
   list.sort((a, b) => b.conv - a.conv || b.clicks - a.clicks);
-  return { suggestions: list.slice(0, 40) };
+  return { suggestions: list.slice(0, 40), need_brief: false };
 }
 
 // ── اللوحة ──

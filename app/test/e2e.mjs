@@ -84,6 +84,9 @@ function fakeApi(over) {
       // الكلمات السلبية (negatives.js)
       if (p === '/v1/dash/negatives') return j(200, Object.assign({ ok: true, linked: true, manage: true, currency: 'USD', days: 30, cpc: 1.3, total_cost: 19.5, terms: 6, waste: 11, decided: st.negDecided || [] }, { suggestions: (st.negSug || [{ id: 'aaaa1111', text: 'وظائف', match: 'PHRASE', reason: 'intent_jobs', clicks: 2, cost: 2, conv: 0, terms: ['وظائف تصريح زواج', 'وظائف مكتب تعقيب'], campaigns: [{ id: '11', name: 'تصاريح' }, { id: '12', name: 'تعقيب' }], protect: false }, { id: 'bbbb2222', text: 'شروط زواج سعودي من مصرية', match: 'EXACT', reason: 'waste', clicks: 4, cost: 9, conv: 0, terms: ['شروط زواج سعودي من مصرية'], campaigns: [{ id: '11', name: 'تصاريح' }], protect: true }]).filter((x) => !(st.negDone || []).includes(x.id)) }));
       if (p === '/v1/dash/negatives/decide') { const b = JSON.parse(req.postData()); st.negCalls = (st.negCalls || []).concat([Object.assign({ csrf: req.headers()['x-csrf-token'] }, b)]); st.negDone = (st.negDone || []).concat([b.id]); st.negDecided = (st.negDecided || []).concat([{ text: b.id === 'aaaa1111' ? 'وظائف' : 'شروط', match_type: 'PHRASE', decision: b.decision, at: new Date().toISOString(), applied_at: b.decision === 'add' ? new Date().toISOString() : null }]); return j(200, { ok: true, decision: b.decision, campaigns: 2 }); }
+      // فهم النشاط (brief.js)
+      if (p === '/v1/dash/brief' && req.method() === 'POST') { const b = JSON.parse(req.postData()); st.briefCalls = (st.briefCalls || []).concat([Object.assign({ csrf: req.headers()['x-csrf-token'] }, b)]); st.brief = { offer: b.offer, exclude: b.exclude }; return j(200, { ok: true, offer: b.offer, exclude: b.exclude }); }
+      if (p === '/v1/dash/brief') { const br = st.brief || { offer: [], exclude: [] }; const known = new Set([...br.offer, ...br.exclude.map((x) => x.word)]); return j(200, { ok: true, manage: true, empty: !st.brief, brief: br, words: [{ word: 'خطابه', terms: 4, clicks: 9, cost: 6, conv: 1 }, { word: 'تصريح', terms: 30, clicks: 80, cost: 50, conv: 9 }, { word: 'استعلام', terms: 3, clicks: 4, cost: 2, conv: 0 }].filter((w) => !known.has(w.word)) }); }
       // الاشتراك والدفع بالإيصال (billing.js · payments.js)
       if (p === '/v1/dash/billing') return j(200, { ok: true, manage: true, currency: 'EGP', org: { id: 'org-1', name: 'شادو', status: 'trial', plan: null, trial_ends_at: new Date(Date.now() + 2.5 * 864e5).toISOString(), plan_period_end: null, founder: false },
         settings: { trial_days: 7, annual_months: 10, founders_months: 12, founders_after_pct: 20 }, founders: { left: 87, limit: 100, pct: 50 },
@@ -728,6 +731,21 @@ for (const [days, kind, re] of [[1.5, 'warn', /متبقٍ يومين من تجر
   await pg.goto('https://app.maestrolt.com/#/negatives');
   await pg.waitForSelector('.neg-item');
   t('negatives: the page lists suggestions with the reason, match type, clicks, spend and the campaigns; a protected one is flagged', (await pg.locator('.neg-item').count()) === 2 && /يبحث عن وظيفة/.test(await pg.locator('.neg-item').first().innerText()) && /مطابقة عبارة/.test(await pg.locator('.neg-item').first().innerText()) && /تصاريح، تعقيب/.test(await pg.locator('.neg-item').first().innerText()) && /جلبت عملاء تواصلوا معك/.test(await pg.locator('.neg-item').nth(1).innerText()) && /11\.00 USD من أصل 19\.50 USD/.test(await pg.locator('.simple-line').innerText()));
+  await pg.waitForSelector('.bf-card[open] .bf-word');
+  t('brief: with no description yet, «your business as we understand it» is open, with the frequent words to classify (✓ / ✕)', (await pg.locator('.bf-word').count()) === 3 && /خطابه/.test(await pg.locator('.bf-words').innerText()));
+  await pg.locator('.bf-word', { hasText: 'تصريح' }).getByRole('button', { name: /^خدمتي/ }).click();
+  await pg.waitForFunction(() => /من خدمتك الآن/.test(document.getElementById('toast').textContent));
+  await pg.waitForSelector('.bf-chip.ok');
+  await pg.locator('.bf-word', { hasText: 'خطابه' }).getByRole('button', { name: /ليست خدمتي/ }).click();
+  await pg.waitForFunction(() => document.querySelectorAll('.bf-chip.no').length === 1);
+  t('brief: ✓ adds «تصريح» to your service and ✕ adds «خطابه» to not your service, saved with CSRF; classified words leave the list', api.briefCalls.length === 2 && api.briefCalls[1].offer.join() === 'تصريح' && api.briefCalls[1].exclude[0].word === 'خطابه' && api.briefCalls[1].csrf === 'csrf-token-123' && (await pg.locator('.bf-word').count()) === 1);
+  await pg.locator('.bf-card input[placeholder^="مثال: خطابة"]').fill('عقد زواج');
+  await pg.locator('.bf-card input[placeholder^="السبب"]').fill('لا ننشئ عقود الزواج');
+  await pg.locator('.bf-card .bl-add').nth(1).getByRole('button', { name: 'أضف' }).click();
+  await pg.waitForFunction(() => document.querySelectorAll('.bf-chip.no').length === 2);
+  t('brief: a «not your service» word can be typed with its reason', /لا ننشئ عقود الزواج/.test(await pg.locator('.bf-card').innerText()));
+  await shot(pg, 'brief');
+  await pg.waitForSelector('.neg-item');
   await pg.locator('.neg-item').first().getByRole('button', { name: 'أضِفها للسلبيات' }).click();
   t('negatives: «add» first asks to confirm (nothing sent)', !api.negCalls && /اضغط مرة أخرى لإضافتها للسلبيات في 2 حملة/.test(await pg.locator('.neg-item').first().innerText()));
   await shot(pg, 'negatives');

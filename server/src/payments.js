@@ -44,7 +44,7 @@ export async function dashPay(req, env, db, sess, fetchImpl) {
   const role = roleFor(sess, orgId);
   if (!role) return notFound();
   if (role !== 'owner') return json({ ok: false, error: 'role' }, 403);
-  const org = await db.one('organizations?id=' + eq(orgId) + '&select=' + ORG_BILL);
+  const org = await db.one('organizations?id=' + eq(orgId) + '&select=' + ORG_BILL).catch(() => db.one('organizations?id=' + eq(orgId) + '&select=' + ORG_BILL.replace(',country', '')));   // قبل 0021
   if (!org) return notFound();
   if (!['month', 'year'].includes(b.period)) return json({ ok: false, error: 'period' }, 400);
   const ref = String(b.ref || '').trim();

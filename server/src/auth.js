@@ -165,7 +165,10 @@ async function upsertUser(env, db, c, req) {
   const days = Number(env.TRIAL_DAYS) > 0 ? Number(env.TRIAL_DAYS) : bs && Number(bs.trial_days) >= 0 ? Number(bs.trial_days) : 7;
   // بلد الحساب من Cloudflare (للعملة: مصر جنيه · السعودية ريال · غيرهم دولار)، والأدمن يقدر يغيّره
   const cc = String((req && req.cf && req.cf.country) || (req && req.headers.get('cf-ipcountry')) || '').toUpperCase();
-  const org = (await db.insert('organizations', [Object.assign({ name: (name || email.split('@')[0]).slice(0, 80), status: 'trial', trial_ends_at: new Date(Date.now() + days * 86400000).toISOString() }, /^[A-Z]{2}$/.test(cc) && cc !== 'XX' && cc !== 'T1' ? { country: cc } : {})]))[0];
+  const base = { name: (name || email.split('@')[0]).slice(0, 80), status: 'trial', trial_ends_at: new Date(Date.now() + days * 86400000).toISOString() };
+  let org;
+  try { org = (await db.insert('organizations', [Object.assign({}, base, /^[A-Z]{2}$/.test(cc) && cc !== 'XX' && cc !== 'T1' ? { country: cc } : {})]))[0]; }
+  catch (e) { org = (await db.insert('organizations', [base]))[0]; }   // قبل 0021 (عمود البلد): التسجيل مايقفش
   await db.insert('memberships', [{ user_id: u.id, org_id: org.id, role: 'owner' }], { returning: false });
   await audit(db, u.id, 'signup', true);
   return u;

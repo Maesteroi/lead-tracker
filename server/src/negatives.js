@@ -13,10 +13,11 @@ import { openToken } from './crypto.js';
 import { accessToken, adsClient, ADS_VERSION_DEFAULT } from './gads.js';
 import { loadSite, notFound, roleFor } from './sites.js';
 import { audit } from './auth.js';
+import { loadBrief, briefMatch, norm as briefNorm } from './brief.js';
 
 const DAYS = 30;
 const canManage = (sess, site) => ['owner', 'admin'].includes(roleFor(sess, site.org_id, site.id));
-const norm = (t) => String(t || '').trim().toLowerCase().replace(/\s+/g, ' ').replace(/[أإآ]/g, 'ا').replace(/ة\b/g, 'ه').replace(/ى\b/g, 'ي');
+const norm = briefNorm;   // تطبيع واحد للعربي (brief.js)
 // كلمات بتقول إن الباحث مش عميل (عامة لأي نشاط). القرار في الآخر لصاحب الموقع، والرفض بيتسجل ومابيتكررش.
 export const INTENT = [
   ['وظائف', 'jobs'], ['وظيفه', 'jobs'], ['وظيفة', 'jobs'], ['توظيف', 'jobs'], ['مطلوب موظف', 'jobs'], ['راتب', 'jobs'], ['رواتب', 'jobs'],
@@ -41,6 +42,7 @@ export async function suggest(db, site, cred, now) {
   const decided = new Map(((await db.select('neg_decisions?client_id=' + eq(site.id) + '&select=text,match_type,decision').catch(() => [])) || []).map((d) => [norm(d.text) + '|' + d.match_type, d.decision]));
   // الكلمات اللي جابت عملاء عندنا (ads_clicks ← الزيارة ← تواصل)
   const good = await keywordsWithContacts(db, site, cred, since);
+  const brief = await loadBrief(db, site.id), bm = briefMatch(brief);
   const agg = new Map();
   let totClicks = 0, totCost = 0;
   for (const t of terms) {
@@ -53,25 +55,32 @@ export async function suggest(db, site, cred, now) {
   }
   const cpc = totClicks ? totCost / totClicks : 0;
   const out = new Map();
-  const add = (text, match, reason, x) => {
+  const add = (text, match, reason, x, why) => {
     const key = norm(text) + '|' + match;
     if (decided.has(key)) return;
-    const s = out.get(key) || { id: '', text, match, reason, clicks: 0, cost: 0, conv: 0, terms: [], campaigns: new Map(), protect: false };
+    const s = out.get(key) || { id: '', text, match, reason, why: why || '', clicks: 0, cost: 0, conv: 0, terms: [], campaigns: new Map(), protect: false };
     s.clicks += x.clicks; s.cost += x.cost; s.conv += x.conv; if (s.terms.length < 5) s.terms.push(x.term);
     for (const [id, n] of x.campaigns) s.campaigns.set(id, n);
     if ([...x.keywords].some((kw) => good.has(norm(kw)))) s.protect = true;
     out.set(key, s);
   };
   for (const [k, x] of agg) {
+    // أولًا: اللي صاحب الموقع قال إنه مش خدمته (فهم النشاط)
+    const ex = bm.excluded(k);
+    if (ex) { add(ex.word, 'PHRASE', 'not_offer', x, ex.why); continue; }
     const hit = INTENT_RE.find(([re]) => re.test(k));
     if (hit) { add(hit[1], 'PHRASE', 'intent_' + hit[2], x); continue; }
+    // عبارة مافيهاش أي كلمة من خدمتك وصرفت من غير نتيجة
+    if (bm.hasOffer && !bm.offer(k) && x.clicks >= 1 && x.conv === 0 && x.cost > 0) { add(x.term, 'EXACT', 'off_offer', x); continue; }
     if (x.clicks >= 2 && x.conv === 0 && cpc && x.cost >= 3 * cpc) add(x.term, 'EXACT', 'waste', x);
   }
-  const list = [...out.values()].filter((s) => s.cost > 0 || s.reason.startsWith('intent_')).sort((a, b) => b.cost - a.cost);
+  const rank = { not_offer: 0, off_offer: 2 };
+  const list = [...out.values()].filter((s) => s.cost > 0 || s.reason.startsWith('intent_') || s.reason === 'not_offer')
+    .sort((a, b) => (rank[a.reason] ?? 1) - (rank[b.reason] ?? 1) || b.cost - a.cost);
   for (const s of list) s.id = (await sha256(norm(s.text) + '|' + s.match)).slice(0, 16);
   return { cpc: micros(cpc), total_cost: micros(totCost), terms: agg.size,
-    suggestions: list.slice(0, 60).map((s) => ({ id: s.id, text: s.text, match: s.match, reason: s.reason, clicks: s.clicks, cost: micros(s.cost), conv: Math.round(s.conv * 10) / 10, terms: s.terms, campaigns: [...s.campaigns].map(([id, name]) => ({ id, name })), protect: s.protect })),
-    waste: micros(list.reduce((a, s) => a + s.cost, 0)) };
+    suggestions: list.slice(0, 80).map((s) => ({ id: s.id, text: s.text, match: s.match, reason: s.reason, why: s.why, clicks: s.clicks, cost: micros(s.cost), conv: Math.round(s.conv * 10) / 10, terms: s.terms, campaigns: [...s.campaigns].map(([id, name]) => ({ id, name })), protect: s.protect })),
+    waste: micros(list.reduce((a, s) => a + s.cost, 0)), brief: !!brief };
 }
 
 async function keywordsWithContacts(db, site, cred, since) {
