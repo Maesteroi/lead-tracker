@@ -12,7 +12,7 @@ import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 
 const CV_SEGMENTS = new Set(['segments.date', 'segments.device', 'segments.ad_network_type', 'segments.ad_sub_network_type', 'segments.click_type', 'segments.slot', 'segments.month_of_year']);
-const RESOURCES = new Set(['customer_negative_criterion', 'campaign_criterion', 'shared_criterion', 'conversion_action', 'customer', 'customer_client', 'campaign', 'search_term_view', 'click_view', 'ad_group_ad', 'geo_target_constant']);
+const RESOURCES = new Set(['keyword_view', 'campaign_asset', 'customer_asset', 'customer_negative_criterion', 'campaign_criterion', 'shared_criterion', 'conversion_action', 'customer', 'customer_client', 'campaign', 'search_term_view', 'click_view', 'ad_group_ad', 'geo_target_constant']);
 
 export function fakeGoogle(opts) {
   opts = opts || {};
@@ -59,12 +59,19 @@ export function fakeGoogle(opts) {
     else if (p.from === 'customer_negative_criterion') results = (acct.ipBlocks || []).map((b, i) => ({ customerNegativeCriterion: { id: String(7000 + i), ipBlock: { ipAddress: b.ip } } }));
     else if (p.from === 'campaign_criterion') results = (acct.negatives || []).map((n) => ({ campaign: { id: n.campaignId, name: n.campaignName || '' }, campaignCriterion: { keyword: { text: n.text, matchType: n.matchType } } }));
     else if (p.from === 'shared_criterion') results = (acct.sharedNegatives || []).map((n) => ({ sharedSet: { name: n.list }, sharedCriterion: { keyword: { text: n.text, matchType: n.matchType } } }));
-    else if (p.from === 'conversion_action') results = (acct.convActions || []).filter((c) => c.type === 'UPLOAD_CLICKS' && c.status === 'ENABLED').map((c) => ({ conversionAction: c }));
+    else if (p.from === 'conversion_action') results = (acct.convActions || []).filter((c) => (!/type = 'UPLOAD_CLICKS'/.test(q) || c.type === 'UPLOAD_CLICKS') && c.status === 'ENABLED').map((c) => ({ conversionAction: c }));
+    else if (p.from === 'campaign_asset') results = (acct.campaignAssets || []).map((t) => ({ campaign: { id: '11' }, campaignAsset: { fieldType: t } }));
+    else if (p.from === 'customer_asset') results = (acct.customerAssets || []).map((t) => ({ customerAsset: { fieldType: t } }));
+    else if (p.from === 'keyword_view') results = (acct.keywords || []).filter((k) => k.status === 'ENABLED').map((k) => ({ adGroupCriterion: { resourceName: k.rn, keyword: { text: k.text, matchType: k.matchType }, status: k.status } }));
+    else if (p.from === 'campaign' && /DURING LAST_30_DAYS/.test(q)) {
+      results = (acct.campaigns || []).filter((c) => c.status !== 'REMOVED').map((c) => ({ campaign: { id: String(c.id), name: c.name, advertisingChannelType: c.channel || 'SEARCH', biddingStrategyType: c.bidding || 'MAXIMIZE_CONVERSIONS', geoTargetTypeSetting: { positiveGeoTargetType: c.geo || 'PRESENCE_OR_INTEREST' } },
+        metrics: { clicks: String(c.m30 ? c.m30.clicks : 0), costMicros: String(c.m30 ? c.m30.costMicros : 0), conversions: c.m30 ? c.m30.conversions : 0, searchBudgetLostImpressionShare: c.m30 ? c.m30.lostBudget || 0 : 0, searchRankLostImpressionShare: c.m30 ? c.m30.lostRank || 0 : 0 } }));
+    }
     else if (p.from === 'customer_client') results = (acct.children || []).map((c) => ({ customerClient: c }));
     else if (p.from === 'geo_target_constant') {
       const want = /IN \((.+)\)/.exec(q)[1].split(',').map((x) => x.trim().replace(/'/g, ''));
       results = want.filter((n) => (acct.geo || {})[n.split('/')[1]]).map((n) => { const x = acct.geo[n.split('/')[1]]; return { geoTargetConstant: { resourceName: n, id: n.split('/')[1], name: x.name, targetType: x.type, countryCode: x.cc } }; });
-    } else if (p.from === 'ad_group_ad') results = (acct.ads || []).map((a) => ({ campaign: { id: String(a.campaignId) }, adGroupAd: { policySummary: { approvalStatus: a.approval } } }));
+    } else if (p.from === 'ad_group_ad') results = (acct.ads || []).map((a) => ({ campaign: { id: String(a.campaignId) }, adGroupAd: { adStrength: a.strength, policySummary: { approvalStatus: a.approval }, ad: { finalUrls: a.finalUrls || [], responsiveSearchAd: { headlines: (a.headlines || []).map((t) => ({ text: t })) } } } }));
     else if (p.from === 'campaign' && !day) {
       results = (acct.campaigns || []).filter((c) => c.status !== 'REMOVED').map((c) => ({ campaign: { id: String(c.id), name: c.name, status: c.status, primaryStatus: c.primaryStatus || 'ELIGIBLE', primaryStatusReasons: c.reasons || [], finalUrlSuffix: c.finalUrlSuffix || undefined }, campaignBudget: { amountMicros: String(c.budgetMicros || 0) } }));
     } else if (p.from === 'campaign' && p.select.includes('segments.click_type')) {
@@ -156,6 +163,21 @@ export function fakeGoogle(opts) {
       g.ipMutations = (g.ipMutations || []).concat(ops);
       return resp(200, { results });
     }
+    // تعديل الحملة (CampaignService): update + updateMask
+    if (u.hostname === 'googleads.googleapis.com' && /\/campaigns:mutate$/.test(u.pathname)) {
+      const cid = u.pathname.split('/')[3]; const acct = g.accounts[cid];
+      if (!acct) return apiErr(403, 'PERMISSION_DENIED', 'USER_PERMISSION_DENIED');
+      const ops = JSON.parse(init.body || '{}').operations || [];
+      if (ops.some((o) => !o.update || !o.updateMask)) return apiErr(400, 'INVALID_ARGUMENT', 'FieldMaskError');
+      g.campaignMutations = (g.campaignMutations || []).concat(ops);
+      for (const o of ops) { const c = (acct.campaigns || []).find((x) => o.update.resourceName.endsWith('/' + x.id)); if (c && o.update.geoTargetTypeSetting) c.geo = o.update.geoTargetTypeSetting.positiveGeoTargetType; }
+      return resp(200, { results: ops.map((o) => ({ resourceName: o.update.resourceName })) });
+    }
+    // PageSpeed Insights
+    if (u.hostname === 'www.googleapis.com' && u.pathname === '/pagespeedonline/v5/runPagespeed') {
+      g.psiCalls = (g.psiCalls || []).concat([u.searchParams.get('url')]);
+      return resp(200, g.psi || { lighthouseResult: { categories: { performance: { score: 0.42 } }, audits: { 'largest-contentful-paint': { numericValue: 5200 } } }, loadingExperience: { metrics: { LARGEST_CONTENTFUL_PAINT_MS: { percentile: 4100, category: 'SLOW' } } } });
+    }
     // كلمة جديدة في مجموعة إعلانية (AdGroupCriterionService.MutateAdGroupCriteria)
     if (u.hostname === 'googleads.googleapis.com' && /\/adGroupCriteria:mutate$/.test(u.pathname)) {
       const tok = String(headers.Authorization || '').replace(/^Bearer /, '');
@@ -164,6 +186,7 @@ export function fakeGoogle(opts) {
       if (!acct) return apiErr(403, 'PERMISSION_DENIED', 'USER_PERMISSION_DENIED');
       if (g.mutateFail) return apiErr(400, 'INVALID_ARGUMENT', 'Request contains an invalid argument.');
       const ops = JSON.parse(init.body || '{}').operations || [];
+      if (ops.some((o) => o.update)) { g.kwUpdates = (g.kwUpdates || []).concat(ops); for (const o of ops) { const k = (acct.keywords || []).find((x) => x.rn === o.update.resourceName); if (k) k.status = o.update.status; } return resp(200, { results: ops.map((o) => ({ resourceName: o.update.resourceName })) }); }
       g.kwMutations = (g.kwMutations || []).concat(ops.map((o) => Object.assign({ customer: cid }, o.create)));
       return resp(200, { results: ops.map((o, i) => ({ resourceName: o.create.adGroup.replace('/adGroups/', '/adGroupCriteria/') + '~' + (5000 + i) })) });
     }
