@@ -9,6 +9,9 @@ body.dash { background: var(--bg); }
 
 /* ── الشريط الجانبي (لابتوب) ── */
 .side { position: fixed; inset-block: 0; inset-inline-start: 0; width: var(--side-w); background: var(--card); border-inline-end: 1px solid var(--line); display: flex; flex-direction: column; padding: 18px 14px; z-index: 30; }
+/* الشاشات القصيرة: القائمة بتتمرر لوحدها علشان «إدارة المنصة» و«تسجيل الخروج» يفضلوا متاحين (15 نوفمبر) */
+.side { overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+@media (max-height: 820px) { .side { padding-block: 12px; } .side-logo { padding-bottom: 10px; } .side-logo img { width: 112px; } .side-nav a { padding-block: 7px; } }
 .side-logo { display: block; padding: 4px 8px 18px; }
 .side-logo img { width: 132px; height: auto; display: block; }
 .side-nav { display: grid; gap: 2px; }
