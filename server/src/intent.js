@@ -78,7 +78,7 @@ export function prepare(brief) {
   return { hasOffer: offer.length > 0, offer, exclude, vocab: new Set(offer.flatMap((x) => x.t)) };
 }
 
-// الفئة: adjacent (مش خدمتك) · nonbuyer · status · diy · generic (كلمة عامة لوحدها) · info · hire · core · off (لا تذكر خدمتك)
+// الفئة: adjacent (مش خدمتك) · nonbuyer · status · diy · generic (كلمة عامة لوحدها) · info (بيستفهم) · topic (نفس الموضوع ومابتذكرش الخدمة) · off (برّه الموضوع) · hire · core
 export function classify(term, b) {
   const t = tok(term);
   const ex = b.exclude.find((x) => findWord(t, x.t) >= 0);
@@ -88,8 +88,9 @@ export function classify(term, b) {
   const dy = hit(t, DY); if (dy) return { cls: 'diy', marker: dy.word, t };
   if (t.length === 1 && b.vocab.has(t[0])) return { cls: 'generic', t };
   const named = b.offer.some((x) => findWord(t, x.t) >= 0);
-  if (!named) return { cls: 'off', t };
-  if (hit(t, IN)) return { cls: 'info', t };
+  if (hit(t, IN)) return { cls: 'info', t, named };
+  // مابتذكرش الخدمة: لو فيها من مفرداتها (زواج · اجنبية) = نفس الموضوع، بنراقبه · لو مافيهاش = برّه الموضوع
+  if (!named) return { cls: t.some((w) => b.vocab.has(w)) ? 'topic' : 'off', t };
   if (hit(t, HI)) return { cls: 'hire', t };
   return { cls: 'core', t };
 }

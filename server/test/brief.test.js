@@ -54,8 +54,9 @@ test('brief: the owner saves what the business offers and does not; negatives th
 test('brief: a term with no service word that spent without a result is suggested as «does not name your service» (exact)', async () => {
   const s = await setup();
   s.w.fs.t.site_brief = [{ client_id: s.site.id, offer: BRIEF.offer, exclude: [] }];
-  s.w.fs.t.ads_search_terms.push(Object.assign({}, s.w.fs.t.ads_search_terms[0], { search_term: 'جمعية الزواج في جدة', clicks: 2, conversions: 0 }));
+  s.w.fs.t.ads_search_terms.push(Object.assign({}, s.w.fs.t.ads_search_terms[0], { search_term: 'محامي طلاق في جدة', clicks: 2, conversions: 0 }), Object.assign({}, s.w.fs.t.ads_search_terms[0], { search_term: 'جمعية الزواج في جدة', clicks: 2, conversions: 0 }));
   const n = (await s.gc(s.owner, '/v1/dash/negatives?site=' + s.site.id)).body;
-  assert.equal(n.suggestions.find((x) => x.text === 'جمعية الزواج في جدة').reason, 'off_offer');
+  assert.equal(n.suggestions.find((x) => x.text === 'محامي طلاق في جدة').reason, 'off_offer', 'off the topic entirely, 2 clicks, no result: exact');
+  assert.ok(!n.suggestions.some((x) => x.text === 'جمعية الزواج في جدة'), 'same topic (has «زواج») but does not name the service: watched until 5 clicks');
   assert.deepEqual(frequentWords([{ search_term: 'تصريح زواج', clicks: 1 }], { offer: ['تصريح زواج'], exclude: [] }).map((w) => w.word), [], 'the service words themselves are not offered for classifying');
 });

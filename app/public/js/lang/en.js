@@ -1460,6 +1460,7 @@ window.LT_LANG.en = {
   'bf.promise': "Your promise",
   'bf.promise.ph': "e.g. pay after completion",
   'bf.banned': "We do not serve this field on the platform: {l}.",
+  'neg.blocks_own': "It will also block your keyword «{k}». That keyword is not your service anyway: pause it in Google Ads.",
   // الاشتراك والدفع بالإيصال (15 نوفمبر)
   'nav.billing': "Subscription",
   'units.month': ["month", "months"],

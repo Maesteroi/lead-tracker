@@ -63,7 +63,8 @@ export async function suggestPositive(db, site, cred, now) {
     if (!x.groups.size) continue;
     const viaGood = [...x.from.entries()].some(([nk, f]) => good.has(nk) && f.match !== 'EXACT');
     let reason = null;
-    if (x.conv >= 1) reason = 'conv';
+    // تحويل جوجل دليل ضعيف (ممكن يبقى ضغطة): لازم تحويلين، أو تحويل ونقرتين
+    if (x.conv >= 2 || (x.conv >= 1 && x.clicks >= 2)) reason = 'conv';
     else if (x.clicks >= 2 && viaGood) reason = 'contacts';
     if (!reason) continue;
     const g = [...x.groups.values()].sort((a, b) => b.clicks - a.clicks)[0];

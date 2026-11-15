@@ -778,6 +778,7 @@
           el('div', { class: 'neg-h' }, [el('b', { class: 'kw-note', text: kwNote(x.text, x.match) }), el('span', { class: 'pill', text: T('neg.m.' + x.match.toLowerCase()) }), el('span', { class: 'pill ' + (x.reason === 'not_offer' ? 'bad' : x.reason === 'generic' || x.reason === 'off_offer' ? 'warn' : 'info'), text: T('neg.r.' + x.reason) + (x.why ? ': ' + x.why : '') })]),
           el('p', { class: 'hint', text: T('neg.why.' + (x.reason === 'generic' ? 'generic' : x.match.toLowerCase())) }),
           x.narrowed ? el('p', { class: 'hint warn-text', text: T('neg.narrowed', { f: x.narrowed.from, k: (x.narrowed.blocked || []).join('، ') }) }) : null,
+          (x.blocks_own || []).length ? el('p', { class: 'hint warn-text', text: T('neg.blocks_own', { k: x.blocks_own.join('، ') }) }) : null,
           (x.variants || []).length > 1 ? el('p', { class: 'hint', text: T('neg.variants', { v: x.variants.join(' · ') }) }) : null,
           el('p', { class: 'hint ok-text', text: '✓ ' + T('neg.safe') }),
           el('p', { class: 'dim', text: T('neg.stats', { c: fmt(x.clicks), m: money2(x.cost, cur), p: x.campaigns.map(function (c) { return c.name; }).join('، ') }) }),
