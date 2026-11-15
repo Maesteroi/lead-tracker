@@ -611,3 +611,12 @@ svg.geo { width: 100%; height: auto; aspect-ratio: 1.7; display: block; backgrou
 .an-ic { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; font: 800 13px var(--font-body); font-style: normal; }
 .an-it.ok .an-ic { background: var(--ok-bg); color: var(--ok); } .an-it.warn .an-ic { background: var(--warn-bg); color: var(--warn); } .an-it.bad .an-ic { background: var(--bad-bg); color: var(--bad); } .an-it.info .an-ic { background: var(--info-bg); color: var(--info); }
 @media (max-width: 640px) { .an-hero { grid-template-columns: 1fr; justify-items: center; text-align: center; } .an-it { grid-template-columns: 24px 1fr; } .an-it > .btn { grid-column: 2; justify-self: start; } }
+/* مزايا الباقة من الـ checklist · الخصم · الكوبون (15 نوفمبر) */
+.bl-feat.ck li.no { color: var(--muted); text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--muted) 50%, transparent); }
+.bl-feat.ck li.no::before { content: '✕'; color: var(--muted); font-weight: 700; }
+.bl-disc { color: var(--growth); font-weight: 700; }
+.bl-cp { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.bl-cp .bl-ref { max-width: 220px; text-transform: uppercase; }
+.bl-cp.ok, .bl-cp.warn { padding: 8px 12px; border-radius: 10px; font-size: 14px; }
+.bl-cp.ok { background: color-mix(in srgb, var(--growth) 12%, transparent); color: var(--growth); font-weight: 700; }
+.bl-cp.warn { background: var(--warn-bg, #fff6e0); color: var(--warn, #9a6700); }

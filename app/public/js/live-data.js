@@ -105,6 +105,7 @@
     negExisting: function (site) { return LT.api('/v1/dash/negatives/existing?site=' + encodeURIComponent(site)).then(function (r) { if (!r.ok) throw new Error('http'); return r.body; }); },
     // الاشتراك والدفع بالإيصال (billing.js · payments.js)
     billing: function (org) { return LT.api('/v1/dash/billing?org=' + encodeURIComponent(org)).then(function (r) { if (!r.ok) throw new Error('http'); return r.body; }); },
+    billingCoupon: function (body) { return LT.api('/v1/dash/billing/coupon', { method: 'POST', body: body }).then(function (r) { if (!r.ok) throw new Error(r.body && r.body.error || 'http'); return r.body; }); },
     billingPay: function (body) { return LT.api('/v1/dash/billing/pay', { method: 'POST', body: body }).then(function (r) { if (!r.ok) throw new Error(r.body && r.body.error || 'http'); return r.body; }); },
     // تحليل الحملة وإصلاحها (analysis.js)
     analysis: function (site) { return LT.api('/v1/dash/analysis?site=' + encodeURIComponent(site)).then(function (r) { if (!r.ok) throw new Error('http'); return r.body; }); },

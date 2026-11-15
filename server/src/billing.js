@@ -9,6 +9,7 @@ import { json } from './util.js';
 import { isPlatform, hasPerm, notFound, roleFor } from './sites.js';
 import { audit } from './auth.js';
 import { orgPayments } from './payments.js';
+import { planDiscount, couponQuote } from './plans.js';
 
 const PLAN_IDS = ['basic', 'pro', 'agency'];
 export const ORG_BILL = 'id,name,status,plan,currency,market,country,trial_ends_at,plan_period_end,founder_no,founder_since,billing_owner';
@@ -20,16 +21,20 @@ const clip = (s, n) => String(s == null ? '' : s).trim().slice(0, n);
 
 const DEFAULT_COUNTRIES = [{ country: 'EG', currency: 'EGP', mode: 'fixed', round_to: 1 }, { country: 'SA', currency: 'SAR', mode: 'fixed', round_to: 1 }, { country: '*', currency: 'USD', mode: 'fixed', round_to: 1 }];
 export async function loadBilling(db) {
-  const [plans, prices, st, used, countries, rates] = await Promise.all([
-    db.select('plans?select=id,sites,clicks,sort,active,unit,min_units,campaigns_per_unit&order=sort.asc').catch(() => db.select('plans?select=id,sites,clicks,sort,active&order=sort.asc')),   // قبل 0021
+  const [plans, prices, st, used, countries, rates, feats, pfs] = await Promise.all([
+    db.select('plans?select=*&order=sort.asc'),
     db.select('plan_prices?select=plan_id,currency,monthly'),
     db.one('billing_settings?id=eq.1&select=trial_days,annual_months,founders_limit,founders_pct,founders_months,founders_after_pct'),
     db.select('organizations?founder_no=not.is.null&select=id&limit=100000'),
     db.select('country_pricing?select=country,currency,mode,round_to&order=country.asc').catch(() => null),   // قبل 0021
     db.select('fx_rates?select=currency,per_usd,source,fetched_at').catch(() => []),
+    db.select('features?select=*&order=sort.asc').catch(() => []),   // قبل 0024
+    db.select('plan_features?select=*').catch(() => []),
   ]);
+  const catalog = feats || [];
+  const featuresOf = (id) => catalog.map((f) => { const v = (pfs || []).find((x) => x.plan_id === id && x.feature_key === f.key); return { key: f.key, name_ar: f.name_ar, name_en: f.name_en || null, kind: f.kind, unit_ar: f.unit_ar || null, unit_en: f.unit_en || null, builtin: !!f.builtin, enabled: v ? v.enabled !== false : false, value: v && v.value != null ? Number(v.value) : null }; });
   const settings = st || { trial_days: 7, annual_months: 10, founders_limit: 100, founders_pct: 50, founders_months: 12, founders_after_pct: 20 };
-  return { plans: (plans || []).map((p) => Object.assign({ unit: 'account', min_units: 1, campaigns_per_unit: null }, p, { prices: Object.fromEntries((prices || []).filter((x) => x.plan_id === p.id).map((x) => [x.currency, Number(x.monthly)])) })),
+  return { catalog, plans: (plans || []).map((p) => Object.assign({ unit: 'account', min_units: 1, campaigns_per_unit: null, visible: true, name_ar: null, name_en: null, badge: null, discount_pct: null }, p, { features: featuresOf(p.id), prices: Object.fromEntries((prices || []).filter((x) => x.plan_id === p.id).map((x) => [x.currency, Number(x.monthly)])) })),
     settings, founders: { used: (used || []).length, limit: settings.founders_limit },
     countries: countries && countries.length ? countries.map((c) => Object.assign({}, c, { round_to: Number(c.round_to) || 1 })) : DEFAULT_COUNTRIES,
     rates: Object.fromEntries((rates || []).map((r) => [r.currency, Number(r.per_usd)])), rates_at: (rates || []).reduce((a, r) => (!a || r.fetched_at < a ? r.fetched_at : a), null) };
@@ -114,7 +119,10 @@ export async function dashBilling(req, env, db, sess, url) {
     currency, settings: { trial_days: b.settings.trial_days, annual_months: b.settings.annual_months, founders_months: b.settings.founders_months, founders_after_pct: b.settings.founders_after_pct },
     founders: { left: Math.max(0, b.founders.limit - b.founders.used), limit: b.founders.limit, pct: b.settings.founders_pct },
     pricing: { country: ctx.country, mode: ctx.mode, rate: ctx.rate, source: ctx.mode === 'usd' ? FX_SOURCE : null },
-    plans: b.plans.filter((p) => p.active).map((p) => ({ id: p.id, sites: p.sites, clicks: p.clicks, unit: p.unit, min_units: p.min_units, campaigns_per_unit: p.campaigns_per_unit, price: priceFor(p, ctx, b.settings, disc) })).filter((p) => p.price),
+    names: Object.fromEntries(b.plans.map((p) => [p.id, { ar: p.name_ar || null, en: p.name_en || null }])),   // للباقة الحالية/السجل حتى لو مخفية
+    coupons: !!(await db.one('coupons?active=eq.true&select=code').catch(() => null)),   // خانة الكوبون تظهر بس لو فيه كوبونات
+    // أحسن خصم واحد (مابيتجمعش): عرض المؤسسين أو خصم الباقة
+    plans: b.plans.filter((p) => p.active && p.visible !== false).map((p) => { const pd = planDiscount(p); const best = Math.max(disc, pd); const pr = priceFor(p, ctx, b.settings, best); if (pr) pr.source = !best ? null : pd > disc ? 'plan' : 'founder'; return { id: p.id, name_ar: p.name_ar, name_en: p.name_en, badge: p.badge, discount_label: pd > disc ? p.discount_label : null, discount_ends_at: pd > disc ? p.discount_ends_at : null, sites: p.sites, clicks: p.clicks, unit: p.unit, min_units: p.min_units, campaigns_per_unit: p.campaigns_per_unit, features: p.features.filter((f) => f.enabled || f.kind === 'bool'), price: pr }; }).filter((p) => p.price),
     methods: methods.map((m) => ({ id: m.id, kind: m.kind, label: m.label || '', details: m.details || {} })),
     payments: role === 'owner' ? await orgPayments(db, org.id) : [] });
 }
@@ -149,26 +157,12 @@ export async function platformBilling(req, env, db, sess) {
     members = pm.map((x) => { const u = users.find((y) => y.id === x.user_id) || {}; return { user_id: x.user_id, email: u.email || '', name: u.name || '', own_payments: !!x.own_payments }; });
   }
   const countries = superOnly(sess) ? b.countries.map((c) => { const ctx = ctxFor(b, c.country); return Object.assign({}, c, { rate: ctx.rate, preview: Object.fromEntries(b.plans.map((p) => { const pr = priceFor(p, ctx, b.settings, 0); return [p.id, pr ? pr.monthly : null]; })) }); }) : null;
-  return json({ ok: true, super: superOnly(sess), plans: superOnly(sess) ? b.plans : null, settings: superOnly(sess) ? b.settings : null, founders: b.founders, methods: mine, members,
+  const coupons = superOnly(sess) ? ((await db.select('coupons?select=*&order=created_at.desc&limit=200').catch(() => [])) || []) : null;
+  return json({ ok: true, super: superOnly(sess), catalog: superOnly(sess) ? b.catalog : null, coupons, plans: superOnly(sess) ? b.plans : null, settings: superOnly(sess) ? b.settings : null, founders: b.founders, methods: mine, members,
     countries, rates: superOnly(sess) ? b.rates : null, rates_at: b.rates_at, fx_source: FX_SOURCE });
 }
 
-export async function platformPlanSave(req, env, db, sess) {
-  if (!superOnly(sess)) return notFound();
-  const b = await req.json().catch(() => ({}));
-  if (!PLAN_IDS.includes(b.id)) return json({ ok: false, error: 'plan' }, 400);
-  const sites = Number(b.sites), clicks = Number(b.clicks);
-  if (!(sites >= 1 && sites <= 1000) || !(clicks >= 0 && clicks <= 1e7)) return json({ ok: false, error: 'limits' }, 400);
-  const prices = Object.entries(b.prices || {}).filter(([c, v]) => CUR_RE.test(c) && Number(v) >= 0 && Number(v) < 1e7);
-  const row = { id: b.id, sites: Math.round(sites), clicks: Math.round(clicks), active: b.active !== false, updated_by: sess.user.id, updated_at: new Date().toISOString() };
-  // باقة بالمشروع: الحد الأدنى للمشاريع وعدد الحملات في المشروع
-  if (b.min_units !== undefined) { const v = Math.round(Number(b.min_units)); if (!(v >= 1 && v <= 1000)) return json({ ok: false, error: 'min_units' }, 400); row.min_units = v; }
-  if (b.campaigns_per_unit !== undefined) { const v = Math.round(Number(b.campaigns_per_unit)); if (!(v >= 1 && v <= 100)) return json({ ok: false, error: 'campaigns' }, 400); row.campaigns_per_unit = v; }
-  await db.insert('plans', [row], { onConflict: 'id', merge: true, returning: false });
-  for (const [c, v] of prices) await db.insert('plan_prices', [{ plan_id: b.id, currency: c, monthly: Math.round(Number(v) * 100) / 100 }], { onConflict: 'plan_id,currency', merge: true, returning: false });
-  await audit(db, sess.user.id, 'platform_billing', true, 'plan ' + b.id + ' ' + prices.map(([c, v]) => c + ':' + v).join(','));
-  return json({ ok: true });
-}
+export { platformPlanSave } from './plans.js';
 
 export async function platformBillingSettings(req, env, db, sess) {
   if (!superOnly(sess)) return notFound();
@@ -247,4 +241,38 @@ export async function platformOwnPayments(req, env, db, sess) {
   if (b.own_payments !== true) await db.update('payment_methods?owner_id=' + eq(b.user_id), { enabled: false, updated_by: sess.user.id, updated_at: new Date().toISOString() });
   await audit(db, sess.user.id, 'platform_billing', true, 'own_payments ' + b.user_id + ' ' + (b.own_payments === true));
   return json({ ok: true });
+}
+
+// الكوبون عند العميل: بيرجّع المبلغ بعده، ومقارنة بالخصم الحالي (أحسن واحد بس)
+export async function dashCoupon(req, env, db, sess) {
+  const b = await req.json().catch(() => ({}));
+  const orgId = String(b.org || '');
+  if (!UUID_RE.test(orgId) || !roleFor(sess, orgId)) return notFound();
+  const org = await db.one('organizations?id=' + eq(orgId) + '&select=' + ORG_BILL).catch(() => db.one('organizations?id=' + eq(orgId) + '&select=' + ORG_BILL.replace(',country', '')));
+  if (!org) return notFound();
+  const bill = await loadBilling(db);
+  const plan = bill.plans.find((p) => p.id === b.plan && p.active);
+  if (!plan || !['month', 'year'].includes(b.period)) return json({ ok: false, error: 'plan' }, 400);
+  const ctx = ctxFor(bill, await countryOf(db, org));
+  const r = await quoteFor(db, org, bill, plan, ctx, b.period, b.units, b.code);
+  if (r.error) return json({ ok: false, error: r.error }, 400);
+  return json(Object.assign({ ok: true }, r));
+}
+// السعر النهائي لطلب: أحسن خصم واحد من (المؤسسين · الباقة · الكوبون)
+export async function quoteFor(db, org, bill, plan, ctx, period, unitsIn, code) {
+  const units = plan.unit === 'project' ? Math.round(Number(unitsIn)) : 1;
+  if (!(units >= (plan.min_units || 1) && units <= 1000)) return { error: 'units' };
+  const fd = discountFor(org, bill, Date.now()), pd = planDiscount(plan), best = Math.max(fd, pd);
+  const base = priceFor(plan, ctx, bill.settings, 0), withDisc = priceFor(plan, ctx, bill.settings, best);
+  if (!base) return { error: 'plan' };
+  const k = period === 'year' ? 'yearly_now' : 'monthly_now';
+  const baseTotal = Math.round(base[k] * units * 100) / 100, discTotal = Math.round(withDisc[k] * units * 100) / 100;
+  const out = { currency: ctx.currency, units, base: baseTotal, total: discTotal, discount: best, source: !best ? null : pd > fd ? 'plan' : 'founder', coupon: null };
+  if (code) {
+    const c = await couponQuote(db, org, code, plan, period, ctx.currency, baseTotal);
+    if (c.error) return { error: c.error };
+    out.coupon = c;
+    if (c.total < discTotal) { out.total = c.total; out.source = 'coupon'; out.discount = c.kind === 'pct' ? c.value : 0; } else out.coupon_not_better = true;
+  }
+  return out;
 }

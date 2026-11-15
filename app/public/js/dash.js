@@ -1565,7 +1565,20 @@
   // ════════ الفريق (G-29): مين يدخل حسابك وبيعمل إيه ════════
   var ROLE_AR = {}; ['owner', 'admin', 'staff', 'viewer'].forEach(function (r) { ROLE_AR[r] = [T('team.role.' + r), T('team.role.' + r + '.d')]; });
   // ── الاشتراك (الدفع، المرحلة 2 · 15 نوفمبر): حالتك · عرض المؤسسين · الباقات بعملة حسابك · التحويل بالإيصال · سجل المدفوعات ──
-  var bill = { period: 'month', plan: null, method: null, receipt: null, units: {} };
+  var bill = { period: 'month', plan: null, method: null, receipt: null, units: {}, coupon: null };
+  // اسم الباقة من البيانات (الأدمن بيكتبه) · الباقات القديمة ليها ترجمة احتياطية
+  function planName(d, id) { var n = d && d.names && d.names[id], x = n && (LT.locale === 'en' ? n.en || n.ar : n.ar); if (x) return x; var k = 'bl.plan.' + id, t = T(k); return t === k ? id : t; }
+  // سطور المزايا من الـ checklist: ✓ متاحة · ✗ مش في الباقة · الحدود برقمها أو «بلا حد»
+  function legacyFeats(id) { var k = 'bl.f.' + id, t = T(k); return t === k ? [] : t.split('|').map(function (f) { return el('li', { text: f }); }); }
+  function featLines(p) {
+    var fs = p.features || [];
+    if (!fs.length) return null;
+    return fs.map(function (f) {
+      var nm = LT.locale === 'en' ? f.name_en || f.name_ar : f.name_ar, txt = nm;
+      if (f.kind === 'limit' && f.enabled) txt = T('bl.ff.lim', { n: nm, v: f.value == null ? T('bl.ff.unl') : fmt(f.value) + (f.unit_ar && LT.locale !== 'en' ? ' ' + f.unit_ar : f.unit_en ? ' ' + f.unit_en : '') });
+      return el('li', { class: f.enabled ? 'yes' : 'no' }, [el('span', { class: 'sr', text: T(f.enabled ? 'bl.ff.yes' : 'bl.ff.no') }), el('span', { text: txt })]);
+    });
+  }
   function vBilling(view) {
     clear(view);
     if (!DATA.billing) { view.appendChild(soonCard(T('nav.billing'), [T('bl.demo.1'), T('bl.demo.2'), T('bl.demo.3')])); return Promise.resolve(); }
@@ -1582,7 +1595,7 @@
     var st;
     if (o.status === 'active' && o.plan_period_end) {
       var left = Math.ceil((Date.parse(o.plan_period_end) - now) / 864e5);
-      st = el('div', { class: 'bl-hero ok' }, [el('div', {}, [el('span', { class: 'bl-k', text: T('bl.now') }), el('b', { class: 'bl-v', text: T('bl.plan.' + o.plan) }), el('span', { class: 'dim', text: T('bl.until', { d: dateAr(o.plan_period_end), n: LT.n(Math.max(0, left), 'day') }) })]), o.founder ? el('span', { class: 'bl-badge', text: T('bl.founder') }) : null]);
+      st = el('div', { class: 'bl-hero ok' }, [el('div', {}, [el('span', { class: 'bl-k', text: T('bl.now') }), el('b', { class: 'bl-v', text: planName(d, o.plan) }), el('span', { class: 'dim', text: T('bl.until', { d: dateAr(o.plan_period_end), n: LT.n(Math.max(0, left), 'day') }) })]), o.founder ? el('span', { class: 'bl-badge', text: T('bl.founder') }) : null]);
     } else {
       var tl = o.trial_ends_at ? Math.ceil((Date.parse(o.trial_ends_at) - now) / 864e5) : null, total = d.settings.trial_days || 7;
       var bar = el('i', { class: 'bl-bar' }, [el('i')]); bar.firstChild.style.width = (tl == null ? 100 : Math.max(0, Math.min(100, Math.round(((total - Math.max(0, tl)) / total) * 100)))) + '%';
@@ -1597,7 +1610,7 @@
       view.appendChild(el('div', { class: 'bl-offer' }, [el('b', { text: T('bl.offer', { p: d.founders.pct }) }), el('span', { text: T('bl.offer.s', { m: LT.n(d.settings.founders_months, 'month'), a: d.settings.founders_after_pct }) }), fb, el('small', { text: T('bl.offer.left', { n: fmt(d.founders.left), l: fmt(d.founders.limit) }) })]));
     }
     // ٣) طلب مستني
-    if (pend) view.appendChild(card(T('bl.pend.title'), [el('p', { class: 'bl-pend', text: T('bl.pend', { a: price2(pend.amount, pend.currency), p: T('bl.plan.' + pend.plan) }) }), el('p', { class: 'hint', text: T('bl.pend.s') })]));
+    if (pend) view.appendChild(card(T('bl.pend.title'), [el('p', { class: 'bl-pend', text: T('bl.pend', { a: price2(pend.amount, pend.currency), p: planName(d, pend.plan) }) }), el('p', { class: 'hint', text: T('bl.pend.s') })]));
     // ٤) الباقات
     var seg = el('div', { class: 'seg bl-period', role: 'group' });
     [['month', T('bl.p.month')], ['year', T('bl.p.year', { n: LT.n(12 - d.settings.annual_months, 'month') })]].forEach(function (x) {
@@ -1619,13 +1632,15 @@
       var choose = el('button', { class: 'btn' + (bill.plan === p.id ? '' : ' ghost'), type: 'button', text: o.status === 'active' && o.plan === p.id ? T('bl.renew') : T('bl.choose') });
       choose.disabled = !!pend || !d.manage;
       choose.addEventListener('click', function () { bill.plan = p.id; bill.receipt = null; drawBilling(view, d, org); var c = document.getElementById('bl-checkout'); if (c) c.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
-      grid.appendChild(el('div', { class: 'bl-plan' + (p.id === 'pro' ? ' best' : '') + (bill.plan === p.id ? ' on' : '') }, [
-        p.id === 'pro' ? el('span', { class: 'bl-tag', text: T('bl.best') }) : null,
-        el('h3', { text: T('bl.plan.' + p.id) }),
+      var best = p.badge || (p.badge === undefined && p.id === 'pro' ? T('bl.best') : null), fl = featLines(p);
+      grid.appendChild(el('div', { class: 'bl-plan' + (best ? ' best' : '') + (bill.plan === p.id ? ' on' : '') }, [
+        best ? el('span', { class: 'bl-tag', text: best }) : null,
+        el('h3', { text: planName(d, p.id) }),
         el('div', { class: 'bl-price' }, [pr.discount ? el('s', { text: price2(was, pr.currency) }) : null, el('b', { text: price2(now2, pr.currency) }), el('span', { text: (proj ? T('bl.per.project') + ' ' : '') + (yr ? T('bl.per.year') : T('bl.per.month')) })]),
+        pr.discount ? el('small', { class: 'bl-disc', text: p.discount_label ? T('bl.disc.l', { l: p.discount_label, p: pr.discount }) + (p.discount_ends_at ? ' · ' + T('bl.disc.ends', { d: dateAr(p.discount_ends_at) }) : '') : pr.source === 'founder' ? T('bl.disc.f', { p: pr.discount }) : T('bl.disc', { p: pr.discount }) }) : null,
         yr ? el('small', { class: 'dim', text: T('bl.year.eq', { m: price2(now2 / 12, pr.currency) }) }) : null,
-        el('ul', { class: 'bl-feat' }, (proj ? [el('li', { text: T('bl.f.project', { c: LT.n(p.campaigns_per_unit || 2, 'campaign') }) }), el('li', { text: T('bl.f.min', { n: fmt(p.min_units || 1) }) })]
-          : [el('li', { text: T('bl.f.sites', { n: LT.n(p.sites, 'site') }) }), el('li', { text: T('bl.f.clicks', { n: fmt(p.clicks) }) })]).concat(T('bl.f.' + p.id).split('|').map(function (f) { return el('li', { text: f }); }))),
+        el('ul', { class: 'bl-feat' + (fl ? ' ck' : '') }, (proj ? [el('li', { text: T('bl.f.project', { c: LT.n(p.campaigns_per_unit || 2, 'campaign') }) }), el('li', { text: T('bl.f.min', { n: fmt(p.min_units || 1) }) })] : [])
+          .concat(fl || (proj ? [] : [el('li', { text: T('bl.f.sites', { n: LT.n(p.sites, 'site') }) }), el('li', { text: T('bl.f.clicks', { n: fmt(p.clicks) }) })]).concat(legacyFeats(p.id)))),
         stepper,
         choose,
       ]));
@@ -1638,7 +1653,7 @@
     // ٦) السجل
     if ((d.payments || []).length) view.appendChild(card(T('bl.history'), [el('ul', { class: 'feed' }, d.payments.map(function (p) {
       return el('li', {}, [el('span', { class: 'pill ' + (p.status === 'approved' ? 'ok' : p.status === 'rejected' ? 'bad' : 'warn'), text: T('bl.s.' + p.status) }),
-        el('div', {}, [el('span', { text: T('bl.plan.' + p.plan) + (p.units > 1 ? ' · ' + LT.n(p.units, 'project') : '') + ' · ' + T(p.period === 'year' ? 'bl.p.year.short' : 'bl.p.month') + ' · ' + price2(p.amount, p.currency) }), p.reason ? el('small', { class: 'bad-text', text: T('bl.reason', { r: p.reason }) }) : null, p.period_end ? el('small', { class: 'dim', text: T('bl.until.short', { d: dateAr(p.period_end) }) }) : null]),
+        el('div', {}, [el('span', { text: planName(d, p.plan) + (p.units > 1 ? ' · ' + LT.n(p.units, 'project') : '') + ' · ' + T(p.period === 'year' ? 'bl.p.year.short' : 'bl.p.month') + ' · ' + price2(p.amount, p.currency) }), p.reason ? el('small', { class: 'bad-text', text: T('bl.reason', { r: p.reason }) }) : null, p.period_end ? el('small', { class: 'dim', text: T('bl.until.short', { d: dateAr(p.period_end) }) }) : null]),
         el('time', { text: dateAr(p.at) })]);
     }))]));
   }
@@ -1646,13 +1661,16 @@
     var p = d.plans.filter(function (x) { return x.id === bill.plan; })[0], yr = bill.period === 'year';
     var units = p.unit === 'project' ? Math.max(p.min_units || 1, bill.units[p.id] || p.min_units || 1) : 1;
     var amount = Math.round((yr ? p.price.yearly_now : p.price.monthly_now) * units * 100) / 100;
-    var box = el('section', { class: 'panel-card bl-pay', id: 'bl-checkout' }, [el('div', { class: 'sec-head' }, [el('h2', { text: T('bl.pay.title', { p: T('bl.plan.' + p.id) }) + (units > 1 ? ' · ' + LT.n(units, 'project') : '') })])]);
+    var ckey = p.id + '|' + bill.period + '|' + units, cp0 = bill.coupon && bill.coupon.key === ckey ? bill.coupon : null;
+    if (bill.coupon && !cp0) bill.coupon = null;   // الكوبون بيتحسب تاني لو الباقة أو المدة أو العدد اتغيروا
+    if (cp0 && cp0.better) amount = cp0.total;
+    var box = el('section', { class: 'panel-card bl-pay', id: 'bl-checkout' }, [el('div', { class: 'sec-head' }, [el('h2', { text: T('bl.pay.title', { p: planName(d, p.id) }) + (units > 1 ? ' · ' + LT.n(units, 'project') : '') })])]);
     if (!d.methods.length) { box.appendChild(el('p', { class: 'muted', text: T('bl.no_methods') })); return box; }
     if (!bill.method || !d.methods.some(function (m) { return m.id === bill.method; })) bill.method = d.methods[0].id;
     var copy = function (txt) { return function () { (navigator.clipboard ? navigator.clipboard.writeText(String(txt)) : Promise.reject()).then(function () { toast(T('bl.copied')); }, function () { toast(T('tg.copy.manual')); }); }; };
     var cp = function (txt) { var b = el('button', { class: 'linkish', type: 'button', text: T('bl.copy') }); b.addEventListener('click', copy(txt)); return b; };
     // ① المبلغ بالظبط
-    box.appendChild(el('div', { class: 'bl-step' }, [el('i', { class: 'bl-n', text: '1' }), el('div', {}, [el('b', { text: T('bl.s1') }), el('div', { class: 'bl-amount' }, [el('span', { text: price2(amount, p.price.currency) }), cp(amount)]), el('small', { class: 'dim', text: T('bl.s1.s') })])]));
+    box.appendChild(el('div', { class: 'bl-step' }, [el('i', { class: 'bl-n', text: '1' }), el('div', {}, [el('b', { text: T('bl.s1') }), el('div', { class: 'bl-amount' }, [el('span', { text: price2(amount, p.price.currency) }), cp(amount)]), el('small', { class: 'dim', text: T('bl.s1.s') }), d.coupons ? couponRow(view, d, org, p, units, ckey, cp0) : null])]));
     // ② الوسيلة
     var opts = el('div', { class: 'bl-methods' });
     d.methods.forEach(function (m) {
@@ -1683,12 +1701,39 @@
       if (!/^[A-Za-z0-9\-_.#/ ]{4,40}$/.test(r)) { toast(T('bl.e.ref')); ref.focus(); return; }
       if (!bill.receipt) { toast(T('bl.e.need')); return; }
       send.disabled = true; send.textContent = T('bl.sending');
-      DATA.billingPay({ org: org, plan: p.id, period: bill.period, method_id: bill.method, ref: r, receipt: bill.receipt, units: units }).then(function () {
-        bill.plan = null; bill.receipt = null; toast(T('bl.sent')); render();
+      DATA.billingPay({ org: org, plan: p.id, period: bill.period, method_id: bill.method, ref: r, receipt: bill.receipt, units: units, coupon: cp0 && cp0.better ? cp0.code : undefined }).then(function () {
+        bill.plan = null; bill.receipt = null; bill.coupon = null; toast(T('bl.sent')); render();
       }, function (e) { send.disabled = false; send.textContent = T('bl.send', { a: price2(amount, p.price.currency) }); var k = 'bl.e.' + e.message; toast(T(k) === k ? T('err.save') : T(k)); });
     });
     box.appendChild(el('div', { class: 'bl-go' }, [send, el('small', { class: 'dim', text: T('bl.go.s') })]));
     return box;
+  }
+  // كوبون الخصم: الخادم بيتحقق ويحسب · خصم واحد بس، الأحسن (لو الكوبون أقل من الخصم الحالي بنقول كده)
+  function couponRow(view, d, org, p, units, ckey, cp0) {
+    if (cp0) {
+      var rm = el('button', { class: 'linkish', type: 'button', text: T('bl.cp.remove') });
+      rm.addEventListener('click', function () { bill.coupon = null; drawBilling(view, d, org); });
+      return el('div', { class: 'bl-cp ' + (cp0.better ? 'ok' : 'warn') }, [el('span', { text: cp0.better ? T('bl.cp.ok', { c: cp0.code, a: price2(cp0.off, p.price.currency) }) : T('bl.cp.notbetter', { c: cp0.code }) }), rm]);
+    }
+    var wrap = el('div', { class: 'bl-cp' }), open = el('button', { class: 'linkish', type: 'button', text: T('bl.cp.have') });
+    open.addEventListener('click', function () {
+      clear(wrap);
+      var inp = el('input', { type: 'text', class: 'bl-ref', dir: 'ltr', maxlength: '30', autocomplete: 'off', placeholder: T('bl.cp.ph'), 'aria-label': T('bl.cp.ph') });
+      var go = el('button', { class: 'btn ghost sm', type: 'button', text: T('bl.cp.apply') });
+      var apply = function () {
+        var code = inp.value.trim(); if (!code) { inp.focus(); return; }
+        go.disabled = true;
+        DATA.billingCoupon({ org: org, plan: p.id, period: bill.period, units: units, code: code }).then(function (q) {
+          bill.coupon = { key: ckey, code: q.coupon.code, total: q.total, off: Math.round((q.base - q.total) * 100) / 100, better: q.source === 'coupon' };
+          drawBilling(view, d, org);
+        }, function (e) { go.disabled = false; var k = 'bl.cp.e.' + e.message; toast(T(k) === k ? T('bl.cp.e.coupon_invalid') : T(k)); inp.focus(); });
+      };
+      go.addEventListener('click', apply);
+      inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') apply(); });
+      wrap.appendChild(inp); wrap.appendChild(go); inp.focus();
+    });
+    wrap.appendChild(open);
+    return wrap;
   }
   // تصغير صورة الإيصال في المتصفح قبل الرفع (أخف على باقة الجوال): أقصى ضلع 1600 · JPEG
   function shrink(f) {

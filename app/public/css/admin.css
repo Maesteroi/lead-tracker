@@ -247,3 +247,26 @@ button.switch[aria-checked="true"]::after { inset-inline-start: 21px; }
 .bl-proj { display: grid; gap: 4px; margin-top: 6px; }
 .bl-proj label { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
 .bl-num.sm { width: 64px; }
+/* الباقات: تحكم كامل (15 نوفمبر) */
+.bl-plans-admin { display: grid; gap: 10px; margin: 10px 0 16px; }
+.bl-planbox { border: 1px solid var(--line); border-radius: 14px; background: var(--card); padding: 0 16px; }
+.bl-planbox[open] { padding-bottom: 14px; box-shadow: 0 6px 24px rgba(0, 0, 0, .06); }
+.bl-planbox.off { opacity: .75; border-style: dashed; }
+.bl-planbox > summary { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 14px 0; cursor: pointer; list-style: none; }
+.bl-planbox > summary::-webkit-details-marker { display: none; }
+.bl-planbox > summary::before { content: '▸'; color: var(--muted); transition: transform .15s; }
+[dir="rtl"] .bl-planbox > summary::before { content: '◂'; }
+.bl-planbox[open] > summary::before { transform: rotate(-90deg); }
+[dir="rtl"] .bl-planbox[open] > summary::before { transform: rotate(90deg); }
+.bl-planbox > summary small { margin-inline-start: auto; }
+.bl-check { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; cursor: pointer; }
+.bl-check input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--accent, #1a6fe8); }
+.bl-feats { display: grid; gap: 6px; }
+.bl-fitem { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding: 8px 10px; border-radius: 10px; background: var(--bg); }
+.bl-fitem.custom { border-inline-start: 3px solid var(--accent, #1a6fe8); }
+.bl-lim { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.bl-foot { margin-top: 14px; justify-content: space-between; }
+.bl-frow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.bl-in.sm { min-width: 110px; width: 130px; }
+@media (max-width: 640px) { .bl-in { min-width: 0; width: 100%; } .bl-frow .bl-in, .bl-frow .bl-in.sm { width: 100%; } .bl-fitem { align-items: flex-start; } }
+.bl-in.wide { min-width: 240px; }

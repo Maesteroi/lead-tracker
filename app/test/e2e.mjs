@@ -48,7 +48,7 @@ function fakeApi(over) {
       if (p === '/v1/platform/contact-lab') return j(200, { ok: true, days: 30, total: 9, rows: [{ bucket: 'chat', n: 5, won: 3, nomsg: 0, other: 1, open: 1, won_pct: 75, nomsg_pct: 0 }, { bucket: 'mid', n: 0, won: 0, nomsg: 0, other: 0, open: 0, won_pct: null, nomsg_pct: null }, { bucket: 'lock', n: 3, won: 0, nomsg: 2, other: 1, open: 0, won_pct: 0, nomsg_pct: 67 }, { bucket: 'ios', n: 1, won: 0, nomsg: 0, other: 0, open: 1, won_pct: null, nomsg_pct: null }, { bucket: 'none', n: 0, won: 0, nomsg: 0, other: 0, open: 0, won_pct: null, nomsg_pct: null }] });
       if (p === '/v1/platform/billing/method') { const b = JSON.parse(req.postData()); st.blCalls = (st.blCalls || []).concat([b]); return b.details && b.details.numbers && !b.details.numbers.every((x) => /^01[0125]\d{8}$/.test(x)) ? j(400, { ok: false, error: 'numbers' }) : j(200, { ok: true, id: 'm-new' }); }
       if (p.startsWith('/v1/platform/billing/')) { st.blCalls = (st.blCalls || []).concat([Object.assign({ path: p }, JSON.parse(req.postData() || '{}'))]); return j(200, { ok: true }); }
-      if (p === '/v1/platform/billing') return j(200, { ok: true, super: true, founders: { used: 3, limit: 100 }, settings: { trial_days: 7, annual_months: 10, founders_limit: 100, founders_pct: 50, founders_months: 12, founders_after_pct: 20 }, plans: [{ id: 'basic', sites: 1, clicks: 2000, prices: { SAR: 149, EGP: 1499, AED: 149 } }, { id: 'pro', sites: 3, clicks: 10000, prices: { SAR: 349, EGP: 3499, AED: 349 } }, { id: 'agency', sites: 10, clicks: 40000, prices: { SAR: 899, EGP: 8999, AED: 899 } }], methods: [{ id: 'm1', owner_id: null, kind: 'instapay', enabled: true, label: '', details: { handle: 'maestro@instapay', name: 'Maestro' }, currencies: ['EGP'] }], members: [{ user_id: 'u9', email: 'sara@maestro.example', name: 'سارة', own_payments: false }], fx_source: 'https://www.exchangerate-api.com', countries: [{ country: 'EG', currency: 'EGP', mode: 'fixed', round_to: 1, rate: null, preview: { basic: 1499, pro: 3499, agency: 8999 } }, { country: 'SA', currency: 'SAR', mode: 'fixed', round_to: 1, rate: null, preview: { basic: 149, pro: 349, agency: 899 } }, { country: '*', currency: 'USD', mode: 'fixed', round_to: 1, rate: null, preview: { basic: null, pro: null, agency: null } }], rates: { EGP: 53.44 } });
+      if (p === '/v1/platform/billing') return j(200, { ok: true, super: true, founders: { used: 3, limit: 100 }, settings: { trial_days: 7, annual_months: 10, founders_limit: 100, founders_pct: 50, founders_months: 12, founders_after_pct: 20 }, catalog: [{ key: 'sites', name_ar: 'المواقع', kind: 'limit', unit_ar: 'موقع', builtin: true }, { key: 'campaigns', name_ar: 'الحملات', kind: 'limit', unit_ar: 'حملة', builtin: true }, { key: 'analysis', name_ar: 'تحليل الحملة', kind: 'bool', builtin: true }, { key: 'f_ready', name_ar: 'حملات جاهزة لمجالك', kind: 'bool', builtin: false }], coupons: [{ code: 'WIN20', kind: 'pct', value: 20, plan_ids: ['pro'], periods: null, max_uses: 50, used: 3, ends_at: '2026-12-31T23:59:59Z', first_only: false, active: true, note: '' }], plans: [['basic', 'الأساسية', 1, null, { SAR: 149, EGP: 1499, AED: 149 }], ['pro', 'النمو', 3, 'الأكثر اختيارًا', { SAR: 349, EGP: 3499, AED: 349 }], ['agency', 'الوكالات', 10, null, { SAR: 899, EGP: 8999, AED: 899 }]].map(([id, name_ar, sites, badge, prices]) => ({ id, name_ar, badge, sites, clicks: 2000, unit: 'account', visible: true, active: true, prices, features: [{ key: 'sites', name_ar: 'المواقع', kind: 'limit', unit_ar: 'موقع', builtin: true }, { key: 'campaigns', name_ar: 'الحملات', kind: 'limit', unit_ar: 'حملة', builtin: true }, { key: 'analysis', name_ar: 'تحليل الحملة', kind: 'bool', builtin: true }, { key: 'f_ready', name_ar: 'حملات جاهزة لمجالك', kind: 'bool', builtin: false }].map((f) => Object.assign({}, f, { enabled: f.key !== 'f_ready' && !(id === 'basic' && f.key === 'analysis'), value: f.key === 'sites' ? sites : f.key === 'campaigns' ? (id === 'agency' ? null : 2) : null })) })), methods: [{ id: 'm1', owner_id: null, kind: 'instapay', enabled: true, label: '', details: { handle: 'maestro@instapay', name: 'Maestro' }, currencies: ['EGP'] }], members: [{ user_id: 'u9', email: 'sara@maestro.example', name: 'سارة', own_payments: false }], fx_source: 'https://www.exchangerate-api.com', countries: [{ country: 'EG', currency: 'EGP', mode: 'fixed', round_to: 1, rate: null, preview: { basic: 1499, pro: 3499, agency: 8999 } }, { country: 'SA', currency: 'SAR', mode: 'fixed', round_to: 1, rate: null, preview: { basic: 149, pro: 349, agency: 899 } }, { country: '*', currency: 'USD', mode: 'fixed', round_to: 1, rate: null, preview: { basic: null, pro: null, agency: null } }], rates: { EGP: 53.44 } });
       // المدفوعات (payments.js)
       if (p === '/v1/platform/payments') return j(200, { ok: true, status: u.searchParams.get('status'), payments: (u.searchParams.get('status') || 'pending') === 'pending' && !st.payReviewed ? [{ id: 'pay-1', org: { id: 'o1', name: 'شادو ديزاين', plan: null, status: 'trial' }, plan: 'pro', period: 'year', amount: 17495, currency: 'EGP', method: { kind: 'instapay', label: '' }, ref: 'IPN-778899', dup: true, founder: true, discount: 50, status: 'pending', reason: '', at: new Date(Date.now() - 21 * 36e5).toISOString(), hours: 21 }] : [] });
       if (p === '/v1/platform/payments/receipt') return j(200, { ok: true, src: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==' });
@@ -107,9 +107,11 @@ function fakeApi(over) {
       // الاشتراك والدفع بالإيصال (billing.js · payments.js)
       if (p === '/v1/dash/billing') return j(200, { ok: true, manage: true, currency: 'EGP', org: { id: 'org-1', name: 'شادو', status: 'trial', plan: null, trial_ends_at: new Date(Date.now() + 2.5 * 864e5).toISOString(), plan_period_end: null, founder: false },
         settings: { trial_days: 7, annual_months: 10, founders_months: 12, founders_after_pct: 20 }, founders: { left: 87, limit: 100, pct: 50 },
-        plans: [['basic', 1, 2000, 1499], ['pro', 3, 10000, 3499], ['agency', 10, 40000, 500]].map(([id, sites, clicks, m]) => Object.assign({ id, sites, clicks, unit: 'account', min_units: 1, price: { currency: 'EGP', monthly: m, yearly: m * 10, discount: 50, monthly_now: m / 2, yearly_now: m * 5 } }, id === 'agency' ? { unit: 'project', min_units: 4, campaigns_per_unit: 2 } : {})),
+        coupons: true, names: { basic: { ar: 'الأساسية' }, pro: { ar: 'النمو' }, agency: { ar: 'الوكالات' } },
+        plans: [['basic', 1, 2000, 1499], ['pro', 3, 10000, 3499], ['agency', 10, 40000, 500]].map(([id, sites, clicks, m]) => Object.assign({ id, sites, clicks, unit: 'account', min_units: 1, features: id === 'basic' ? [{ key: 'sites', name_ar: 'المواقع', kind: 'limit', unit_ar: 'موقع', enabled: true, value: 1 }, { key: 'campaigns', name_ar: 'الحملات', kind: 'limit', unit_ar: 'حملة', enabled: true, value: null }, { key: 'analysis', name_ar: 'تحليل الحملة وإصلاحها', kind: 'bool', enabled: false, value: null }] : [], price: { currency: 'EGP', monthly: m, yearly: m * 10, discount: 50, monthly_now: m / 2, yearly_now: m * 5 } }, id === 'agency' ? { unit: 'project', min_units: 4, campaigns_per_unit: 2 } : {})),
         methods: [{ id: 'm-ip', kind: 'instapay', label: '', details: { handle: 'maestro@instapay', name: 'Maestro LT' } }, { id: 'm-vf', kind: 'vodafone_cash', label: '', details: { numbers: ['01012345678'], name: 'Maestro LT' } }],
         payments: st.paid ? [{ id: 'p1', plan: 'pro', period: 'year', amount: 17495, currency: 'EGP', status: 'pending', reason: '', discount: 50, at: new Date().toISOString() }] : [{ id: 'p0', plan: 'basic', period: 'month', amount: 749.5, currency: 'EGP', status: 'rejected', reason: 'المبلغ غير مطابق', discount: 50, at: new Date(Date.now() - 864e5).toISOString() }] });
+      if (p === '/v1/dash/billing/coupon') { const b = JSON.parse(req.postData()); st.cpCalls = (st.cpCalls || []).concat([b]); if (b.code.toUpperCase() === 'OLD') return j(400, { ok: false, error: 'coupon_expired' }); if (b.code.toUpperCase() === 'TEN') return j(200, { ok: true, currency: 'EGP', base: 34990, total: 17495, source: 'founder', coupon: { code: 'TEN', off: 3499, total: 31491 }, coupon_not_better: true }); return j(200, { ok: true, currency: 'EGP', base: 34990, total: 13996, source: 'coupon', coupon: { code: 'WIN60', off: 20994, total: 13996 } }); }
       if (p === '/v1/dash/billing/pay') { const b = JSON.parse(req.postData()); st.payCalls = (st.payCalls || []).concat([Object.assign({ csrf: req.headers()['x-csrf-token'] }, b)]); if (b.ref === 'USED-0001') return j(409, { ok: false, error: 'ref_used' }); st.paid = true; return j(200, { ok: true, status: 'pending', amount: 17495, currency: 'EGP' }); }
       // الكلمات الإيجابية (keywords.js) ولاحقة الرابط (suffix.js)
       if (p === '/v1/dash/keywords') return j(200, { ok: true, linked: true, manage: true, currency: 'SAR', days: 30, decided: st.kwDecided || [], suggestions: [{ id: 'kw000001', text: 'محلات ديكور جدة', reason: 'conv', clicks: 3, impressions: 40, cost: 11, conv: 1, group: { id: '501', name: 'تصميم', campaign: 'شادو' }, from: [{ text: 'تصميم داخلي', match: 'PHRASE' }] }, { id: 'kw000002', text: 'شركة تصميم داخلي في الرياض', reason: 'contacts', clicks: 2, impressions: 20, cost: 9, conv: 0, group: { id: '501', name: 'تصميم', campaign: 'شادو' }, from: [] }].filter((x) => !(st.kwDone || []).includes(x.id)) });
@@ -757,6 +759,22 @@ for (const [days, kind, re] of [[1.5, 'warn', /متبقٍ يومين من تجر
   await pg.locator('.bl-plan.best').getByRole('button', { name: 'اختر هذه الباقة' }).click();
   await pg.waitForSelector('#bl-checkout');
   t('billing: checkout shows the exact amount, InstaPay address with copy, and switching to Vodafone Cash shows the wallet number', /17,495 ج.م/.test(await pg.locator('.bl-amount').innerText()) && /maestro@instapay/.test(await pg.locator('.bl-methods').innerText()));
+  const b0 = await pg.locator('.bl-plan').first().innerText();
+  t('billing: plan features come from the admin checklist — limits with their number or «unlimited», and what is not included is struck out', /المواقع: 1 موقع/.test(b0) && /الحملات: بلا حد/.test(b0) && (await pg.locator('.bl-plan').first().locator('li.no', { hasText: 'تحليل الحملة' }).count()) === 1);
+  await pg.getByRole('button', { name: 'عندك كوبون خصم؟' }).click();
+  await pg.getByPlaceholder('كود الكوبون').fill('old');
+  await pg.locator('.bl-cp').getByRole('button', { name: 'تطبيق', exact: true }).click();
+  await pg.waitForFunction(() => /انتهت صلاحية الكوبون/.test(document.getElementById('toast').textContent));
+  await pg.getByPlaceholder('كود الكوبون').fill('ten');
+  await pg.locator('.bl-cp').getByRole('button', { name: 'تطبيق', exact: true }).click();
+  await pg.waitForSelector('.bl-cp.warn');
+  t('billing coupon: an expired code is said plainly; a valid code smaller than the current discount keeps the better one (one discount only)', /خصمك الحالي أفضل/.test(await pg.locator('.bl-cp').innerText()) && /17,495 ج.م/.test(await pg.locator('.bl-amount').innerText()));
+  await pg.locator('.bl-cp').getByRole('button', { name: 'إزالة' }).click();
+  await pg.getByRole('button', { name: 'عندك كوبون خصم؟' }).click();
+  await pg.getByPlaceholder('كود الكوبون').fill('win60');
+  await pg.getByPlaceholder('كود الكوبون').press('Enter');
+  await pg.waitForSelector('.bl-cp.ok');
+  t('billing coupon: a better coupon changes the amount to pay (from the server) and the saving is shown', /13,996 ج.م/.test(await pg.locator('.bl-amount').innerText()) && /وفّرت 20,994 ج.م/.test(await pg.locator('.bl-cp').innerText()) && api.cpCalls.every((x) => x.plan === 'pro' && x.period === 'year'));
   await pg.locator('.bl-m', { hasText: 'فودافون كاش' }).locator('input').check();
   await pg.waitForFunction(() => /01012345678/.test(document.querySelector('.bl-methods').innerText));
   await pg.getByRole('button', { name: /أرسل للمراجعة/ }).click();
@@ -774,7 +792,7 @@ for (const [days, kind, re] of [[1.5, 'warn', /متبقٍ يومين من تجر
   await pg.getByRole('button', { name: /أرسل للمراجعة/ }).click();
   await pg.waitForSelector('.bl-pend');
   const c = api.payCalls[1];
-  t('billing: sent with CSRF — plan, yearly, the wallet, the number and the receipt as a compressed picture; then «under review, max 24 hours»', c.csrf === 'csrf-token-123' && c.plan === 'pro' && c.period === 'year' && c.method_id === 'm-vf' && c.ref === 'IPN-123456' && /^data:image\/(jpeg|png);base64,/.test(c.receipt) && /بحد أقصى 24 ساعة/.test(await pg.locator('#view').innerText()) && (await pg.locator('.bl-plan button:disabled').count()) === 3);
+  t('billing: sent with CSRF — plan, yearly, the wallet, the number and the receipt as a compressed picture; then «under review, max 24 hours»', c.csrf === 'csrf-token-123' && c.plan === 'pro' && c.period === 'year' && c.coupon === 'WIN60' && c.method_id === 'm-vf' && c.ref === 'IPN-123456' && /^data:image\/(jpeg|png);base64,/.test(c.receipt) && /بحد أقصى 24 ساعة/.test(await pg.locator('#view').innerText()) && (await pg.locator('.bl-plan button:disabled').count()) === 3);
   await shot(pg, 'billing-pending');
   await pg.setViewportSize({ width: 390, height: 844 });
   t('billing mobile: no sideways scrolling', await pg.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1));
@@ -1050,15 +1068,48 @@ for (const [days, kind, re] of [[1.5, 'warn', /متبقٍ يومين من تجر
   t('admin «contact measurement (trial)»: screen reading vs results, with the «no message» rate per reading', (await pg.locator('#tab-lab tbody tr').count()) === 5 && /قريب من شاشة مقفولة/.test(await pg.locator('#tab-lab').innerText()) && /67%/.test(await pg.locator('#tab-lab').innerText()));
   await shot(pg, 'admin-lab');
   await pg.locator('#tab-btn-billing').click();
-  await pg.waitForSelector('#tab-billing .bl-tbl tbody tr');
-  t('admin «plans & payment»: 3 plans with a monthly price per currency, the launch offer (3 of 100 seats), the methods and the admins switch', (await pg.locator('#tab-billing .bl-tbl tbody tr').count()) === 3 && /3 من 100/.test(await pg.locator('#tab-billing').innerText()) && /maestro@instapay/.test(await pg.locator('#tab-billing').innerText()) && /سارة/.test(await pg.locator('#tab-billing').innerText()));
-  await pg.locator('#tab-billing .bl-tbl tbody tr').nth(1).locator('input').nth(2).fill('299');
-  await pg.locator('#tab-billing .bl-tbl tbody tr').nth(1).getByRole('button', { name: 'احفظ' }).click();
+  await pg.waitForSelector('#tab-billing .bl-planbox');
+  const bt = () => pg.locator('#tab-billing').innerText();
+  t('admin «plans & payment»: 3 plans as cards (name, badge, prices), the launch offer (3 of 100 seats), the methods and the admins switch', (await pg.locator('#tab-billing .bl-planbox').count()) === 3 && /الأكثر اختيارًا/.test(await pg.locator('.bl-planbox').nth(1).innerText()) && /3 من 100/.test(await bt()) && /maestro@instapay/.test(await bt()) && /سارة/.test(await bt()));
+  const pro = pg.locator('.bl-planbox').nth(1);
+  await pro.locator('summary').click();
+  await pro.getByLabel('SAR').fill('299');
+  t('admin plans: the features checklist — numeric limits with «unlimited», yes/no features, and a custom feature switched off', (await pro.locator('.bl-fitem').count()) === 4 && (await pro.locator('.bl-fitem', { hasText: 'الحملات' }).locator('input[type=number]').inputValue()) === '2' && !(await pro.locator('.bl-fitem', { hasText: 'حملات جاهزة' }).locator('input').isChecked()));
+  await pro.locator('.bl-fitem', { hasText: 'الحملات' }).getByText('بلا حد').click();
+  await pro.locator('.bl-fitem', { hasText: 'حملات جاهزة' }).locator('input').check();
+  await pro.locator('input[placeholder="%"]').fill('25');
+  await pro.getByPlaceholder('اسم العرض (يظهر للعميل)').fill('عرض الشتاء');
+  await pro.getByRole('button', { name: 'احفظ' }).click();
   await pg.waitForFunction(() => /تم الحفظ/.test(document.getElementById('toast').textContent));
-  t('admin «plans & payment»: changing the Growth SAR price sends it for that plan', (() => { const c = api.blCalls.find((x) => x.path === '/v1/platform/billing/plan'); return c && c.id === 'pro' && c.prices.SAR === 299 && c.prices.EGP === 3499; })());
-  await pg.locator('.bl-add:not(.cp-add) select').selectOption('vodafone_cash');
-  await pg.locator('.bl-add:not(.cp-add) input').first().fill('12345');
-  await pg.locator('.bl-add:not(.cp-add)').getByRole('button', { name: 'أضف' }).click();
+  t('admin plans: saving Growth sends its SAR price, unlimited campaigns, the new feature on and a 25% «winter offer»', (() => { const c = api.blCalls.find((x) => x.path === '/v1/platform/billing/plan'); return c && c.id === 'pro' && c.prices.SAR === 299 && c.prices.EGP === 3499 && c.features.campaigns.enabled === true && c.features.campaigns.value === null && c.features.f_ready.enabled === true && c.features.sites.value === 3 && c.discount_pct === 25 && c.discount_label === 'عرض الشتاء'; })());
+  await shot(pg, 'admin-plan-open');
+  await pg.getByPlaceholder('المعرّف (إنجليزي، مثل stores)').fill('stores');
+  await pg.getByPlaceholder('الاسم بالعربي').last().fill('المتاجر');
+  await pg.getByRole('button', { name: 'إضافة الباقة' }).click();
+  await pg.waitForFunction(() => /تم الحفظ/.test(document.getElementById('toast').textContent));
+  t('admin plans: a new plan is added hidden (to set up before customers see it)', api.blCalls.some((x) => x.path === '/v1/platform/billing/plan' && x.create === true && x.id === 'stores' && x.name_ar === 'المتاجر' && x.visible === false));
+  await pg.locator('.bl-planbox').first().locator('summary').click();
+  await pg.locator('.bl-planbox').first().getByRole('button', { name: 'حذف الباقة' }).click();
+  await pg.locator('.bl-planbox').first().getByRole('button', { name: /مرة أخرى/ }).click();
+  await pg.waitForFunction(() => /حُذفت الباقة/.test(document.getElementById('toast').textContent));
+  t('admin plans: deleting a plan asks twice, then sends it', api.blCalls.some((x) => x.path === '/v1/platform/billing/plan/delete' && x.id === 'basic'));
+  await pg.getByPlaceholder('اسم الميزة').fill('مدير حساب خاص');
+  await pg.getByRole('button', { name: 'إضافة الميزة' }).click();
+  await pg.waitForFunction(() => /تم الحفظ/.test(document.getElementById('toast').textContent));
+  t('admin features: the custom feature can be deleted, built-in ones cannot; adding a new one sends it', api.blCalls.some((x) => x.path === '/v1/platform/billing/feature' && x.name_ar === 'مدير حساب خاص' && x.kind === 'bool') && (await pg.locator('.bl-frow').count()) === 4 && (await pg.locator('.bl-frow', { hasText: 'أساسية' }).first().getByRole('button', { name: 'احذف' }).count()) === 0);
+  t('admin coupons: the list shows the code, value, plans, uses and end date', /WIN20/.test(await bt()) && /20%/.test(await bt()) && /استُخدم 3 من 50/.test(await bt()) && /حتى 2026-12-31/.test(await bt()));
+  await pg.getByPlaceholder('الكود (مثل WIN20)').fill('ramadan');
+  await pg.locator('select:has(option[value=amount])').selectOption('amount');
+  await pg.getByPlaceholder('القيمة').fill('150');
+  await pg.getByPlaceholder('عدد المرات').fill('10');
+  await pg.locator('.bl-check', { hasText: 'أول دفعة فقط' }).locator('input').check();
+  await pg.getByRole('button', { name: 'إضافة الكوبون' }).click();
+  await pg.waitForFunction(() => /تم الحفظ/.test(document.getElementById('toast').textContent));
+  await pg.waitForSelector('#tab-billing .bl-planbox');
+  t('admin coupons: a fixed-amount coupon with its currency, max uses and «first payment only»', api.blCalls.some((x) => x.path === '/v1/platform/billing/coupon' && x.code === 'ramadan' && x.kind === 'amount' && x.value === 150 && x.currency === 'SAR' && x.max_uses === 10 && x.first_only === true));
+  await pg.locator('.m-add select').selectOption('vodafone_cash');
+  await pg.locator('.m-add input').first().fill('12345');
+  await pg.locator('.m-add').getByRole('button', { name: 'أضف' }).click();
   await pg.waitForFunction(() => /رقم المحفظة غير صحيح/.test(document.getElementById('toast').textContent));
   t('admin «plans & payment»: a wrong wallet number is refused with a clear message', true);
   await shot(pg, 'admin-billing');
