@@ -591,3 +591,23 @@ svg.geo { width: 100%; height: auto; aspect-ratio: 1.7; display: block; backgrou
 .side-install { padding: 4px 12px 0; }
 .side-install-btn { display: flex; align-items: center; gap: 12px; width: 100%; padding: 10px 14px; border-radius: 12px; border: 1px dashed color-mix(in srgb, var(--accent) 45%, var(--line)); background: color-mix(in srgb, var(--info-bg) 60%, transparent); color: var(--accent); font: 700 15px var(--font-body); cursor: pointer; text-align: start; }
 .side-install-btn:hover { background: var(--info-bg); }
+/* تحليل الحملة (15 نوفمبر) */
+.an-hero { display: grid; grid-template-columns: 150px 1fr; gap: 20px; align-items: center; margin-bottom: 16px; }
+.an-ring .ring { width: 140px; height: 140px; }
+.an-hero-t h2 { margin: 0 0 4px; }
+.an-weak { margin: 10px 0 6px; padding: 10px 14px; border-radius: 12px; background: var(--bad-bg); color: var(--bad); font-weight: 700; }
+.an-weak.ok { background: var(--ok-bg); color: var(--ok); }
+.an-meta { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.an-sec { margin-bottom: 12px; border-inline-start: 4px solid var(--ok); }
+.an-sec.warn { border-inline-start-color: var(--warn); } .an-sec.bad { border-inline-start-color: var(--bad); }
+.an-sec.weakest { box-shadow: 0 0 0 3px color-mix(in srgb, var(--bad) 25%, transparent); }
+.an-sec-h { display: flex; align-items: center; gap: 10px; }
+.an-sec-h h3 { margin: 0; font: 800 17px var(--font-head); flex: 1; }
+.an-n { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: var(--bg); font: 800 13px var(--font-head); }
+.an-pts { font-size: 13px; color: var(--muted); font-weight: 700; }
+.an-items { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 8px; }
+.an-it { display: grid; grid-template-columns: 24px 1fr auto auto; gap: 10px; align-items: center; padding: 10px 12px; border-radius: 12px; background: var(--bg); line-height: 1.7; }
+.an-it .an-txt { display: grid; gap: 2px; min-width: 0; }
+.an-ic { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; font: 800 13px var(--font-body); font-style: normal; }
+.an-it.ok .an-ic { background: var(--ok-bg); color: var(--ok); } .an-it.warn .an-ic { background: var(--warn-bg); color: var(--warn); } .an-it.bad .an-ic { background: var(--bad-bg); color: var(--bad); } .an-it.info .an-ic { background: var(--info-bg); color: var(--info); }
+@media (max-width: 640px) { .an-hero { grid-template-columns: 1fr; justify-items: center; text-align: center; } .an-it { grid-template-columns: 24px 1fr; } .an-it > .btn { grid-column: 2; justify-self: start; } }

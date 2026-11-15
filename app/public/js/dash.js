@@ -27,6 +27,7 @@
     team: 'M9 11a4 4 0 100-8 4 4 0 000 8zM2 21v-1a6 6 0 0112 0v1M16 3.5a4 4 0 010 7.5M22 21v-1a6 6 0 00-4-5.6',
     billing: 'M3 6h18v12H3zM3 10h18M7 15h4',
     install: 'M12 3v12M7 10l5 5 5-5M5 21h14',
+    analysis: 'M3 3v18h18M7 15l4-4 3 3 6-7M17 7h3v3',
   };
   function icon(name) {
     var svg = document.createElementNS(NS, 'svg'); svg.setAttribute('viewBox', '0 0 24 24'); svg.setAttribute('class', 'ic'); svg.setAttribute('aria-hidden', 'true');
@@ -34,8 +35,8 @@
   }
 
   var T = LT.t;   // النصوص من ملف اللغة (js/lang/*.js)
-  var ROUTES = ['overview', 'clients', 'statement', 'visits', 'protection', 'negatives', 'leads', 'alerts', 'reports', 'sites', 'team', 'billing'].map(function (k) { return [k, T('nav.' + k)]; });
-  var NAV = { simple: ['overview', 'leads', 'protection', 'negatives', 'alerts', 'sites', 'team', 'billing'], detailed: ROUTES.map(function (r) { return r[0]; }) };
+  var ROUTES = ['overview', 'analysis', 'clients', 'statement', 'visits', 'protection', 'negatives', 'leads', 'alerts', 'reports', 'sites', 'team', 'billing'].map(function (k) { return [k, T('nav.' + k)]; });
+  var NAV = { simple: ['overview', 'analysis', 'leads', 'protection', 'negatives', 'alerts', 'sites', 'team', 'billing'], detailed: ROUTES.map(function (r) { return r[0]; }) };
   var BOTTOMS = { simple: ['overview', 'leads', 'protection', 'alerts'], detailed: ['overview', 'statement', 'visits', 'protection'] };
   var BOTTOM = BOTTOMS.detailed;
   var STATUS = { real: [T('status.real'), 'ok'], suspicious: [T('status.suspicious'), 'warn'], high: [T('status.high'), 'bad'], blocked: [T('status.blocked'), 'bad'] };
@@ -173,7 +174,7 @@
     var title = ROUTES.filter(function (x) { return x[0] === r; })[0][1];
     $('page-title').textContent = title;
     document.title = title + ' · ' + T('app.name') + (DATA.demo ? T('frame.demo_suffix') : '');
-    $('range').hidden = r === 'protection' || r === 'negatives' || r === 'alerts' || r === 'sites' || r === 'reports' || r === 'team' || r === 'billing' || (r === 'overview' && state.level === 'simple');
+    $('range').hidden = r === 'protection' || r === 'negatives' || r === 'alerts' || r === 'sites' || r === 'reports' || r === 'team' || r === 'billing' || r === 'analysis' || (r === 'overview' && state.level === 'simple');
     $('site').parentNode.hidden = r === 'clients';
     if (r === 'overview' && state.level === 'simple') $('page-title').textContent = T('nav.overview.simple');
     if (state.level === 'simple' && NAV.simple.indexOf(r) < 0) { /* شاشة تفصيلية من رابط: بتتفتح عادي */ }
@@ -1517,6 +1518,50 @@
         el('h3', { class: 'legend', text: T('bk.own') }), own.length ? el('ul', { class: 'feed bk-list' }, own) : el('p', { class: 'muted', text: T('bk.own.none') })]));
     }, function () { clear(box); });
   }
+  // ════════ تحليل الحملة وإصلاحها بضغطة (15 نوفمبر · المنهجية بند 10–12) ════════
+  var AN_GO = { leads: 'leads', protection: 'protection', negatives: 'negatives', visits: 'visits' };
+  function vAnalysis(view) {
+    clear(view);
+    if (!DATA.analysis) { view.appendChild(soonCard(T('nav.analysis'), [T('an.demo.1'), T('an.demo.2'), T('an.demo.3')])); return Promise.resolve(); }
+    view.appendChild(el('div', { class: 'loading' }, [el('span', { class: 'spinner' }), document.createTextNode(T('an.running'))]));
+    return DATA.analysis(state.site).then(function (d) {
+      clear(view);
+      if (!d.linked) { view.appendChild(card(T('nav.analysis'), [el('p', {}, [el('span', { text: T('conv.not_linked') + ' ' }), el('a', { class: 'linkish', href: '#/sites', text: T('nav.sites') })])])); return; }
+      var ring = el('div', { class: 'an-ring' }); C.ring(ring, d.score, { label: T('an.score'), text: String(d.score) });
+      var weak = d.sections.filter(function (x) { return x.key === d.weakest; })[0];
+      var again = el('button', { class: 'btn ghost sm', type: 'button', text: T('an.again') }); again.addEventListener('click', function () { vAnalysis(view); });
+      view.appendChild(el('section', { class: 'panel-card an-hero' }, [ring, el('div', { class: 'an-hero-t' }, [
+        el('h2', { text: T('an.title') }), el('p', { class: 'muted', text: T('an.sub') }),
+        weak ? el('p', { class: 'an-weak' }, [el('b', { text: T('an.weakest') + ' ' }), el('span', { text: T('an.s.' + weak.key) })]) : el('p', { class: 'an-weak ok', text: T('an.allgood') }),
+        el('div', { class: 'an-meta' }, [el('small', { class: 'dim', text: T('an.at', { t: timeAr(d.at) }) }), again])])]));
+      d.sections.forEach(function (sx, i) {
+        var items = sx.items.map(function (it) { return anItem(it, d, view); });
+        var st = sx.items.some(function (x) { return x.status === 'bad'; }) ? 'bad' : sx.items.some(function (x) { return x.status === 'warn'; }) ? 'warn' : 'ok';
+        view.appendChild(el('section', { class: 'panel-card an-sec ' + st + (sx.key === d.weakest ? ' weakest' : '') }, [
+          el('div', { class: 'an-sec-h' }, [el('span', { class: 'an-n', text: String(i + 1) }), el('h3', { text: T('an.s.' + sx.key) }), el('span', { class: 'an-pts', text: T('an.pts', { a: sx.score, b: sx.weight }) })]),
+          el('ul', { class: 'an-items' }, items)]));
+      });
+    }, function () { clear(view); view.appendChild(el('p', { class: 'muted', text: T('an.err') })); });
+  }
+  function anItem(it, d, view) {
+    var dd = it.data || {}, cur = d.currency === 'SAR' ? T('sar') : d.currency;
+    var v = { n: fmt(dd.n), of: fmt(dd.of), p: dd.p, g: fmt(dd.g), won: fmt(dd.won), k: dd.k || '', w: dd.w || '', why: dd.why || '', blocks: fmt(dd.blocks), waste: money2(dd.waste, cur), off: dd.off, weak: fmt(dd.weak), disapproved: fmt(dd.disapproved),
+      missing: (dd.missing || []).map(function (m) { return T('an.asset.' + m); }).join('، '), promise: dd.promise || '', fear: dd.fear || '', page: dd.page || '', visits: fmt(dd.visits), avg: dd.avg, score: dd.score, lcp: dd.lcp, campaign: dd.campaign || '', outside: fmt(dd.outside), done: fmt(dd.done), names: (dd.names || []).join('، ') };
+    var kids = [el('i', { class: 'an-ic', text: it.status === 'ok' ? '✓' : it.status === 'info' ? 'i' : '!' }), el('div', { class: 'an-txt' }, [el('span', { text: T('an.i.' + it.code, v) }),
+      T('an.f.' + it.code) !== 'an.f.' + it.code && it.status !== 'ok' ? el('small', { class: 'dim', text: T('an.f.' + it.code, v) }) : null])];
+    var f = it.fix;
+    if (f && f.go && it.status !== 'ok') kids.push(el('a', { class: 'btn ghost sm', href: '#/' + (AN_GO[f.go] || 'overview'), text: T('an.go.' + f.go) }));
+    if (f && f.action && d.manage) {
+      var b = el('button', { class: 'btn sm', type: 'button', text: T('an.do.' + f.action) }), sure = false;
+      b.addEventListener('click', function () {
+        if (!sure) { sure = true; b.textContent = T('an.do.sure'); return; }
+        b.disabled = true;
+        DATA.analysisFix(state.site, f).then(function () { toast(T('an.done.' + f.action)); vAnalysis(view); }, function (e) { b.disabled = false; sure = false; b.textContent = T('an.do.' + f.action); toast(T('va.e.google') + (e.detail ? ' (' + String(e.detail).slice(0, 80) + ')' : '')); });
+      });
+      kids.push(b);
+    }
+    return el('li', { class: 'an-it ' + it.status }, kids);
+  }
   // ════════ الفريق (G-29): مين يدخل حسابك وبيعمل إيه ════════
   var ROLE_AR = {}; ['owner', 'admin', 'staff', 'viewer'].forEach(function (r) { ROLE_AR[r] = [T('team.role.' + r), T('team.role.' + r + '.d')]; });
   // ── الاشتراك (الدفع، المرحلة 2 · 15 نوفمبر): حالتك · عرض المؤسسين · الباقات بعملة حسابك · التحويل بالإيصال · سجل المدفوعات ──
@@ -1734,7 +1779,7 @@
 
   var LIVE_VIEWS = { overview: lOverview, statement: lStatement, protection: lProtection };
 
-  var VIEWS = { overview: lOverview, clients: vClients, statement: vStatement, visits: vVisits, protection: vProtection, negatives: vNegatives, leads: vLeads, alerts: vAlerts, reports: vReports, sites: vSites, team: vTeam, billing: vBilling };
+  var VIEWS = { overview: lOverview, clients: vClients, statement: vStatement, visits: vVisits, protection: vProtection, negatives: vNegatives, leads: vLeads, alerts: vAlerts, reports: vReports, sites: vSites, team: vTeam, billing: vBilling, analysis: vAnalysis };
 
   // ── الدرج ──
   var lastFocus = null;

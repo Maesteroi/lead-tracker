@@ -84,6 +84,18 @@ function fakeApi(over) {
       // الكلمات السلبية (negatives.js)
       if (p === '/v1/dash/negatives') return j(200, Object.assign({ ok: true, linked: true, manage: true, currency: 'USD', days: 30, cpc: 1.3, total_cost: 19.5, terms: 6, waste: 11, need_brief: false, audit: { broad_pct: 82, off_pct: 41, off_cost: 74.33, adj_clicks: 27, adj_cost: 23.44, adj_conv: 5, info_clicks: 31, info_cost: 11.79, bad_keywords: [{ keyword: 'أبشر تصريح زواج', match: 'BROAD', word: 'أبشر', why: 'يريد التقديم بنفسه', clicks: 2 }], unsafe: [] }, decided: st.negDecided || [] }, { suggestions: (st.negSug || [{ id: 'aaaa1111', text: 'وظائف', match: 'PHRASE', reason: 'intent_jobs', variants: ['وظائف', 'الوظائف'], narrowed: null, clicks: 2, cost: 2, conv: 0, terms: ['وظائف تصريح زواج', 'وظائف مكتب تعقيب'], campaigns: [{ id: '11', name: 'تصاريح' }, { id: '12', name: 'تعقيب' }], protect: false }, { id: 'bbbb2222', text: 'زواج', match: 'EXACT', reason: 'generic', variants: ['زواج'], narrowed: null, clicks: 4, cost: 9, conv: 0, terms: ['زواج'], campaigns: [{ id: '11', name: 'تصاريح' }], protect: true }, { id: 'cccc3333', text: 'إنشاء عقد زواج', match: 'PHRASE', reason: 'not_offer', why: 'لا ننشئ عقود الزواج', variants: ['إنشاء عقد زواج', 'انشاء عقد زواج'], narrowed: { from: 'عقد زواج', blocked: ['توثيق عقد زواج سعودي من أجنبية'] }, clicks: 1, cost: 1, conv: 1, terms: ['إنشاء عقد زواج إلكتروني'], campaigns: [{ id: '11', name: 'تصاريح' }], protect: false }]).filter((x) => !(st.negDone || []).includes(x.id)) }));
       if (p === '/v1/dash/negatives/decide') { const b = JSON.parse(req.postData()); st.negCalls = (st.negCalls || []).concat([Object.assign({ csrf: req.headers()['x-csrf-token'] }, b)]); st.negDone = (st.negDone || []).concat([b.id]); st.negDecided = (st.negDecided || []).concat([{ text: b.id === 'aaaa1111' ? 'وظائف' : 'شروط', match_type: 'PHRASE', decision: b.decision, at: new Date().toISOString(), applied_at: b.decision === 'add' ? new Date().toISOString() : null }]); return j(200, { ok: true, decision: b.decision, campaigns: 2 }); }
+      // تحليل الحملة (analysis.js)
+      if (p === '/v1/dash/analysis') return j(200, { ok: true, linked: true, manage: true, currency: 'SAR', score: st.anFixed ? 58 : 46, weakest: 'measure', at: new Date().toISOString(), pagespeed: true, sections: [
+        { key: 'measure', weight: 20, score: 0, items: [{ status: 'bad', code: 'no_upload', data: { n: 1 }, fix: { go: 'leads' } }, { status: 'bad', code: 'conv_inflated', data: { g: 20, won: 1 } }] },
+        { key: 'protect', weight: 10, score: 10, items: [{ status: 'ok', code: 'suspicious', data: { n: 9, of: 124, p: 7, blocks: 2 } }] },
+        { key: 'keywords', weight: 15, score: 0, items: [{ status: 'bad', code: 'broad', data: { p: 85 } }].concat(st.anFixed ? [] : [{ status: 'bad', code: 'bad_keyword', data: { k: 'أبشر تصريح زواج', w: 'أبشر', why: 'يريد التقديم بنفسه', match: 'BROAD' }, fix: { action: 'pause_keyword', keyword: 'أبشر تصريح زواج', match: 'BROAD' } }]) },
+        { key: 'terms', weight: 10, score: 5, items: [{ status: 'warn', code: 'negatives', data: { n: 9, waste: 31.2, off: 38 }, fix: { go: 'negatives' } }] },
+        { key: 'ads', weight: 10, score: 5, items: [{ status: 'warn', code: 'promise', data: { promise: 'الدفع بعد الإنجاز', fear: 'النصب' } }] },
+        { key: 'landing', weight: 15, score: 7, items: [{ status: 'ok', code: 'contact_rate', data: { p: 22, visits: 124 } }, { status: 'bad', code: 'speed', data: { score: 42, lcp: 5.2 } }] },
+        { key: 'location', weight: 5, score: 2, items: [{ status: 'warn', code: 'geo_interest', data: { campaign: 'تصاريح', p: 12, outside: 15 }, fix: { action: 'geo_presence', campaign: '11', name: 'تصاريح' } }] },
+        { key: 'budget', weight: 5, score: 5, items: [{ status: 'ok', code: 'budget_ok', data: {} }] },
+        { key: 'followup', weight: 10, score: 5, items: [{ status: 'warn', code: 'outcomes', data: { n: 29, done: 20, p: 69 }, fix: { go: 'leads' } }, { status: 'bad', code: 'close_rate', data: { won: 1, of: 20, p: 5 } }] }] });
+      if (p === '/v1/dash/analysis/fix') { const b = JSON.parse(req.postData()); st.anFix = (st.anFix || []).concat([Object.assign({ csrf: req.headers()['x-csrf-token'] }, b)]); if (b.action === 'pause_keyword') st.anFixed = true; return j(200, { ok: true, paused: 1 }); }
       // «امنعه في جوجل» و«هذه زيارتي» (blocks.js)
       if (p === '/v1/dash/block') { const b = JSON.parse(req.postData()); st.blockCalls = (st.blockCalls || []).concat([Object.assign({ csrf: req.headers()['x-csrf-token'] }, b)]); st.blocked = true; return j(200, { ok: true, ip: '51.36.1.2', dc: true, expires_at: new Date(Date.now() + 90 * 864e5).toISOString() }); }
       if (p === '/v1/dash/unblock') { st.unblocked = true; st.blocked = false; return j(200, { ok: true }); }
@@ -396,7 +408,7 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
   const apiCalls = []; pg.on('request', (r) => { if (r.url().startsWith('https://api.maestrolt.com')) apiCalls.push(r.url()); });
   await pg.goto('https://app.maestrolt.com/demo');
   await pg.waitForSelector('.answers .ans');
-  t('demo simple (default): 3 big answers, a short menu (8, with the team, keywords and subscription), no tables or charts', (await pg.locator('.answers .ans').count()) === 3 && (await pg.locator('.side-nav a').count()) === 8 && (await pg.locator('#view table, #view svg.svg').count()) === 0 && (await pg.locator('#page-title').innerText()) === 'الخلاصة');
+  t('demo simple (default): 3 big answers, a short menu (9, with analysis, team, keywords and subscription), no tables or charts', (await pg.locator('.answers .ans').count()) === 3 && (await pg.locator('.side-nav a').count()) === 9 && (await pg.locator('#view table, #view svg.svg').count()) === 0 && (await pg.locator('#page-title').innerText()) === 'الخلاصة');
   t('demo simple: "is your ad protected?" answers in words, at most 3 action cards', /محمي/.test(await pg.locator('.ans').first().innerText()) && (await pg.locator('.act').count()) <= 3);
   t('demo simple: the checklist counts the done steps and offers how-to for the missing ones', /\d من 6/.test(await pg.locator('.progress').innerText()) && (await pg.locator('.steps-check li').count()) === 6);
   t('demo simple: the week summary reads as a sentence', /وصلك .* زائر/.test(await pg.locator('.story').innerText()));
@@ -406,7 +418,7 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
   await shot(pg, 'demo-0-simple');
   await pg.locator('#level').getByRole('button', { name: 'احترافي' }).click();
   await pg.waitForSelector('.kpis .kpi');
-  t('demo: switching to detailed shows the full menu (12)', (await pg.locator('.side-nav a').count()) === 12);
+  t('demo: switching to detailed shows the full menu (13)', (await pg.locator('.side-nav a').count()) === 13);
   t('demo: the pro home — 8 KPI cards (with Google clicks and money protected), the status strip and the action cards', (await pg.locator('.kpis .kpi').count()) === 8 && /نقرات احتسبها جوجل/.test(await pg.locator('.kpis').innerText()) && /الحماية: تراقب كل زيارة/.test(await pg.locator('.status-strip').innerText()) && (await pg.locator('.act').count()) >= 2);
   t('demo: the traffic curve draws 3 smooth lines with a legend, plus donuts, visit cards and the hours heatmap', (await pg.locator('.area-chart .a-line').count()) === 3 && (await pg.locator('.chart-legend').first().locator('.lg').count()) === 3 && (await pg.locator('.donut').count()) === 2 && (await pg.locator('.vcard').count()) >= 3 && (await pg.locator('.heat .h-cell').count()) === 168);
   await pg.locator('.area-chart .hit').nth(2).hover();
@@ -690,6 +702,28 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
   await pg.waitForFunction(() => /لا يوجد أحد مربوط/.test(document.querySelector('.tg-block').innerText));
   t('tg: disconnecting a chat asks once more, then it is gone', true);
   t('tg: no console errors, no CSP violations', pg.errors.length === 0 && pg.csp.length === 0);
+  if (pg.errors.length || pg.csp.length) console.log(pg.errors, pg.csp);
+  await pg.context().close(); }
+
+// 27) تحليل الحملة وإصلاحها بضغطة (15 نوفمبر)
+{ const api = fakeApi({ signedIn: true, sites: [{ id: 'SiteId123456', name: 'الإنجاز', domains: ['enjaz.biz'], paired: true }] });
+  const pg = await page(api, { viewport: { width: 1280, height: 900 } });
+  await pg.goto('https://app.maestrolt.com/#/analysis');
+  await pg.waitForSelector('.an-sec');
+  const v = await pg.locator('#view').innerText();
+  t('analysis: the score, the weakest link (measurement), and 9 sections in the method order with evidence', /46/.test(await pg.locator('.an-ring').innerText()) && /أضعف حلقة الآن: القياس/.test(v) && (await pg.locator('.an-sec').count()) === 9 && /جوجل احتسب 20 تحويلًا، وعملاؤك المؤكدون 1/.test(v) && /سرعة صفحة الهبوط على الجوال: 42\/100 · تظهر بعد 5.2 ثانية/.test(v) && /وعدك «الدفع بعد الإنجاز»/.test(v) && /تم الاتفاق مع 1 من 20/.test(v));
+  t('analysis: each item links to its tool (real customers, keywords) when it is not ok', (await pg.locator('.an-sec').first().getByRole('link', { name: 'العملاء الحقيقيون' }).count()) === 1);
+  await shot(pg, 'analysis');
+  const kw = pg.locator('.an-it', { hasText: 'أبشر تصريح زواج' });
+  await kw.getByRole('button', { name: 'أوقف الكلمة' }).click();
+  t('analysis fix: the first press only asks to confirm', !api.anFix && (await kw.getByRole('button', { name: /اضغط مرة أخرى/ }).count()) === 1);
+  await kw.getByRole('button', { name: /اضغط مرة أخرى/ }).click();
+  await pg.waitForFunction(() => /أُوقفت الكلمة/.test(document.getElementById('toast').textContent));
+  await pg.waitForFunction(() => !/أبشر تصريح زواج/.test(document.getElementById('view').innerText));
+  t('analysis fix: pausing the keyword is sent with CSRF, and the analysis is run again', api.anFix[0].action === 'pause_keyword' && api.anFix[0].keyword === 'أبشر تصريح زواج' && api.anFix[0].csrf === 'csrf-token-123' && /58/.test(await pg.locator('.an-ring').innerText()));
+  await pg.setViewportSize({ width: 390, height: 844 });
+  t('analysis mobile: no sideways scrolling', await pg.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1));
+  t('analysis: no console errors, no CSP violations', pg.errors.length === 0 && pg.csp.length === 0);
   if (pg.errors.length || pg.csp.length) console.log(pg.errors, pg.csp);
   await pg.context().close(); }
 
@@ -978,7 +1012,7 @@ for (const [days, kind, re] of [[1.5, 'warn', /متبقٍ يومين من تجر
   const pg = await page(api, { viewport: { width: 1440, height: 900 } });
   await pg.goto('https://app.maestrolt.com/');
   await pg.waitForSelector('.kpis .kpi');
-  t('live agency: an agency account opens on the detailed level', (await pg.locator('.side-nav a').count()) === 12);
+  t('live agency: an agency account opens on the detailed level', (await pg.locator('.side-nav a').count()) === 13);
   await pg.locator('.side-nav a[data-r="clients"]').click();
   await pg.waitForFunction(() => document.querySelectorAll('#view .tbl tbody tr').length === 2);
   t('live agency: all clients with real visits/contacts/customers', /60/.test(await pg.locator('#view .tbl').innerText()) && /دون نتيجة/.test(await pg.locator('#view .tbl').innerText()));
