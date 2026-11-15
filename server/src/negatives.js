@@ -13,74 +13,78 @@ import { openToken } from './crypto.js';
 import { accessToken, adsClient, ADS_VERSION_DEFAULT } from './gads.js';
 import { loadSite, notFound, roleFor } from './sites.js';
 import { audit } from './auth.js';
-import { loadBrief, briefMatch, norm as briefNorm } from './brief.js';
+import { loadBrief, norm as briefNorm } from './brief.js';
+import { prepare, classify, pickNegative, negBlocks, tok, NONBUYER } from './intent.js';
+export const INTENT = NONBUYER;
 
 const DAYS = 30;
 const canManage = (sess, site) => ['owner', 'admin'].includes(roleFor(sess, site.org_id, site.id));
 const norm = briefNorm;   // تطبيع واحد للعربي (brief.js)
-// كلمات بتقول إن الباحث مش عميل (عامة لأي نشاط). القرار في الآخر لصاحب الموقع، والرفض بيتسجل ومابيتكررش.
-export const INTENT = [
-  ['وظائف', 'jobs'], ['وظيفه', 'jobs'], ['وظيفة', 'jobs'], ['توظيف', 'jobs'], ['مطلوب موظف', 'jobs'], ['راتب', 'jobs'], ['رواتب', 'jobs'],
-  ['مجانا', 'free'], ['مجاني', 'free'], ['مجانيه', 'free'], ['ببلاش', 'free'], ['free', 'free'],
-  ['تحميل', 'download'], ['pdf', 'download'], ['download', 'download'],
-  ['بنفسي', 'diy'], ['بنفسك', 'diy'], ['طريقة عمل', 'diy'],
-  ['دوره', 'course'], ['دورة', 'course'], ['كورس', 'course'], ['تدريب', 'course'], ['تعليم', 'course'],
-  ['ويكيبيديا', 'info'], ['معنى', 'info'], ['تعريف', 'info'], ['يوتيوب', 'info'], ['youtube', 'info'],
-  ['مستعمل', 'used'], ['حراج', 'used'],
-];
-const INTENT_RE = INTENT.map(([w, k]) => [new RegExp('(^|\\s)' + norm(w).replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(\\s|$)'), norm(w), k]);
-
 async function credOf(db, site) {
   return db.one('ads_credentials?client_id=' + eq(site.id) + '&status=eq.on&select=customer_id,login_customer_id,refresh_token_enc,currency&order=updated_at.desc');
 }
 const micros = (v) => Math.round((Number(v) || 0) / 10000) / 100;
 
-// الاقتراحات (مفيش نداء لجوجل)
+// الاقتراحات (مفيش نداء لجوجل). المنهجية: claude/briefs/2026-11-15-search-campaign-method.md
+//  • من غير وصف للنشاط: «مش مشتري» العامة بس (وظائف · مجانًا …)، ومعاها need_brief.
+//  • بوصف النشاط: مش خدمتك · مش مشتري · بيتابع معاملة · بنفسه · كلمة عامة لوحدها [تامة] · لا تذكر خدمتك (نقرتين أو أكتر) [تامة].
+//  • عبارات الخدمة نفسها (في الصميم · عايز حد يعملها · بيستفهم) مابتتقترحش سلبي أبدًا من أرقام جوجل.
+//  • كل اقتراح معدّي على فحص التعارض، ومعاه نوع المطابقة وأشكال الكتابة.
 export async function suggest(db, site, cred, now) {
   const since = new Date((now || Date.now()) - DAYS * 864e5).toISOString().slice(0, 10);
-  const terms = (await db.select('ads_search_terms?client_id=' + eq(site.id) + '&customer_id=' + eq(cred.customer_id) + '&day=gte.' + since + '&select=search_term,keyword,campaign_id,campaign_name,clicks,impressions,cost_micros,conversions&limit=50000')) || [];
+  const terms = (await db.select('ads_search_terms?client_id=' + eq(site.id) + '&customer_id=' + eq(cred.customer_id) + '&day=gte.' + since + '&select=search_term,keyword,match_type,campaign_id,campaign_name,clicks,impressions,cost_micros,conversions&limit=50000')) || [];
   const decided = new Map(((await db.select('neg_decisions?client_id=' + eq(site.id) + '&select=text,match_type,decision').catch(() => [])) || []).map((d) => [norm(d.text) + '|' + d.match_type, d.decision]));
-  // الكلمات اللي جابت عملاء عندنا (ads_clicks ← الزيارة ← تواصل)
   const good = await keywordsWithContacts(db, site, cred, since);
-  const brief = await loadBrief(db, site.id), bm = briefMatch(brief);
-  const agg = new Map();
-  let totClicks = 0, totCost = 0;
+  const brief = await loadBrief(db, site.id), b = prepare(brief);
+  const agg = new Map(), kws = new Map();
+  let totClicks = 0, totCost = 0, broadClicks = 0;
   for (const t of terms) {
     const k = norm(t.search_term); if (!k) continue;
-    const x = agg.get(k) || { term: t.search_term, clicks: 0, cost: 0, conv: 0, campaigns: new Map(), keywords: new Set() };
-    x.clicks += Number(t.clicks) || 0; x.cost += Number(t.cost_micros) || 0; x.conv += Number(t.conversions) || 0;
+    const c = Number(t.clicks) || 0;
+    const x = agg.get(k) || { term: String(t.search_term).trim(), clicks: 0, cost: 0, conv: 0, campaigns: new Map(), keywords: new Set() };
+    x.clicks += c; x.cost += Number(t.cost_micros) || 0; x.conv += Number(t.conversions) || 0;
     if (t.campaign_id) x.campaigns.set(String(t.campaign_id), t.campaign_name || String(t.campaign_id));
-    if (t.keyword) x.keywords.add(t.keyword);
-    agg.set(k, x); totClicks += Number(t.clicks) || 0; totCost += Number(t.cost_micros) || 0;
+    if (t.keyword) { x.keywords.add(t.keyword); const kk = norm(t.keyword) + '|' + (t.match_type || ''); const kv = kws.get(kk) || { keyword: t.keyword, match: t.match_type || '', clicks: 0 }; kv.clicks += c; kws.set(kk, kv); }
+    agg.set(k, x); totClicks += c; totCost += Number(t.cost_micros) || 0; if (t.match_type === 'BROAD') broadClicks += c;
   }
   const cpc = totClicks ? totCost / totClicks : 0;
+  // المحمي: كلمات الحساب الشغالة + مفردات الخدمة
+  const protectedList = [...kws.values()].map((k) => ({ label: k.keyword, t: tok(k.keyword) })).concat(b.offer.map((o) => ({ label: o.word, t: o.t })));
   const out = new Map();
-  const add = (text, match, reason, x, why) => {
-    const key = norm(text) + '|' + match;
+  const audit = { off_cost: 0, adj_cost: 0, adj_conv: 0, adj_clicks: 0, info_clicks: 0, info_cost: 0, unsafe: [] };
+  const add = (neg, reason, x, why) => {
+    const key = norm(neg.text) + '|' + neg.match;
     if (decided.has(key)) return;
-    const s = out.get(key) || { id: '', text, match, reason, why: why || '', clicks: 0, cost: 0, conv: 0, terms: [], campaigns: new Map(), protect: false };
+    const s = out.get(key) || { id: '', text: neg.text, match: neg.match, variants: neg.variants, narrowed: neg.narrowed, reason, why: why || '', clicks: 0, cost: 0, conv: 0, terms: [], campaigns: new Map(), protect: false };
     s.clicks += x.clicks; s.cost += x.cost; s.conv += x.conv; if (s.terms.length < 5) s.terms.push(x.term);
     for (const [id, n] of x.campaigns) s.campaigns.set(id, n);
     if ([...x.keywords].some((kw) => good.has(norm(kw)))) s.protect = true;
     out.set(key, s);
   };
-  for (const [k, x] of agg) {
-    // أولًا: اللي صاحب الموقع قال إنه مش خدمته (فهم النشاط)
-    const ex = bm.excluded(k);
-    if (ex) { add(ex.word, 'PHRASE', 'not_offer', x, ex.why); continue; }
-    const hit = INTENT_RE.find(([re]) => re.test(k));
-    if (hit) { add(hit[1], 'PHRASE', 'intent_' + hit[2], x); continue; }
-    // عبارة مافيهاش أي كلمة من خدمتك وصرفت من غير نتيجة
-    if (bm.hasOffer && !bm.offer(k) && x.clicks >= 1 && x.conv === 0 && x.cost > 0) { add(x.term, 'EXACT', 'off_offer', x); continue; }
-    if (x.clicks >= 2 && x.conv === 0 && cpc && x.cost >= 3 * cpc) add(x.term, 'EXACT', 'waste', x);
+  const marker = (c, reason, x, why) => { const neg = pickNegative(c.marker, x.term, protectedList); if (neg) add(neg, reason, x, why); else if (audit.unsafe.length < 10 && !audit.unsafe.includes(c.marker)) audit.unsafe.push(c.marker); };
+  for (const x of agg.values()) {
+    const c = classify(x.term, b);
+    if (c.cls === 'adjacent') { audit.adj_cost += x.cost; audit.adj_conv += x.conv; audit.adj_clicks += x.clicks; marker(c, 'not_offer', x, c.why); continue; }
+    if (c.cls === 'nonbuyer') { marker(c, 'intent_' + c.kind, x); continue; }
+    if (c.cls === 'status' || c.cls === 'diy') { if (b.hasOffer) marker(c, 'intent_' + c.cls, x); continue; }
+    if (!b.hasOffer) continue;
+    if (c.cls === 'info') { audit.info_clicks += x.clicks; audit.info_cost += x.cost; continue; }
+    if (c.cls === 'generic') { if (!protectedList.some((p) => negBlocks(c.t, 'EXACT', p.t))) add({ text: x.term, match: 'EXACT', variants: [x.term], narrowed: null }, 'generic', x); continue; }
+    if (c.cls === 'off') {
+      audit.off_cost += x.cost;
+      if (x.clicks >= 2 && x.conv === 0 && !protectedList.some((p) => negBlocks(c.t, 'EXACT', p.t))) add({ text: x.term, match: 'EXACT', variants: [x.term], narrowed: null }, 'off_offer', x);
+    }
   }
-  const rank = { not_offer: 0, off_offer: 2 };
-  const list = [...out.values()].filter((s) => s.cost > 0 || s.reason.startsWith('intent_') || s.reason === 'not_offer')
-    .sort((a, b) => (rank[a.reason] ?? 1) - (rank[b.reason] ?? 1) || b.cost - a.cost);
+  const rank = { not_offer: 0, generic: 1, off_offer: 3 };
+  const list = [...out.values()].sort((a, z) => (rank[a.reason] ?? 2) - (rank[z.reason] ?? 2) || z.cost - a.cost);
   for (const s of list) s.id = (await sha256(norm(s.text) + '|' + s.match)).slice(0, 16);
-  return { cpc: micros(cpc), total_cost: micros(totCost), terms: agg.size,
-    suggestions: list.slice(0, 80).map((s) => ({ id: s.id, text: s.text, match: s.match, reason: s.reason, why: s.why, clicks: s.clicks, cost: micros(s.cost), conv: Math.round(s.conv * 10) / 10, terms: s.terms, campaigns: [...s.campaigns].map(([id, name]) => ({ id, name })), protect: s.protect })),
-    waste: micros(list.reduce((a, s) => a + s.cost, 0)), brief: !!brief };
+  // كلمات في الحساب نفسها نيتها مرفوضة (مش خدمتك · مش مشتري · بيتابع · بنفسه)
+  const badKw = b.hasOffer ? [...kws.values()].map((k) => { const c = classify(k.keyword, b); return ['adjacent', 'nonbuyer', 'status', 'diy'].includes(c.cls) ? { keyword: k.keyword, match: k.match, word: c.marker, why: c.why || '', clicks: k.clicks } : null; }).filter(Boolean).slice(0, 10) : [];
+  return { cpc: micros(cpc), total_cost: micros(totCost), terms: agg.size, brief: !!brief, need_brief: !b.hasOffer,
+    suggestions: list.slice(0, 80).map((s) => ({ id: s.id, text: s.text, match: s.match, variants: s.variants, narrowed: s.narrowed, reason: s.reason, why: s.why, clicks: s.clicks, cost: micros(s.cost), conv: Math.round(s.conv * 10) / 10, terms: s.terms, campaigns: [...s.campaigns].map(([id, name]) => ({ id, name })), protect: s.protect, safe: true })),
+    waste: micros(list.reduce((a, s) => a + s.cost, 0)),
+    audit: { broad_pct: totClicks ? Math.round((broadClicks / totClicks) * 100) : 0, off_pct: b.hasOffer && totCost ? Math.round(((audit.off_cost + audit.adj_cost) / totCost) * 100) : null, off_cost: micros(audit.off_cost + audit.adj_cost),
+      adj_clicks: audit.adj_clicks, adj_cost: micros(audit.adj_cost), adj_conv: Math.round(audit.adj_conv * 10) / 10, info_clicks: audit.info_clicks, info_cost: micros(audit.info_cost), bad_keywords: badKw, unsafe: audit.unsafe } };
 }
 
 async function keywordsWithContacts(db, site, cred, since) {
@@ -140,7 +144,9 @@ export async function dashNegativeDecide(req, env, db, sess, fetchImpl) {
       const access = await accessToken(env, await openToken(env, cred.refresh_token_enc, site.id + ':' + cred.customer_id), fetchImpl);
       const headers = { Authorization: 'Bearer ' + access, 'Content-Type': 'application/json' };
       if (cred.login_customer_id) headers['login-customer-id'] = cred.login_customer_id;
-      const ops = s.campaigns.filter((c) => /^\d{1,20}$/.test(c.id)).map((c) => ({ create: { campaign: 'customers/' + cred.customer_id + '/campaigns/' + c.id, negative: true, keyword: { text: s.text, matchType: s.match } } }));
+      // السلبيات مابتتوسعش لوحدها: بنضيف كل أشكال الكتابة، في كل حملة العبارة ظهرت فيها
+      const texts = (s.variants && s.variants.length ? s.variants : [s.text]).slice(0, 8);
+      const ops = s.campaigns.filter((c) => /^\d{1,20}$/.test(c.id)).flatMap((c) => texts.map((tx) => ({ create: { campaign: 'customers/' + cred.customer_id + '/campaigns/' + c.id, negative: true, keyword: { text: tx, matchType: s.match } } })));
       if (!ops.length) return json({ ok: false, error: 'no_campaign' }, 409);
       const res = await (fetchImpl || fetch)('https://googleads.googleapis.com/' + ver + '/customers/' + cred.customer_id + '/campaignCriteria:mutate', { method: 'POST', headers, body: JSON.stringify({ operations: ops }) });
       const j = await res.json().catch(() => ({}));
@@ -154,5 +160,5 @@ export async function dashNegativeDecide(req, env, db, sess, fetchImpl) {
   await db.insert('neg_decisions', [row], { onConflict: 'client_id,text,match_type', merge: true, returning: false });
   await audit(db, sess.user.id, b.decision === 'add' ? 'negative_added' : 'negative_kept', !row.error, site.id + ' ' + s.match + ' ' + s.text.slice(0, 60));
   if (row.error) return json({ ok: false, error: 'google', detail: row.error }, 502);
-  return json({ ok: true, decision: b.decision, text: s.text, match: s.match, campaigns: s.campaigns.length });
+  return json({ ok: true, decision: b.decision, text: s.text, match: s.match, campaigns: s.campaigns.length, variants: (s.variants || []).length });
 }

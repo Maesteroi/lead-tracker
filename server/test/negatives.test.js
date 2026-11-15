@@ -28,15 +28,15 @@ async function setup() {
   return { w, env, owner, pc, gc, site };
 }
 
-test('negatives: suggestions from real search terms — far intent grouped by its word (phrase), spend without a result (exact); the converting term is not suggested', async () => {
+test('negatives: with no business brief, only the universal «not a buyer» words are suggested (phrase), and the page says «describe your business first»', async () => {
   const s = await setup();
   const r = (await s.gc(s.owner, '/v1/dash/negatives?site=' + s.site.id)).body;
-  assert.equal(r.linked, true); assert.equal(r.currency, 'USD');
+  assert.equal(r.linked, true); assert.equal(r.currency, 'USD'); assert.equal(r.need_brief, true);
   const by = Object.fromEntries(r.suggestions.map((x) => [x.text + '|' + x.match, x]));
   assert.ok(by['وظائف|PHRASE'] && by['وظائف|PHRASE'].clicks === 2 && by['وظائف|PHRASE'].campaigns.length === 2, 'two job searches, two campaigns');
   assert.ok(by['pdf|PHRASE']);
-  assert.ok(by['شروط زواج سعودي من مصرية|EXACT'] && by['شروط زواج سعودي من مصرية|EXACT'].reason === 'waste' && by['شروط زواج سعودي من مصرية|EXACT'].cost === 9);
-  assert.ok(!Object.keys(by).some((k) => k.startsWith('مكتب استخراج')), 'a term with a conversion is never suggested');
+  assert.deepEqual(Object.keys(by).sort(), ['pdf|PHRASE', 'وظائف|PHRASE'], 'no guesses from Google numbers on service terms');
+  assert.deepEqual(by['وظائف|PHRASE'].variants, ['وظائف', 'الوظائف'], 'negatives do not expand by themselves: the written forms are listed');
   assert.equal((await s.w.g.negMutations || []).length, 0, 'nothing is added by itself');
 });
 
@@ -46,7 +46,7 @@ test('negatives: «add» puts it on Google for the campaigns it showed in (after
   const jobs = r.suggestions.find((x) => x.text === 'وظائف'), pdf = r.suggestions.find((x) => x.text === 'pdf');
   const a = await s.pc(s.owner, '/v1/dash/negatives/decide', { site: s.site.id, id: jobs.id, decision: 'add' });
   assert.equal(a.status, 200); assert.equal(a.body.campaigns, 2);
-  assert.deepEqual(s.w.g.negMutations.map((m) => [m.campaign, m.negative, m.keyword.text, m.keyword.matchType]), [['customers/' + CID + '/campaigns/11', true, 'وظائف', 'PHRASE'], ['customers/' + CID + '/campaigns/12', true, 'وظائف', 'PHRASE']]);
+  assert.deepEqual(s.w.g.negMutations.map((m) => [m.campaign.split('/').pop(), m.negative, m.keyword.text, m.keyword.matchType]), [['11', true, 'وظائف', 'PHRASE'], ['11', true, 'الوظائف', 'PHRASE'], ['12', true, 'وظائف', 'PHRASE'], ['12', true, 'الوظائف', 'PHRASE']], 'every written form, in every campaign it showed in');
   await s.pc(s.owner, '/v1/dash/negatives/decide', { site: s.site.id, id: pdf.id, decision: 'keep' });
   const after = (await s.gc(s.owner, '/v1/dash/negatives?site=' + s.site.id)).body;
   assert.ok(!after.suggestions.some((x) => x.text === 'وظائف' || x.text === 'pdf'), 'decided ones leave the list');

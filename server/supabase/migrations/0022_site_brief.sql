@@ -6,6 +6,8 @@ create table if not exists site_brief (
   client_id  text primary key references clients(id) on delete cascade,
   offer      text[] not null default '{}',
   exclude    jsonb not null default '[]',
+  about      text check (about is null or length(about) <= 500),       -- النشاط والعميل بكلام صاحبه (مثلًا: لازم طرف سعودي وطرف أجنبي)
+  fears      jsonb not null default '[]',                              -- مخاوف العميل ووعدك اللي بيعالجها، للإعلان: [{fear, promise}]
   updated_by uuid,
   updated_at timestamptz not null default now()
 );
