@@ -16,6 +16,7 @@ import { suggestPositive } from './keywords.js';
 import { loadBrief } from './brief.js';
 import { tok, hasWord } from './intent.js';
 
+const note = (b) => String(b.note || '').trim().slice(0, 1000) || null;
 const canManage = (sess, site) => ['owner', 'admin'].includes(roleFor(sess, site.org_id, site.id));
 const n0 = (v) => Number(v) || 0;
 const pct = (a, b) => (b ? Math.round((a / b) * 100) : 0);
@@ -42,6 +43,77 @@ async function pageSpeed(env, url, fetchImpl) {
       field_lcp_ms: le.LARGEST_CONTENTFUL_PAINT_MS ? n0(le.LARGEST_CONTENTFUL_PAINT_MS.percentile) : null, field: le.LARGEST_CONTENTFUL_PAINT_MS ? le.LARGEST_CONTENTFUL_PAINT_MS.category || null : null };
   } catch (e) { return null; }
 }
+
+
+// ── القمع بالتحويل (15 نوفمبر · «شغلنا كله مرتبط بالتحويل والعميل الفعلي») ──
+// الصرف ← زيارات الإعلان ← الحقيقية (مش مشبوهة) ← تواصلت ← محادثة فعلية (تم · بيفكر · لغى) ← «تم».
+// التواصل والمحادثة و«تم» بالزيارة (زيارة فيها كذا ضغطة = تواصل واحد، وبتاخد أحسن نتيجة).
+const CONVO = new Set(['تم', 'بيفكر', 'لغى']);
+const RANK = { 'تم': 3, 'بيفكر': 2, 'لغى': 2 };
+const WIN_DAYS = 14;
+const dayStr = (t) => new Date(t).toISOString().slice(0, 10);
+export function funnelOf(sessions, leads, daily, from, to) {
+  const inW = (t) => { const x = Date.parse(t); return x >= from && x < to; };
+  const ad = (sessions || []).filter((s) => s.ad && inW(s.started_at));
+  const ids = new Set((sessions || []).filter((s) => s.ad).map((s) => s.session_id));
+  const best = new Map();
+  for (const l of leads || []) {
+    if (!l.session_id || !ids.has(l.session_id) || !inW(l.at)) continue;
+    const r = RANK[l.outcome] || (l.outcome ? 1 : 0), cur = best.get(l.session_id);
+    if (cur === undefined || r > cur.r) best.set(l.session_id, { r, o: l.outcome || null });
+  }
+  const v = [...best.values()], f = dayStr(from), t = dayStr(to);
+  const days = (daily || []).filter((d) => String(d.day) >= f && String(d.day) < t);
+  return { cost: Math.round(days.reduce((a, d) => a + n0(d.cost_micros), 0) / 1e4) / 100, clicks: days.reduce((a, d) => a + n0(d.clicks), 0),
+    visits: ad.length, real: ad.filter((s) => s.status === 'real').length, contacts: v.length, outcomes: v.filter((x) => x.o).length,
+    convos: v.filter((x) => CONVO.has(x.o)).length, won: v.filter((x) => x.o === 'تم').length };
+}
+// أكبر تسريب في القمع: أضعف خطوة مقارنة بالمعتاد، ومعاها القسم اللي بيصلحها
+const STEPS = [['real', 'visits', 0.85, 'protect'], ['contacts', 'real', 0.10, 'landing'], ['convos', 'outcomes', 0.6, 'terms'], ['won', 'convos', 0.3, 'followup']];
+export function leakOf(fn) {
+  let worst = null;
+  for (const [a, b, bench, sec] of STEPS) {
+    if (n0(fn[b]) < 10) continue;
+    const r = fn[a] / fn[b], k = r / bench;
+    if (k < 0.8 && (!worst || k < worst.k)) worst = { from: b, to: a, rate: Math.round(r * 100), bench: Math.round(bench * 100), section: sec, k };
+  }
+  if (worst) delete worst.k;
+  return worst;
+}
+async function windowData(db, site, sinceTs) {
+  const since = new Date(sinceTs).toISOString();
+  const [sessions, leads, daily] = await Promise.all([
+    scoredSessions(db, site.id, since, 5000, 'ar').catch(() => []),
+    db.req('POST', 'rpc/dash_leads', { p_site: site.id, p_since: since }).catch(() => []),
+    db.select('ads_campaign_daily?client_id=' + eq(site.id) + '&day=gte.' + dayStr(sinceTs) + '&select=day,clicks,cost_micros&limit=20000').catch(() => []),
+  ]);
+  return { sessions: sessions || [], leads: leads || [], daily: daily || [] };
+}
+// نتيجة الإصلاح: نفس المقاييس لكل 100 زيارة ولكل عملة، قبل (14 يوم) وبعد (من يوم الإصلاح، لحد 14 يوم)
+const per100 = (a, b) => (b ? Math.round((a / b) * 1000) / 10 : null);
+const perOne = (cost, n) => (n ? Math.round((cost / n) * 100) / 100 : null);
+export function fixResult(fx, w, now) {
+  const start = Date.parse(fx.at), end = Math.min(now, start + WIN_DAYS * 864e5);
+  const days = Math.max(0, Math.floor((end - start) / 864e5));
+  const before = fx.baseline || {}, after = days ? funnelOf(w.sessions, w.leads, w.daily, start, end) : { cost: 0, visits: 0, contacts: 0, convos: 0, won: 0 };
+  const view = (x) => ({ visits: x.visits, contacts: x.contacts, convos: x.convos, won: x.won, cost: x.cost, contact_rate: per100(x.contacts, x.visits), convo_rate: per100(x.convos, x.visits), won_rate: per100(x.won, x.visits), cost_contact: perOne(x.cost, x.contacts), cost_won: perOne(x.cost, x.won) });
+  const B = view(before), A = view(after);
+  // المقياس الأساسي: «تم» لو فيه كفاية، وإلا المحادثات الفعلية، وإلا التواصل
+  const metric = n0(before.won) + n0(after.won) >= 3 ? 'won_rate' : n0(before.convos) + n0(after.convos) >= 5 ? 'convo_rate' : 'contact_rate';
+  let verdict = 'wait';
+  if (days >= 7 && after.visits >= 20 && B[metric] != null) {
+    const ch = B[metric] ? (A[metric] - B[metric]) / B[metric] : (A[metric] > 0 ? 1 : 0);
+    verdict = ch >= 0.1 ? 'better' : ch <= -0.1 ? 'worse' : 'same';
+  }
+  return { id: fx.id, code: fx.code, key: fx.item_key, mode: fx.mode, action: fx.action, target: fx.target || {}, note: fx.note || '', at: fx.at, days, metric, before: B, after: A, verdict };
+}
+async function recordFix(db, site, sess, row, now) {
+  const t = now || Date.now();
+  const w = await windowData(db, site, t - WIN_DAYS * 864e5);
+  const baseline = Object.assign({ days: WIN_DAYS }, funnelOf(w.sessions, w.leads, w.daily, t - WIN_DAYS * 864e5, t));
+  await db.insert('analysis_fixes', [Object.assign({ client_id: site.id, by_user: sess.user.id, at: new Date(t).toISOString(), baseline }, row)], { returning: false });
+}
+const keyOf = (code, d) => code + ':' + String((d && (d.k || d.campaign || d.page || d.w)) || '').slice(0, 80);
 
 export async function analyze(env, db, site, cred, fetchImpl, now) {
   const since = new Date((now || Date.now()) - 30 * 864e5).toISOString();
@@ -166,9 +238,15 @@ export async function analyze(env, db, site, cred, fetchImpl, now) {
     const v = scored.length ? scored.reduce((a, i) => a + (i.status === 'ok' ? 1 : i.status === 'warn' ? 0.5 : 0), 0) / scored.length : 1;
     s.score = Math.round(v * s.weight); score += s.score;
   }
+  for (const sx of sections) for (const i of sx.items) i.key = keyOf(i.code, i.data);
+  // القمع بالتحويل لآخر 30 يوم، وأكبر تسريب فيه
+  const t1 = now || Date.now(), daily = await db.select('ads_campaign_daily?client_id=' + eq(site.id) + '&day=gte.' + dayStr(t1 - 30 * 864e5) + '&select=day,clicks,cost_micros&limit=20000').catch(() => []);
+  const funnel = funnelOf(sessionsAll || [], leads || [], daily, t1 - 30 * 864e5, t1 + 1);
+  if (!(daily || []).length) { funnel.cost = Math.round(C.reduce((a, c) => a + c.cost, 0) * 100) / 100; funnel.clicks = C.reduce((a, c) => a + c.clicks, 0); }
+  const leak = leakOf(funnel);
   // أضعف حلقة: أول قسم (بالترتيب) فيه «bad»
   const weakest = (sections.find((s) => s.items.some((i) => i.status === 'bad')) || sections.find((s) => s.items.some((i) => i.status === 'warn')) || {}).key || null;
-  return { score, weakest, sections, at: new Date(now || Date.now()).toISOString(), currency: cred.currency || '', pagespeed: !!ps, calls: api.ops };
+  return { score, weakest, funnel, leak, sections, at: new Date(now || Date.now()).toISOString(), currency: cred.currency || '', pagespeed: !!ps, calls: api.ops };
 }
 
 export async function dashAnalysis(req, env, db, sess, url, fetchImpl) {
@@ -178,9 +256,32 @@ export async function dashAnalysis(req, env, db, sess, url, fetchImpl) {
   if (!cred) return json({ ok: true, linked: false });
   try {
     const r = await analyze(env, db, site, cred, fetchImpl);
+    r.fixes = await fixesOf(db, site).catch(() => []);
     await db.insert('ads_pull_runs', [{ client_id: site.id, source: 'server', ok: true, operations: r.calls, rows: { kind: 'analysis', score: r.score }, at: r.at }], { returning: false }).catch(() => {});
     return json(Object.assign({ ok: true, linked: true, manage: canManage(sess, site) }, r));
   } catch (e) { console.error('analysis: ' + String(e && e.message || e).slice(0, 160)); return json({ ok: false, error: 'google' }, 502); }
+}
+
+// الإصلاحات المسجلة (آخر 60 يوم) ونتيجتها بالتحويل
+async function fixesOf(db, site, now) {
+  const t = now || Date.now();
+  const rows = (await db.select('analysis_fixes?client_id=' + eq(site.id) + '&at=gte.' + new Date(t - 60 * 864e5).toISOString() + '&select=*&order=at.desc&limit=30')) || [];
+  if (!rows.length) return [];
+  const w = await windowData(db, site, Math.min(...rows.map((r) => Date.parse(r.at))));
+  return rows.map((r) => fixResult(r, w, t));
+}
+
+// «نفّذته بنفسي»: بند إصلاحه مش في جوجل (صفحة الهبوط، الإعلان، الرد على العملاء…) أو صاحب الموقع عمله بإيده · بملاحظاته
+export async function dashAnalysisDone(req, env, db, sess) {
+  const b = await req.json().catch(() => ({}));
+  const site = await loadSite(db, sess, b.site);
+  if (!site) return notFound();
+  if (!canManage(sess, site)) return json({ ok: false, error: 'role' }, 403);
+  const code = String(b.code || '');
+  if (!/^[a-z_]{2,40}$/.test(code)) return json({ ok: false, error: 'bad_request' }, 400);
+  await recordFix(db, site, sess, { code, item_key: String(b.key || code).slice(0, 140), mode: 'manual', action: null, note: String(b.note || '').trim().slice(0, 1000) || null });
+  await audit(db, sess.user.id, 'analysis_done', true, site.id + ' ' + code);
+  return json({ ok: true });
 }
 
 // الإصلاح في جوجل بموافقة: إيقاف كلمة · المكان «تواجد»
@@ -201,6 +302,7 @@ export async function dashAnalysisFix(req, env, db, sess, fetchImpl) {
       if (!targets.length) return json({ ok: false, error: 'not_found' }, 404);
       await api.mutate('adGroupCriteria:mutate', { operations: targets.slice(0, 20).map((rn) => ({ update: { resourceName: rn, status: 'PAUSED' }, updateMask: 'status' })) });
       await audit(db, sess.user.id, 'keyword_paused', true, site.id + ' ' + match + ' ' + text.slice(0, 60));
+      await recordFix(db, site, sess, { code: 'bad_keyword', item_key: String(b.key || keyOf('bad_keyword', { k: text })).slice(0, 140), mode: 'auto', action: 'pause_keyword', target: { keyword: text, match }, note: note(b) }).catch((e) => console.error('fix record: ' + e.message));
       return json({ ok: true, paused: targets.length });
     }
     if (b.action === 'geo_presence') {
@@ -208,6 +310,7 @@ export async function dashAnalysisFix(req, env, db, sess, fetchImpl) {
       if (!/^\d{1,20}$/.test(id)) return json({ ok: false, error: 'bad_request' }, 400);
       await api.mutate('campaigns:mutate', { operations: [{ update: { resourceName: 'customers/' + cred.customer_id + '/campaigns/' + id, geoTargetTypeSetting: { positiveGeoTargetType: 'PRESENCE' } }, updateMask: 'geoTargetTypeSetting.positiveGeoTargetType' }] });
       await audit(db, sess.user.id, 'geo_presence_set', true, site.id + ' ' + id);
+      await recordFix(db, site, sess, { code: 'geo_interest', item_key: String(b.key || keyOf('geo_interest', { campaign: b.name || id })).slice(0, 140), mode: 'auto', action: 'geo_presence', target: { campaign: id, name: String(b.name || '').slice(0, 80) }, note: note(b) }).catch((e) => console.error('fix record: ' + e.message));
       return json({ ok: true });
     }
     return json({ ok: false, error: 'bad_request' }, 400);

@@ -136,3 +136,15 @@ a:not(.btn) { color: var(--accent); }
   .card.login h1 { text-align: center; } .card.login > .muted { text-align: center; }
 }
 @media (prefers-reduced-motion: reduce) { .login-brand-sm img { content: url(/img/logo-mark.webp); } }
+/* شاشة البداية جوه اللوحة: اللوجو المتحرك لحد أول رسم (15 نوفمبر) · أمان: بتختفي لوحدها بعد 9 ثواني لو الجافاسكربت وقف */
+.boot { position: fixed; inset: 0; z-index: 200; display: grid; place-content: center; justify-items: center; gap: 22px; background: var(--bg); transition: opacity .35s ease; animation: boot-safety 0s linear 9s forwards; }
+.boot img { width: 220px; height: auto; }
+.boot.out { opacity: 0; pointer-events: none; }
+.boot-bar { display: block; width: 120px; height: 4px; border-radius: 4px; background: var(--line); overflow: hidden; }
+.boot-bar i { display: block; width: 40%; height: 100%; border-radius: 4px; background: linear-gradient(90deg, #1a6fe8, #22b14c); animation: boot-run 1.1s ease-in-out infinite; }
+@keyframes boot-run { from { transform: translateX(-110%); } to { transform: translateX(260%); } }
+[dir="rtl"] .boot-bar i { animation-name: boot-run-rtl; }
+@keyframes boot-run-rtl { from { transform: translateX(110%); } to { transform: translateX(-260%); } }
+@keyframes boot-safety { to { opacity: 0; visibility: hidden; } }
+@media (prefers-reduced-motion: reduce) { .boot-bar i { animation: none; width: 100%; } }
+.lang-switch { background: none; border: 0; padding: 4px 2px; font: inherit; font-weight: 700; color: var(--accent, #1a6fe8); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }

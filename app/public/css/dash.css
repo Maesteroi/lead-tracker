@@ -620,3 +620,47 @@ svg.geo { width: 100%; height: auto; aspect-ratio: 1.7; display: block; backgrou
 .bl-cp.ok, .bl-cp.warn { padding: 8px 12px; border-radius: 10px; font-size: 14px; }
 .bl-cp.ok { background: color-mix(in srgb, var(--growth) 12%, transparent); color: var(--growth); font-weight: 700; }
 .bl-cp.warn { background: var(--warn-bg, #fff6e0); color: var(--warn, #9a6700); }
+/* تحليل الحملة: القمع والتشخيص ومتابعة الإصلاح (15 نوفمبر) */
+.an-funnel .fn { list-style: none; margin: 14px 0; padding: 0; display: grid; gap: 10px; }
+.fn-step { display: grid; gap: 6px; padding: 10px 12px; border-radius: 12px; background: var(--bg); }
+.fn-step.leak { background: var(--bad-bg); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--bad) 40%, transparent); }
+.fn-h { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.fn-h > span:first-child { font-weight: 700; }
+.fn-h b { font: 800 20px var(--font-head); font-variant-numeric: tabular-nums; }
+.fn-bar { display: block; height: 12px; border-radius: 8px; background: color-mix(in srgb, var(--line) 60%, transparent); overflow: hidden; }
+.fn-bar > i { display: block; height: 100%; border-radius: 8px; background: linear-gradient(90deg, var(--accent), #2bb3e6); transition: width .5s ease; }
+.fn-step:last-child .fn-bar > i { background: linear-gradient(90deg, var(--growth), #7ed957); }
+.fn-step.leak .fn-bar > i { background: var(--bad); }
+.fn-money { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 4px; }
+.fn-money > div { display: grid; gap: 2px; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line); }
+.fn-money span { font-size: 13px; color: var(--muted); } .fn-money b { font: 800 18px var(--font-head); }
+.fn-note { margin: 12px 0 0; padding: 10px 12px; border-radius: 12px; line-height: 1.8; }
+.fn-note.bad { background: var(--bad-bg); color: var(--bad); } .fn-note.ok { background: var(--ok-bg); color: var(--ok); }
+.an-dx-list { display: grid; gap: 12px; margin-top: 12px; }
+.dx { display: grid; gap: 8px; padding: 16px; border-radius: 16px; border: 1px solid var(--line); border-inline-start: 5px solid var(--warn); background: var(--card); }
+.dx.bad { border-inline-start-color: var(--bad); } .dx.info { border-inline-start-color: var(--info); } .dx.fixed { border-inline-start-color: var(--ok); opacity: .85; }
+.dx-h { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.dx-n { display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: var(--ink); color: var(--card); font-weight: 800; font-size: 13px; }
+.dx-what { margin: 0; font-weight: 800; font-size: 16px; line-height: 1.7; }
+.dx-why { margin: 0; color: var(--muted); line-height: 1.8; }
+.dx-how { padding: 10px 14px; border-radius: 12px; background: var(--bg); }
+.dx-how ol { margin: 6px 0 0; padding-inline-start: 20px; display: grid; gap: 4px; line-height: 1.8; }
+.dx-acts { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.dx-note { width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; font: inherit; background: var(--card); color: inherit; resize: vertical; }
+.dx-done { margin: 0; color: var(--ok); }
+.an-fixes .fx-list { display: grid; gap: 12px; margin-top: 10px; }
+.fx { display: grid; gap: 6px; padding: 14px; border-radius: 14px; border: 1px solid var(--line); }
+.fx.better { border-color: var(--ok); } .fx.worse { border-color: var(--bad); }
+.fx-h { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.fx-note { margin: 0; padding: 8px 10px; border-radius: 10px; background: var(--bg); }
+.fx-tbl th, .fx-tbl td { text-align: start; font-variant-numeric: tabular-nums; }
+.fx-tbl tr.main th, .fx-tbl tr.main td { font-weight: 800; }
+.fx-tbl td.up { color: var(--ok); font-weight: 800; } .fx-tbl td.down { color: var(--bad); font-weight: 800; }
+.an-bars { list-style: none; margin: 10px 0; padding: 0; display: grid; gap: 8px; }
+.an-bars li { display: grid; grid-template-columns: 170px 1fr 64px; gap: 10px; align-items: center; font-size: 14px; }
+.an-bars li.weakest span { font-weight: 800; color: var(--bad); }
+.an-bar { display: block; height: 8px; border-radius: 6px; background: var(--line); overflow: hidden; }
+.an-bar > i { display: block; height: 100%; background: var(--ok); } .an-bar.warn > i { background: var(--warn); } .an-bar.bad > i { background: var(--bad); }
+.an-ok summary { cursor: pointer; font-weight: 700; color: var(--ok); }
+.an-ok ul { list-style: none; padding: 0; margin: 8px 0 0; display: grid; gap: 6px; color: var(--muted); }
+@media (max-width: 640px) { .fn-money { grid-template-columns: 1fr; } .an-bars li { grid-template-columns: 1fr 56px; } .an-bars li .an-bar { grid-column: 1 / -1; grid-row: 2; } .dx-acts .btn { flex: 1 1 100%; justify-content: center; } }

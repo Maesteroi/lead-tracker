@@ -72,3 +72,51 @@ test('analysis fix: pausing a keyword with a refused intent and switching locati
   assert.ok(!r.sections.find((x) => x.key === 'location').items.some((i) => i.code === 'geo_interest'), 'after the fix the location item is gone');
   assert.ok(s.w.fs.t.auth_events.some((x) => x.kind === 'keyword_paused') && s.w.fs.t.auth_events.some((x) => x.kind === 'geo_presence_set'));
 });
+
+test('analysis funnel: spend → ad visits → real → contacted → real conversation → done, by visit, with the biggest leak and the section that fixes it', async () => {
+  const s = await setup();
+  const r = (await s.gc(s.owner, '/v1/dash/analysis?site=' + s.site.id)).body;
+  assert.deepEqual([r.funnel.visits, r.funnel.contacts, r.funnel.won], [10, 3, 0], '10 ad visits, 3 contacted (one per visit), none done yet');
+  assert.equal(r.funnel.cost, 183, 'the spend comes from Google (no daily rows yet)');
+  assert.ok(r.sections.every((x) => x.items.every((i) => typeof i.key === 'string' && i.key.startsWith(i.code + ':'))), 'every item has a stable key to track its fix');
+});
+
+import { funnelOf, leakOf, fixResult } from '../src/analysis.js';
+test('analysis funnel math: contacts by visit with the best outcome; the leak is the weakest step against the usual rate', () => {
+  const t0 = Date.parse('2026-11-01T00:00:00Z'), at = (d) => new Date(t0 + d * 864e5).toISOString();
+  const sessions = Array.from({ length: 100 }, (_, i) => ({ session_id: 'S' + i, ad: true, status: i < 90 ? 'real' : 'suspicious', started_at: at(1) }));
+  const leads = [];
+  for (let i = 0; i < 20; i++) leads.push({ session_id: 'S' + i, at: at(1), outcome: i < 2 ? 'تم' : i < 4 ? 'بيفكر' : i < 16 ? 'ماوصلش رسالة' : null });
+  leads.push({ session_id: 'S0', at: at(1), outcome: null });   // ضغطة تانية لنفس الزيارة
+  const daily = [{ day: '2026-11-02', clicks: 120, cost_micros: 400e6 }];
+  const f = funnelOf(sessions, leads, daily, t0, t0 + 10 * 864e5);
+  assert.deepEqual([f.cost, f.clicks, f.visits, f.real, f.contacts, f.outcomes, f.convos, f.won], [400, 120, 100, 90, 20, 16, 4, 2]);
+  assert.deepEqual(leakOf(f), { from: 'outcomes', to: 'convos', rate: 25, bench: 60, section: 'terms' }, '12 of 16 never really talked: wrong people, not the page');
+});
+
+test('analysis fix result: judged by conversion per 100 visits (done if enough, else conversations, else contacts), never by visits; waits 7 days', () => {
+  const t0 = Date.parse('2026-11-01T00:00:00Z'), at = (d) => new Date(t0 + d * 864e5).toISOString();
+  const sessions = Array.from({ length: 100 }, (_, i) => ({ session_id: 'A' + i, ad: true, status: 'real', started_at: at(2 + (i % 8)) }));
+  const leads = Array.from({ length: 12 }, (_, i) => ({ session_id: 'A' + i, at: at(3), outcome: i < 3 ? 'تم' : 'بيفكر' }));
+  const fx = { id: 1, code: 'bad_keyword', item_key: 'bad_keyword:أبشر', mode: 'auto', at: at(1), baseline: { visits: 200, contacts: 12, convos: 4, won: 1, cost: 500 } };
+  const daily = [{ day: '2026-11-03', clicks: 100, cost_micros: 300e6 }];
+  const r = fixResult(fx, { sessions, leads, daily }, t0 + 12 * 864e5);
+  assert.equal(r.metric, 'won_rate');
+  assert.deepEqual([r.before.won_rate, r.after.won_rate, r.verdict], [0.5, 3, 'better']);
+  assert.deepEqual([r.before.cost_contact, r.after.cost_contact], [41.67, 25]);
+  assert.equal(fixResult(fx, { sessions, leads, daily }, t0 + 4 * 864e5).verdict, 'wait', 'too early to judge');
+});
+
+test('analysis «I did it myself» with notes, and an automatic fix, are both recorded with a 14-day baseline and shown with their result', async () => {
+  const s = await setup();
+  assert.equal((await s.pc(s.owner, '/v1/dash/analysis/done', { site: s.site.id, code: 'speed', key: 'speed:', note: 'صغّرت صور الصفحة الرئيسية' })).status, 200);
+  await s.pc(s.owner, '/v1/dash/analysis/fix', { site: s.site.id, action: 'pause_keyword', keyword: 'أبشر تصريح زواج', match: 'BROAD', key: 'bad_keyword:أبشر تصريح زواج', note: 'وأضفت «أبشر» سلبية' });
+  const rows = s.w.fs.t.analysis_fixes;
+  assert.deepEqual(rows.map((x) => [x.code, x.mode, x.note]), [['speed', 'manual', 'صغّرت صور الصفحة الرئيسية'], ['bad_keyword', 'auto', 'وأضفت «أبشر» سلبية']]);
+  assert.deepEqual([rows[0].baseline.days, rows[0].baseline.visits, rows[0].baseline.contacts], [14, 10, 3]);
+  const r = (await s.gc(s.owner, '/v1/dash/analysis?site=' + s.site.id)).body;
+  assert.deepEqual(r.fixes.map((x) => [x.code, x.verdict]).sort(), [['bad_keyword', 'wait'], ['speed', 'wait']]);
+  const staff = await loggedIn(s.w, 'staff2@enjaz.example');
+  s.w.fs.t.memberships.push({ user_id: staff.me.user.id, org_id: s.owner.org.id, role: 'staff', site_ids: null });
+  assert.equal((await s.pc(staff, '/v1/dash/analysis/done', { site: s.site.id, code: 'speed' })).status, 403);
+});
