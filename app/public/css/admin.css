@@ -213,3 +213,9 @@ button.switch { flex: none; width: 46px; height: 28px; border-radius: 999px; bor
 button.switch::after { content: ""; position: absolute; top: 3px; inset-inline-start: 3px; width: 22px; height: 22px; border-radius: 50%; background: #fff; transition: inset-inline-start .15s; box-shadow: 0 1px 3px rgba(0, 0, 0, .2); }
 button.switch[aria-checked="true"] { background: var(--accent); }
 button.switch[aria-checked="true"]::after { inset-inline-start: 21px; }
+/* الباقات والدفع */
+.bl-num { width: 96px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; font: inherit; background: var(--card); color: inherit; }
+.bl-in { padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px; font: inherit; background: var(--card); color: inherit; min-width: 160px; }
+.bl-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; margin: 10px 0 14px; }
+.bl-grid label { display: grid; gap: 4px; font-size: 14px; }
+.bl-add { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
