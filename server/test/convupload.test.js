@@ -57,9 +57,12 @@ test('conv: choosing an action — only an «Import from clicks» action Google 
   assert.equal((await s.pc(s.owner, '/v1/dash/conv/action', { site: s.site.id, action_id: '222' })).body.action.id, '222');
   const c = await s.pc(s.owner, '/v1/dash/conv/action', { site: s.site.id, create: true });
   assert.equal(c.status, 200); assert.equal(c.body.action.name, ACTION_NAME);
-  assert.deepEqual(s.w.g.mutations.map((m) => [m.create.type, m.create.status, m.create.category]), [['UPLOAD_CLICKS', 'ENABLED', 'QUALIFIED_LEAD']]);
+  assert.deepEqual(s.w.g.mutations.map((m) => [m.create.name, m.create.type, m.create.status, m.create.category]), [[ACTION_NAME, 'UPLOAD_CLICKS', 'ENABLED', 'QUALIFIED_LEAD'], ['Maestro LT – تواصل حقيقي', 'UPLOAD_CLICKS', 'ENABLED', 'CONTACT']],
+    'with it a secondary «real contact» action');
+  assert.deepEqual(s.w.g.convUpdates.map((o) => [o.update.primaryForGoal, o.updateMask]), [[false, 'primary_for_goal']], 'the real-contact action is made secondary: not used for bidding');
   await s.pc(s.owner, '/v1/dash/conv/action', { site: s.site.id, create: true });
-  assert.equal(s.w.g.mutations.length, 1, 'pressing again reuses it, no second action');
+  assert.equal(s.w.g.mutations.length, 2, 'pressing again reuses both, no new actions');
+  assert.ok(s.w.fs.t.ads_credentials[0].real_action_id);
   assert.equal(s.w.fs.t.ads_credentials[0].conversion_action_id, c.body.action.id);
 });
 
@@ -113,4 +116,19 @@ test('conv: Google\'s full refusal (type, message and the rejected field) is kep
   assert.match(e, /INVALID_ARGUMENT \| Request contains an invalid argument\. \| events\[0\]\.event_timestamp Timestamp is before the click\./);
   assert.match(googleError([{ error: { status: 'PERMISSION_DENIED' } }], 403), /^PERMISSION_DENIED/);
   assert.equal(googleError({}, 500), 'HTTP 500');
+});
+
+test('conv real contact: real conversations (done · thinking · cancelled) go to the secondary «real contact» action with one press, never mixed with the main one', async () => {
+  const s = await setup();
+  await s.pc(s.owner, '/v1/dash/outcome', { site: s.site.id, code: 'EF56', value: 'بيفكر' });
+  await s.pc(s.owner, '/v1/dash/conv/action', { site: s.site.id, create: true });
+  const st = (await s.gc(s.owner, '/v1/dash/conv?site=' + s.site.id)).body;
+  assert.deepEqual([st.real.action.name, st.real.ready], ['Maestro LT – تواصل حقيقي', 2], 'two ad visits had a real conversation (one done, one thinking); the organic one has no click id');
+  const r = await s.pc(s.owner, '/v1/dash/conv/send', { site: s.site.id, kind: 'real' });
+  assert.deepEqual([r.status, r.body.sent], [200, 2]);
+  const body = s.w.g.ingest.at(-1);
+  assert.equal(body.destinations[0].productDestinationId, s.w.fs.t.ads_credentials[0].real_action_id);
+  assert.ok(body.events.every((e) => e.transactionId.startsWith('mlt-r-')), 'its own transaction ids');
+  assert.equal((await s.gc(s.owner, '/v1/dash/conv?site=' + s.site.id)).body.real.ready, 0);
+  assert.equal((await s.gc(s.owner, '/v1/dash/conv?site=' + s.site.id)).body.ready.length, 1, 'the confirmed customer is still waiting for the main action');
 });

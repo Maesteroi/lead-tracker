@@ -79,6 +79,9 @@ export function fakeGoogle(opts) {
     } else if (p.from === 'campaign') {
       results = Object.entries(d.campaigns || {}).map(([id, m]) => ({ campaign: { id, name: camp(id).name }, segments: { date: day },
         metrics: { impressions: String(m.impressions || 0), clicks: String(m.clicks || 0), invalidClicks: String(m.invalidClicks || 0), costMicros: String(m.costMicros || 0), conversions: m.conversions || 0, conversionsValue: m.conversionsValue || 0 } }));
+    } else if (p.from === 'search_term_view' && /conversion_action_name/.test(q)) {
+      results = (d.termActions || []).map((t) => ({ campaign: { id: String(t.campaignId) }, adGroup: { id: String(t.adGroupId) }, segments: { keyword: { info: { text: t.keyword, matchType: t.matchType } }, conversionActionName: t.action },
+        searchTermView: { searchTerm: t.term }, metrics: { allConversions: t.n } }));
     } else if (p.from === 'search_term_view') {
       results = (d.terms || []).filter((t) => t.impressions > 0).map((t) => ({ campaign: { id: String(t.campaignId), name: camp(t.campaignId).name }, adGroup: { id: String(t.adGroupId), name: t.adGroup },
         segments: { date: day, keyword: { info: { text: t.keyword, matchType: t.matchType } } }, searchTermView: { searchTerm: t.term },
@@ -208,6 +211,7 @@ export function fakeGoogle(opts) {
       const cid = u.pathname.split('/')[3]; const acct = g.accounts[cid];
       if (!acct) return apiErr(403, 'PERMISSION_DENIED', 'USER_PERMISSION_DENIED');
       const op = (JSON.parse(init.body || '{}').operations || [])[0] || {};
+      if (op.update) { g.convUpdates = (g.convUpdates || []).concat([op]); const a = (acct.convActions || []).find((x) => op.update.resourceName.endsWith('/' + x.id)); if (a) a.primaryForGoal = op.update.primaryForGoal; return resp(200, { results: [{ resourceName: op.update.resourceName }] }); }
       const id = String(900000 + (acct.convActions || []).length + 1);
       acct.convActions = (acct.convActions || []).concat([Object.assign({ id }, op.create)]);
       g.mutations = (g.mutations || []).concat([{ customer: cid, create: op.create }]);

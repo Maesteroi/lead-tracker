@@ -15,11 +15,11 @@ import { loadSite, notFound, roleFor } from './sites.js';
 import { audit } from './auth.js';
 import { loadBrief, norm as briefNorm } from './brief.js';
 import { prepare, classify } from './intent.js';
+import { aggregateTerms, levelOf, ngramGroups } from './outcome.js';
 
 const DAYS = 30;
 const canManage = (sess, site) => ['owner', 'admin'].includes(roleFor(sess, site.org_id, site.id));
 const norm = briefNorm;   // تطبيع واحد للعربي (brief.js)
-const micros = (v) => Math.round((Number(v) || 0) / 10000) / 100;
 // جوجل: نص الكلمة لحد 80 حرف و10 كلمات
 const okText = (t) => t.length <= 80 && t.split(' ').length <= 10;
 
@@ -27,53 +27,55 @@ async function credOf(db, site) {
   return db.one('ads_credentials?client_id=' + eq(site.id) + '&status=eq.on&select=customer_id,login_customer_id,refresh_token_enc,currency&order=updated_at.desc');
 }
 
-async function goodKeywords(db, site, cred, since) {
-  const clicks = (await db.select('ads_clicks?client_id=' + eq(site.id) + '&customer_id=' + eq(cred.customer_id) + '&day=gte.' + since + '&select=gclid,keyword&limit=20000').catch(() => [])) || [];
-  if (!clicks.length) return new Set();
-  const evs = (await db.select('raw_events?client_id=' + eq(site.id) + '&gclid=not.is.null&event=eq.click&select=gclid,click_type&limit=20000').catch(() => [])) || [];
-  const contacted = new Set(evs.filter((e) => ['wa', 'call'].includes(e.click_type)).map((e) => e.gclid));
-  return new Set(clicks.filter((c) => contacted.has(c.gclid) && c.keyword).map((c) => norm(c.keyword)));
-}
-
+// الإيجابية بالنتيجة (claude/briefs/2026-11-15-keywords-by-outcome.md بند 4): عبارة بحث كاملة جابت «تم» أو محادثة فعلية، ومش كلمة في الحساب.
+//  • won: جوجل نسب لها «عميل مؤكد» · real: نسب لها «تواصل حقيقي» · conv: تحويل جوجل بس (دليل أضعف: تحويلين، وفي الصميم أو «عايز حد يعملها»).
+//  • الإضافة [تامة] في نفس المجموعة اللي جابتها. ولو أكتر من عبارة مختلفة جابت تنفيذ وبتشترك في جزء ← الجزء ده "عبارة".
+//  • الترتيب: «تم» ثم المحادثة ثم تكلفة النتيجة. النقرات مابتدخلش.
+//  • ماينفعش: عبارة جابت تواصل كتير وصفر محادثة (لما فيه بيانات محادثات) ← دي سلبية مش إيجابية.
 export async function suggestPositive(db, site, cred, now) {
   const since = new Date((now || Date.now()) - DAYS * 864e5).toISOString().slice(0, 10);
-  const terms = (await db.select('ads_search_terms?client_id=' + eq(site.id) + '&customer_id=' + eq(cred.customer_id) + '&day=gte.' + since + '&select=search_term,keyword,match_type,campaign_id,campaign_name,ad_group_id,ad_group_name,clicks,impressions,cost_micros,conversions&limit=50000')) || [];
+  const rows = (await db.select('ads_search_terms?client_id=' + eq(site.id) + '&customer_id=' + eq(cred.customer_id) + '&day=gte.' + since + '&select=*&limit=50000')) || [];
   const decided = new Set(((await db.select('kw_decisions?client_id=' + eq(site.id) + '&select=text').catch(() => [])) || []).map((d) => norm(d.text)));
   const brief = await loadBrief(db, site.id), b = prepare(brief);
-  // من غير وصف للنشاط (اللي بنقدمه) مافيش اقتراحات إيجابية: العبارة لازم تذكر الخدمة
   if (!b.hasOffer) return { suggestions: [], need_brief: true };
-  const good = await goodKeywords(db, site, cred, since);
-  const existing = new Set(terms.map((t) => norm(t.keyword)).filter(Boolean));
-  const agg = new Map();
-  for (const t of terms) {
-    const k = norm(t.search_term); if (!k) continue;
-    const x = agg.get(k) || { term: String(t.search_term).trim(), clicks: 0, impr: 0, cost: 0, conv: 0, groups: new Map(), from: new Map() };
-    const c = Number(t.clicks) || 0;
-    x.clicks += c; x.impr += Number(t.impressions) || 0; x.cost += Number(t.cost_micros) || 0; x.conv += Number(t.conversions) || 0;
-    if (t.ad_group_id) { const g = x.groups.get(String(t.ad_group_id)) || { id: String(t.ad_group_id), name: t.ad_group_name || '', campaign: t.campaign_name || '', clicks: 0 }; g.clicks += c + 0.001; x.groups.set(g.id, g); }
-    if (t.keyword) x.from.set(norm(t.keyword), { text: t.keyword, match: t.match_type || '' });
-    agg.set(k, x);
-  }
+  const existing = new Set(rows.map((t) => norm(t.keyword)).filter(Boolean));
+  const agg = aggregateTerms(rows), L = levelOf(agg), realData = L.totals.real >= 3 || L.totals.won >= 3;
   const list = [];
+  const bestGroup = (x) => [...x.groups.values()].sort((a, z) => z.clicks - a.clicks)[0];
+  const winners = [];
   for (const [k, x] of agg) {
-    if (existing.has(k) || decided.has(k) || !okText(k)) continue;
-    // بتذكر الخدمة ونيتها شراء: «في الصميم» أو «عايز حد يعملها له». الاستفهام بيتراقب ومابيتقترحش
     const cls = classify(x.term, b).cls;
-    if (cls !== 'core' && cls !== 'hire') continue;
-    if (!x.groups.size) continue;
-    const viaGood = [...x.from.entries()].some(([nk, f]) => good.has(nk) && f.match !== 'EXACT');
+    if (['adjacent', 'nonbuyer', 'status', 'diy'].includes(cls)) continue;
     let reason = null;
-    // تحويل جوجل دليل ضعيف (ممكن يبقى ضغطة): لازم تحويلين، أو تحويل ونقرتين
-    if (x.conv >= 2 || (x.conv >= 1 && x.clicks >= 2)) reason = 'conv';
-    else if (x.clicks >= 2 && viaGood) reason = 'contacts';
+    if (x.won > 0) reason = 'won';
+    else if (x.real > 0) reason = 'real';
+    else if (!realData && (cls === 'core' || cls === 'hire') && x.conv >= 2) reason = 'conv';   // قبل بيانات المحادثات: تحويل جوجل بس، ودليل أضعف
     if (!reason) continue;
-    const g = [...x.groups.values()].sort((a, b) => b.clicks - a.clicks)[0];
-    list.push({ id: (await sha256('pos|' + k)).slice(0, 16), text: x.term, reason, cls, match: 'EXACT', weak: reason === 'conv', clicks: x.clicks, impressions: x.impr, cost: micros(x.cost), conv: Math.round(x.conv * 10) / 10,
-      group: { id: g.id, name: g.name, campaign: g.campaign }, from: [...x.from.values()].slice(0, 3) });
+    winners.push(x);
+    if (existing.has(k) || decided.has(k) || !okText(k) || !x.groups.size) continue;
+    const g = bestGroup(x), res = reason === 'won' ? x.won : reason === 'real' ? x.real : x.conv;
+    list.push({ id: (await sha256('pos|' + k)).slice(0, 16), text: x.term, reason, cls, match: 'EXACT', weak: reason === 'conv', clicks: x.clicks, impressions: x.impr, cost: r2(x.cost),
+      conv: r1(x.conv), real: r1(x.real), won: r1(x.won), cost_per: r2(x.cost / res),
+      group: { id: g.id, name: g.name, campaign: g.campaign }, from: [...x.keywords.values()].slice(0, 3) });
   }
-  list.sort((a, b) => b.conv - a.conv || b.clicks - a.clicks);
-  return { suggestions: list.slice(0, 40), need_brief: false };
+  // جزء مشترك بين عبارتين مختلفتين أو أكتر جابوا محادثة أو «تم» ← "عبارة" في مجموعة العبارة الأقوى
+  const wAgg = new Map(winners.filter((x) => x.won > 0 || x.real > 0).map((x) => [x.key, x]));
+  for (const y of ngramGroups(wAgg)) {
+    if (y.n < 2 || existing.has(y.key) || decided.has(y.key) || !okText(y.text)) continue;
+    if (['adjacent', 'nonbuyer', 'status', 'diy'].includes(classify(y.text, b).cls)) continue;
+    const top = y.terms.map((t) => agg.get(norm(t))).filter(Boolean).sort((a, z) => (z.won - a.won) || (z.real - a.real))[0];
+    if (!top || !top.groups.size) continue;
+    const g = bestGroup(top);
+    list.push({ id: (await sha256('posg|' + y.text)).slice(0, 16), text: y.text, reason: 'group', cls: 'group', match: 'PHRASE', weak: false, clicks: y.clicks, impressions: 0, cost: r2(y.cost),
+      conv: r1(y.conv), real: r1(y.real), won: r1(y.won), cost_per: r2(y.cost / Math.max(1, y.won || y.real)), terms: y.terms.slice(0, 4),
+      group: { id: g.id, name: g.name, campaign: g.campaign }, from: [] });
+  }
+  const rank = { won: 0, group: 1, real: 2, conv: 3 };
+  list.sort((a, z) => (rank[a.reason] - rank[z.reason]) || (z.won - a.won) || (z.real - a.real) || (a.cost_per - z.cost_per));
+  return { suggestions: list.slice(0, 40), need_brief: false, level: L.level, real_data: realData };
 }
+const r2 = (v) => Math.round((Number(v) || 0) * 100) / 100;
+const r1 = (v) => Math.round((Number(v) || 0) * 10) / 10;
 
 // ── اللوحة ──
 export async function dashKeywords(req, env, db, sess, url) {
@@ -96,13 +98,13 @@ export async function dashKeywordDecide(req, env, db, sess, fetchImpl) {
   if (!cred) return json({ ok: false, error: 'not_linked' }, 409);
   const s = (await suggestPositive(db, site, cred)).suggestions.find((x) => x.id === String(b.id || ''));
   if (!s) return json({ ok: false, error: 'not_found' }, 404);
-  const row = { client_id: site.id, text: s.text, match_type: 'EXACT', ad_group_id: s.group.id, decision: b.decision, reason: s.reason, conv: s.conv, by_user: sess.user.id, at: new Date().toISOString(), applied_at: null, error: null };
+  const row = { client_id: site.id, text: s.text, match_type: s.match || 'EXACT', ad_group_id: s.group.id, decision: b.decision, reason: s.reason, conv: s.won || s.real || s.conv, by_user: sess.user.id, at: new Date().toISOString(), applied_at: null, error: null };
   if (b.decision === 'add') {
     if (!/^\d{1,20}$/.test(s.group.id)) return json({ ok: false, error: 'no_group' }, 409);
     try {
       const access = await accessToken(env, await openToken(env, cred.refresh_token_enc, site.id + ':' + cred.customer_id), fetchImpl);
       const api = adsClient({ env, access, customerId: cred.customer_id, loginCustomerId: cred.login_customer_id, fetchImpl });
-      await api.mutate('adGroupCriteria:mutate', { operations: [{ create: { adGroup: 'customers/' + cred.customer_id + '/adGroups/' + s.group.id, status: 'ENABLED', keyword: { text: s.text, matchType: 'EXACT' } } }] });
+      await api.mutate('adGroupCriteria:mutate', { operations: [{ create: { adGroup: 'customers/' + cred.customer_id + '/adGroups/' + s.group.id, status: 'ENABLED', keyword: { text: s.text, matchType: s.match || 'EXACT' } } }] });
       row.applied_at = new Date().toISOString();
     } catch (e) { row.error = String(e && e.message || e).slice(0, 300); }
     await db.insert('ads_pull_runs', [{ client_id: site.id, source: 'server', ok: !row.error, operations: 1, rows: { kind: 'keyword_add' }, at: new Date().toISOString() }], { returning: false }).catch(() => {});

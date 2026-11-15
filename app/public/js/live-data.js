@@ -40,7 +40,8 @@
     agency: null,
     sites: function () { return get('/v1/sites').then(function (b) { return (b.sites || []).map(function (s) { return { id: s.id, name: s.name, domain: (s.domains || [])[0] || '', currency: LT.t('sar'), org: b.all ? (s.org_name || '') : '', org_id: s.org_id }; }); }); },
     overview: function (site, range) { return overviewRaw(site, range).then(mapOverview); },
-    statement: function () { return Promise.resolve({ unavailable: 'ads' }); },
+    statement: function (site, range) { return get('/v1/dash/statement' + q(site, range)); },
+    statementCsv: function (site, range) { return LT.download('/v1/dash/statement.csv' + q(site, range)); },
     visits: function (site, range) { return get('/v1/dash/visits' + q(site, range)).then(function (b) { return (b.sessions || []).map(mapVisit); }); },
     session: function (site, sid) {
       return get('/v1/dash/session' + q(site) + '&sid=' + encodeURIComponent(sid)).then(function (b) {
@@ -128,6 +129,7 @@
     conv: function (site) { return LT.api('/v1/dash/conv?site=' + encodeURIComponent(site)).then(function (r) { if (!r.ok) throw new Error('http'); return r.body; }); },
     convActions: function (site) { return LT.api('/v1/dash/conv/actions?site=' + encodeURIComponent(site)).then(function (r) { if (!r.ok) throw new Error(r.body && r.body.error || 'http'); return r.body.actions || []; }); },
     convAction: function (site, body) { return LT.api('/v1/dash/conv/action', { method: 'POST', body: Object.assign({ site: site }, body) }).then(function (r) { if (!r.ok) throw new Error(r.body && r.body.error || 'http'); return r.body.action; }); },
+    convSendReal: function (site) { return LT.api('/v1/dash/conv/send', { method: 'POST', body: { site: site, kind: 'real' } }).then(function (r) { if (!r.ok) throw new Error(r.body && r.body.error || 'http'); return r.body; }); },
     convSend: function (site, codes) { return LT.api('/v1/dash/conv/send', { method: 'POST', body: { site: site, codes: codes } }).then(function (r) { if (!r.ok) throw new Error(r.body && r.body.error || 'http'); return r.body; }); },
     pairCode: function (site) { return LT.api('/v1/sites/' + encodeURIComponent(site) + '/pair-code', { method: 'POST' }).then(function (r) { if (r.status !== 201) throw new Error(r.status === 403 ? 'role' : 'http'); return r.body; }); },
     clients: function (range) {

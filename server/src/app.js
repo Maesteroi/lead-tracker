@@ -22,6 +22,7 @@ import { dashKeywords, dashKeywordDecide } from './keywords.js';
 import { dashBrief, dashBriefSave } from './brief.js';
 import { dashBlockIp, dashUnblockIp, dashBlocks, dashOwnDevice } from './blocks.js';
 import { dashAnalysis, dashAnalysisFix, dashAnalysisDone } from './analysis.js';
+import { dashStatement, dashStatementCsv } from './statement.js';
 import { dashSuffix, dashSuffixSet } from './suffix.js';
 
 const SITE_ACT = /^\/v1\/sites\/([A-Za-z0-9]{6,20})\/(rotate-key|install-status|pair-code)$/;
@@ -119,6 +120,9 @@ export async function handleApp(req, env, db, url, p, fetchImpl) {
     else if (m === 'POST' && p === '/v1/dash/unblock') res = await dashUnblockIp(req, env, db, sess, fetchImpl);
     else if (m === 'GET' && p === '/v1/dash/blocks') res = await dashBlocks(req, env, db, sess, url);
     else if (m === 'POST' && p === '/v1/dash/own') res = await dashOwnDevice(req, env, db, sess);
+    // كشف الحساب وملف طلب الاسترداد (statement.js)
+    else if (m === 'GET' && p === '/v1/dash/statement') res = await dashStatement(req, env, db, sess, url);
+    else if (m === 'GET' && p === '/v1/dash/statement.csv') res = await dashStatementCsv(req, env, db, sess, url);
     // «حلّل حملتك وأصلحها بضغطة» (analysis.js)
     else if (m === 'GET' && p === '/v1/dash/analysis') res = await dashAnalysis(req, env, db, sess, url, fetchImpl);
     else if (m === 'POST' && p === '/v1/dash/analysis/fix') res = await dashAnalysisFix(req, env, db, sess, fetchImpl);

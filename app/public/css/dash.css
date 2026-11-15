@@ -612,8 +612,8 @@ svg.geo { width: 100%; height: auto; aspect-ratio: 1.7; display: block; backgrou
 .an-it.ok .an-ic { background: var(--ok-bg); color: var(--ok); } .an-it.warn .an-ic { background: var(--warn-bg); color: var(--warn); } .an-it.bad .an-ic { background: var(--bad-bg); color: var(--bad); } .an-it.info .an-ic { background: var(--info-bg); color: var(--info); }
 @media (max-width: 640px) { .an-hero { grid-template-columns: 1fr; justify-items: center; text-align: center; } .an-it { grid-template-columns: 24px 1fr; } .an-it > .btn { grid-column: 2; justify-self: start; } }
 /* مزايا الباقة من الـ checklist · الخصم · الكوبون (15 نوفمبر) */
-.bl-feat.ck li.no { color: var(--muted); text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--muted) 50%, transparent); }
-.bl-feat.ck li.no::before { content: '✕'; color: var(--muted); font-weight: 700; }
+.bl-feat.bl-ck li.no { color: var(--muted); text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--muted) 50%, transparent); }
+.bl-feat.bl-ck li.no::before { content: '✕'; color: var(--muted); font-weight: 700; }
 .bl-disc { color: var(--growth); font-weight: 700; }
 .bl-cp { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
 .bl-cp .bl-ref { max-width: 220px; text-transform: uppercase; }
@@ -664,3 +664,28 @@ svg.geo { width: 100%; height: auto; aspect-ratio: 1.7; display: block; backgrou
 .an-ok summary { cursor: pointer; font-weight: 700; color: var(--ok); }
 .an-ok ul { list-style: none; padding: 0; margin: 8px 0 0; display: grid; gap: 6px; color: var(--muted); }
 @media (max-width: 640px) { .fn-money { grid-template-columns: 1fr; } .an-bars li { grid-template-columns: 1fr 56px; } .an-bars li .an-bar { grid-column: 1 / -1; grid-row: 2; } .dx-acts .btn { flex: 1 1 100%; justify-content: center; } }
+/* الكلمات بالنتيجة (15 نوفمبر) */
+.oc-level { margin: 0 0 12px; padding: 12px 14px; border-radius: 12px; background: var(--info-bg); color: var(--ink); line-height: 1.8; }
+.oc-level.won { background: var(--ok-bg); } .oc-level.conv, .oc-level.none { background: var(--warn-bg); }
+.oc-say { margin: 0; font-weight: 700; line-height: 1.8; }
+.oc-watch { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 6px; }
+.oc-watch li { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding: 8px 10px; border-radius: 10px; background: var(--bg); }
+.oc-kw td, .oc-kw th { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.bf-sample { display: block; color: var(--muted); font-size: 12px; }
+.conv-real { margin: 10px 0; padding: 12px; border-radius: 12px; border: 1px dashed var(--line); display: grid; gap: 6px; justify-items: start; }
+
+/* صفحة الاشتراك (تصميم 15 نوفمبر): السعر والزرار فوق · الحدود أرقام كبيرة · المزايا ✓ ثم ✗ */
+.bl-plans { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 18px; align-items: stretch; }
+.bl-plan { padding: 24px 22px; gap: 12px; }
+.bl-plan > .btn { order: 4; margin-top: 4px; }
+.bl-plan > .bl-units { order: 3; }
+.bl-plan > .bl-lims { order: 5; } .bl-plan > .bl-feat { order: 6; }
+.bl-plan.best { background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 6%, var(--card)), var(--card) 40%); }
+.bl-lims { display: grid; grid-template-columns: repeat(auto-fit, minmax(72px, 1fr)); gap: 8px; padding: 12px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.bl-lim { display: grid; gap: 2px; text-align: center; }
+.bl-lim b { font: 800 22px/1.1 var(--font-head); color: var(--ink); font-variant-numeric: tabular-nums; }
+.bl-lim small { color: var(--muted); font-size: 12px; line-height: 1.4; }
+.bl-feat.bl-ck { gap: 9px; }
+.bl-feat.bl-ck li { line-height: 1.5; }
+.bl-feat.bl-ck li.no { opacity: .6; }
+.st-acts { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }

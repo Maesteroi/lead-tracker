@@ -148,3 +148,7 @@ a:not(.btn) { color: var(--accent); }
 @keyframes boot-safety { to { opacity: 0; visibility: hidden; } }
 @media (prefers-reduced-motion: reduce) { .boot-bar i { animation: none; width: 100%; } }
 .lang-switch { background: none; border: 0; padding: 4px 2px; font: inherit; font-weight: 700; color: var(--accent, #1a6fe8); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+.boot-wm { display: grid; justify-items: center; gap: 4px; margin-top: -8px; line-height: 1; }
+.boot-wm .wm-ar { font-size: 44px; background: linear-gradient(90deg, #1a6fe8 0%, #00a8f0 50%, #2e9e2a 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.boot-wm .wm-en { color: var(--ink); font-size: 20px; } .boot-wm .wm-en i { color: var(--growth, #2e9e2a); }
+.boot-wm small { direction: ltr; color: var(--muted); font-size: 11px; letter-spacing: 3px; text-transform: uppercase; }

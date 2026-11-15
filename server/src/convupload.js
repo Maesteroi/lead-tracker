@@ -16,6 +16,9 @@ const WINDOW_DAYS = 90;          // جوجل مابيقبلش تحويل لضغ�
 const MAX_PER_SEND = 2000;
 const WON = 'تم';
 export const ACTION_NAME = 'Maestro LT – عميل مؤكد';
+// إجراء ثانوي (مش داخل في المزايدة): المحادثات الفعلية (تم · بيفكر · لغى) علشان نعرف من جوجل أنهي عبارة بحث جابت ناس بجد
+export const REAL_ACTION_NAME = 'Maestro LT – تواصل حقيقي';
+const CONVO = new Set(['تم', 'بيفكر', 'لغى']);
 const ACTION_RE = /^[0-9]{1,20}$/;
 const CODE_RE = /^[A-Za-z0-9_-]{2,40}$/;
 const GCLID_RE = /^[A-Za-z0-9_-]{10,200}$/;
@@ -24,7 +27,8 @@ const canManage = (sess, site) => ['owner', 'admin'].includes(roleFor(sess, site
 const short = (e) => String((e && e.message) || e || '').slice(0, 200);
 
 async function credOf(db, site) {
-  return db.one('ads_credentials?client_id=' + eq(site.id) + '&status=eq.on&select=customer_id,login_customer_id,refresh_token_enc,currency,conversion_action_id,conversion_action_name&order=updated_at.desc');
+  const q = (cols) => db.one('ads_credentials?client_id=' + eq(site.id) + '&status=eq.on&select=customer_id,login_customer_id,refresh_token_enc,currency,conversion_action_id,conversion_action_name' + cols + '&order=updated_at.desc');
+  return q(',real_action_id,real_action_name').catch(() => q(''));   // قبل 0026
 }
 async function tokenOf(env, cred, fetchImpl) {
   return accessToken(env, await openToken(env, cred.refresh_token_enc, '' + cred._site + ':' + cred.customer_id), fetchImpl);
@@ -46,9 +50,11 @@ export function googleError(j, status) {
 }
 
 // العملاء المؤكدين الجاهزين للرفع (ومعاهم الـgclid من الزيارة نفسها)
-export async function candidates(db, site, now) {
+// kind: 'won' = «تم» (الإجراء الأساسي) · 'real' = محادثة فعلية (تم · بيفكر · لغى) للإجراء الثانوي
+export async function candidates(db, site, now, kind) {
   const since = new Date((now || Date.now()) - WINDOW_DAYS * 864e5).toISOString();
-  const leads = ((await db.req('POST', 'rpc/dash_leads', { p_site: site.id, p_since: since })) || []).filter((l) => l.outcome === WON && l.match_code && CODE_RE.test(l.match_code) && l.session_id);
+  const pass = kind === 'real' ? (o) => CONVO.has(o) : (o) => o === WON;
+  const leads = ((await db.req('POST', 'rpc/dash_leads', { p_site: site.id, p_since: since })) || []).filter((l) => pass(l.outcome) && l.match_code && CODE_RE.test(l.match_code) && l.session_id);
   const seen = new Set(), list = [];
   for (const l of leads) { if (seen.has(l.match_code)) continue; seen.add(l.match_code); list.push(l); }
   const sids = [...new Set(list.map((l) => l.session_id))].filter((s) => /^[A-Za-z0-9_.:-]{4,80}$/.test(s));
@@ -75,7 +81,16 @@ export async function dashConv(req, env, db, sess, url) {
     action: cred.conversion_action_id ? { id: cred.conversion_action_id, name: cred.conversion_action_name || '' } : null,
     ready: cand.filter((c) => !sentHere.has(c.match_code)).map((c) => ({ code: c.match_code, at: c.at, outcome_at: c.outcome_at, type: c.click_type, source: c.source_fine || c.source || 'google_ads', detail: c.source_detail || '', city: c.city || '', failed: failed.get(c.match_code) || null })),
     sent: done.filter((d) => d.status === 'sent').slice(0, 50).map((d) => ({ code: d.match_code, at: d.at, event_time: d.event_time })),
-    sent_total: done.filter((d) => d.status === 'sent').length });
+    sent_total: done.filter((d) => d.status === 'sent' && d.conversion_action_id === cred.conversion_action_id).length,
+    real: await realState(db, site, cred, done) });
+}
+
+// المحادثات الفعلية الجاهزة للإجراء الثانوي (عددها بس: الإرسال بضغطة واحدة للكل)
+async function realState(db, site, cred, done) {
+  if (!cred.real_action_id) return { action: null, ready: 0 };
+  const sent = new Set(done.filter((d) => d.status === 'sent' && d.conversion_action_id === cred.real_action_id).map((d) => d.match_code));
+  const c = await candidates(db, site, null, 'real').catch(() => []);
+  return { action: { id: cred.real_action_id, name: cred.real_action_name || REAL_ACTION_NAME }, ready: c.filter((x) => !sent.has(x.match_code)).length, sent: sent.size };
 }
 
 // ── إجراءات التحويل «استيراد من النقرات» في الحساب (عملية API واحدة) ──
@@ -96,6 +111,22 @@ export async function dashConvActions(req, env, db, sess, url, fetchImpl) {
   if (!cred) return json({ ok: false, error: 'not_linked' }, 409);
   try { return json({ ok: true, actions: (await listActions(env, db, site, cred, fetchImpl)).actions }); }
   catch (e) { console.error('conv actions: ' + short(e)); return json({ ok: false, error: 'google' }, 502); }
+}
+
+async function createRealAction(env, db, site, cred, access, fetchImpl) {
+  const ver = String(env.ADS_API_VERSION || ADS_VERSION_DEFAULT).trim();
+  const headers = { Authorization: 'Bearer ' + access, 'Content-Type': 'application/json' };
+  if (cred.login_customer_id) headers['login-customer-id'] = cred.login_customer_id;
+  const url = 'https://googleads.googleapis.com/' + ver + '/customers/' + cred.customer_id + '/conversionActions:mutate';
+  const res = await (fetchImpl || fetch)(url, { method: 'POST', headers, body: JSON.stringify({ operations: [{ create: { name: REAL_ACTION_NAME, type: 'UPLOAD_CLICKS', category: 'CONTACT', status: 'ENABLED', valueSettings: { defaultValue: 1, alwaysUseDefaultValue: false } } }] }) });
+  const j = await res.json().catch(() => ({}));
+  const rn = String(((j.results || [])[0] || {}).resourceName || ''), id = rn.split('/').pop();
+  await logOps(db, site.id, 1, 'conv_action_create', res.ok);
+  if (!res.ok || !ACTION_RE.test(id)) throw new Error('create ' + res.status);
+  const up = await (fetchImpl || fetch)(url, { method: 'POST', headers, body: JSON.stringify({ operations: [{ update: { resourceName: rn, primaryForGoal: false }, updateMask: 'primary_for_goal' }] }) });
+  await logOps(db, site.id, 1, 'conv_action_secondary', up.ok);
+  if (!up.ok) console.error('real action secondary: ' + up.status);
+  return { id, name: REAL_ACTION_NAME };
 }
 
 // اختيار إجراء موجود، أو إنشاء «Maestro LT – عميل مؤكد» (بزرار العميل)
@@ -126,6 +157,10 @@ export async function dashConvAction(req, env, db, sess, fetchImpl) {
         pick = { id, name: ACTION_NAME };
         await audit(db, sess.user.id, 'conv_action_created', true, site.id + ' ' + cred.customer_id + ' ' + id);
       }
+      // ومعاه «تواصل حقيقي»: ثانوي، مابيدخلش في المزايدة (primary_for_goal = false بتتظبط بـ update بعد الإنشاء)
+      let real = actions.find((a) => a.name === REAL_ACTION_NAME);
+      if (!real) real = await createRealAction(env, db, site, cred, access, fetchImpl).catch((e) => { console.error('real action: ' + short(e)); return null; });
+      if (real) await db.update('ads_credentials?client_id=' + eq(site.id) + '&customer_id=' + eq(cred.customer_id), { real_action_id: real.id, real_action_name: real.name.slice(0, 120) }).catch(() => {});
     } else {
       pick = actions.find((a) => a.id === String(b.action_id || ''));
       if (!pick) return json({ ok: false, error: 'bad_action' }, 400);   // لازم يكون من قايمة جوجل
@@ -144,16 +179,18 @@ export async function dashConvSend(req, env, db, sess, fetchImpl) {
   if (!canManage(sess, site)) return json({ ok: false, error: 'role' }, 403);
   const cred = await credOf(db, site);
   if (!cred) return json({ ok: false, error: 'not_linked' }, 409);
-  if (!cred.conversion_action_id) return json({ ok: false, error: 'no_action' }, 409);
+  // kind 'real' = كل المحادثات الفعلية الجاهزة للإجراء الثانوي (بضغطة صاحب الموقع)
+  const real = b.kind === 'real', actionId = real ? cred.real_action_id : cred.conversion_action_id;
+  if (!actionId) return json({ ok: false, error: 'no_action' }, 409);
   const want = new Set((Array.isArray(b.codes) ? b.codes : []).map(String).filter((c) => CODE_RE.test(c)));
-  if (!want.size) return json({ ok: false, error: 'bad_request' }, 400);
-  const sent = new Set(((await db.select('conv_uploads?client_id=' + eq(site.id) + '&conversion_action_id=' + eq(cred.conversion_action_id) + '&status=eq.sent&select=match_code&limit=5000')) || []).map((r) => r.match_code));
-  const list = (await candidates(db, site)).filter((c) => want.has(c.match_code) && !sent.has(c.match_code)).slice(0, MAX_PER_SEND);
+  if (!real && !want.size) return json({ ok: false, error: 'bad_request' }, 400);
+  const sent = new Set(((await db.select('conv_uploads?client_id=' + eq(site.id) + '&conversion_action_id=' + eq(actionId) + '&status=eq.sent&select=match_code&limit=5000')) || []).map((r) => r.match_code));
+  const list = (await candidates(db, site, null, real ? 'real' : 'won')).filter((c) => (real || want.has(c.match_code)) && !sent.has(c.match_code)).slice(0, MAX_PER_SEND);
   if (!list.length) return json({ ok: false, error: 'nothing' }, 409);
-  const rows = list.map((c) => ({ c, tx: 'mlt-' + site.id + '-' + c.match_code, time: new Date(Date.parse(c.outcome_at || c.at) || Date.parse(c.at)).toISOString() }));
+  const rows = list.map((c) => ({ c, tx: 'mlt-' + (real ? 'r-' : '') + site.id + '-' + c.match_code, time: new Date(Date.parse(c.outcome_at || c.at) || Date.parse(c.at)).toISOString() }));
   const login = cred.login_customer_id || cred.customer_id;
   const body = {
-    destinations: [{ operatingAccount: { accountType: 'GOOGLE_ADS', accountId: cred.customer_id }, loginAccount: { accountType: 'GOOGLE_ADS', accountId: login }, productDestinationId: cred.conversion_action_id }],
+    destinations: [{ operatingAccount: { accountType: 'GOOGLE_ADS', accountId: cred.customer_id }, loginAccount: { accountType: 'GOOGLE_ADS', accountId: login }, productDestinationId: actionId }],
     events: rows.map((r) => ({ adIdentifiers: { gclid: r.c.gclid }, eventTimestamp: r.time, transactionId: r.tx, eventSource: 'WEB' })),
   };
   let status = 0, j = {}, err = null;
@@ -166,9 +203,9 @@ export async function dashConvSend(req, env, db, sess, fetchImpl) {
   // صلاحية datamanager مش موجودة في الربط الحالي ← العميل يعيد الربط
   const scope = status === 403 && /SCOPE|scope/.test(JSON.stringify(j));
   const at = new Date().toISOString();
-  await db.insert('conv_uploads', rows.map((r) => ({ client_id: site.id, match_code: r.c.match_code, customer_id: cred.customer_id, conversion_action_id: cred.conversion_action_id, transaction_id: r.tx, event_time: r.time,
+  await db.insert('conv_uploads', rows.map((r) => ({ client_id: site.id, match_code: r.c.match_code, customer_id: cred.customer_id, conversion_action_id: actionId, transaction_id: r.tx, event_time: r.time,
     status: err ? 'failed' : 'sent', request_id: err ? null : String(j.requestId || '').slice(0, 80) || null, error: err, by_user: sess.user.id, at })), { onConflict: 'client_id,match_code,conversion_action_id', merge: true, returning: false });
-  await audit(db, sess.user.id, 'conv_uploaded', !err, site.id + ' ' + rows.length + (err ? ' ' + err.slice(0, 60) : ''));
+  await audit(db, sess.user.id, 'conv_uploaded', !err, site.id + (real ? ' real ' : ' ') + rows.length + (err ? ' ' + err.slice(0, 60) : ''));
   if (err) return json({ ok: false, error: scope ? 'scope' : 'google', detail: err }, scope ? 403 : 502);
   return json({ ok: true, sent: rows.length, request_id: j.requestId || null, warnings: Array.isArray(j.fieldWarnings) ? j.fieldWarnings.length : 0 });
 }

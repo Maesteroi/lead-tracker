@@ -7,6 +7,7 @@ import { json, tzOffsetMinutes } from './util.js';
 import { sealToken, openToken, tokenKeyReady } from './crypto.js';
 import { accessToken, adsClient, Q, geoId } from './gads.js';
 import { sendTelegram, telegramReady, escHtml } from './telegram.js';
+import { ACTION_NAME as WON_ACTION, REAL_ACTION_NAME as REAL_ACTION } from './convupload.js';
 
 const RETRY_DAYS = 7;        // الأيام اللي فاتت بترجع تتسحب لوحدها لو ناقصة
 const MAX_ATTEMPTS = 3;      // محاولات اليوم الواحد في 24 ساعة
@@ -175,8 +176,22 @@ async function pullDay(env, db, cred, job, ctx) {
       const k = [row.campaign_id, row.ad_group_id, row.keyword, row.match_type, row.search_term].join('\u0001');
       if (terms[k]) { for (const f of ['clicks', 'impressions', 'cost_micros', 'conversions']) terms[k][f] += row[f]; } else terms[k] = row;
     }
-    const termRows = Object.values(terms);
-    await upsert(db, 'ads_search_terms', termRows, 'client_id,customer_id,day,campaign_id,ad_group_id,keyword,match_type,search_term');
+    // النتيجة الفعلية لكل عبارة من جوجل (بعد رفع «عميل مؤكد» و«تواصل حقيقي»): أي فشل هنا مايوقفش السحب
+    try {
+      const wonNames = new Set([WON_ACTION, cred.conversion_action_name].filter(Boolean)), realNames = new Set([REAL_ACTION, cred.real_action_name].filter(Boolean));
+      for (const r of (await api.query(Q.searchTermActions(job.day))).filter(keep)) {
+        const kw = ((r.segments || {}).keyword || {}).info || {}, name = (r.segments || {}).conversionActionName || '';
+        const k = [String((r.campaign || {}).id || ''), String((r.adGroup || {}).id || ''), kw.text || '', kw.matchType || '', (r.searchTermView || {}).searchTerm || ''].join('\u0001');
+        const t = terms[k]; if (!t) continue;
+        const v = num((r.metrics || {}).allConversions);
+        if (wonNames.has(name)) t.won_conv = (t.won_conv || 0) + v;
+        else if (realNames.has(name)) t.real_conv = (t.real_conv || 0) + v;
+      }
+    } catch (e) { console.error('term actions: ' + String(e.message || e).slice(0, 120)); }
+    const termRows = Object.values(terms).map((t) => Object.assign({ won_conv: 0, real_conv: 0 }, t));
+    // قبل 0026 (مفيش عمودي النتيجة): نرفع من غيرهم بدل ما السحب كله يقف
+    await upsert(db, 'ads_search_terms', termRows, 'client_id,customer_id,day,campaign_id,ad_group_id,keyword,match_type,search_term')
+      .catch((e) => { if (!/won_conv|real_conv/.test(String(e && e.message || e))) throw e; return upsert(db, 'ads_search_terms', termRows.map(({ won_conv, real_conv, ...r }) => r), 'client_id,customer_id,day,campaign_id,ad_group_id,keyword,match_type,search_term'); });
     counts.terms = termRows.length;
 
     // الضغطات واحدة واحدة (آخر 90 يوم بس)

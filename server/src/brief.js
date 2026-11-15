@@ -39,7 +39,16 @@ export function briefMatch(brief) {
   };
 }
 
-// أكتر الكلمات اللي بيتكتب بيها في البحث ولسه مااتصنفتش (بالنقرات والصرف)
+// «مجموعات البحث» (15 نوفمبر · بدل «الكلمات المتكررة»): أجزاء العبارات (1–3 كلمات) اللي لسه مااتصنفتش، مرتبة بالفلوس اللي اتصرفت،
+// ولكل جزء نتيجته (تحويل جوجل · محادثة فعلية · «تم») و3 أمثلة. محمود: «انت رابط الكلمة بالنقرات وده غلط».
+export async function searchGroups(terms, brief, limit) {
+  const { aggregateTerms, ngramGroups } = await import('./outcome.js');
+  const m = briefMatch(brief);
+  return ngramGroups(aggregateTerms(terms)).filter((y) => y.cost > 0 && !m.offer(y.text) && !m.excluded(y.text)).slice(0, limit || 16)
+    .map((y) => ({ word: y.text, terms: y.terms.length, sample: y.terms.slice(0, 3), clicks: y.clicks, cost: Math.round(y.cost * 100) / 100, conv: Math.round(y.conv * 10) / 10, real: Math.round(y.real * 10) / 10, won: Math.round(y.won * 10) / 10 }));
+}
+
+// (قديم: بالنقرات) أكتر الكلمات اللي بيتكتب بيها في البحث ولسه مااتصنفتش
 export function frequentWords(terms, brief, limit) {
   const m = briefMatch(brief), known = new Set([...(brief && brief.offer || []), ...(brief && brief.exclude || []).map((x) => x.word)].flatMap((w) => norm(w).split(' ')).map((w) => w.replace(/^(وال|بال|لل|ال)/, '')));   // كل كلمة في العبارات اللي اتصنفت
   const agg = new Map();
@@ -60,8 +69,8 @@ export async function dashBrief(req, env, db, sess, url) {
   if (!site) return notFound();
   const brief = await loadBrief(db, site.id);
   const since = new Date(Date.now() - 30 * 864e5).toISOString().slice(0, 10);
-  const terms = (await db.select('ads_search_terms?client_id=' + eq(site.id) + '&day=gte.' + since + '&select=search_term,clicks,cost_micros,conversions&limit=50000').catch(() => [])) || [];
-  return json({ ok: true, manage: canManage(sess, site), brief: brief || { offer: [], exclude: [], about: '', fears: [] }, empty: !brief, words: frequentWords(terms, brief, 24) });
+  const terms = (await db.select('ads_search_terms?client_id=' + eq(site.id) + '&day=gte.' + since + '&select=*&limit=50000').catch(() => [])) || [];
+  return json({ ok: true, manage: canManage(sess, site), brief: brief || { offer: [], exclude: [], about: '', fears: [] }, empty: !brief, words: await searchGroups(terms, brief, 16) });
 }
 
 export async function dashBriefSave(req, env, db, sess) {

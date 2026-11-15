@@ -15,6 +15,7 @@ import { loadSite, notFound, roleFor } from './sites.js';
 import { audit } from './auth.js';
 import { loadBrief, norm as briefNorm } from './brief.js';
 import { prepare, classify, pickNegative, negBlocks, tok, NONBUYER } from './intent.js';
+import { aggregateTerms, levelOf, ngramGroups, keywordOutcomes, keywordVerdict, resultsAt, hasReal, NO_RESULT_X, NO_CLOSE_MIN } from './outcome.js';
 export const INTENT = NONBUYER;
 
 const DAYS = 30;
@@ -23,78 +24,106 @@ const norm = briefNorm;   // تطبيع واحد للعربي (brief.js)
 async function credOf(db, site) {
   return db.one('ads_credentials?client_id=' + eq(site.id) + '&status=eq.on&select=customer_id,login_customer_id,refresh_token_enc,currency&order=updated_at.desc');
 }
-const micros = (v) => Math.round((Number(v) || 0) / 10000) / 100;
 
-// الاقتراحات (مفيش نداء لجوجل). المنهجية: claude/briefs/2026-11-15-search-campaign-method.md
-//  • من غير وصف للنشاط: «مش مشتري» العامة بس (وظائف · مجانًا …)، ومعاها need_brief.
-//  • بوصف النشاط: مش خدمتك · مش مشتري · بيتابع معاملة · بنفسه · كلمة عامة لوحدها [تامة] · لا تذكر خدمتك (نقرتين أو أكتر) [تامة].
-//  • عبارات الخدمة نفسها (في الصميم · عايز حد يعملها · بيستفهم) مابتتقترحش سلبي أبدًا من أرقام جوجل.
-//  • كل اقتراح معدّي على فحص التعارض، ومعاه نوع المطابقة وأشكال الكتابة.
+// الاقتراحات (مفيش نداء لجوجل). المنهجية: claude/briefs/2026-11-15-keywords-by-outcome.md (بند 5) فوق منهجية الحملة الأساسية.
+// القرار بالفلوس مقارنة بالنتيجة الفعلية، مش بالنقرات:
+//  1) not_offer: مش خدمتك حسب البريف ← سلبية من أول صرف.
+//  2) intent_*: نية مش مشتري / بيتابع معاملة / بنفسه ← سلبية من أول صرف.
+//  3) no_close: تواصل من غير محادثة فعلية ولا «تم» (3 تحويلات جوجل أو أكتر · محتاج بيانات «تواصل حقيقي») ← سلبية «تامة»، حتى لو جوجل محسوبها تحويل.
+//  4) no_result: صرفت 1.5 × تكلفة النتيجة المستهدفة وصفر نتيجة ← «تامة» (عبارات الخدمة نفسها بعد 3 أضعاف).
+//  5) group_*: نفس القاعدتين على جزء متكرر في 3 عبارات أو أكتر ← «عبارة» بفحص التعارض.
+//  • أي عبارة جابت محادثة فعلية أو «تم» ماتبقاش سلبية أبدًا، حتى لو المصنِّف قال غير كده (بتتسجل في disagree).
+//  • generic: كلمة الخدمة لوحدها ← [تامة] (من البريف).
+//  • اللي لسه ماوصلش للحد ← «تحت المراقبة» بالمبلغ الفاضل قبل الحكم.
 export async function suggest(db, site, cred, now) {
   const since = new Date((now || Date.now()) - DAYS * 864e5).toISOString().slice(0, 10);
-  const terms = (await db.select('ads_search_terms?client_id=' + eq(site.id) + '&customer_id=' + eq(cred.customer_id) + '&day=gte.' + since + '&select=search_term,keyword,match_type,campaign_id,campaign_name,clicks,impressions,cost_micros,conversions&limit=50000')) || [];
+  const rows = (await db.select('ads_search_terms?client_id=' + eq(site.id) + '&customer_id=' + eq(cred.customer_id) + '&day=gte.' + since + '&select=*&limit=50000')) || [];
   const decided = new Map(((await db.select('neg_decisions?client_id=' + eq(site.id) + '&select=text,match_type,decision').catch(() => [])) || []).map((d) => [norm(d.text) + '|' + d.match_type, d.decision]));
   const good = await keywordsWithContacts(db, site, cred, since);
   const brief = await loadBrief(db, site.id), b = prepare(brief);
-  const agg = new Map(), kws = new Map();
-  let totClicks = 0, totCost = 0, broadClicks = 0;
-  for (const t of terms) {
-    const k = norm(t.search_term); if (!k) continue;
+  const agg = aggregateTerms(rows), L = levelOf(agg);
+  const kws = new Map();
+  let broadClicks = 0;
+  for (const t of rows) {
     const c = Number(t.clicks) || 0;
-    const x = agg.get(k) || { term: String(t.search_term).trim(), clicks: 0, impr: 0, cost: 0, conv: 0, campaigns: new Map(), keywords: new Set() };
-    x.clicks += c; x.impr += Number(t.impressions) || 0; x.cost += Number(t.cost_micros) || 0; x.conv += Number(t.conversions) || 0;
-    if (t.campaign_id) x.campaigns.set(String(t.campaign_id), t.campaign_name || String(t.campaign_id));
-    if (t.keyword) { x.keywords.add(t.keyword); const kk = norm(t.keyword) + '|' + (t.match_type || ''); const kv = kws.get(kk) || { keyword: t.keyword, match: t.match_type || '', clicks: 0 }; kv.clicks += c; kws.set(kk, kv); }
-    agg.set(k, x); totClicks += c; totCost += Number(t.cost_micros) || 0; if (t.match_type === 'BROAD') broadClicks += c;
+    if (t.keyword) { const kk = norm(t.keyword) + '|' + (t.match_type || ''); const kv = kws.get(kk) || { keyword: t.keyword, match: t.match_type || '', clicks: 0, cost: 0 }; kv.clicks += c; kv.cost += (Number(t.cost_micros) || 0) / 1e6; kws.set(kk, kv); }
+    if (t.match_type === 'BROAD') broadClicks += c;
   }
-  const cpc = totClicks ? totCost / totClicks : 0;
-  // المحمي: كلمات الحساب الشغالة + مفردات الخدمة. الكلمة اللي نيتها مرفوضة أصلًا (فيها «مش خدمتك») مش محمية:
-  // السلبية بتتعرض عادي، ومكتوب جنبها إنها هتمنع الكلمة دي كمان (وهي أصلًا لازم تتوقف)
+  const realData = L.totals.real >= 3 || L.totals.won >= 3;   // فيه رفع «تواصل حقيقي»/«عميل مؤكد» كفاية نحكم بيه على «تواصل من غير محادثة»
+  // المحمي: كلمات الحساب الشغالة + مفردات الخدمة + العبارات اللي جابت نتيجة حقيقية. الكلمة اللي نيتها مرفوضة أصلًا مش محمية
   const BAD = ['adjacent', 'nonbuyer', 'status', 'diy'];
   const kwList = [...kws.values()].map((k) => ({ label: k.keyword, t: tok(k.keyword), bad: b.hasOffer && BAD.includes(classify(k.keyword, b).cls) }));
-  const protectedList = kwList.filter((k) => !k.bad).concat(b.offer.map((o) => ({ label: o.word, t: o.t })));
+  const winners = [...agg.values()].filter(hasReal).map((x) => ({ label: x.term, t: tok(x.term) }));
+  const protectedList = kwList.filter((k) => !k.bad).concat(b.offer.map((o) => ({ label: o.word, t: o.t })), winners);
   const badList = kwList.filter((k) => k.bad);
-  const out = new Map();
-  const audit = { off_cost: 0, adj_cost: 0, adj_conv: 0, adj_clicks: 0, info_clicks: 0, info_cost: 0, unsafe: [] };
+  const out = new Map(), watch = [], disagree = [];
+  const au = { off_cost: 0, adj_cost: 0, adj_conv: 0, adj_clicks: 0, info_clicks: 0, info_cost: 0, unsafe: [] };
   const add = (neg, reason, x, why) => {
     const key = norm(neg.text) + '|' + neg.match;
     if (decided.has(key)) return;
-    const s = out.get(key) || { id: '', text: neg.text, match: neg.match, variants: neg.variants, narrowed: neg.narrowed, reason, why: why || '', clicks: 0, impr: 0, cost: 0, conv: 0, terms: [], campaigns: new Map(), protect: false,
+    const s = out.get(key) || { id: '', text: neg.text, match: neg.match, variants: neg.variants, narrowed: neg.narrowed, reason, why: why || '', clicks: 0, impr: 0, cost: 0, conv: 0, real: 0, won: 0, terms: [], campaigns: new Map(), protect: false,
       blocks_own: badList.filter((k) => negBlocks(tok(neg.text), neg.match, k.t)).map((k) => k.label).slice(0, 3) };
-    s.clicks += x.clicks; s.impr += x.impr; s.cost += x.cost; s.conv += x.conv; if (s.terms.length < 5) s.terms.push(x.term);
-    for (const [id, n] of x.campaigns) s.campaigns.set(id, n);
-    if ([...x.keywords].some((kw) => good.has(norm(kw)))) s.protect = true;
+    for (const f of ['clicks', 'impr', 'cost', 'conv', 'real', 'won']) s[f] += x[f] || 0;
+    for (const tm of x.terms ? x.terms.slice(0, 5) : [x.term]) if (s.terms.length < 5 && !s.terms.includes(tm)) s.terms.push(tm);
+    for (const [id, n] of x.campaigns || []) s.campaigns.set(id, n);
+    if (x.keywords && [...x.keywords.values()].some((kw) => good.has(norm(kw.text)))) s.protect = true;
     out.set(key, s);
   };
-  const marker = (c, reason, x, why) => { const neg = pickNegative(c.marker, x.term, protectedList); if (neg) add(neg, reason, x, why); else if (audit.unsafe.length < 10 && !audit.unsafe.includes(c.marker)) audit.unsafe.push(c.marker); };
+  const exact = (x) => ({ text: x.term, match: 'EXACT', variants: [x.term], narrowed: null });
+  const safeExact = (x) => !protectedList.some((p) => p.label !== x.term && negBlocks(tok(x.term), 'EXACT', p.t));
+  const marker = (c, reason, x, why) => {
+    if (hasReal(x)) { if (disagree.length < 10) disagree.push({ term: x.term, cls: c.cls, real: x.real, won: x.won }); return; }   // النتيجة تكسب المصنِّف
+    const neg = pickNegative(c.marker, x.term, protectedList); if (neg) add(neg, reason, x, why); else if (au.unsafe.length < 10 && !au.unsafe.includes(c.marker)) au.unsafe.push(c.marker);
+  };
+  const T = L.target;
   for (const x of agg.values()) {
     const c = classify(x.term, b);
-    if (c.cls === 'adjacent') { audit.adj_cost += x.cost; audit.adj_conv += x.conv; audit.adj_clicks += x.clicks; marker(c, 'not_offer', x, c.why); continue; }
+    if (c.cls === 'adjacent') { au.adj_cost += x.cost; au.adj_conv += x.conv; au.adj_clicks += x.clicks; marker(c, 'not_offer', x, c.why); continue; }
     if (c.cls === 'nonbuyer') { marker(c, 'intent_' + c.kind, x); continue; }
-    if (c.cls === 'status' || c.cls === 'diy') { if (b.hasOffer) marker(c, 'intent_' + c.cls, x); continue; }
-    if (!b.hasOffer) continue;
-    if (c.cls === 'info' || c.cls === 'topic') { audit.info_clicks += x.clicks; audit.info_cost += x.cost; if (c.cls === 'topic') audit.off_cost += x.cost;
-      // نفس الموضوع ومابتذكرش الخدمة: بنراقبها، ولو صرفت كتير (5 نقرات) من غير ولا تحويل تتقترح «تامة»
-      if (c.cls === 'topic' && x.clicks >= 5 && x.conv === 0 && !protectedList.some((p) => negBlocks(c.t, 'EXACT', p.t))) add({ text: x.term, match: 'EXACT', variants: [x.term], narrowed: null }, 'off_offer', x);
-      continue; }
-    if (c.cls === 'generic') { if (!protectedList.some((p) => negBlocks(c.t, 'EXACT', p.t))) add({ text: x.term, match: 'EXACT', variants: [x.term], narrowed: null }, 'generic', x); continue; }
-    if (c.cls === 'off') {
-      audit.off_cost += x.cost;
-      if (x.clicks >= 2 && x.conv === 0 && !protectedList.some((p) => negBlocks(c.t, 'EXACT', p.t))) add({ text: x.term, match: 'EXACT', variants: [x.term], narrowed: null }, 'off_offer', x);
+    if ((c.cls === 'status' || c.cls === 'diy') && b.hasOffer) { marker(c, 'intent_' + c.cls, x); continue; }
+    if (c.cls === 'generic' && b.hasOffer) { if (!hasReal(x) && safeExact(x)) add(exact(x), 'generic', x); continue; }
+    if (c.cls === 'info' || c.cls === 'topic') { au.info_clicks += x.clicks; au.info_cost += x.cost; }
+    if (c.cls === 'topic' || c.cls === 'off') au.off_cost += x.cost;
+    if (hasReal(x)) continue;
+    // تواصل من غير محادثة فعلية ولا «تم»
+    if (realData && x.conv >= NO_CLOSE_MIN && !['core', 'hire'].includes(c.cls)) { if (safeExact(x)) add(exact(x), 'no_close', x); continue; }
+    // صرف من غير نتيجة (بالمستوى اللي بنحكم بيه)
+    if (T) {
+      const limit = (c.cls === 'core' || c.cls === 'hire' ? 3 : NO_RESULT_X) * T;
+      if (resultsAt(x, L.level) === 0 && x.cost >= limit) { if (safeExact(x)) add(exact(x), 'no_result', x); continue; }
+      if (x.cost >= limit * 0.3 && resultsAt(x, L.level) === 0) watch.push({ term: x.term, cost: round2(x.cost), left: round2(limit - x.cost), clicks: x.clicks });
     }
   }
-  const rank = { not_offer: 0, generic: 1, off_offer: 3 };
-  // من غير نقرة ولا ظهور كفاية = مفيش هدر يتشال: مابيتعرضش (بيقلّل الزحمة)
+  // (ج) الأجزاء المتكررة: 3 عبارات أو أكتر صرفت ضعف تكلفة النتيجة من غير ولا نتيجة ← «عبارة»
+  const groups = ngramGroups(agg);
+  if (T) for (const y of groups) {
+    if (y.terms.length < 3 || hasReal(y) || resultsAt(y, L.level) > 0 || y.cost < 2 * T) continue;
+    if (b.offer.some((o) => negBlocks(o.t, 'PHRASE', tok(y.text)))) continue;   // جزء فيه اسم الخدمة نفسها: مش هنا
+    const neg = pickNegative(y.text, y.terms[0], protectedList);
+    if (neg) add(neg, 'group_no_result', Object.assign({ term: y.terms[0], campaigns: new Map(), impr: 0 }, y));
+  }
+  const rank = { not_offer: 0, no_close: 1, generic: 2, group_no_result: 3, no_result: 4 };
   const list = [...out.values()].filter((s) => s.clicks >= 1 || s.impr >= 30).sort((a, z) => (rank[a.reason] ?? 2) - (rank[z.reason] ?? 2) || z.cost - a.cost);
   for (const s of list) s.id = (await sha256(norm(s.text) + '|' + s.match)).slice(0, 16);
-  // كلمات في الحساب نفسها نيتها مرفوضة (مش خدمتك · مش مشتري · بيتابع · بنفسه)
-  const badKw = b.hasOffer ? [...kws.values()].map((k) => { const c = classify(k.keyword, b); return ['adjacent', 'nonbuyer', 'status', 'diy'].includes(c.cls) ? { keyword: k.keyword, match: k.match, word: c.marker, why: c.why || '', clicks: k.clicks } : null; }).filter(Boolean).slice(0, 10) : [];
-  return { cpc: micros(cpc), total_cost: micros(totCost), terms: agg.size, brief: !!brief, need_brief: !b.hasOffer,
-    suggestions: list.slice(0, 80).map((s) => ({ id: s.id, text: s.text, match: s.match, variants: s.variants, narrowed: s.narrowed, reason: s.reason, why: s.why, clicks: s.clicks, cost: micros(s.cost), conv: Math.round(s.conv * 10) / 10, terms: s.terms, campaigns: [...s.campaigns].map(([id, name]) => ({ id, name })), protect: s.protect, safe: true, blocks_own: s.blocks_own })),
-    waste: micros(list.reduce((a, s) => a + s.cost, 0)),
-    audit: { broad_pct: totClicks ? Math.round((broadClicks / totClicks) * 100) : 0, off_pct: b.hasOffer && totCost ? Math.round(((audit.off_cost + audit.adj_cost) / totCost) * 100) : null, off_cost: micros(audit.off_cost + audit.adj_cost),
-      adj_clicks: audit.adj_clicks, adj_cost: micros(audit.adj_cost), adj_conv: Math.round(audit.adj_conv * 10) / 10, info_clicks: audit.info_clicks, info_cost: micros(audit.info_cost), bad_keywords: badKw, unsafe: audit.unsafe } };
+  const badKw = b.hasOffer ? [...kws.values()].map((k) => { const c = classify(k.keyword, b); return BAD.includes(c.cls) ? { keyword: k.keyword, match: k.match, word: c.marker, why: c.why || '', clicks: k.clicks } : null; }).filter(Boolean).slice(0, 10) : [];
+  // (أ) كلماتك المفتاحية بالنتيجة عندنا
+  const kwo = await keywordOutcomes(db, site, cred, since);
+  const keywords = kwo.map((k) => { const kv = kws.get(norm(k.keyword) + '|' + k.match) || { cost: 0 }; return Object.assign({}, k, { cost: round2(kv.cost), cost_won: k.won ? round2(kv.cost / k.won) : null, cost_convo: k.convos ? round2(kv.cost / k.convos) : null, verdict: keywordVerdict(k, kv.cost, T) }); })
+    .sort((a, z) => z.cost - a.cost).slice(0, 40);
+  const totCost = L.totals.cost, totClicks = L.totals.clicks;
+  return { cpc: totClicks ? round2(totCost / totClicks) : 0, total_cost: totCost, terms: agg.size, brief: !!brief, need_brief: !b.hasOffer,
+    level: L.level, target: T, totals: L.totals, real_data: realData,
+    suggestions: list.slice(0, 80).map((s) => ({ id: s.id, text: s.text, match: s.match, variants: s.variants, narrowed: s.narrowed, reason: s.reason, why: s.why, clicks: s.clicks, cost: round2(s.cost), conv: round1(s.conv), real: round1(s.real), won: round1(s.won),
+      terms: s.terms, campaigns: [...s.campaigns].map(([id, name]) => ({ id, name })), protect: s.protect, blocks_own: s.blocks_own })),
+    waste: round2(list.reduce((a, s) => a + s.cost, 0)),
+    watch: watch.sort((a, z) => z.cost - a.cost).slice(0, 10), disagree,
+    groups: groups.slice(0, 30).map((y) => ({ text: y.text, terms: y.terms.length, sample: y.terms.slice(0, 3), clicks: y.clicks, cost: round2(y.cost), conv: round1(y.conv), real: round1(y.real), won: round1(y.won) })),
+    keywords,
+    audit: { broad_pct: totClicks ? Math.round((broadClicks / totClicks) * 100) : 0, off_pct: b.hasOffer && totCost ? Math.round(((au.off_cost + au.adj_cost) / totCost) * 100) : null, off_cost: round2(au.off_cost + au.adj_cost),
+      adj_clicks: au.adj_clicks, adj_cost: round2(au.adj_cost), adj_conv: round1(au.adj_conv), info_clicks: au.info_clicks, info_cost: round2(au.info_cost), bad_keywords: badKw, unsafe: au.unsafe } };
 }
+const round2 = (v) => Math.round((Number(v) || 0) * 100) / 100;
+const round1 = (v) => Math.round((Number(v) || 0) * 10) / 10;
 
 async function keywordsWithContacts(db, site, cred, since) {
   const clicks = (await db.select('ads_clicks?client_id=' + eq(site.id) + '&customer_id=' + eq(cred.customer_id) + '&day=gte.' + since + '&select=gclid,keyword&limit=20000').catch(() => [])) || [];
