@@ -144,11 +144,12 @@ test('replay page: contact likelihood with evidence — the customer sees the li
   await ev({ event: 'click', click_type: 'wa', match_code: 'AB12', time: '2026-11-12 10:01:00' });
   let d = (await s.gc(s.owner, '/v1/dash/replay?site=' + s.site.id + '&sid=SES12345')).body;
   assert.deepEqual([d.contact.label, d.contact.evidence], ['غير معروفة', null], 'no return yet = unknown; no evidence for the customer');
-  await ev({ event: 'contact_return', click_type: 'wa', match_code: 'AB12', away_seconds: 200, app_opened: 1, time: '2026-11-12 10:05:00' });
+  await ev({ event: 'contact_return', click_type: 'wa', match_code: 'AB12', away_seconds: 200, app_opened: 1, beats: 61, beats_60: 60, wake_pct: 100, os: 'Android', time: '2026-11-12 10:05:00' });
   d = (await s.gc(s.owner, '/v1/dash/replay?site=' + s.site.id + '&sid=SES12345')).body;
   assert.deepEqual([d.contact.title, d.contact.label, d.contact.visit, d.contact.evidence], ['احتمالية التواصل', 'قوية', 'مدة الزيارة: 1 د 35 ث', null]);
   assert.ok(!JSON.stringify(d.contact).includes('رجع للموقع'));
   s.w.fs.t.users.find((u) => u.email === 'owner@example.com').platform_admin = true;
   d = (await s.gc(s.owner, '/v1/dash/replay?site=' + s.site.id + '&sid=SES12345')).body;
-  assert.deepEqual(d.contact.evidence.map((x) => [x.ok, x.text]), [[true, 'ضغط زر الواتساب'], [true, 'رجع للموقع بعد 3 د 20 ث من فتح الواتساب'], [null, 'مدة الزيارة كاملة: 1 د 35 ث'], [null, 'رجع لموقعك بعد 3 د 20 ث من فتح الواتساب، فغالبًا تواصل معك فعلًا']]);
+  assert.deepEqual(d.contact.evidence.map((x) => [x.ok, x.text]), [[true, 'ضغط زر الواتساب'], [true, 'رجع للموقع بعد 3 د 20 ث من فتح الواتساب'], [null, 'مدة الزيارة كاملة: 1 د 35 ث'], [null, 'الشاشة أثناء الغياب (تجريبي): 60 نبضة من 60 متوقعة في أول دقيقة · الجهاز مستيقظ 100% من الوقت، قريب من محادثة فعلية'], [null, 'رجع لموقعك بعد 3 د 20 ث من فتح الواتساب، فغالبًا تواصل معك فعلًا']]);
+  assert.ok(!JSON.stringify((await s.gc(s.other, '/v1/dash/replay?site=' + s.site.id + '&sid=SES12345')).body).includes('نبضة'));
 });

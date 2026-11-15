@@ -392,3 +392,20 @@ test('alert format: the admin panel turns parts on or off per recipient type (wi
   const rs = await s.pc(s.boss, '/v1/platform/tg-templates', { audience: 'owner', reset: true });
   assert.deepEqual([rs.body.fields.place, rs.body.fields.device], [true, true], 'reset to the default');
 });
+
+test('contact lab (trial): screen reading vs the result the site owner picked, last 30 days; platform admin only', async () => {
+  const s = await setup();
+  const ret = (code, o) => s.ev(Object.assign({ event: 'contact_return', click_type: 'wa', match_code: code, away_seconds: 90, app_opened: 1, os: 'Android', session_id: 'S-' + code }, o));
+  await ret('AA11', { beats: 60, beats_60: 60, wake_pct: 100 });
+  await ret('BB22', { beats: 61, beats_60: 60, wake_pct: 98 });
+  await ret('CC33', { beats: 22, beats_60: 22, wake_pct: 70 });
+  await ret('DD44', { beats: 0, beats_60: 0, wake_pct: 100, os: 'iOS' });
+  await ret('EE55', {});
+  await ret('FF66', { app_opened: 0, beats: 0, beats_60: 0 });
+  for (const [code, v] of [['AA11', 'تم'], ['CC33', 'ماوصلش رسالة'], ['DD44', 'بيفكر']]) await s.pc(s.cust, '/v1/dash/outcome', { site: s.site.site.id, code, value: v });
+  assert.equal((await s.gc(s.cust, '/v1/platform/contact-lab')).status, 404);
+  const r = (await s.gc(s.boss, '/v1/platform/contact-lab')).body;
+  const by = Object.fromEntries(r.rows.map((x) => [x.bucket, [x.n, x.won, x.nomsg, x.other, x.open]]));
+  assert.deepEqual(by, { chat: [2, 1, 0, 0, 1], mid: [0, 0, 0, 0, 0], lock: [1, 0, 1, 0, 0], ios: [1, 0, 0, 1, 0], none: [1, 0, 0, 0, 1] });
+  assert.equal(r.total, 5, 'the tap whose app did not open is left out');
+});

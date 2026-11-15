@@ -13,6 +13,7 @@ import { dashConv, dashConvActions, dashConvAction, dashConvSend } from './convu
 import { dashTg, dashTgInvite, dashTgRemove } from './tglinks.js';
 import { tgTemplatesGet, tgTemplatesSave } from './tgtemplates.js';
 import { previewText } from './notify.js';
+import { contactLab } from './contactlab.js';
 
 const SITE_ACT = /^\/v1\/sites\/([A-Za-z0-9]{6,20})\/(rotate-key|install-status|pair-code)$/;
 const ORG_ACT = /^\/v1\/platform\/orgs\/([^/]+)$/;
@@ -67,6 +68,7 @@ export async function handleApp(req, env, db, url, p, fetchImpl) {
     else if (m === 'GET' && p === '/v1/platform/tg-templates') res = await tgTemplatesGet(req, env, db, sess);
     else if (m === 'POST' && p === '/v1/platform/tg-templates') res = await tgTemplatesSave(req, env, db, sess);
     else if (m === 'POST' && p === '/v1/platform/tg-templates/preview') res = await tgPreview(req, sess);
+    else if (m === 'GET' && p === '/v1/platform/contact-lab') res = await contactLab(req, env, db, sess);
     else res = notFound();
     return finish(res, req, env, true);
   }

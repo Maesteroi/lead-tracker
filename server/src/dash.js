@@ -13,7 +13,7 @@ import { loadSite, notFound, roleFor, visibleSites, isPlatform } from './sites.j
 import { deliveryRows, riyadhDay } from './health.js';
 import { OUTCOMES } from './notify.js';
 import { audit } from './auth.js';
-import { scoreSession, reasonGroup, outsideTarget, contactStrength, targetCountries } from './score.js';
+import { scoreSession, reasonGroup, outsideTarget, contactStrength, targetCountries, screenAwake } from './score.js';
 import { tr, countryName, langOf, duration } from './i18n.js';
 import { replaySet, loadReplay } from './replay.js';
 import { adsState } from './adslink.js';
@@ -285,6 +285,8 @@ async function contactEvidence(db, siteId, sid, v, sess, lang) {
   else if (st.key === 'no_app') ev.push({ ok: false, text: tr(lang, 'ev.noapp', { ch }) });
   else ev.push({ ok: st.key === 'strong' ? true : st.key === 'weak' ? false : null, text: tr(lang, 'ev.back', { t: duration(lang, Math.round(Number((ret.payload || {}).away_seconds) || 0)), ch }) });
   if (visit) ev.push({ ok: null, text: tr(lang, 's.visit.full', { t: visit }) });
+  const sa = ret ? screenAwake(ret.payload || {}, v.os) : null;
+  if (sa) ev.push({ ok: null, trial: true, text: sa.bucket === 'ios' ? tr(lang, 'ev.screen.ios') : tr(lang, 'ev.screen', { n: sa.beats60, m: sa.expected, w: sa.wake == null ? '—' : sa.wake, v: tr(lang, 'ev.screen.' + sa.bucket) }) });
   if (st) ev.push({ ok: null, text: st.detail });
   return Object.assign(out, { key: st ? st.key : 'unknown', label: st ? st.label : tr(lang, 's.unknown'), evidence: ev });
 }

@@ -3,7 +3,7 @@
  * Plugin Name:       Lead Tracker Pro
  * Plugin URI:        https://leadtrackerpro.com
  * Description:       تتبع احترافي لكل زيارة ونقرة اتصال/واتساب + تكامل كامل مع WooCommerce (شراء · سلة · دفع). يحفظ في Google Sheet + إشعارات Telegram. بدون GA4 ولا اشتراكات.
- * Version:           2.13.4
+ * Version:           2.13.5
  * Requires at least: 5.8
  * Requires PHP:      7.4
  * Update URI:        https://app.maestrolt.com/plugin/
@@ -17,7 +17,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('LTP_VERSION', '2.13.4');
+define('LTP_VERSION', '2.13.5');
 define('LTP_FILE', __FILE__);
 define('LTP_PATH', plugin_dir_path(__FILE__));
 define('LTP_URL', plugin_dir_url(__FILE__));

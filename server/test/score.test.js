@@ -93,3 +93,13 @@ test('contact strength wording (Mahmoud 12 Nov): "came back to your site after X
   assert.equal(contactStrength(331, 1, 'ar', 'call').away, 'مدة الاتصال: 5 د 31 ث');
   assert.equal(contactStrength(90, 1, 'en', 'wa').customer.label, 'Strong');
 });
+
+test('screen while away (trial, Mahmoud\'s test 13 Nov): chat 60/60 · locked 23/60 · in between · iPhone has no beats · no numbers = null', async () => {
+  const { screenAwake } = await import('../src/score.js');
+  assert.equal(screenAwake({ away_seconds: 82, beats: 60, beats_60: 60, wake_pct: 100 }, 'Android').bucket, 'chat');
+  assert.equal(screenAwake({ away_seconds: 87, beats: 23, beats_60: 23, wake_pct: 75 }, 'Android').bucket, 'lock');
+  assert.equal(screenAwake({ away_seconds: 90, beats: 36, beats_60: 36, wake_pct: 90 }, 'Android').bucket, 'mid');
+  assert.equal(screenAwake({ away_seconds: 20, beats: 19, beats_60: 19, wake_pct: 100 }, 'Android').bucket, 'chat', 'short absence: expected beats = seconds away');
+  assert.equal(screenAwake({ away_seconds: 123, beats: 0, beats_60: 0, wake_pct: 100 }, 'iOS').bucket, 'ios');
+  assert.equal(screenAwake({ away_seconds: 80 }, 'Android'), null);
+});

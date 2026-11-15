@@ -116,23 +116,44 @@
     // ───────────── 2.13.1: قوة التواصل (تقديري) ─────────────
     // بعد ضغطة واتساب أو اتصال: الصفحة استخبت (التطبيق اتفتح)؟ والزائر رجع بعد قد إيه؟ رجوع في ثواني = غالباً ضغطة بالغلط،
     // وغياب دقيقة أو أكتر = كلّمك فعلاً غالباً. ده تقدير (الوقت بره الصفحة مش مدة المكالمة نفسها)، والقياس الحقيقي من تطبيق الموبايل.
+    // 2.13.5 (تجريبي، 13 نوفمبر): «الشاشة كانت شغالة؟» وقت الغياب. نبضة كل ثانية والصفحة في الخلفية: على أندرويد بتقف
+    // لما الشاشة تتقفل (تجربة محمود: محادثة 60 نبضة في الدقيقة الأولى، شاشة مقفولة 23). ومعاها نسبة الصحيان
+    // (ساعة الشغل performance.now مقابل الوقت الحقيقي). بيتسجلوا بس، وبيظهروا لإدارة المنصة لحد ما الأرقام الحقيقية تثبتهم.
     var RET = null;
+    function saveRet_() { st(SS, 'ltp_ret', JSON.stringify({ ct: RET.ct, mc: RET.mc, t: RET.t, hid: RET.hid, sent: RET.sent })); }
     function armReturn_(ct, mc) {
+      if (RET && RET.bt) clearInterval(RET.bt);
       RET = { ct: ct, mc: mc || '', t: Date.now(), hid: 0, sent: false };
-      st(SS, 'ltp_ret', JSON.stringify(RET));
+      saveRet_();
       setTimeout(function () { if (RET && !RET.hid && !RET.sent && document.visibilityState === 'visible') sendReturn_(0, 0); }, 8000);
     }
-    function sendReturn_(away, opened) {
+    function clock_() {
+      if (!RET || !RET.hid || RET.mh == null || !RET.b) return null;
+      var now = Date.now(), wall = now - RET.hid, mono = (window.performance ? performance.now() : 0) - RET.mh;
+      var b60 = 0, gap = 0, prev = RET.hid;
+      for (var i = 0; i < RET.b.length; i++) { if (RET.b[i] - RET.hid <= 60000) b60++; gap = Math.max(gap, RET.b[i] - prev); prev = RET.b[i]; }
+      gap = Math.max(gap, now - prev);
+      return { wake: wall > 0 ? Math.max(0, Math.min(100, Math.round((mono / wall) * 100))) : null, bt: RET.b.length, bt60: b60, gap: Math.round(gap / 1000) };
+    }
+    function sendReturn_(away, opened, ex) {
       if (!RET || RET.sent) return;
       RET.sent = true; rm(SS, 'ltp_ret');
+      if (RET.bt) { clearInterval(RET.bt); RET.bt = 0; }
       var b = base('contact_return');
       b.ct = RET.ct; b.mc = RET.mc; b.away = Math.max(0, Math.min(86400, Math.round(away))); b.opened = opened ? 1 : 0;
+      if (ex) { if (ex.wake != null) b.wake = ex.wake; b.bt = ex.bt; b.bt60 = ex.bt60; b.gap = ex.gap; }
       send(b);
     }
     document.addEventListener('visibilitychange', function () {
       if (!RET || RET.sent) return;
-      if (document.visibilityState === 'hidden') { if (!RET.hid && Date.now() - RET.t < 15000) { RET.hid = Date.now(); st(SS, 'ltp_ret', JSON.stringify(RET)); } }
-      else if (RET.hid) sendReturn_((Date.now() - RET.hid) / 1000, 1);
+      if (document.visibilityState === 'hidden') {
+        if (!RET.hid && Date.now() - RET.t < 15000) {
+          RET.hid = Date.now(); RET.mh = window.performance ? performance.now() : null; RET.b = [];
+          RET.bt = setInterval(function () { if (RET && !RET.sent && RET.b.length < 7200) RET.b.push(Date.now()); }, 1000);
+          saveRet_();
+        }
+      }
+      else if (RET.hid) sendReturn_((Date.now() - RET.hid) / 1000, 1, clock_());
     });
     // المتصفح فتح الصفحة من الأول وهو راجع (بدل ما يكمّل): نحسب من وقت ما ساب
     setTimeout(function () {

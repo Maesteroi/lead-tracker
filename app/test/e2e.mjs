@@ -45,6 +45,7 @@ function fakeApi(over) {
       if (p === '/v1/platform/tg-templates/preview') { const b = JSON.parse(req.postData()); return j(200, { ok: true, buttons: b.fields.actions !== false, text: '🌐 <b>الإنجاز السريع</b>\n💬 واتساب · رمز <b>#9B5W</b>' + (b.fields.place !== false ? '\n📍 الدمام، السعودية' : '') + (b.fields.gclid !== false ? '\n🎯 GCLID: <code>Cj0KCQ...</code>' : '') }); }
       if (p === '/v1/platform/tg-templates' && req.method() === 'POST') { const b = JSON.parse(req.postData()); st.tplSaved = (st.tplSaved || []).concat([b]); return j(200, { ok: true, audience: b.audience, fields: b.fields }); }
       if (p === '/v1/platform/tg-templates') { const F = [['place', 'المكان'], ['gclid', 'رقم النقرة من جوجل (GCLID)'], ['actions', 'أزرار النتيجة']]; const own = { place: true, gclid: false, actions: true }, all = { place: true, gclid: true, actions: true }; return j(200, { ok: true, fields: F.map((x) => ({ key: x[0], label: x[1] })), audiences: { owner: Object.assign({}, own), staff: Object.assign({}, own), platform: Object.assign({}, all) }, defaults: { owner: own, staff: own, platform: all } }); }
+      if (p === '/v1/platform/contact-lab') return j(200, { ok: true, days: 30, total: 9, rows: [{ bucket: 'chat', n: 5, won: 3, nomsg: 0, other: 1, open: 1, won_pct: 75, nomsg_pct: 0 }, { bucket: 'mid', n: 0, won: 0, nomsg: 0, other: 0, open: 0, won_pct: null, nomsg_pct: null }, { bucket: 'lock', n: 3, won: 0, nomsg: 2, other: 1, open: 0, won_pct: 0, nomsg_pct: 67 }, { bucket: 'ios', n: 1, won: 0, nomsg: 0, other: 0, open: 1, won_pct: null, nomsg_pct: null }, { bucket: 'none', n: 0, won: 0, nomsg: 0, other: 0, open: 0, won_pct: null, nomsg_pct: null }] });
       if (p === '/v1/platform/team') return j(200, st.team);
       if (p === '/v1/platform/audit') return j(200, { ok: true, events: [{ at: new Date().toISOString(), kind: 'platform_role_create', ok: true, reason: 'دعم: orgs_view', who: 'محمود' }, { at: new Date().toISOString(), kind: 'verdict_set', ok: true, reason: 'SiteId BOT1 fraud', who: 'سارة' }] });
       if (p.startsWith('/v1/platform/roles') || p.startsWith('/v1/platform/invites') || p === '/v1/platform/members') {
@@ -836,6 +837,10 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
   await pg.waitForFunction(() => /حُفظ شكل تنبيهات/.test(document.getElementById('toast').textContent));
   t('admin «alert format»: turning «place» off updates the preview, and saving sends it for the site owner type', api.tplSaved[0].audience === 'owner' && api.tplSaved[0].fields.place === false);
   await shot(pg, 'admin-alerts');
+  await pg.locator('#tab-btn-lab').click();
+  await pg.waitForSelector('#tab-lab table tbody tr');
+  t('admin «contact measurement (trial)»: screen reading vs results, with the «no message» rate per reading', (await pg.locator('#tab-lab tbody tr').count()) === 5 && /قريب من شاشة مقفولة/.test(await pg.locator('#tab-lab').innerText()) && /67%/.test(await pg.locator('#tab-lab').innerText()));
+  await shot(pg, 'admin-lab');
   t('super admin: no console errors or CSP violations', pg.errors.length === 0 && pg.csp.length === 0);
   await pg.context().close(); }
 

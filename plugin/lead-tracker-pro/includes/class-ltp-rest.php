@@ -214,6 +214,11 @@ class LTP_Rest {
                 // 2.13.1: قوة التواصل (تقديري): غاب عن الصفحة قد إيه بعد ضغطة الواتساب أو الاتصال، وهل التطبيق اتفتح أصلاً
                 'away_seconds' => $event === 'contact_return' ? min(86400, absint($r->get_param('away'))) : 0,
                 'app_opened'   => $event === 'contact_return' ? (absint($r->get_param('opened')) ? 1 : 0) : 0,
+                // 2.13.5 (تجريبي): الشاشة كانت شغالة وقت الغياب؟ نسبة الصحيان · النبضات (كلها وفي أول دقيقة) · أطول فجوة
+                'wake_pct'     => $event === 'contact_return' && $r->get_param('wake') !== null ? min(100, absint($r->get_param('wake'))) : null,
+                'beats'        => $event === 'contact_return' && $r->get_param('bt') !== null ? min(7200, absint($r->get_param('bt'))) : null,
+                'beats_60'     => $event === 'contact_return' && $r->get_param('bt60') !== null ? min(80, absint($r->get_param('bt60'))) : null,
+                'beat_gap'     => $event === 'contact_return' && $r->get_param('gap') !== null ? min(86400, absint($r->get_param('gap'))) : null,
                 'webdriver'    => absint($r->get_param('wd')) ? 1 : 0,
                 'automation'   => $auto,
                 'page_load_ms' => absint($r->get_param('plms')),
