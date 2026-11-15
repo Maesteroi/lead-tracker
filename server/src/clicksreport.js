@@ -7,6 +7,7 @@ import { escHtml as esc } from './telegram.js';
 import { riyadhDay } from './health.js';
 import { scoredSessions } from './dash.js';
 import { targetCountries } from './score.js';
+import { adsEnabled } from './ads.js';
 
 const CALL = new Set(['CALLS', 'MOBILE_CALL_TRACKING', 'CALL_TRACKING', 'LOCATION_FORMAT_CALL']);
 const MAP = new Set(['GET_DIRECTIONS', 'LOCATION_EXPANSION', 'LOCATION_FORMAT_DIRECTIONS', 'LOCATION_FORMAT_MAP', 'LOCATION_FORMAT_STORE_INFO', 'LOCATION_FORMAT_TEXT', 'LOCATION_FORMAT_IMAGE']);
@@ -79,7 +80,7 @@ export function clicksText(name, day, d) {
 
 // الكرون: لكل موقع مربوط، بعد ما يوم أمس يتسحب، مرة واحدة
 export async function dailyClicksReports(env, db, fetchImpl, nowMs) {
-  if (!env.TG_TOKEN || !env.TG_CHAT_ID || String(env.TG_ALERTS || '').toLowerCase() === 'off') return { skipped: 'off' };
+  if (!env.TG_TOKEN || !env.TG_CHAT_ID || String(env.TG_ALERTS || '').toLowerCase() === 'off' || !adsEnabled(env)) return { skipped: 'off' };
   const day = riyadhDay((nowMs || Date.now()) - 864e5);
   const creds = (await db.select('ads_credentials?status=eq.on&last_ok_day=gte.' + day + '&select=client_id,customer_id,last_ok_day')) || [];
   let sent = 0;

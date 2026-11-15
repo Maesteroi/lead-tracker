@@ -30,7 +30,7 @@ async function setup() {
 test('daily clicks report: one message per site to Mahmoud after yesterday is pulled, with arrival %, the gap, contact and agreed, outside places and top keywords', async () => {
   const s = await setup();
   const sent = [];
-  const env = Object.assign({}, s.env, { TG_ALERTS: 'on', TG_TOKEN: '123:abc', TG_CHAT_ID: '5550001' });
+  const env = Object.assign({}, s.env, { TG_ALERTS: 'on', TG_TOKEN: '123:abc', TG_CHAT_ID: '5550001', ADS_PULL_ENABLED: '1', TOKEN_ENC_KEY: Buffer.alloc(32, 1).toString('base64'), GOOGLE_CLIENT_ID: 'cid', GOOGLE_CLIENT_SECRET: 'cs' });
   const f = async (url, init) => { if (String(url).includes('api.telegram.org')) { sent.push(JSON.parse(init.body)); return Response.json({ ok: true, result: { message_id: 1 } }); } return s.w.f(url, init); };
   const { Db } = await import('../src/db.js');
   const db = new Db(env, f);
