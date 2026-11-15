@@ -48,7 +48,7 @@ function fakeApi(over) {
       if (p === '/v1/platform/contact-lab') return j(200, { ok: true, days: 30, total: 9, rows: [{ bucket: 'chat', n: 5, won: 3, nomsg: 0, other: 1, open: 1, won_pct: 75, nomsg_pct: 0 }, { bucket: 'mid', n: 0, won: 0, nomsg: 0, other: 0, open: 0, won_pct: null, nomsg_pct: null }, { bucket: 'lock', n: 3, won: 0, nomsg: 2, other: 1, open: 0, won_pct: 0, nomsg_pct: 67 }, { bucket: 'ios', n: 1, won: 0, nomsg: 0, other: 0, open: 1, won_pct: null, nomsg_pct: null }, { bucket: 'none', n: 0, won: 0, nomsg: 0, other: 0, open: 0, won_pct: null, nomsg_pct: null }] });
       if (p === '/v1/platform/billing/method') { const b = JSON.parse(req.postData()); st.blCalls = (st.blCalls || []).concat([b]); return b.details && b.details.numbers && !b.details.numbers.every((x) => /^01[0125]\d{8}$/.test(x)) ? j(400, { ok: false, error: 'numbers' }) : j(200, { ok: true, id: 'm-new' }); }
       if (p.startsWith('/v1/platform/billing/')) { st.blCalls = (st.blCalls || []).concat([Object.assign({ path: p }, JSON.parse(req.postData() || '{}'))]); return j(200, { ok: true }); }
-      if (p === '/v1/platform/billing') return j(200, { ok: true, super: true, founders: { used: 3, limit: 100 }, settings: { trial_days: 7, annual_months: 10, founders_limit: 100, founders_pct: 50, founders_months: 12, founders_after_pct: 20 }, plans: [{ id: 'basic', sites: 1, clicks: 2000, prices: { SAR: 149, EGP: 1499, AED: 149 } }, { id: 'pro', sites: 3, clicks: 10000, prices: { SAR: 349, EGP: 3499, AED: 349 } }, { id: 'agency', sites: 10, clicks: 40000, prices: { SAR: 899, EGP: 8999, AED: 899 } }], methods: [{ id: 'm1', owner_id: null, kind: 'instapay', enabled: true, label: '', details: { handle: 'maestro@instapay', name: 'Maestro' }, currencies: ['EGP'] }], members: [{ user_id: 'u9', email: 'sara@maestro.example', name: 'سارة', own_payments: false }] });
+      if (p === '/v1/platform/billing') return j(200, { ok: true, super: true, founders: { used: 3, limit: 100 }, settings: { trial_days: 7, annual_months: 10, founders_limit: 100, founders_pct: 50, founders_months: 12, founders_after_pct: 20 }, plans: [{ id: 'basic', sites: 1, clicks: 2000, prices: { SAR: 149, EGP: 1499, AED: 149 } }, { id: 'pro', sites: 3, clicks: 10000, prices: { SAR: 349, EGP: 3499, AED: 349 } }, { id: 'agency', sites: 10, clicks: 40000, prices: { SAR: 899, EGP: 8999, AED: 899 } }], methods: [{ id: 'm1', owner_id: null, kind: 'instapay', enabled: true, label: '', details: { handle: 'maestro@instapay', name: 'Maestro' }, currencies: ['EGP'] }], members: [{ user_id: 'u9', email: 'sara@maestro.example', name: 'سارة', own_payments: false }], fx_source: 'https://www.exchangerate-api.com', countries: [{ country: 'EG', currency: 'EGP', mode: 'fixed', round_to: 1, rate: null, preview: { basic: 1499, pro: 3499, agency: 8999 } }, { country: 'SA', currency: 'SAR', mode: 'fixed', round_to: 1, rate: null, preview: { basic: 149, pro: 349, agency: 899 } }, { country: '*', currency: 'USD', mode: 'fixed', round_to: 1, rate: null, preview: { basic: null, pro: null, agency: null } }], rates: { EGP: 53.44 } });
       // المدفوعات (payments.js)
       if (p === '/v1/platform/payments') return j(200, { ok: true, status: u.searchParams.get('status'), payments: (u.searchParams.get('status') || 'pending') === 'pending' && !st.payReviewed ? [{ id: 'pay-1', org: { id: 'o1', name: 'شادو ديزاين', plan: null, status: 'trial' }, plan: 'pro', period: 'year', amount: 17495, currency: 'EGP', method: { kind: 'instapay', label: '' }, ref: 'IPN-778899', dup: true, founder: true, discount: 50, status: 'pending', reason: '', at: new Date(Date.now() - 21 * 36e5).toISOString(), hours: 21 }] : [] });
       if (p === '/v1/platform/payments/receipt') return j(200, { ok: true, src: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==' });
@@ -87,7 +87,7 @@ function fakeApi(over) {
       // الاشتراك والدفع بالإيصال (billing.js · payments.js)
       if (p === '/v1/dash/billing') return j(200, { ok: true, manage: true, currency: 'EGP', org: { id: 'org-1', name: 'شادو', status: 'trial', plan: null, trial_ends_at: new Date(Date.now() + 2.5 * 864e5).toISOString(), plan_period_end: null, founder: false },
         settings: { trial_days: 7, annual_months: 10, founders_months: 12, founders_after_pct: 20 }, founders: { left: 87, limit: 100, pct: 50 },
-        plans: [['basic', 1, 2000, 1499], ['pro', 3, 10000, 3499], ['agency', 10, 40000, 8999]].map(([id, sites, clicks, m]) => ({ id, sites, clicks, price: { currency: 'EGP', monthly: m, yearly: m * 10, discount: 50, monthly_now: m / 2, yearly_now: m * 5 } })),
+        plans: [['basic', 1, 2000, 1499], ['pro', 3, 10000, 3499], ['agency', 10, 40000, 500]].map(([id, sites, clicks, m]) => Object.assign({ id, sites, clicks, unit: 'account', min_units: 1, price: { currency: 'EGP', monthly: m, yearly: m * 10, discount: 50, monthly_now: m / 2, yearly_now: m * 5 } }, id === 'agency' ? { unit: 'project', min_units: 4, campaigns_per_unit: 2 } : {})),
         methods: [{ id: 'm-ip', kind: 'instapay', label: '', details: { handle: 'maestro@instapay', name: 'Maestro LT' } }, { id: 'm-vf', kind: 'vodafone_cash', label: '', details: { numbers: ['01012345678'], name: 'Maestro LT' } }],
         payments: st.paid ? [{ id: 'p1', plan: 'pro', period: 'year', amount: 17495, currency: 'EGP', status: 'pending', reason: '', discount: 50, at: new Date().toISOString() }] : [{ id: 'p0', plan: 'basic', period: 'month', amount: 749.5, currency: 'EGP', status: 'rejected', reason: 'المبلغ غير مطابق', discount: 50, at: new Date(Date.now() - 864e5).toISOString() }] });
       if (p === '/v1/dash/billing/pay') { const b = JSON.parse(req.postData()); st.payCalls = (st.payCalls || []).concat([Object.assign({ csrf: req.headers()['x-csrf-token'] }, b)]); if (b.ref === 'USED-0001') return j(409, { ok: false, error: 'ref_used' }); st.paid = true; return j(200, { ok: true, status: 'pending', amount: 17495, currency: 'EGP' }); }
@@ -667,6 +667,19 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
   if (pg.errors.length || pg.csp.length) console.log(pg.errors, pg.csp);
   await pg.context().close(); }
 
+// 26) شريط الاشتراك فوق الصفحات (15 نوفمبر): قبل نهاية التجربة بـ3 أيام · بعد نهايتها · مش في صفحة الاشتراك نفسها
+for (const [days, kind, re] of [[1.5, 'warn', /متبقٍ يومين من تجربتك/], [-1, 'bad', /انتهت التجربة، والحماية متوقفة/], [5, null, null]]) {
+  const api = fakeApi({ signedIn: true, orgs: [{ id: 'org-1', name: 'شادو', role: 'owner', type: 'business', status: 'trial', trial_ends_at: new Date(Date.now() + days * 864e5).toISOString() }], sites: [{ id: 'SiteId123456', name: 'شادو', domains: ['shado.design'], paired: true, org_id: 'org-1' }] });
+  const pg = await page(api, { viewport: { width: 1200, height: 800 } });
+  await pg.goto('https://app.maestrolt.com/#/negatives');
+  await pg.waitForSelector('.neg-item');
+  if (kind) {
+    t('subscription bar: ' + (kind === 'warn' ? '2 days left in the trial (warning)' : 'trial over, protection off (red)') + ', with a button to the subscription page', (await pg.locator('.trial-bar.' + kind).count()) === 1 && re.test(await pg.locator('.trial-bar').innerText()) && (await pg.locator('.trial-bar a[href="#/billing"]').count()) === 1);
+    if (kind === 'warn') { await shot(pg, 'trial-bar'); await pg.locator('.trial-bar a').click(); await pg.waitForSelector('.bl-plan'); t('subscription bar: hidden on the subscription page itself', (await pg.locator('.trial-bar').count()) === 0); }
+  } else t('subscription bar: 5 trial days left = no bar yet', (await pg.locator('.trial-bar').count()) === 0);
+  await pg.context().close();
+}
+
 // 25) الاشتراك والدفع بالإيصال (15 نوفمبر): الحالة · عرض المؤسسين · الباقات · الوسيلة والمبلغ · رقم العملية والإيصال · قيد المراجعة
 { const api = fakeApi({ signedIn: true, sites: [{ id: 'SiteId123456', name: 'شادو', domains: ['shado.design'], paired: true, org_id: 'org-1' }] });
   const pg = await page(api, { viewport: { width: 1200, height: 900 } });
@@ -675,6 +688,10 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
   const v0 = await pg.locator('#view').innerText();
   t('billing: the trial with days left, the launch offer with seats left, three plans in EGP with the old price struck through', /متبقٍ 3 أيام|متبقٍ يومين/.test(v0) && /عرض الإطلاق: خصم 50%/.test(v0) && /متبقٍ 87 مقعدًا من 100/.test(v0) && (await pg.locator('.bl-plan').count()) === 3 && /749.5 ج.م/.test(await pg.locator('.bl-plan').first().innerText()) && (await pg.locator('.bl-plan s').count()) === 3);
   t('billing: past payments show the rejection reason', /مرفوض/.test(v0) && /المبلغ غير مطابق/.test(v0));
+  const ag = pg.locator('.bl-plan').nth(2);
+  t('billing: the agency plan is per project — 250 per project, at least 4, total for 4 = 1,000; «+» makes it 5', /250 ج.م/.test(await ag.innerText()) && /للمشروع/.test(await ag.innerText()) && /الحد الأدنى 4 مشاريع/.test(await ag.innerText()) && /رابط واحد/.test(await ag.innerText()) && /الإجمالي: 1,000 ج.م/.test(await ag.innerText()) && await ag.getByRole('button', { name: 'أقل' }).isDisabled());
+  await ag.getByRole('button', { name: 'أكثر' }).click();
+  t('billing: … five projects = 1,250', /الإجمالي: 1,250 ج.م/.test(await pg.locator('.bl-plan').nth(2).innerText()));
   await pg.getByRole('button', { name: /سنوي/ }).click();
   t('billing: yearly = 10 months (save 2), and the monthly equivalent is shown', /17,495 ج.م/.test(await pg.locator('.bl-plan.best').innerText()) && /وفّر شهرين/.test(await pg.locator('.bl-period').innerText()));
   await pg.locator('.bl-plan.best').getByRole('button', { name: 'اختر هذه الباقة' }).click();
@@ -958,12 +975,21 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
   await pg.locator('#tab-billing .bl-tbl tbody tr').nth(1).getByRole('button', { name: 'احفظ' }).click();
   await pg.waitForFunction(() => /تم الحفظ/.test(document.getElementById('toast').textContent));
   t('admin «plans & payment»: changing the Growth SAR price sends it for that plan', (() => { const c = api.blCalls.find((x) => x.path === '/v1/platform/billing/plan'); return c && c.id === 'pro' && c.prices.SAR === 299 && c.prices.EGP === 3499; })());
-  await pg.locator('.bl-add select').selectOption('vodafone_cash');
-  await pg.locator('.bl-add input').first().fill('12345');
-  await pg.locator('.bl-add').getByRole('button', { name: 'أضف' }).click();
+  await pg.locator('.bl-add:not(.cp-add) select').selectOption('vodafone_cash');
+  await pg.locator('.bl-add:not(.cp-add) input').first().fill('12345');
+  await pg.locator('.bl-add:not(.cp-add)').getByRole('button', { name: 'أضف' }).click();
   await pg.waitForFunction(() => /رقم المحفظة غير صحيح/.test(document.getElementById('toast').textContent));
   t('admin «plans & payment»: a wrong wallet number is refused with a clear message', true);
   await shot(pg, 'admin-billing');
+  // العملة حسب البلد
+  const cp = pg.locator('.cp-row');
+  t('currency by country: Egypt, Saudi and «the rest of the world», each with its currency; a warning that USD prices are missing', (await cp.count()) === 3 && /مصر/.test(await cp.nth(0).innerText()) && /باقي الدول/.test(await cp.nth(2).innerText()) && /حدّد سعر كل باقة بالدولار/.test(await pg.locator('#tab-billing').innerText()) && /Rates By Exchange Rate API/.test(await pg.locator('#tab-billing').innerText()));
+  await cp.nth(0).getByRole('button', { name: 'حسب الدولار' }).click();
+  await cp.nth(0).locator('.cp-rnd').fill('10');
+  await cp.nth(0).getByRole('button', { name: 'احفظ' }).click();
+  await pg.waitForFunction(() => /تم الحفظ/.test(document.getElementById('toast').textContent));
+  t('currency by country: switching Egypt to «by the dollar», rounded to 10, is saved for that country', (() => { const c = api.blCalls.filter((x) => x.path === '/v1/platform/billing/country').pop(); return c && c.country === 'EG' && c.currency === 'EGP' && c.mode === 'usd' && c.round_to === 10; })());
+  if (SHOTS) await pg.locator('section.panel-card', { has: pg.locator('.cp-row') }).screenshot({ path: path.join(SHOTS, 'admin-currency.png') });
   // المدفوعات: الإيصال المستني فوق
   t('admin payments: the waiting receipt on top — account, plan, amount, founders offer, «same picture uploaded before», «waiting 21 hours»', /شادو ديزاين/.test(await pg.locator('.pay-item').innerText()) && /17,495 EGP/.test(await pg.locator('.pay-item').innerText()) && /الصورة نفسها رُفعت من قبل/.test(await pg.locator('.pay-item').innerText()) && /منتظر منذ 21 ساعة/.test(await pg.locator('.pay-item').innerText()) && (await pg.locator('.pay-item.late').count()) === 1);
   await pg.getByRole('button', { name: 'اعرض الإيصال' }).click();

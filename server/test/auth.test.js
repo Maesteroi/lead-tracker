@@ -64,7 +64,7 @@ test('first login creates user + trial account + owner role, and a hardened sess
   assert.equal(t.users[0].email, 'owner@example.com');                                            // الإيميل lowercase
   assert.equal(t.memberships[0].role, 'owner'); assert.equal(t.organizations[0].status, 'trial');
   const days = (Date.parse(t.organizations[0].trial_ends_at) - Date.now()) / 86400000;
-  assert.ok(days > 13.9 && days <= 14.01);
+  assert.ok(days > 6.9 && days <= 7.01, 'the trial is 7 days (billing settings default), not 14');
   const m = await me(w, r.sess);
   assert.equal(m.user.email, 'owner@example.com'); assert.equal(m.orgs[0].role, 'owner'); assert.ok(m.csrf.length >= 40);
   const token = r.sess.split('=')[1];

@@ -138,7 +138,7 @@ export async function authCallback(req, env, db, url, fetchImpl) {
   }
   if (!c.email || c.email_verified !== true) { await audit(db, null, 'login_failed', false, 'email_unverified'); return loginError(env, 'email', clear); }
 
-  const user = await upsertUser(env, db, c);
+  const user = await upsertUser(env, db, c, req);
   await acceptInvites(db, Object.assign({}, user, { email: String(c.email).toLowerCase() }));   // دعوات الفرق (team.js)
   const sess = await newSession(db, user.id, req);
   await audit(db, user.id, 'login', true);
@@ -147,7 +147,7 @@ export async function authCallback(req, env, db, url, fetchImpl) {
 }
 
 // أول دخول: مستخدم + حساب بتجربة مجانية + صلاحية owner. أي دخول بعده: تحديث الاسم والإيميل بس.
-async function upsertUser(env, db, c) {
+async function upsertUser(env, db, c, req) {
   const now = new Date().toISOString();
   const name = String(c.name || '').slice(0, 120) || null;
   const email = String(c.email).slice(0, 200).toLowerCase();
@@ -160,8 +160,12 @@ async function upsertUser(env, db, c) {
   u = rows[0];
   // معاه دعوة لفريق (حساب عميل أو فريق المنصة): بيدخل على الحساب اللي اتدعى له، من غير حساب تجربة جديد
   if (await hasOpenInvites(db, email)) { await audit(db, u.id, 'signup', true, 'invited'); return u; }
-  const days = Number(env.TRIAL_DAYS) > 0 ? Number(env.TRIAL_DAYS) : 14;
-  const org = (await db.insert('organizations', [{ name: (name || email.split('@')[0]).slice(0, 80), status: 'trial', trial_ends_at: new Date(Date.now() + days * 86400000).toISOString() }]))[0];
+  // مدة التجربة من إعدادات الفوترة في لوحة الإدارة (قرار 15 نوفمبر: 7 أيام)، وTRIAL_DAYS لو اتحط بيغلبها
+  const bs = await db.one('billing_settings?id=eq.1&select=trial_days').catch(() => null);
+  const days = Number(env.TRIAL_DAYS) > 0 ? Number(env.TRIAL_DAYS) : bs && Number(bs.trial_days) >= 0 ? Number(bs.trial_days) : 7;
+  // بلد الحساب من Cloudflare (للعملة: مصر جنيه · السعودية ريال · غيرهم دولار)، والأدمن يقدر يغيّره
+  const cc = String((req && req.cf && req.cf.country) || (req && req.headers.get('cf-ipcountry')) || '').toUpperCase();
+  const org = (await db.insert('organizations', [Object.assign({ name: (name || email.split('@')[0]).slice(0, 80), status: 'trial', trial_ends_at: new Date(Date.now() + days * 86400000).toISOString() }, /^[A-Z]{2}$/.test(cc) && cc !== 'XX' && cc !== 'T1' ? { country: cc } : {})]))[0];
   await db.insert('memberships', [{ user_id: u.id, org_id: org.id, role: 'owner' }], { returning: false });
   await audit(db, u.id, 'signup', true);
   return u;

@@ -11,31 +11,82 @@ import { audit } from './auth.js';
 import { orgPayments } from './payments.js';
 
 const PLAN_IDS = ['basic', 'pro', 'agency'];
+export const ORG_BILL = 'id,name,status,plan,currency,market,country,trial_ends_at,plan_period_end,founder_no,founder_since,billing_owner';
 const CUR_RE = /^[A-Z]{3}$/;
 const KINDS = ['instapay', 'vodafone_cash', 'paymob'];
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const VF_RE = /^01[0125][0-9]{8}$/;   // رقم محفظة مصري
 const clip = (s, n) => String(s == null ? '' : s).trim().slice(0, n);
 
+const DEFAULT_COUNTRIES = [{ country: 'EG', currency: 'EGP', mode: 'fixed', round_to: 1 }, { country: 'SA', currency: 'SAR', mode: 'fixed', round_to: 1 }, { country: '*', currency: 'USD', mode: 'fixed', round_to: 1 }];
 export async function loadBilling(db) {
-  const [plans, prices, st, used] = await Promise.all([
-    db.select('plans?select=id,sites,clicks,sort,active&order=sort.asc'),
+  const [plans, prices, st, used, countries, rates] = await Promise.all([
+    db.select('plans?select=id,sites,clicks,sort,active,unit,min_units,campaigns_per_unit&order=sort.asc').catch(() => db.select('plans?select=id,sites,clicks,sort,active&order=sort.asc')),   // قبل 0021
     db.select('plan_prices?select=plan_id,currency,monthly'),
     db.one('billing_settings?id=eq.1&select=trial_days,annual_months,founders_limit,founders_pct,founders_months,founders_after_pct'),
     db.select('organizations?founder_no=not.is.null&select=id&limit=100000'),
+    db.select('country_pricing?select=country,currency,mode,round_to&order=country.asc').catch(() => null),   // قبل 0021
+    db.select('fx_rates?select=currency,per_usd,source,fetched_at').catch(() => []),
   ]);
   const settings = st || { trial_days: 7, annual_months: 10, founders_limit: 100, founders_pct: 50, founders_months: 12, founders_after_pct: 20 };
-  return { plans: (plans || []).map((p) => Object.assign({}, p, { prices: Object.fromEntries((prices || []).filter((x) => x.plan_id === p.id).map((x) => [x.currency, Number(x.monthly)])) })),
-    settings, founders: { used: (used || []).length, limit: settings.founders_limit } };
+  return { plans: (plans || []).map((p) => Object.assign({ unit: 'account', min_units: 1, campaigns_per_unit: null }, p, { prices: Object.fromEntries((prices || []).filter((x) => x.plan_id === p.id).map((x) => [x.currency, Number(x.monthly)])) })),
+    settings, founders: { used: (used || []).length, limit: settings.founders_limit },
+    countries: countries && countries.length ? countries.map((c) => Object.assign({}, c, { round_to: Number(c.round_to) || 1 })) : DEFAULT_COUNTRIES,
+    rates: Object.fromEntries((rates || []).map((r) => [r.currency, Number(r.per_usd)])), rates_at: (rates || []).reduce((a, r) => (!a || r.fetched_at < a ? r.fetched_at : a), null) };
 }
 
-// سعر باقة لحساب: الشهري والسنوي، وبعد خصم المؤسسين لو مستحقه
-export function priceFor(plan, currency, settings, discountPct) {
-  const m = plan.prices[currency];
+// العملة والطريقة لبلد: صف البلد، وإلا صف «باقي الدول» ('*')
+export function ctxFor(b, country) {
+  const r = b.countries.find((x) => x.country === country) || b.countries.find((x) => x.country === '*') || DEFAULT_COUNTRIES[2];
+  const rate = r.mode === 'usd' ? (r.currency === 'USD' ? 1 : b.rates[r.currency] || null) : null;
+  return { country: r.country, currency: r.currency, mode: r.mode, round_to: Number(r.round_to) || 1, rate };
+}
+
+// سعر باقة لحساب: الشهري والسنوي، وبعد خصم المؤسسين لو مستحقه.
+// ctx = عملة (ثابت) أو ctxFor(…): «حسب الدولار» = سعر الدولار × سعر الصرف، مقرّب لأقرب round_to
+export function priceFor(plan, ctx, settings, discountPct) {
+  if (typeof ctx === 'string') ctx = { currency: ctx, mode: 'fixed' };
+  let m = plan.prices[ctx.currency], fx = null;
+  if (ctx.mode === 'usd') {
+    const usd = plan.prices.USD;
+    if (usd == null || !ctx.rate) return null;
+    const step = ctx.round_to || 1;
+    m = Math.max(step, Math.round((usd * ctx.rate) / step) * step);
+    m = Math.round(m * 100) / 100;
+    fx = { usd, rate: ctx.rate };
+  }
   if (m == null) return null;
-  const y = m * settings.annual_months;
+  const y = Math.round(m * settings.annual_months * 100) / 100;
   const d = (v) => Math.round(v * (100 - discountPct)) / 100;
-  return { currency, monthly: m, yearly: y, discount: discountPct, monthly_now: discountPct ? d(m) : m, yearly_now: discountPct ? d(y) : y };
+  const out = { currency: ctx.currency, monthly: m, yearly: y, discount: discountPct, monthly_now: discountPct ? d(m) : m, yearly_now: discountPct ? d(y) : y };
+  if (fx) out.fx = fx;
+  return out;
+}
+
+// بلد الحساب: اللي اتسجّل بيه · أو السوق · أو كود الاتصال لأول موقع · وإلا «باقي الدول»
+const PHONE_CC = { '20': 'EG', '966': 'SA', '971': 'AE', '965': 'KW', '974': 'QA', '973': 'BH', '968': 'OM', '962': 'JO', '212': 'MA', '216': 'TN', '213': 'DZ', '964': 'IQ', '961': 'LB' };
+export async function countryOf(db, org) {
+  if (/^[A-Z]{2}$/.test(String(org.country || ''))) return org.country;
+  if (org.market === 'EG' || org.market === 'SA') return org.market;
+  const site = await db.one('clients?org_id=' + eq(org.id) + '&select=country_code&order=created_at.asc').catch(() => null);
+  return (site && PHONE_CC[String(site.country_code || '').replace(/\D/g, '')]) || '*';
+}
+
+// سعر الصرف: مرة كل 12 ساعة من open.er-api.com (بدون مفتاح · مسموح تجاريًا للتحويل · لازم نذكر المصدر)
+export const FX_SOURCE = 'https://www.exchangerate-api.com';
+export async function fxRefresh(env, db, fetchImpl, now) {
+  const b = await db.select('fx_rates?select=fetched_at&order=fetched_at.desc&limit=1').catch(() => null);
+  if (b === null) return { skipped: 'no-table' };
+  if (b[0] && (now || Date.now()) - Date.parse(b[0].fetched_at) < 12 * 36e5) return { skipped: 'fresh' };
+  const res = await (fetchImpl || ((...a) => fetch(...a)))('https://open.er-api.com/v6/latest/USD');
+  const j = await res.json().catch(() => ({}));
+  if (!res.ok || j.result !== 'success' || !j.rates) return { ok: false, status: res.status };
+  const used = ((await db.select('country_pricing?select=currency').catch(() => [])) || []).map((c) => c.currency);
+  const want = [...new Set(['EGP', 'SAR', 'AED', 'KWD', 'QAR', 'BHD', 'OMR', 'JOD', 'USD'].concat(used))];
+  const at = new Date(now || Date.now()).toISOString();
+  const rows = want.filter((c) => Number(j.rates[c]) > 0).map((c) => ({ currency: c, per_usd: Number(j.rates[c]), source: 'open.er-api.com', fetched_at: at }));
+  if (rows.length) await db.insert('fx_rates', rows, { onConflict: 'currency', merge: true, returning: false });
+  return { ok: true, n: rows.length };
 }
 // الخصم اللي الحساب ياخده دلوقتي: مؤسس في سنته الأولى · مؤسس بعدها · لسه فيه مقاعد · لأ
 export function discountFor(org, b, now) {
@@ -53,16 +104,17 @@ export async function dashBilling(req, env, db, sess, url) {
   if (!UUID_RE.test(orgId)) return notFound();
   const role = roleFor(sess, orgId);
   if (!role) return notFound();
-  const org = await db.one('organizations?id=' + eq(orgId) + '&select=id,name,status,plan,currency,market,trial_ends_at,plan_period_end,founder_no,founder_since,billing_owner');
+  const org = await db.one('organizations?id=' + eq(orgId) + '&select=' + ORG_BILL);
   if (!org) return notFound();
   const b = await loadBilling(db);
-  const currency = CUR_RE.test(String(org.currency || '')) ? org.currency : org.market === 'EG' ? 'EGP' : 'SAR';
+  const ctx = ctxFor(b, await countryOf(db, org)), currency = ctx.currency;
   const disc = discountFor(org, b, Date.now());
   const methods = await methodsFor(db, org, currency);
   return json({ ok: true, manage: role === 'owner', org: { id: org.id, name: org.name, status: org.status, plan: org.plan, trial_ends_at: org.trial_ends_at, plan_period_end: org.plan_period_end, founder: !!org.founder_no },
     currency, settings: { trial_days: b.settings.trial_days, annual_months: b.settings.annual_months, founders_months: b.settings.founders_months, founders_after_pct: b.settings.founders_after_pct },
     founders: { left: Math.max(0, b.founders.limit - b.founders.used), limit: b.founders.limit, pct: b.settings.founders_pct },
-    plans: b.plans.filter((p) => p.active).map((p) => ({ id: p.id, sites: p.sites, clicks: p.clicks, price: priceFor(p, currency, b.settings, disc) })).filter((p) => p.price),
+    pricing: { country: ctx.country, mode: ctx.mode, rate: ctx.rate, source: ctx.mode === 'usd' ? FX_SOURCE : null },
+    plans: b.plans.filter((p) => p.active).map((p) => ({ id: p.id, sites: p.sites, clicks: p.clicks, unit: p.unit, min_units: p.min_units, campaigns_per_unit: p.campaigns_per_unit, price: priceFor(p, ctx, b.settings, disc) })).filter((p) => p.price),
     methods: methods.map((m) => ({ id: m.id, kind: m.kind, label: m.label || '', details: m.details || {} })),
     payments: role === 'owner' ? await orgPayments(db, org.id) : [] });
 }
@@ -96,7 +148,9 @@ export async function platformBilling(req, env, db, sess) {
     const users = pm.length ? (await db.select('users?id=in.(' + pm.map((x) => x.user_id).join(',') + ')&select=id,email,name')) || [] : [];
     members = pm.map((x) => { const u = users.find((y) => y.id === x.user_id) || {}; return { user_id: x.user_id, email: u.email || '', name: u.name || '', own_payments: !!x.own_payments }; });
   }
-  return json({ ok: true, super: superOnly(sess), plans: superOnly(sess) ? b.plans : null, settings: superOnly(sess) ? b.settings : null, founders: b.founders, methods: mine, members });
+  const countries = superOnly(sess) ? b.countries.map((c) => { const ctx = ctxFor(b, c.country); return Object.assign({}, c, { rate: ctx.rate, preview: Object.fromEntries(b.plans.map((p) => { const pr = priceFor(p, ctx, b.settings, 0); return [p.id, pr ? pr.monthly : null]; })) }); }) : null;
+  return json({ ok: true, super: superOnly(sess), plans: superOnly(sess) ? b.plans : null, settings: superOnly(sess) ? b.settings : null, founders: b.founders, methods: mine, members,
+    countries, rates: superOnly(sess) ? b.rates : null, rates_at: b.rates_at, fx_source: FX_SOURCE });
 }
 
 export async function platformPlanSave(req, env, db, sess) {
@@ -106,7 +160,11 @@ export async function platformPlanSave(req, env, db, sess) {
   const sites = Number(b.sites), clicks = Number(b.clicks);
   if (!(sites >= 1 && sites <= 1000) || !(clicks >= 0 && clicks <= 1e7)) return json({ ok: false, error: 'limits' }, 400);
   const prices = Object.entries(b.prices || {}).filter(([c, v]) => CUR_RE.test(c) && Number(v) >= 0 && Number(v) < 1e7);
-  await db.insert('plans', [{ id: b.id, sites: Math.round(sites), clicks: Math.round(clicks), active: b.active !== false, updated_by: sess.user.id, updated_at: new Date().toISOString() }], { onConflict: 'id', merge: true, returning: false });
+  const row = { id: b.id, sites: Math.round(sites), clicks: Math.round(clicks), active: b.active !== false, updated_by: sess.user.id, updated_at: new Date().toISOString() };
+  // باقة بالمشروع: الحد الأدنى للمشاريع وعدد الحملات في المشروع
+  if (b.min_units !== undefined) { const v = Math.round(Number(b.min_units)); if (!(v >= 1 && v <= 1000)) return json({ ok: false, error: 'min_units' }, 400); row.min_units = v; }
+  if (b.campaigns_per_unit !== undefined) { const v = Math.round(Number(b.campaigns_per_unit)); if (!(v >= 1 && v <= 100)) return json({ ok: false, error: 'campaigns' }, 400); row.campaigns_per_unit = v; }
+  await db.insert('plans', [row], { onConflict: 'id', merge: true, returning: false });
   for (const [c, v] of prices) await db.insert('plan_prices', [{ plan_id: b.id, currency: c, monthly: Math.round(Number(v) * 100) / 100 }], { onConflict: 'plan_id,currency', merge: true, returning: false });
   await audit(db, sess.user.id, 'platform_billing', true, 'plan ' + b.id + ' ' + prices.map(([c, v]) => c + ':' + v).join(','));
   return json({ ok: true });
@@ -121,6 +179,28 @@ export async function platformBillingSettings(req, env, db, sess) {
   if (!Object.keys(patch).length) return json({ ok: false, error: 'bad_request' }, 400);
   await db.update('billing_settings?id=eq.1', Object.assign(patch, { updated_by: sess.user.id, updated_at: new Date().toISOString() }));
   await audit(db, sess.user.id, 'platform_billing', true, 'settings ' + JSON.stringify(patch).slice(0, 150));
+  return json({ ok: true });
+}
+
+// العملة حسب البلد: ثابت أو حسب الدولار، لكل بلد (السوبر أدمن بس). صف '*' = باقي الدول، مايتمسحش
+export async function platformCountrySave(req, env, db, sess) {
+  if (!superOnly(sess)) return notFound();
+  const b = await req.json().catch(() => ({}));
+  const country = String(b.country || '').toUpperCase();
+  if (!/^([A-Z]{2}|\*)$/.test(country)) return json({ ok: false, error: 'country' }, 400);
+  if (b.delete === true) {
+    if (country === '*') return json({ ok: false, error: 'default' }, 400);
+    await db.req('DELETE', 'country_pricing?country=' + eq(country));
+    await audit(db, sess.user.id, 'platform_billing', true, 'country delete ' + country);
+    return json({ ok: true });
+  }
+  const currency = String(b.currency || '').toUpperCase();
+  if (!CUR_RE.test(currency)) return json({ ok: false, error: 'currency' }, 400);
+  const mode = b.mode === 'usd' ? 'usd' : 'fixed';
+  const round = Number(b.round_to || 1);
+  if (!(round > 0 && round <= 1000)) return json({ ok: false, error: 'round' }, 400);
+  await db.insert('country_pricing', [{ country, currency, mode, round_to: round, updated_by: sess.user.id, updated_at: new Date().toISOString() }], { onConflict: 'country', merge: true, returning: false });
+  await audit(db, sess.user.id, 'platform_billing', true, 'country ' + country + ' ' + currency + ' ' + mode + ' ' + round);
   return json({ ok: true });
 }
 

@@ -17,7 +17,7 @@ async function setup() {
   const boss = await loggedIn(w, 'boss@maestro.example');
   w.fs.t.users.find((u) => u.email === 'boss@maestro.example').platform_admin = true;
   const cust = await loggedIn(w, 'owner@shop.example');
-  w.fs.t.organizations.find((o) => o.id === cust.org.id).currency = 'EGP';
+  w.fs.t.organizations.find((o) => o.id === cust.org.id).country = 'EG';
   const pc = (u, path, body) => w.call('POST', path, { env, cookie: u.sess, body, headers: { origin: 'https://app.maestrolt.com', 'x-csrf-token': u.csrf } });
   const gc = (u, path) => w.call('GET', path, { env, cookie: u.sess });
   const m = (await pc(boss, '/v1/platform/billing/method', { kind: 'instapay', enabled: true, details: { handle: 'maestro@instapay', name: 'Maestro' }, currencies: ['EGP'] })).body.id;
@@ -92,4 +92,19 @@ test('reminder: a receipt waiting more than 20 hours pings the admin once', asyn
   await remindPending(s.env, d, s.w.f);
   await remindPending(s.env, d, s.w.f);
   assert.equal(s.sent.filter((x) => /مستني من 21 ساعة/.test(x.text)).length, 1);
+});
+
+test('agency by project: the price per project × the number of projects (at least 4); approval records the projects', async () => {
+  const s = await setup();
+  s.w.fs.t.plans.push({ id: 'agency', sites: 10, clicks: 40000, sort: 3, active: true, unit: 'project', min_units: 4, campaigns_per_unit: 2 });
+  s.w.fs.t.plan_prices.push({ plan_id: 'agency', currency: 'EGP', monthly: 500 });
+  const b = (await s.gc(s.cust, '/v1/dash/billing?org=' + s.cust.org.id)).body.plans.find((p) => p.id === 'agency');
+  assert.deepEqual([b.unit, b.min_units, b.campaigns_per_unit, b.price.monthly_now], ['project', 4, 2, 250]);
+  assert.equal((await s.pay({ plan: 'agency', units: 3 })).body.error, 'units', 'below the minimum of 4');
+  const r = await s.pay({ plan: 'agency', units: 6 });
+  assert.equal(r.body.amount, 1500, '250 per project (founder 50%) × 6');
+  const a = await s.pc(s.boss, '/v1/platform/payments/review', { id: s.w.fs.t.payments[0].id, decision: 'approve' });
+  assert.equal(a.status, 200);
+  const org = s.w.fs.t.organizations.find((o) => o.id === s.cust.org.id);
+  assert.deepEqual([org.plan, org.plan_units], ['agency', 6]);
 });
