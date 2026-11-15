@@ -265,6 +265,12 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
 // 9) صفحة الدخول
 { const api = fakeApi(); const pg = await page(api); await pg.goto('https://app.maestrolt.com/login?error=state&next=/connect');
   t('login page: error message + button goes to Google start with a safe next', /لم تكتمل محاولة الدخول/.test(await pg.locator('#err').innerText()) && (await pg.locator('#go').getAttribute('href')) === 'https://api.maestrolt.com/v1/auth/google/start?next=%2Fconnect'); await shot(pg, 'login-error');
+  await pg.setViewportSize({ width: 1280, height: 800 });
+  t('login page: the animated logo with «مايسترو» in Arabic and «Maestro LT» under it, and the trial says 7 days', (await pg.locator('.brand-mark img').getAttribute('src')) === '/img/logo-anim.webp' && (await pg.locator('.brand-panel .wm-ar').innerText()) === 'مايسترو' && /Maestro LT/.test(await pg.locator('.brand-panel .wm-en').innerText()) && /7 أيام/.test(await pg.locator('.trial-pill').innerText()) && await pg.evaluate(() => document.querySelector('.brand-mark img').complete && document.querySelector('.brand-mark img').naturalWidth > 0));
+  await shot(pg, 'login-desktop');
+  await pg.setViewportSize({ width: 390, height: 844 });
+  t('login page on mobile: the brand sits above the button (not hidden)', await pg.locator('.login-brand-sm').isVisible() && (await pg.locator('.login-brand-sm .wm-ar').innerText()) === 'مايسترو');
+  await shot(pg, 'login-mobile');
   await pg.goto('https://app.maestrolt.com/login?next=//evil.example');
   t('login page: an off-site next is replaced by /', (await pg.locator('#go').getAttribute('href')) === 'https://api.maestrolt.com/v1/auth/google/start?next=%2F');
   api.signedIn = true; await pg.goto('https://app.maestrolt.com/login?next=/connect'); await pg.waitForURL('https://app.maestrolt.com/connect');
@@ -281,6 +287,7 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
   await pg.getByRole('button', { name: 'رمز ربط (بديل للزر)' }).click();
   await pg.waitForSelector('.code');
   t('home page: the pair code shows (K7M2-QX9P)', /K7M2-QX9P/.test(await pg.locator('.code').innerText()));
+  t('sidebar: «install the app» is offered (not installed yet), and without the browser prompt it opens the iPhone / Android steps', await (async () => { const b = pg.locator('#side-install button'); if (!(await b.isVisible())) return false; await b.click(); await pg.waitForSelector('#drawer:not([hidden])'); const ok = /آيفون|iPhone/.test(await pg.locator('#d-body').innerText()); await pg.keyboard.press('Escape'); return ok; })());
   t('home page: logout goes back to /login', await (async () => { await pg.getByRole('button', { name: 'تسجيل الخروج' }).click(); await pg.waitForURL('https://app.maestrolt.com/login'); return true; })());
   t('home: no CSP violations', pg.csp.length === 0 && pg.errors.length === 0); await pg.context().close(); }
 

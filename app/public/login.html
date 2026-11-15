@@ -12,9 +12,16 @@
 </head>
 <body>
 <main class="shell">
-  <div class="split">
-    <aside class="panel" aria-label="عن Maestro LT" data-i18n-aria="login.about">
-      <img class="logo-panel" src="/img/logo-dark.webp" alt="Maestro LT — Leads Tracker" width="200" height="121">
+  <div class="split login-split">
+    <aside class="panel brand-panel" aria-label="عن Maestro LT" data-i18n-aria="login.about">
+      <div class="brand-lockup">
+        <picture class="brand-mark"><source srcset="/img/logo-mark.webp" media="(prefers-reduced-motion: reduce)"><img src="/img/logo-anim.webp" alt="" width="247" height="115"></picture>
+        <div class="wordmark" aria-label="مايسترو · Maestro LT">
+          <b class="wm-ar" aria-hidden="true">مايسترو</b>
+          <span class="wm-en" aria-hidden="true">Maestro <i>LT</i></span>
+          <small class="wm-sub" aria-hidden="true">Leads Tracker</small>
+        </div>
+      </div>
       <h2 data-i18n="login.h2">اعرف من ينقر على إعلاناتك فعلًا</h2>
       <ul class="points">
         <li data-i18n="login.p1">حماية ميزانيتك من النقرات الوهمية</li>
@@ -24,14 +31,14 @@
       <p class="fine" data-i18n="login.fine">تتبّع النقرات والاتصالات والواتساب، من أول نقرة حتى الطلب.</p>
     </aside>
     <section class="card login">
-      <picture><source srcset="/img/logo-dark.webp" media="(prefers-color-scheme: dark)"><img class="logo-full" src="/img/logo.webp" alt="Maestro LT — Leads Tracker" width="220" height="133"></picture>
+      <div class="login-brand-sm" aria-hidden="true"><img src="/img/logo-anim.webp" alt="" width="132" height="61"><b class="wm-ar">مايسترو</b><span class="wm-en">Maestro <i>LT</i></span></div>
       <h1 data-i18n="login.h1">سجّل الدخول</h1>
       <p class="muted" data-i18n="login.sub">بحساب جوجل، دون كلمة مرور.</p>
       <div id="err" class="notice bad" role="alert" hidden></div>
       <a id="go" class="btn google block" href="#"><img src="/img/google.svg" alt="" width="20" height="20"><span data-i18n="login.google">الدخول بحساب جوجل</span></a>
+      <p class="trial-pill" data-i18n="login.trial">أول دخول ينشئ لك حسابًا جديدًا بتجربة مجانية لمدة 7 أيام.</p>
       <p class="hint" data-i18n="login.privacy">نقرأ اسمك وبريدك الإلكتروني فقط، ولا نطّلع على إعلاناتك ولا رسائلك.</p>
       <p class="hint" data-lang-switch></p>
-      <p class="hint" data-i18n="login.trial">أول دخول ينشئ لك حسابًا جديدًا بتجربة مجانية لمدة 14 يومًا.</p>
     </section>
   </div>
 </main>

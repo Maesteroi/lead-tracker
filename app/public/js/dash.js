@@ -26,6 +26,7 @@
     reports: 'M7 3h7l5 5v13H7zM14 3v5h5M10 17v-3M13 17v-6M16 17v-2',
     team: 'M9 11a4 4 0 100-8 4 4 0 000 8zM2 21v-1a6 6 0 0112 0v1M16 3.5a4 4 0 010 7.5M22 21v-1a6 6 0 00-4-5.6',
     billing: 'M3 6h18v12H3zM3 10h18M7 15h4',
+    install: 'M12 3v12M7 10l5 5 5-5M5 21h14',
   };
   function icon(name) {
     var svg = document.createElementNS(NS, 'svg'); svg.setAttribute('viewBox', '0 0 24 24'); svg.setAttribute('class', 'ic'); svg.setAttribute('aria-hidden', 'true');
@@ -75,7 +76,19 @@
     var more = el('button', { type: 'button', class: 'more', 'aria-haspopup': 'true' }, [icon('more'), el('span', { text: T('frame.more') })]);
     more.addEventListener('click', openMore);
     bottom.appendChild(more);
+    drawInstall();
   }
+  // «ثبّت التطبيق» في القائمة الجانبية و«المزيد» (15 نوفمبر): زرار التثبيت الرسمي لو المتصفح بيدعمه، وإلا خطوات الآيفون والأندرويد
+  var installEvt = null;
+  window.addEventListener('beforeinstallprompt', function (e) { e.preventDefault(); installEvt = e; drawInstall(); });
+  window.addEventListener('appinstalled', function () { installEvt = null; drawInstall(); toast(T('inst.done')); });
+  function doInstall() {
+    if (!installEvt) { openInstall(); return; }
+    installEvt.prompt();
+    (installEvt.userChoice || Promise.resolve({})).then(function (c) { if (c && c.outcome === 'accepted') { installEvt = null; drawInstall(); } });
+  }
+  function installBtn(cls) { var b = el('button', { class: cls, type: 'button' }, [icon('install'), el('span', { text: T('inst.btn') })]); b.addEventListener('click', function () { closeDrawer(); doInstall(); }); return b; }
+  function drawInstall() { var box = $('side-install'); if (!box) return; clear(box); if (!installed()) box.appendChild(installBtn('side-install-btn')); }
   function openMore() {
     var body = clear($('d-body'));
     $('d-title').textContent = T('frame.more'); $('d-sub').textContent = '';
@@ -87,6 +100,7 @@
     var sw = el('button', { class: 'more-link', type: 'button' }, [icon('more'), el('span', { text: T(state.level === 'simple' ? 'level.to_detailed' : 'level.to_simple') })]);
     sw.addEventListener('click', function () { closeDrawer(); setLevel(state.level === 'simple' ? 'detailed' : 'simple'); });
     body.appendChild(sw);
+    if (!installed()) body.appendChild(installBtn('more-link'));
     var ls = LT.i18n.switcher();
     if (ls) { ls.className = 'more-link'; body.appendChild(ls); }
     openDrawer();
