@@ -643,9 +643,65 @@
       b.addEventListener('click', function () { if (kwTab === t[0]) return; kwTab = t[0]; vNegatives(view); });
       tabs.appendChild(b);
     });
-    view.appendChild(tabs); view.appendChild(body);
+    var briefBox = el('div');
+    view.appendChild(briefBox); view.appendChild(tabs); view.appendChild(body);
+    if (DATA.brief) briefCard(briefBox, function () { vNegatives(view); });
     body.appendChild(el('p', { class: 'loading', text: T('frame.loading') }));
     return (kwTab === 'pos' && DATA.keywords ? vPositive(body) : vNegList(body)).catch(function () { clear(body); body.appendChild(el('p', { class: 'muted', text: T('frame.load_fail') })); });
+  }
+  // «نشاطك كما نفهمه» (15 نوفمبر): اللي بتقدمه واللي مش بتقدمه، والكلمات المتكررة في بحث عملائك تصنّفها بضغطة. الاقتراحات كلها بتتبني عليه
+  // الكلمة بشكل جوجل: [تامة] · "عبارة" · واسعة
+  function kwNote(text, match) { return match === 'EXACT' ? '[' + text + ']' : match === 'PHRASE' ? '"' + text + '"' : text; }
+  var briefOpen = null;   // بيفضل مفتوح أو مقفول زي ما سابه في الجلسة
+  function briefCard(box, redraw) {
+    DATA.brief(state.site).then(function (d) {
+      clear(box);
+      var b = { offer: d.brief.offer.slice(), exclude: d.brief.exclude.slice(), about: d.brief.about || '', fears: (d.brief.fears || []).slice() };
+      var save = function (msg) { return DATA.briefSave(state.site, b).then(function () { toast(msg || T('adm.bl.saved')); redraw(); }, function (e) { toast(e.message === 'banned' ? T('bf.banned', { l: e.label || '' }) : T('err.save')); redraw(); }); };
+      var chip = function (text, cls, sub, onDel) {
+        var c = el('span', { class: 'bf-chip ' + cls }, [el('span', { text: text }), sub ? el('small', { text: sub }) : null]);
+        if (onDel && d.manage) { var x = el('button', { type: 'button', class: 'bf-x', 'aria-label': T('bf.remove', { w: text }), text: '×' }); x.addEventListener('click', onDel); c.appendChild(x); }
+        return c;
+      };
+      var offer = el('div', { class: 'bf-chips' }, b.offer.length ? b.offer.map(function (w, i) { return chip(w, 'ok', null, function () { b.offer.splice(i, 1); save(); }); }) : [el('span', { class: 'muted', text: T('bf.offer.none') })]);
+      var excl = el('div', { class: 'bf-chips' }, b.exclude.length ? b.exclude.map(function (x, i) { return chip(x.word, 'no', x.why, function () { b.exclude.splice(i, 1); save(); }); }) : [el('span', { class: 'muted', text: T('bf.ex.none') })]);
+      var kids = [el('p', { class: 'hint', text: T('bf.intro') })];
+      var ab = el('textarea', { class: 'bf-about', maxlength: '500', rows: '2', placeholder: T('bf.about.ph'), 'aria-label': T('bf.about') }); ab.value = b.about; ab.disabled = !d.manage;
+      ab.addEventListener('change', function () { b.about = ab.value.trim(); save(); });
+      kids.push(el('h3', { class: 'legend', text: T('bf.about') }), ab, el('h3', { class: 'legend', text: T('bf.offer') }), offer);
+      if (d.manage) {
+        var oi = el('input', { type: 'text', class: 'bl-in', maxlength: '40', placeholder: T('bf.offer.ph'), 'aria-label': T('bf.offer') }), ob = el('button', { class: 'btn sm', type: 'button', text: T('bf.add') });
+        ob.addEventListener('click', function () { var v = oi.value.trim(); if (v.length < 2) return; b.offer.push(v); save(); });
+        kids.push(el('div', { class: 'bl-add' }, [oi, ob]));
+      }
+      kids.push(el('h3', { class: 'legend', text: T('bf.ex') }), excl);
+      if (d.manage) {
+        var ei = el('input', { type: 'text', class: 'bl-in', maxlength: '40', placeholder: T('bf.ex.ph'), 'aria-label': T('bf.ex') }), ew = el('input', { type: 'text', class: 'bl-in', maxlength: '80', placeholder: T('bf.why.ph'), 'aria-label': T('bf.why') }), eb = el('button', { class: 'btn sm', type: 'button', text: T('bf.add') });
+        eb.addEventListener('click', function () { var v = ei.value.trim(); if (v.length < 2) return; b.exclude.push({ word: v, why: ew.value.trim() }); save(); });
+        kids.push(el('div', { class: 'bl-add' }, [ei, ew, eb]));
+      }
+      // مخاوف العميل ووعدك اللي بيعالجها (للإعلان)
+      kids.push(el('h3', { class: 'legend', text: T('bf.fears') }), el('p', { class: 'hint', text: T('bf.fears.i') }),
+        el('div', { class: 'bf-chips' }, b.fears.length ? b.fears.map(function (x, i) { return chip(x.fear, 'fear', x.promise ? '← ' + x.promise : '', function () { b.fears.splice(i, 1); save(); }); }) : [el('span', { class: 'muted', text: T('bf.ex.none') })]));
+      if (d.manage) {
+        var fi = el('input', { type: 'text', class: 'bl-in', maxlength: '80', placeholder: T('bf.fear.ph'), 'aria-label': T('bf.fear') }), fp = el('input', { type: 'text', class: 'bl-in', maxlength: '90', placeholder: T('bf.promise.ph'), 'aria-label': T('bf.promise') }), fb = el('button', { class: 'btn sm', type: 'button', text: T('bf.add') });
+        fb.addEventListener('click', function () { var v = fi.value.trim(); if (v.length < 2) return; b.fears.push({ fear: v, promise: fp.value.trim() }); save(); });
+        kids.push(el('div', { class: 'bl-add' }, [fi, fp, fb]));
+      }
+      if (d.words.length) {
+        kids.push(el('h3', { class: 'legend', text: T('bf.words') }), el('p', { class: 'hint', text: T('bf.words.i') }));
+        kids.push(el('div', { class: 'bf-words' }, d.words.map(function (w) {
+          var yes = el('button', { type: 'button', class: 'bf-yes', title: T('bf.mine'), 'aria-label': T('bf.mine') + ': ' + w.word, text: '✓' }), no = el('button', { type: 'button', class: 'bf-no', title: T('bf.notmine'), 'aria-label': T('bf.notmine') + ': ' + w.word, text: '✕' });
+          yes.addEventListener('click', function () { b.offer.push(w.word); save(T('bf.added.offer', { w: w.word })); });
+          no.addEventListener('click', function () { b.exclude.push({ word: w.word, why: '' }); save(T('bf.added.ex', { w: w.word })); });
+          return el('div', { class: 'bf-word' }, [el('b', { text: w.word }), el('small', { class: 'dim', text: T('bf.word.s', { c: fmt(w.clicks), t: fmt(w.terms) }) }), d.manage ? el('span', { class: 'bf-act' }, [yes, no]) : null]);
+        })));
+      }
+      var det = el('details', { class: 'panel-card bf-card' }, [el('summary', {}, [el('b', { text: T('bf.title') }), el('small', { class: 'dim', text: d.empty ? T('bf.empty') : T('bf.sum', { o: fmt(b.offer.length), e: fmt(b.exclude.length) }) })])].concat(kids));
+      if (briefOpen === true || (briefOpen === null && (d.empty || !b.offer.length))) det.setAttribute('open', '');
+      det.addEventListener('toggle', function () { briefOpen = det.open; });
+      box.appendChild(det);
+    }, function () { clear(box); });
   }
   function vPositive(view) {
     return DATA.keywords(state.site).then(function (d) {
@@ -653,7 +709,7 @@
       if (!d.linked) { view.appendChild(card(T('kw.title'), [el('p', {}, [el('span', { text: T('conv.not_linked') + ' ' }), el('a', { class: 'linkish', href: '#/sites', text: T('nav.sites') })])])); return; }
       var cur = d.currency === 'SAR' ? T('sar') : d.currency;
       var list = el('div', { class: 'neg-list' });
-      if (!d.suggestions.length) list.appendChild(el('p', { class: 'muted', text: T('kw.none') }));
+      if (!d.suggestions.length) list.appendChild(el('p', { class: 'muted', text: T(d.need_brief ? 'kw.need_brief' : 'kw.none') }));
       d.suggestions.forEach(function (x) {
         var acts = el('div', { class: 'neg-acts' });
         if (d.manage) {
@@ -668,7 +724,9 @@
           acts.appendChild(add); acts.appendChild(keep);
         }
         list.appendChild(el('div', { class: 'neg-item kw-item' }, [
-          el('div', { class: 'neg-h' }, [el('b', { text: x.text }), el('span', { class: 'pill', text: T('neg.m.exact') }), el('span', { class: 'pill ok', text: T('kw.r.' + x.reason) })]),
+          el('div', { class: 'neg-h' }, [el('b', { class: 'kw-note', text: kwNote(x.text, 'EXACT') }), el('span', { class: 'pill', text: T('neg.m.exact') }), el('span', { class: 'pill ok', text: T('kw.r.' + x.reason) })]),
+          el('p', { class: 'hint', text: T('kw.why.exact') }),
+          x.weak ? el('p', { class: 'hint warn-text', text: T('kw.weak') }) : null,
           el('p', { class: 'dim', text: T('kw.stats', { c: fmt(x.clicks), v: fmt(x.conv), m: money2(x.cost, cur) }) }),
           el('p', { class: 'hint', text: T('kw.where', { g: x.group.name || x.group.id, c: x.group.campaign || '—' }) + (x.from.length ? ' · ' + T('kw.from', { k: x.from.map(function (f) { return f.text; }).join('، ') }) : '') }),
           acts,
@@ -682,12 +740,25 @@
       }
     });
   }
+  // تشخيص الحساب (المنهجية بند 10): السبب الجذري قبل السلبيات · قراية بس
+  function auditCard(a, cur) {
+    var items = [];
+    if (a.broad_pct >= 50) items.push(['warn', T('au.broad', { p: a.broad_pct })]);
+    if (a.off_pct != null && a.off_pct >= 15) items.push(['warn', T('au.off', { p: a.off_pct, m: money2(a.off_cost, cur) })]);
+    if (a.adj_conv > 0) items.push(['bad', T('au.conv', { n: fmt(a.adj_conv), c: fmt(a.adj_clicks) })]);
+    (a.bad_keywords || []).forEach(function (k) { items.push(['bad', T('au.badkw', { k: k.keyword, w: k.word }) + (k.why ? ' (' + k.why + ')' : '')]); });
+    if (a.info_clicks > 0) items.push(['info', T('au.info', { c: fmt(a.info_clicks), m: money2(a.info_cost, cur) })]);
+    if (!items.length) return null;
+    return card(T('au.title'), [el('p', { class: 'hint', text: T('au.intro') }), el('ul', { class: 'au-list' }, items.map(function (x) { return el('li', { class: x[0] }, [el('i', { text: x[0] === 'info' ? 'i' : '!' }), el('span', { text: x[1] })]); }))], 'au-card');
+  }
   function vNegList(view) {
     return DATA.negatives(state.site).then(function (d) {
       clear(view);
       if (!d.linked) { view.appendChild(card(T('neg.title'), [el('p', {}, [el('span', { text: T('conv.not_linked') + ' ' }), el('a', { class: 'linkish', href: '#/sites', text: T('nav.sites') })])])); return; }
       var cur = d.currency === 'SAR' ? T('sar') : d.currency;
       view.appendChild(el('p', { class: 'simple-line', text: T('neg.line', { d: d.days, n: fmt(d.suggestions.length), w: money2(d.waste, cur), t: money2(d.total_cost, cur) }) }));
+      if (d.audit) { var ac = auditCard(d.audit, cur); if (ac) view.appendChild(ac); }
+      if (d.need_brief) view.appendChild(el('p', { class: 'callout warn', text: T('neg.need_brief') }));
       var list = el('div', { class: 'neg-list' });
       if (!d.suggestions.length) list.appendChild(el('p', { class: 'muted', text: T('neg.none') }));
       d.suggestions.forEach(function (x) {
@@ -704,10 +775,14 @@
           acts.appendChild(add); acts.appendChild(keep);
         }
         list.appendChild(el('div', { class: 'neg-item' }, [
-          el('div', { class: 'neg-h' }, [el('b', { text: x.text }), el('span', { class: 'pill', text: T('neg.m.' + x.match.toLowerCase()) }), el('span', { class: 'pill ' + (x.reason === 'waste' ? 'warn' : 'info'), text: T('neg.r.' + x.reason) })]),
+          el('div', { class: 'neg-h' }, [el('b', { class: 'kw-note', text: kwNote(x.text, x.match) }), el('span', { class: 'pill', text: T('neg.m.' + x.match.toLowerCase()) }), el('span', { class: 'pill ' + (x.reason === 'not_offer' ? 'bad' : x.reason === 'generic' || x.reason === 'off_offer' ? 'warn' : 'info'), text: T('neg.r.' + x.reason) + (x.why ? ': ' + x.why : '') })]),
+          el('p', { class: 'hint', text: T('neg.why.' + (x.reason === 'generic' ? 'generic' : x.match.toLowerCase())) }),
+          x.narrowed ? el('p', { class: 'hint warn-text', text: T('neg.narrowed', { f: x.narrowed.from, k: (x.narrowed.blocked || []).join('، ') }) }) : null,
+          (x.variants || []).length > 1 ? el('p', { class: 'hint', text: T('neg.variants', { v: x.variants.join(' · ') }) }) : null,
+          el('p', { class: 'hint ok-text', text: '✓ ' + T('neg.safe') }),
           el('p', { class: 'dim', text: T('neg.stats', { c: fmt(x.clicks), m: money2(x.cost, cur), p: x.campaigns.map(function (c) { return c.name; }).join('، ') }) }),
           x.terms.length > 1 || x.terms[0] !== x.text ? el('p', { class: 'hint', text: T('neg.terms') + ' ' + x.terms.join(' · ') }) : null,
-          x.protect ? el('p', { class: 'hint warn-text', text: T('neg.protect') }) : null,
+          x.reason === 'not_offer' && x.conv > 0 ? el('p', { class: 'hint warn-text', text: T('neg.conv_warn', { n: fmt(x.conv) }) }) : x.protect && x.reason !== 'not_offer' ? el('p', { class: 'hint warn-text', text: T('neg.protect') }) : null,
           acts,
         ]));
       });

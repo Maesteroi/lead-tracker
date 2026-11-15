@@ -104,7 +104,7 @@ export async function dashBilling(req, env, db, sess, url) {
   if (!UUID_RE.test(orgId)) return notFound();
   const role = roleFor(sess, orgId);
   if (!role) return notFound();
-  const org = await db.one('organizations?id=' + eq(orgId) + '&select=' + ORG_BILL);
+  const org = await db.one('organizations?id=' + eq(orgId) + '&select=' + ORG_BILL).catch(() => db.one('organizations?id=' + eq(orgId) + '&select=' + ORG_BILL.replace(',country', '')));   // قبل 0021
   if (!org) return notFound();
   const b = await loadBilling(db);
   const ctx = ctxFor(b, await countryOf(db, org)), currency = ctx.currency;
