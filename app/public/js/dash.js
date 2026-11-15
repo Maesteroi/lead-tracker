@@ -17,6 +17,7 @@
     statement: 'M6 3h12v18l-3-2-3 2-3-2-3 2V3zM9 8h6M9 12h6',
     visits: 'M12 5c-6 0-9 7-9 7s3 7 9 7 9-7 9-7-3-7-9-7zM12 15a3 3 0 100-6 3 3 0 000 6z',
     protection: 'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6l8-3zM9 12l2 2 4-4',
+    negatives: 'M11 4a7 7 0 100 14 7 7 0 000-14zM21 21l-5-5M8 11h6',
     leads: 'M16 19v-1a4 4 0 00-4-4H7a4 4 0 00-4 4v1M9.5 10a3.5 3.5 0 100-7 3.5 3.5 0 000 7zM17 11l2 2 4-4',
     alerts: 'M18 16V11a6 6 0 10-12 0v5l-2 2h16l-2-2zM10 20a2 2 0 004 0',
     sites: 'M12 21a9 9 0 100-18 9 9 0 000 18zM3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18',
@@ -31,8 +32,8 @@
   }
 
   var T = LT.t;   // النصوص من ملف اللغة (js/lang/*.js)
-  var ROUTES = ['overview', 'clients', 'statement', 'visits', 'protection', 'leads', 'alerts', 'reports', 'sites', 'team'].map(function (k) { return [k, T('nav.' + k)]; });
-  var NAV = { simple: ['overview', 'leads', 'protection', 'alerts', 'sites', 'team'], detailed: ROUTES.map(function (r) { return r[0]; }) };
+  var ROUTES = ['overview', 'clients', 'statement', 'visits', 'protection', 'negatives', 'leads', 'alerts', 'reports', 'sites', 'team'].map(function (k) { return [k, T('nav.' + k)]; });
+  var NAV = { simple: ['overview', 'leads', 'protection', 'negatives', 'alerts', 'sites', 'team'], detailed: ROUTES.map(function (r) { return r[0]; }) };
   var BOTTOMS = { simple: ['overview', 'leads', 'protection', 'alerts'], detailed: ['overview', 'statement', 'visits', 'protection'] };
   var BOTTOM = BOTTOMS.detailed;
   var STATUS = { real: [T('status.real'), 'ok'], suspicious: [T('status.suspicious'), 'warn'], high: [T('status.high'), 'bad'], blocked: [T('status.blocked'), 'bad'] };
@@ -157,7 +158,7 @@
     var title = ROUTES.filter(function (x) { return x[0] === r; })[0][1];
     $('page-title').textContent = title;
     document.title = title + ' · ' + T('app.name') + (DATA.demo ? T('frame.demo_suffix') : '');
-    $('range').hidden = r === 'protection' || r === 'alerts' || r === 'sites' || r === 'reports' || r === 'team' || (r === 'overview' && state.level === 'simple');
+    $('range').hidden = r === 'protection' || r === 'negatives' || r === 'alerts' || r === 'sites' || r === 'reports' || r === 'team' || (r === 'overview' && state.level === 'simple');
     $('site').parentNode.hidden = r === 'clients';
     if (r === 'overview' && state.level === 'simple') $('page-title').textContent = T('nav.overview.simple');
     if (state.level === 'simple' && NAV.simple.indexOf(r) < 0) { /* شاشة تفصيلية من رابط: بتتفتح عادي */ }
@@ -609,6 +610,59 @@
     return box;
   }
 
+  // ════════ الكلمات السلبية: اقتراحات من عبارات البحث · «أضِفها» لجوجل بموافقتك · «اتركها» ════════
+  function vNegatives(view) {
+    if (!DATA.negatives) { clear(view); view.appendChild(soonCard(T('neg.title'), [T('neg.soon.1'), T('neg.soon.2'), T('neg.soon.3')])); return Promise.resolve(); }
+    return DATA.negatives(state.site).then(function (d) {
+      clear(view);
+      if (!d.linked) { view.appendChild(card(T('neg.title'), [el('p', {}, [el('span', { text: T('conv.not_linked') + ' ' }), el('a', { class: 'linkish', href: '#/sites', text: T('nav.sites') })])])); return; }
+      var cur = d.currency === 'SAR' ? T('sar') : d.currency;
+      view.appendChild(el('p', { class: 'simple-line', text: T('neg.line', { d: d.days, n: fmt(d.suggestions.length), w: money2(d.waste, cur), t: money2(d.total_cost, cur) }) }));
+      var list = el('div', { class: 'neg-list' });
+      if (!d.suggestions.length) list.appendChild(el('p', { class: 'muted', text: T('neg.none') }));
+      d.suggestions.forEach(function (x) {
+        var acts = el('div', { class: 'neg-acts' });
+        if (d.manage) {
+          var add = el('button', { class: 'btn sm', type: 'button', text: T('neg.add') }), keep = el('button', { class: 'btn ghost sm', type: 'button', text: T('neg.keep') });
+          var sure = false;
+          add.addEventListener('click', function () {
+            if (!sure) { sure = true; add.textContent = T('neg.add.sure', { n: x.campaigns.length }); return; }
+            add.disabled = keep.disabled = true;
+            DATA.negDecide(state.site, x.id, 'add').then(function () { toast(T('neg.added', { k: x.text })); render(); }, function (e) { add.disabled = keep.disabled = false; sure = false; add.textContent = T('neg.add'); toast(T('neg.err') + (e.detail ? ' (' + String(e.detail).slice(0, 80) + ')' : '')); });
+          });
+          keep.addEventListener('click', function () { keep.disabled = add.disabled = true; DATA.negDecide(state.site, x.id, 'keep').then(function () { toast(T('neg.kept', { k: x.text })); render(); }, function () { keep.disabled = add.disabled = false; toast(T('err.save')); }); });
+          acts.appendChild(add); acts.appendChild(keep);
+        }
+        list.appendChild(el('div', { class: 'neg-item' }, [
+          el('div', { class: 'neg-h' }, [el('b', { text: x.text }), el('span', { class: 'pill', text: T('neg.m.' + x.match.toLowerCase()) }), el('span', { class: 'pill ' + (x.reason === 'waste' ? 'warn' : 'info'), text: T('neg.r.' + x.reason) })]),
+          el('p', { class: 'dim', text: T('neg.stats', { c: fmt(x.clicks), m: money2(x.cost, cur), p: x.campaigns.map(function (c) { return c.name; }).join('، ') }) }),
+          x.terms.length > 1 || x.terms[0] !== x.text ? el('p', { class: 'hint', text: T('neg.terms') + ' ' + x.terms.join(' · ') }) : null,
+          x.protect ? el('p', { class: 'hint warn-text', text: T('neg.protect') }) : null,
+          acts,
+        ]));
+      });
+      view.appendChild(card(T('neg.title'), [el('p', { class: 'hint', text: T('neg.intro') }), list]));
+      // الموجود في الحساب (عند الطلب)
+      if (d.manage) {
+        var exBox = el('div'), exBtn = el('button', { class: 'btn ghost sm', type: 'button', text: T('neg.existing') });
+        exBtn.addEventListener('click', function () {
+          exBtn.disabled = true;
+          DATA.negExisting(state.site).then(function (r) {
+            clear(exBox);
+            var rows = r.campaign.map(function (x) { return [x.text, T('neg.m.' + String(x.match).toLowerCase()), x.campaign]; }).concat(r.shared.map(function (x) { return [x.text, T('neg.m.' + String(x.match).toLowerCase()), T('neg.list', { l: x.list })]; }));
+            exBox.appendChild(el('p', { class: 'hint', text: T('neg.existing.n', { n: fmt(rows.length) }) }));
+            if (rows.length) exBox.appendChild(el('div', { class: 'tbl-wrap' }, [el('table', { class: 'tbl static' }, [el('tbody', {}, rows.slice(0, 200).map(function (r2) { return el('tr', {}, r2.map(function (c) { return el('td', { text: c }); })); }))])]));
+          }, function () { exBtn.disabled = false; toast(T('neg.err')); });
+        });
+        view.appendChild(card(T('neg.existing.title'), [el('p', { class: 'hint', text: T('neg.existing.hint') }), exBtn, exBox]));
+      }
+      if (d.decided.length) {
+        view.appendChild(card(T('neg.decided'), [el('ul', { class: 'feed' }, d.decided.map(function (x) {
+          return el('li', {}, [el('span', { class: 'pill ' + (x.decision === 'add' ? (x.applied_at ? 'ok' : 'warn') : ''), text: T(x.decision === 'add' ? (x.applied_at ? 'neg.d.added' : 'neg.d.failed') : 'neg.d.kept') }), el('div', {}, [el('span', { text: x.text + ' · ' + T('neg.m.' + String(x.match_type).toLowerCase()) })]), el('time', { text: timeAr(x.at) })]);
+        }))]));
+      }
+    });
+  }
   // ════════ 6) التنبيهات ════════
   function vAlerts(view) {
     return DATA.alerts(state.site).then(function (d) {
@@ -1284,7 +1338,7 @@
 
   var LIVE_VIEWS = { overview: lOverview, statement: lStatement, protection: lProtection };
 
-  var VIEWS = { overview: lOverview, clients: vClients, statement: vStatement, visits: vVisits, protection: vProtection, leads: vLeads, alerts: vAlerts, reports: vReports, sites: vSites, team: vTeam };
+  var VIEWS = { overview: lOverview, clients: vClients, statement: vStatement, visits: vVisits, protection: vProtection, negatives: vNegatives, leads: vLeads, alerts: vAlerts, reports: vReports, sites: vSites, team: vTeam };
 
   // ── الدرج ──
   var lastFocus = null;

@@ -74,6 +74,10 @@ function fakeApi(over) {
       st.dashCalls = (st.dashCalls || []).concat([p + u.search]);
       const today = new Date(Date.now() + 3 * 3600e3).toISOString().slice(0, 10);
       const range = Number(u.searchParams.get('range')) || 7;
+      // الكلمات السلبية (negatives.js)
+      if (p === '/v1/dash/negatives') return j(200, Object.assign({ ok: true, linked: true, manage: true, currency: 'USD', days: 30, cpc: 1.3, total_cost: 19.5, terms: 6, waste: 11, decided: st.negDecided || [] }, { suggestions: (st.negSug || [{ id: 'aaaa1111', text: 'وظائف', match: 'PHRASE', reason: 'intent_jobs', clicks: 2, cost: 2, conv: 0, terms: ['وظائف تصريح زواج', 'وظائف مكتب تعقيب'], campaigns: [{ id: '11', name: 'تصاريح' }, { id: '12', name: 'تعقيب' }], protect: false }, { id: 'bbbb2222', text: 'شروط زواج سعودي من مصرية', match: 'EXACT', reason: 'waste', clicks: 4, cost: 9, conv: 0, terms: ['شروط زواج سعودي من مصرية'], campaigns: [{ id: '11', name: 'تصاريح' }], protect: true }]).filter((x) => !(st.negDone || []).includes(x.id)) }));
+      if (p === '/v1/dash/negatives/decide') { const b = JSON.parse(req.postData()); st.negCalls = (st.negCalls || []).concat([Object.assign({ csrf: req.headers()['x-csrf-token'] }, b)]); st.negDone = (st.negDone || []).concat([b.id]); st.negDecided = (st.negDecided || []).concat([{ text: b.id === 'aaaa1111' ? 'وظائف' : 'شروط', match_type: 'PHRASE', decision: b.decision, at: new Date().toISOString(), applied_at: b.decision === 'add' ? new Date().toISOString() : null }]); return j(200, { ok: true, decision: b.decision, campaigns: 2 }); }
+      if (p === '/v1/dash/negatives/existing') return j(200, { ok: true, campaign: [{ campaign: 'تصاريح', text: 'مجاني', match: 'PHRASE' }], shared: [{ list: 'عام', text: 'وظائف', match: 'PHRASE' }] });
       // تنبيهات تليجرام (tglinks.js)
       if (p === '/v1/dash/tg') return j(200, Object.assign({ ok: true }, st.tg || { manage: true, ready: true, invite: null, chats: [] }));
       if (p === '/v1/dash/tg/invite') { const b = JSON.parse(req.postData()); st.tgCalls2 = (st.tgCalls2 || []).concat([b]); st.tg = st.tg || { manage: true, ready: true, chats: [] }; st.tg.invites = st.tg.invites || {}; st.tg.invites[b.audience] = b.revoke ? null : { link: 'https://t.me/LeadTrackerpro_Bot?start=SiteId123456_' + (b.audience === 'staff' ? 'ffff' : '0123') + '456789abcdef0123', expires_at: new Date(Date.now() + 7 * 864e5).toISOString(), uses: 0 }; return j(200, { ok: true, invite: st.tg.invites[b.audience] }); }
@@ -358,7 +362,7 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
   const apiCalls = []; pg.on('request', (r) => { if (r.url().startsWith('https://api.maestrolt.com')) apiCalls.push(r.url()); });
   await pg.goto('https://app.maestrolt.com/demo');
   await pg.waitForSelector('.answers .ans');
-  t('demo simple (default): 3 big answers, a short menu (6, with the team), no tables or charts', (await pg.locator('.answers .ans').count()) === 3 && (await pg.locator('.side-nav a').count()) === 6 && (await pg.locator('#view table, #view svg.svg').count()) === 0 && (await pg.locator('#page-title').innerText()) === 'الخلاصة');
+  t('demo simple (default): 3 big answers, a short menu (7, with the team and negative keywords), no tables or charts', (await pg.locator('.answers .ans').count()) === 3 && (await pg.locator('.side-nav a').count()) === 7 && (await pg.locator('#view table, #view svg.svg').count()) === 0 && (await pg.locator('#page-title').innerText()) === 'الخلاصة');
   t('demo simple: "is your ad protected?" answers in words, at most 3 action cards', /محمي/.test(await pg.locator('.ans').first().innerText()) && (await pg.locator('.act').count()) <= 3);
   t('demo simple: the checklist counts the done steps and offers how-to for the missing ones', /\d من 6/.test(await pg.locator('.progress').innerText()) && (await pg.locator('.steps-check li').count()) === 6);
   t('demo simple: the week summary reads as a sentence', /وصلك .* زائر/.test(await pg.locator('.story').innerText()));
@@ -368,7 +372,7 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
   await shot(pg, 'demo-0-simple');
   await pg.locator('#level').getByRole('button', { name: 'احترافي' }).click();
   await pg.waitForSelector('.kpis .kpi');
-  t('demo: switching to detailed shows the full menu (10)', (await pg.locator('.side-nav a').count()) === 10);
+  t('demo: switching to detailed shows the full menu (11)', (await pg.locator('.side-nav a').count()) === 11);
   t('demo: the pro home — 8 KPI cards (with Google clicks and money protected), the status strip and the action cards', (await pg.locator('.kpis .kpi').count()) === 8 && /نقرات احتسبها جوجل/.test(await pg.locator('.kpis').innerText()) && /الحماية: تراقب كل زيارة/.test(await pg.locator('.status-strip').innerText()) && (await pg.locator('.act').count()) >= 2);
   t('demo: the traffic curve draws 3 smooth lines with a legend, plus donuts, visit cards and the hours heatmap', (await pg.locator('.area-chart .a-line').count()) === 3 && (await pg.locator('.chart-legend').first().locator('.lg').count()) === 3 && (await pg.locator('.donut').count()) === 2 && (await pg.locator('.vcard').count()) >= 3 && (await pg.locator('.heat .h-cell').count()) === 168);
   await pg.locator('.area-chart .hit').nth(2).hover();
@@ -628,6 +632,29 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
   if (pg.errors.length || pg.csp.length) console.log(pg.errors, pg.csp);
   await pg.context().close(); }
 
+// 24) الكلمات السلبية (15 نوفمبر): اقتراحات · «أضِفها» بضغطتين · «اتركها» · الموجود في الحساب
+{ const api = fakeApi({ signedIn: true, sites: [{ id: 'SiteId123456', name: 'الإنجاز', domains: ['enjaz.biz'], paired: true }] });
+  const pg = await page(api, { viewport: { width: 1200, height: 900 } });
+  await pg.goto('https://app.maestrolt.com/#/negatives');
+  await pg.waitForSelector('.neg-item');
+  t('negatives: the page lists suggestions with the reason, match type, clicks, spend and the campaigns; a protected one is flagged', (await pg.locator('.neg-item').count()) === 2 && /يبحث عن وظيفة/.test(await pg.locator('.neg-item').first().innerText()) && /مطابقة عبارة/.test(await pg.locator('.neg-item').first().innerText()) && /تصاريح، تعقيب/.test(await pg.locator('.neg-item').first().innerText()) && /جلبت عملاء تواصلوا معك/.test(await pg.locator('.neg-item').nth(1).innerText()) && /11\.00 USD من أصل 19\.50 USD/.test(await pg.locator('.simple-line').innerText()));
+  await pg.locator('.neg-item').first().getByRole('button', { name: 'أضِفها لجوجل' }).click();
+  t('negatives: «add» first asks to confirm (nothing sent)', !api.negCalls && /اضغط مرة أخرى للإضافة في 2 حملة/.test(await pg.locator('.neg-item').first().innerText()));
+  await shot(pg, 'negatives');
+  await pg.locator('.neg-item').first().getByRole('button', { name: /اضغط مرة أخرى/ }).click();
+  await pg.waitForFunction(() => /أُضيفت «وظائف»/.test(document.getElementById('toast').textContent));
+  await pg.waitForFunction(() => document.querySelectorAll('.neg-item').length === 1);
+  t('negatives: after the second press it is sent with the CSRF token, leaves the list, and shows in past decisions', api.negCalls[0].id === 'aaaa1111' && api.negCalls[0].decision === 'add' && api.negCalls[0].csrf === 'csrf-token-123' && /أُضيفت/.test(await pg.locator('#view').innerText()));
+  await pg.locator('.neg-item').first().getByRole('button', { name: 'اتركها' }).click();
+  await pg.waitForFunction(() => /لن نقترح/.test(document.getElementById('toast').textContent));
+  t('negatives: «keep» is saved and the suggestion leaves the list', api.negCalls[1].decision === 'keep');
+  await pg.getByRole('button', { name: 'اعرض الموجودة' }).click();
+  await pg.waitForFunction(() => /كلمة سلبية في الحملات/.test(document.getElementById('view').innerText));
+  t('negatives: the account\'s existing negatives are shown on request (campaigns and shared lists)', /مجاني/.test(await pg.locator('#view').innerText()) && /قائمة «عام»/.test(await pg.locator('#view').innerText()));
+  t('negatives: no console errors, no CSP violations', pg.errors.length === 0 && pg.csp.length === 0);
+  if (pg.errors.length || pg.csp.length) console.log(pg.errors, pg.csp);
+  await pg.context().close(); }
+
 // 22) إرسال العملاء المؤكدين لجوجل أدز (13 نوفمبر): اختيار إجراء التحويل ← القايمة ← موافقة بضغطتين ← إرسال
 { const api = fakeApi({ signedIn: true, sites: [{ id: 'SiteId123456', name: 'روضة الصالحين', domains: ['rawda.site'], paired: true }],
     conv: { linked: true, manage: true, action: null, sent_total: 0, sent: [], ready: [{ code: 'AB12', at: new Date().toISOString(), outcome_at: new Date().toISOString(), type: 'wa', source: 'google_ads', city: 'Riyadh', failed: null }, { code: 'CD34', at: new Date().toISOString(), outcome_at: null, type: 'call', source: 'google_ads', city: 'Jeddah', failed: null }] } });
@@ -804,7 +831,7 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
   const pg = await page(api, { viewport: { width: 1440, height: 900 } });
   await pg.goto('https://app.maestrolt.com/');
   await pg.waitForSelector('.kpis .kpi');
-  t('live agency: an agency account opens on the detailed level', (await pg.locator('.side-nav a').count()) === 10);
+  t('live agency: an agency account opens on the detailed level', (await pg.locator('.side-nav a').count()) === 11);
   await pg.locator('.side-nav a[data-r="clients"]').click();
   await pg.waitForFunction(() => document.querySelectorAll('#view .tbl tbody tr').length === 2);
   t('live agency: all clients with real visits/contacts/customers', /60/.test(await pg.locator('#view .tbl').innerText()) && /دون نتيجة/.test(await pg.locator('#view .tbl').innerText()));

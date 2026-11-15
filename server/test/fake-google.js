@@ -12,7 +12,7 @@ import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 
 const CV_SEGMENTS = new Set(['segments.date', 'segments.device', 'segments.ad_network_type', 'segments.ad_sub_network_type', 'segments.click_type', 'segments.slot', 'segments.month_of_year']);
-const RESOURCES = new Set(['conversion_action', 'customer', 'customer_client', 'campaign', 'search_term_view', 'click_view', 'ad_group_ad', 'geo_target_constant']);
+const RESOURCES = new Set(['campaign_criterion', 'shared_criterion', 'conversion_action', 'customer', 'customer_client', 'campaign', 'search_term_view', 'click_view', 'ad_group_ad', 'geo_target_constant']);
 
 export function fakeGoogle(opts) {
   opts = opts || {};
@@ -56,6 +56,8 @@ export function fakeGoogle(opts) {
     const camp = (id) => (acct.campaigns || []).find((c) => String(c.id) === String(id)) || { id, name: '' };
     let results = [];
     if (p.from === 'customer') results = [{ customer: acct.customer }];
+    else if (p.from === 'campaign_criterion') results = (acct.negatives || []).map((n) => ({ campaign: { id: n.campaignId, name: n.campaignName || '' }, campaignCriterion: { keyword: { text: n.text, matchType: n.matchType } } }));
+    else if (p.from === 'shared_criterion') results = (acct.sharedNegatives || []).map((n) => ({ sharedSet: { name: n.list }, sharedCriterion: { keyword: { text: n.text, matchType: n.matchType } } }));
     else if (p.from === 'conversion_action') results = (acct.convActions || []).filter((c) => c.type === 'UPLOAD_CLICKS' && c.status === 'ENABLED').map((c) => ({ conversionAction: c }));
     else if (p.from === 'customer_client') results = (acct.children || []).map((c) => ({ customerClient: c }));
     else if (p.from === 'geo_target_constant') {
@@ -126,6 +128,17 @@ export function fakeGoogle(opts) {
       if (g.noDataManagerScope) return resp(403, { error: { code: 403, status: 'PERMISSION_DENIED', message: 'Request had insufficient authentication scopes.', details: [{ reason: 'ACCESS_TOKEN_SCOPE_INSUFFICIENT' }] } });
       if (u.pathname !== '/v1/events:ingest') return resp(404, { error: { code: 404 } });
       return resp(200, { requestId: 'req-' + g.ingest.length });
+    }
+    if (u.hostname === 'googleads.googleapis.com' && /\/campaignCriteria:mutate$/.test(u.pathname)) {
+      const tok = String(headers.Authorization || '').replace(/^Bearer /, '');
+      if (!issued.has(tok)) return apiErr(401, 'UNAUTHENTICATED', 'invalid credentials');
+      const cid = u.pathname.split('/')[3]; const acct = g.accounts[cid];
+      if (!acct) return apiErr(403, 'PERMISSION_DENIED', 'USER_PERMISSION_DENIED');
+      if (g.mutateFail) return apiErr(400, 'INVALID_ARGUMENT', 'Request contains an invalid argument.');
+      const ops = JSON.parse(init.body || '{}').operations || [];
+      g.negMutations = (g.negMutations || []).concat(ops.map((o) => Object.assign({ customer: cid }, o.create)));
+      acct.negatives = (acct.negatives || []).concat(ops.map((o) => ({ campaignId: o.create.campaign.split('/').pop(), text: o.create.keyword.text, matchType: o.create.keyword.matchType })));
+      return resp(200, { results: ops.map((o, i) => ({ resourceName: 'customers/' + cid + '/campaignCriteria/' + o.create.campaign.split('/').pop() + '~' + (1000 + i) })) });
     }
     if (u.hostname === 'googleads.googleapis.com' && /\/conversionActions:mutate$/.test(u.pathname)) {
       const tok = String(headers.Authorization || '').replace(/^Bearer /, '');

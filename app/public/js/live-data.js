@@ -100,6 +100,10 @@
     tg: function (site) { return LT.api('/v1/dash/tg?site=' + encodeURIComponent(site)).then(function (r) { if (!r.ok) throw new Error('http'); return r.body; }); },
     tgInvite: function (site, revoke, audience) { return LT.api('/v1/dash/tg/invite', { method: 'POST', body: { site: site, revoke: !!revoke, audience: audience || 'owner' } }).then(function (r) { if (!r.ok) throw new Error(r.body && r.body.error || 'http'); return r.body.invite; }); },
     tgRemove: function (site, chat) { return LT.api('/v1/dash/tg/remove', { method: 'POST', body: { site: site, chat: chat } }).then(function (r) { if (!r.ok) throw new Error('http'); return r.body; }); },
+    // الكلمات السلبية (negatives.js على السيرفر)
+    negatives: function (site) { return LT.api('/v1/dash/negatives?site=' + encodeURIComponent(site)).then(function (r) { if (!r.ok) throw new Error('http'); return r.body; }); },
+    negExisting: function (site) { return LT.api('/v1/dash/negatives/existing?site=' + encodeURIComponent(site)).then(function (r) { if (!r.ok) throw new Error('http'); return r.body; }); },
+    negDecide: function (site, id, decision) { return LT.api('/v1/dash/negatives/decide', { method: 'POST', body: { site: site, id: id, decision: decision } }).then(function (r) { if (!r.ok) { var e = new Error(r.body && r.body.error || 'http'); e.detail = r.body && r.body.detail; throw e; } return r.body; }); },
     // رفع العملاء المؤكدين لجوجل أدز بموافقة العميل (convupload.js على السيرفر)
     conv: function (site) { return LT.api('/v1/dash/conv?site=' + encodeURIComponent(site)).then(function (r) { if (!r.ok) throw new Error('http'); return r.body; }); },
     convActions: function (site) { return LT.api('/v1/dash/conv/actions?site=' + encodeURIComponent(site)).then(function (r) { if (!r.ok) throw new Error(r.body && r.body.error || 'http'); return r.body.actions || []; }); },

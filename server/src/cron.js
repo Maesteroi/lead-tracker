@@ -6,6 +6,7 @@ import { geoBackfill } from './geo.js';
 import { cleanupSessions } from './notify.js';
 import { cleanupReplays } from './replay.js';
 import { dailyDeliveryReport } from './health.js';
+import { dailyClicksReports } from './clicksreport.js';
 import { cleanPending, adsLinkReady } from './adslink.js';
 
 const H = 3600 * 1000;
@@ -101,6 +102,8 @@ export async function runScheduled(env, db, opts) {
   try { out.geo = await geoBackfill(env, db, opts && opts.fetchImpl, 20); } catch (e) { out.geo = { error: String(e && e.message || e).slice(0, 80) }; }
   // تقرير التوصيل الصبح (مرة في اليوم): مستقل
   try { out.delivery = await dailyDeliveryReport(env, db, opts && opts.fetchImpl); } catch (e) { out.delivery = { error: String(e && e.message || e).slice(0, 80) }; }
+  // تقرير النقرات اليومي لكل موقع مربوط بجوجل أدز (بعد ما يوم أمس يتسحب): مستقل
+  try { out.clicks = await dailyClicksReports(env, db, opts && opts.fetchImpl); } catch (e) { out.clicks = { error: String(e && e.message || e).slice(0, 80) }; }
   // طلبات ربط جوجل أدز اللي ماكملتش (مرة في الساعة، ولو الربط متظبّط بس): مستقل
   if (new Date().getUTCMinutes() < 5 && adsLinkReady(env)) { try { await cleanPending(db); } catch (e) { /* مايوقفش حاجة */ } }
   // سحب جوجل أدز مستقل: عطل في اللي فوق مايوقفوش، وعطله مايوقفش اللي فوق. مقفول لحد ما ADS_PULL_ENABLED = "1"
