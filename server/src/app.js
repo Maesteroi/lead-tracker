@@ -23,6 +23,7 @@ import { dashBrief, dashBriefSave } from './brief.js';
 import { dashBlockIp, dashUnblockIp, dashBlocks, dashOwnDevice } from './blocks.js';
 import { dashAnalysis, dashAnalysisFix, dashAnalysisDone } from './analysis.js';
 import { dashStatement, dashStatementCsv } from './statement.js';
+import { dashSettings, dashSettingsSave, logoutOthers } from './settings.js';
 import { dashSuffix, dashSuffixSet } from './suffix.js';
 
 const SITE_ACT = /^\/v1\/sites\/([A-Za-z0-9]{6,20})\/(rotate-key|install-status|pair-code)$/;
@@ -120,6 +121,9 @@ export async function handleApp(req, env, db, url, p, fetchImpl) {
     else if (m === 'POST' && p === '/v1/dash/unblock') res = await dashUnblockIp(req, env, db, sess, fetchImpl);
     else if (m === 'GET' && p === '/v1/dash/blocks') res = await dashBlocks(req, env, db, sess, url);
     else if (m === 'POST' && p === '/v1/dash/own') res = await dashOwnDevice(req, env, db, sess);
+    // حسابي والإعدادات (settings.js)
+    else if (m === 'GET' && p === '/v1/dash/settings') res = await dashSettings(req, env, db, sess, url);
+    else if (m === 'POST' && p === '/v1/dash/settings') res = await dashSettingsSave(req, env, db, sess);
     // كشف الحساب وملف طلب الاسترداد (statement.js)
     else if (m === 'GET' && p === '/v1/dash/statement') res = await dashStatement(req, env, db, sess, url);
     else if (m === 'GET' && p === '/v1/dash/statement.csv') res = await dashStatementCsv(req, env, db, sess, url);
@@ -165,6 +169,7 @@ export async function handleApp(req, env, db, url, p, fetchImpl) {
   const act = SITE_ACT.exec(p);
   if (m === 'GET' && p === '/v1/me') res = await me(req, env, db, sess);
   else if (m === 'POST' && p === '/v1/auth/logout') res = await authLogout(req, env, db, sess);
+  else if (m === 'POST' && p === '/v1/auth/logout-others') res = sess ? await logoutOthers(req, env, db, sess) : json({ ok: false, error: 'auth' }, 401);
   else if (m === 'GET' && p === '/v1/sites') res = await listSites(req, env, db, sess);
   else if (m === 'POST' && p === '/v1/sites') res = await createSite(req, env, db, sess);
   else if (m === 'POST' && p === '/v1/connect') res = await connectSite(req, env, db, sess, fetchImpl);

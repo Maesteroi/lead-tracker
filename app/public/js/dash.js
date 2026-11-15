@@ -29,6 +29,7 @@
     install: 'M12 3v12M7 10l5 5 5-5M5 21h14',
     analysis: 'M3 3v18h18M7 15l4-4 3 3 6-7M17 7h3v3',
     admin: 'M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1M15 4v4M9 10v4M17 16v4',
+    settings: 'M12 15a3 3 0 100-6 3 3 0 000 6zM19.4 15a1.7 1.7 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.8-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1.1-1.5 1.7 1.7 0 00-1.8.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.8 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.5-1.1 1.7 1.7 0 00-.3-1.8l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.8.3H9a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.8-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.8V9a1.7 1.7 0 001.5 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z',
   };
   function icon(name) {
     var svg = document.createElementNS(NS, 'svg'); svg.setAttribute('viewBox', '0 0 24 24'); svg.setAttribute('class', 'ic'); svg.setAttribute('aria-hidden', 'true');
@@ -36,8 +37,8 @@
   }
 
   var T = LT.t;   // النصوص من ملف اللغة (js/lang/*.js)
-  var ROUTES = ['overview', 'analysis', 'clients', 'statement', 'visits', 'protection', 'negatives', 'leads', 'alerts', 'reports', 'sites', 'team', 'billing'].map(function (k) { return [k, T('nav.' + k)]; });
-  var NAV = { simple: ['overview', 'analysis', 'leads', 'protection', 'negatives', 'alerts', 'sites', 'team', 'billing'], detailed: ROUTES.map(function (r) { return r[0]; }) };
+  var ROUTES = ['overview', 'analysis', 'clients', 'statement', 'visits', 'protection', 'negatives', 'leads', 'alerts', 'reports', 'sites', 'team', 'billing', 'settings'].map(function (k) { return [k, T('nav.' + k)]; });
+  var NAV = { simple: ['overview', 'analysis', 'leads', 'protection', 'negatives', 'alerts', 'sites', 'team', 'billing', 'settings'], detailed: ROUTES.map(function (r) { return r[0]; }) };
   var BOTTOMS = { simple: ['overview', 'leads', 'protection', 'alerts'], detailed: ['overview', 'statement', 'visits', 'protection'] };
   var BOTTOM = BOTTOMS.detailed;
   var STATUS = { real: [T('status.real'), 'ok'], suspicious: [T('status.suspicious'), 'warn'], high: [T('status.high'), 'bad'], blocked: [T('status.blocked'), 'bad'] };
@@ -1711,6 +1712,48 @@
         ]);
       }))]);
   }
+  // ════════ حسابي والإعدادات (16 نوفمبر) ════════
+  // حسابك (من جوجل، بلا كلمة مرور) · نشاطك (الاسم · واتساب · البلد والعملة) · مواقعك وجوجل أدز · التنبيهات والتطبيق · ملف نشاطك (بيكبر واحدة واحدة)
+  function adsId(c) { var x = String(c || ''); return x.length === 10 ? x.slice(0, 3) + '-' + x.slice(3, 6) + '-' + x.slice(6) : x; }
+  function vSettings(view) {
+    clear(view);
+    if (!DATA.settings) { view.appendChild(soonCard(T('nav.settings'), [T('set.demo.1'), T('set.demo.2'), T('set.demo.3')])); return Promise.resolve(); }
+    var site = state.sites.filter(function (x) { return x.id === state.site; })[0];
+    if (!site || !site.org_id) { view.appendChild(card(T('nav.settings'), [el('p', { class: 'muted', text: T('team.pick_site') })])); return Promise.resolve(); }
+    return DATA.settings(site.org_id).then(function (d) {
+      clear(view);
+      var row = function (k, v) { return el('div', { class: 'set-row' }, [el('span', { class: 'dim', text: k }), el('b', { text: v })]); };
+      // حسابك
+      var others = el('button', { class: 'btn ghost sm', type: 'button', text: T('set.out.others') });
+      others.addEventListener('click', function () { others.disabled = true; DATA.logoutOthers().then(function (r) { toast(T('set.out.done', { n: fmt(r.ended) })); vSettings(view); }, function () { others.disabled = false; toast(T('err.save')); }); });
+      var acct = card(T('set.acct'), [row(T('set.email'), d.user.email), d.user.name ? row(T('set.name'), d.user.name) : null, el('p', { class: 'hint', text: T('set.google') }),
+        row(T('set.sessions'), fmt(d.user.sessions)), d.user.sessions > 1 ? others : null]);
+      // نشاطك
+      var nm = el('input', { type: 'text', class: 'bl-in', maxlength: '80', value: d.org.name, 'aria-label': T('set.biz') }), ph = el('input', { type: 'tel', class: 'bl-in', dir: 'ltr', maxlength: '20', value: d.org.contact_phone || '', placeholder: '01xxxxxxxxx', 'aria-label': T('set.wa') });
+      nm.disabled = ph.disabled = !d.manage;
+      var save = el('button', { class: 'btn sm', type: 'button', text: T('adm.al.save') });
+      save.addEventListener('click', function () { save.disabled = true; DATA.settingsSave({ org: d.org.id, name: nm.value, contact_phone: ph.value }).then(function () { save.disabled = false; toast(T('adm.bl.saved')); }, function (e) { save.disabled = false; toast(T(e.message === 'phone' ? 'set.e.phone' : e.message === 'name' ? 'set.e.name' : 'err.save')); }); });
+      var biz = card(T('set.biz.t'), [el('label', { class: 'set-f' }, [el('span', { text: T('set.biz') }), nm]), el('label', { class: 'set-f' }, [el('span', { text: T('set.wa') }), ph]),
+        row(T('set.country'), (d.org.country ? (function () { try { return new Intl.DisplayNames([LT.locale || 'ar'], { type: 'region' }).of(d.org.country); } catch (e) { return d.org.country; } })() : '—') + (d.org.currency ? ' · ' + curName(d.org.currency) : '')), el('p', { class: 'hint', text: T('set.country.i') }), d.manage ? save : null]);
+      // مواقعك وجوجل أدز
+      var sites = card(T('set.sites'), [el('ul', { class: 'set-sites' }, d.sites.map(function (x) {
+        return el('li', {}, [el('div', {}, [el('b', { text: x.name }), el('small', { class: 'dim', dir: 'ltr', text: x.domain })]),
+          x.ads ? el('span', { class: 'pill ok', dir: 'ltr', text: 'Google Ads ' + adsId(x.ads.customer_id) }) : el('span', { class: 'pill warn', text: T('set.ads.no') })]);
+      })), el('a', { class: 'btn ghost sm', href: '#/sites', text: T('set.sites.go') })]);
+      // التنبيهات والتطبيق
+      var ls = LT.i18n.switcher();
+      var app = card(T('set.app'), [row(T('set.tg'), d.telegram ? T('set.tg.n', { n: fmt(d.telegram) }) : T('set.tg.none')), el('a', { class: 'btn ghost sm', href: '#/alerts', text: T('set.tg.go') }),
+        el('div', { class: 'set-acts' }, [installed() ? el('span', { class: 'pill ok', text: T('set.installed') }) : installBtn('btn ghost sm'), ls])]);
+      // ملف نشاطك
+      var fileBox = el('div');
+      var file = card(T('set.file'), [el('p', { class: 'hint', text: T('set.file.i') }), fileBox,
+        el('ul', { class: 'set-next' }, ['set.file.n1', 'set.file.n2', 'set.file.n3'].map(function (k) { return el('li', {}, [el('span', { text: T(k) }), el('span', { class: 'pill', text: T('set.soon') })]); }))]);
+      view.appendChild(el('div', { class: 'grid-2 set-grid' }, [biz, acct]));
+      view.appendChild(file);
+      view.appendChild(el('div', { class: 'grid-2 set-grid' }, [sites, app]));
+      if (DATA.brief) { briefOpen = true; briefCard(fileBox, function () { vSettings(view); }); }
+    });
+  }
   // ════════ الفريق (G-29): مين يدخل حسابك وبيعمل إيه ════════
   var ROLE_AR = {}; ['owner', 'admin', 'staff', 'viewer'].forEach(function (r) { ROLE_AR[r] = [T('team.role.' + r), T('team.role.' + r + '.d')]; });
   // ── الاشتراك (الدفع، المرحلة 2 · 15 نوفمبر): حالتك · عرض المؤسسين · الباقات بعملة حسابك · التحويل بالإيصال · سجل المدفوعات ──
@@ -1735,6 +1778,23 @@
       var nm = LT.locale === 'en' ? f.name_en || f.name_ar : f.name_ar;
       return el('li', { class: f.enabled ? 'yes' : 'no' }, [el('span', { class: 'sr', text: T(f.enabled ? 'bl.ff.yes' : 'bl.ff.no') }), el('span', { text: nm })]);
     });
+  }
+  // مقارنة الباقات: كل ميزة سطر، و✓/✗ أو الرقم لكل باقة (من الـ checklist بتاع الأدمن) · مطوية
+  function compareTable(d) {
+    var plans = d.plans.filter(function (p) { return (p.features || []).length; });
+    if (plans.length < 2) return null;
+    var keys = [], byKey = {};
+    plans.forEach(function (p) { p.features.forEach(function (f) { if (!byKey[f.key]) { byKey[f.key] = f; keys.push(f.key); } }); });
+    var cell = function (p, k) {
+      var f = (p.features || []).filter(function (x) { return x.key === k; })[0];
+      if (!f || !f.enabled) return el('td', { class: 'no', text: '✕' });
+      if (f.kind === 'limit') return el('td', { class: 'num', text: f.value == null ? '∞' : fmt(f.value) });
+      return el('td', { class: 'yes', text: '✓' });
+    };
+    var nm = function (f) { return LT.locale === 'en' ? f.name_en || f.name_ar : f.name_ar; };
+    return el('details', { class: 'bl-cmp' }, [el('summary', { text: T('bl.cmp') }), el('div', { class: 'tbl-wrap' }, [el('table', { class: 'tbl static bl-cmp-t' }, [
+      el('thead', {}, [el('tr', {}, [el('th', { text: T('bl.cmp.f') })].concat(plans.map(function (p) { return el('th', {}, [el('b', { text: planName(d, p.id) }), el('small', { text: price2(p.price.monthly_now, p.price.currency) + ' / ' + T('bl.per.month') })]); })))]),
+      el('tbody', {}, keys.map(function (k) { return el('tr', {}, [el('th', { scope: 'row', text: nm(byKey[k]) })].concat(plans.map(function (p) { return cell(p, k); }))); }))])])]);
   }
   function vBilling(view) {
     clear(view);
@@ -1761,6 +1821,14 @@
         el('span', { class: 'dim', text: tl != null && tl <= 0 ? T('bl.trial.over.s') : T('bl.trial.s') })])]);
     }
     view.appendChild(st);
+    // استهلاك الشهر: نقرات الإعلان والمواقع مقابل حد الباقة
+    if (d.usage) {
+      var u = d.usage, meter = function (label, v, lim) {
+        var p = lim ? Math.min(100, Math.round(v / lim * 100)) : 0, bar = el('i', { class: 'bl-bar' + (p >= 90 ? ' bad' : p >= 70 ? ' warn' : '') }, [el('i')]); bar.firstChild.style.width = Math.max(2, p) + '%';
+        return el('div', { class: 'bl-use' }, [el('div', { class: 'bl-use-h' }, [el('span', { text: label }), el('b', { text: lim ? T('bl.use.of', { v: fmt(v), l: fmt(lim) }) : fmt(v) })]), lim ? bar : null]);
+      };
+      view.appendChild(el('section', { class: 'panel-card bl-usage' }, [meter(T('bl.use.clicks'), u.clicks, u.limit), meter(T('bl.use.sites'), u.sites, u.site_limit)]));
+    }
     // ٢) عرض المؤسسين
     if (!o.founder && d.founders.left > 0 && d.founders.pct) {
       var used = d.founders.limit - d.founders.left, fb = el('i', { class: 'bl-bar' }, [el('i')]); fb.firstChild.style.width = Math.max(3, Math.round(used / d.founders.limit * 100)) + '%';
@@ -1804,7 +1872,7 @@
       ]));
     });
     var fxNote = d.pricing && d.pricing.mode === 'usd' && d.pricing.source ? el('p', { class: 'hint' }, [el('span', { text: T('bl.fx', { r: Number(d.pricing.rate).toLocaleString('en-US', { maximumFractionDigits: 2 }), c: curName(d.currency) }) + ' ' }), el('a', { href: d.pricing.source, target: '_blank', rel: 'noopener', text: 'Rates By Exchange Rate API' })]) : null;
-    view.appendChild(card(T('bl.plans'), [el('p', { class: 'hint', text: T('bl.cur', { c: curName(d.currency) }) }), seg, grid, fxNote]));
+    view.appendChild(card(T('bl.plans'), [el('p', { class: 'hint', text: T('bl.cur', { c: curName(d.currency) }) }), seg, grid, compareTable(d), fxNote]));
     // ٥) الدفع
     if (bill.plan && !pend && d.manage) view.appendChild(checkout(view, d, org));
     if (!d.manage) view.appendChild(el('p', { class: 'muted', text: T('bl.owner_only') }));
@@ -1834,6 +1902,7 @@
     d.methods.forEach(function (m) {
       var on = bill.method === m.id, det = m.details || {}, lines = [];
       if (m.kind === 'instapay') lines.push(el('div', { class: 'bl-acc' }, [el('code', { text: det.handle || '' }), cp(det.handle || '')]));
+      if (m.kind === 'instapay' && det.link) lines.push(el('a', { class: 'btn bl-paynow', href: det.link, target: '_blank', rel: 'noopener', text: T('bl.paynow') }));
       if (m.kind === 'vodafone_cash') (det.numbers || []).forEach(function (n) { lines.push(el('div', { class: 'bl-acc' }, [el('code', { text: n }), cp(n)])); });
       if (det.name) lines.push(el('small', { class: 'dim', text: T('bl.to', { n: det.name }) }));
       var r = el('input', { type: 'radio', name: 'bl-m', value: m.id }); r.checked = on;
@@ -1853,6 +1922,13 @@
     });
     box.appendChild(el('div', { class: 'bl-step' }, [el('i', { class: 'bl-n', text: '3' }), el('div', {}, [el('b', { text: T('bl.s3') }), ref, el('small', { class: 'dim', text: T('bl.s3.s') })])]));
     box.appendChild(el('div', { class: 'bl-step' }, [el('i', { class: 'bl-n', text: '4' }), el('div', {}, [el('b', { text: T('bl.s4') }), file, drop, prev])]));
+    // ملخص الطلب + تنبيه الأمان قبل الإرسال
+    var mm = d.methods.filter(function (x) { return x.id === bill.method; })[0] || {}, handle = (mm.details || {}).handle;
+    box.appendChild(el('div', { class: 'bl-sum' }, [el('b', { text: T('bl.sum') }),
+      el('dl', {}, [[T('bl.sum.plan'), planName(d, p.id) + (units > 1 ? ' · ' + LT.n(units, 'project') : '')], [T('bl.sum.period'), T(yr ? 'bl.p.year.short' : 'bl.p.month')], [T('bl.sum.method'), mm.label || T('bl.k.' + mm.kind)]]
+        .concat(cp0 && cp0.better ? [[T('bl.sum.coupon'), cp0.code + ' (−' + price2(cp0.off, p.price.currency) + ')']] : []).concat([[T('bl.sum.total'), price2(amount, p.price.currency)]])
+        .reduce(function (a, r) { return a.concat([el('dt', { text: r[0] }), el('dd', { text: r[1] })]); }, []))]));
+    box.appendChild(el('p', { class: 'bl-safe', text: T(handle ? 'bl.safe' : 'bl.safe.n', { h: handle || '' }) }));
     var send = el('button', { class: 'btn', type: 'button', text: T('bl.send', { a: price2(amount, p.price.currency) }) });
     send.addEventListener('click', function () {
       var r = ref.value.trim();
@@ -1982,7 +2058,7 @@
 
   var LIVE_VIEWS = { overview: lOverview, statement: lStatement, protection: lProtection };
 
-  var VIEWS = { overview: lOverview, clients: vClients, statement: vStatement, visits: vVisits, protection: vProtection, negatives: vNegatives, leads: vLeads, alerts: vAlerts, reports: vReports, sites: vSites, team: vTeam, billing: vBilling, analysis: vAnalysis };
+  var VIEWS = { overview: lOverview, clients: vClients, statement: vStatement, visits: vVisits, protection: vProtection, negatives: vNegatives, leads: vLeads, alerts: vAlerts, reports: vReports, sites: vSites, team: vTeam, billing: vBilling, analysis: vAnalysis, settings: vSettings };
 
   // ── الدرج ──
   var lastFocus = null;

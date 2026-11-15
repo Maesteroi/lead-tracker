@@ -104,6 +104,17 @@ export function discountFor(org, b, now) {
 }
 
 // ── للعميل: الباقات بأسعار عملة حسابه، والوسائل المتاحة له ──
+// استهلاك الشهر: نقرات الإعلان (من سحب جوجل) على كل مواقع الحساب، مقابل حد الباقة (أو حد التجربة = أعلى باقة ظاهرة)
+async function usageOf(db, org, b) {
+  const sites = ((await db.select('clients?org_id=' + eq(org.id) + '&select=id').catch(() => [])) || []).map((x) => x.id);
+  const now = new Date(), month = now.toISOString().slice(0, 7);
+  let clicks = 0;
+  if (sites.length) for (const r of (await db.select('ads_campaign_daily?client_id=in.(' + sites.map(encodeURIComponent).join(',') + ')&day=gte.' + month + '-01&select=clicks&limit=20000').catch(() => [])) || []) clicks += Number(r.clicks) || 0;
+  const plan = b.plans.find((p) => p.id === org.plan);
+  const lim = (pl) => { const f = pl && (pl.features || []).find((x) => x.key === 'ad_clicks'); return f ? (f.enabled ? (f.value == null ? null : f.value) : 0) : (pl ? pl.clicks : null); };
+  return { month, clicks, limit: plan ? lim(plan) : null, sites: sites.length, site_limit: plan ? plan.sites : null };
+}
+
 export async function dashBilling(req, env, db, sess, url) {
   const orgId = String(url.searchParams.get('org') || '');
   if (!UUID_RE.test(orgId)) return notFound();
@@ -115,7 +126,8 @@ export async function dashBilling(req, env, db, sess, url) {
   const ctx = ctxFor(b, await countryOf(db, org)), currency = ctx.currency;
   const disc = discountFor(org, b, Date.now());
   const methods = await methodsFor(db, org, currency);
-  return json({ ok: true, manage: role === 'owner', org: { id: org.id, name: org.name, status: org.status, plan: org.plan, trial_ends_at: org.trial_ends_at, plan_period_end: org.plan_period_end, founder: !!org.founder_no },
+  const usage = await usageOf(db, org, b).catch(() => null);
+  return json({ ok: true, manage: role === 'owner', usage, org: { id: org.id, name: org.name, status: org.status, plan: org.plan, trial_ends_at: org.trial_ends_at, plan_period_end: org.plan_period_end, founder: !!org.founder_no },
     currency, settings: { trial_days: b.settings.trial_days, annual_months: b.settings.annual_months, founders_months: b.settings.founders_months, founders_after_pct: b.settings.founders_after_pct },
     founders: { left: Math.max(0, b.founders.limit - b.founders.used), limit: b.founders.limit, pct: b.settings.founders_pct },
     pricing: { country: ctx.country, mode: ctx.mode, rate: ctx.rate, source: ctx.mode === 'usd' ? FX_SOURCE : null },
@@ -216,7 +228,9 @@ export async function platformMethodSave(req, env, db, sess) {
   if (!KINDS.includes(kind)) return json({ ok: false, error: 'kind' }, 400);
   const d = b.details || {};
   let details;
-  if (kind === 'instapay') { details = { handle: clip(d.handle, 80), name: clip(d.name, 60) }; if (!details.handle) return json({ ok: false, error: 'handle' }, 400); }
+  if (kind === 'instapay') { details = { handle: clip(d.handle, 80), name: clip(d.name, 60) }; if (!details.handle) return json({ ok: false, error: 'handle' }, 400);
+    // رابط الدفع من تطبيق إنستا باي (اختياري): https://ipn.eg/… بس
+    const link = clip(d.link, 200); if (link) { if (!/^https:\/\/ipn\.eg\/[A-Za-z0-9/_.\-]+$/.test(link)) return json({ ok: false, error: 'link' }, 400); details.link = link; } }
   else if (kind === 'vodafone_cash') { const nums = (Array.isArray(d.numbers) ? d.numbers : []).map((x) => String(x).replace(/\D/g, '')).filter((x) => VF_RE.test(x)).slice(0, 5); if (!nums.length) return json({ ok: false, error: 'numbers' }, 400); details = { numbers: nums, name: clip(d.name, 60) }; }
   else details = {};   // Paymob: المفاتيح في المرحلة 3، مش هنا
   const currencies = (Array.isArray(b.currencies) ? b.currencies : ['EGP']).filter((c) => CUR_RE.test(c)).slice(0, 10);
