@@ -863,7 +863,7 @@ window.LT_LANG.en = {
   'login.h1': "Sign in",
   'login.sub': "With your Google account, no password.",
   'login.privacy': "We only read your name and email; we never see your ads or your messages.",
-  'login.trial': "Your first sign-in creates a new account with a 14-day free trial.",
+  'login.trial': "Your first sign-in creates a new account with a 7-day free trial.",
   'cn.title': "Connect site · Maestro LT",
   'wait': "One moment…",
   'j.page': "Opened “{t}”",
@@ -1491,6 +1491,8 @@ window.LT_LANG.en = {
   'bk.own.none': "None yet. Open your visit and press «This is my visit».",
   'bk.own.device': "Device",
   'bk.own.remove': "Remove",
+  'inst.btn': "Install the app",
+  'inst.done': "The app is installed on your device.",
   // الاشتراك والدفع بالإيصال (15 نوفمبر)
   'nav.billing': "Subscription",
   'units.month': ["month", "months"],

@@ -584,3 +584,7 @@ svg.geo { width: 100%; height: auto; aspect-ratio: 1.7; display: block; backgrou
 .v-acts-row { display: flex; gap: 8px; flex-wrap: wrap; }
 .bk-list li { grid-template-columns: auto 1fr auto; align-items: center; }
 .ltr { direction: ltr; unicode-bidi: isolate; }
+/* ثبّت التطبيق (15 نوفمبر) */
+.side-install { padding: 4px 12px 0; }
+.side-install-btn { display: flex; align-items: center; gap: 12px; width: 100%; padding: 10px 14px; border-radius: 12px; border: 1px dashed color-mix(in srgb, var(--accent) 45%, var(--line)); background: color-mix(in srgb, var(--info-bg) 60%, transparent); color: var(--accent); font: 700 15px var(--font-body); cursor: pointer; text-align: start; }
+.side-install-btn:hover { background: var(--info-bg); }
