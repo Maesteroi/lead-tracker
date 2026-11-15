@@ -219,3 +219,17 @@ button.switch[aria-checked="true"]::after { inset-inline-start: 21px; }
 .bl-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; margin: 10px 0 14px; }
 .bl-grid label { display: grid; gap: 4px; font-size: 14px; }
 .bl-add { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+/* المدفوعات (15 نوفمبر) */
+.pay-card .sec-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.pay-list { display: grid; gap: 12px; }
+.pay-item { display: grid; grid-template-columns: 1fr auto; gap: 16px; padding: 16px; border: 1px solid var(--line); border-radius: 16px; background: var(--card); }
+.pay-item.late { border-color: var(--warn); box-shadow: 0 0 0 3px var(--warn-bg); }
+.pay-main { display: grid; gap: 6px; min-width: 0; }
+.pay-h { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.pay-amt { font: 800 22px var(--font-head, inherit); font-variant-numeric: tabular-nums; }
+.pay-acts { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 6px; }
+.pay-side { display: grid; align-content: start; }
+.pay-img { width: 140px; height: 180px; border: 2px dashed var(--line); border-radius: 12px; background: var(--bg); color: var(--accent, #1a6fe8); font: inherit; font-weight: 700; cursor: pointer; }
+.pay-pic { width: 140px; max-height: 260px; object-fit: contain; border-radius: 12px; border: 1px solid var(--line); cursor: zoom-in; background: var(--bg); }
+.pay-pic.big { position: fixed; inset: 4vh 4vw; width: auto; height: auto; max-height: 92vh; max-width: 92vw; margin: auto; z-index: 90; cursor: zoom-out; box-shadow: 0 30px 80px rgba(0, 0, 0, .45); }
+@media (max-width: 640px) { .pay-item { grid-template-columns: 1fr; } .pay-img, .pay-pic { width: 100%; } }

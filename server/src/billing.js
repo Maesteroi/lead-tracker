@@ -8,6 +8,7 @@ import { eq } from './db.js';
 import { json } from './util.js';
 import { isPlatform, hasPerm, notFound, roleFor } from './sites.js';
 import { audit } from './auth.js';
+import { orgPayments } from './payments.js';
 
 const PLAN_IDS = ['basic', 'pro', 'agency'];
 const CUR_RE = /^[A-Z]{3}$/;
@@ -62,7 +63,8 @@ export async function dashBilling(req, env, db, sess, url) {
     currency, settings: { trial_days: b.settings.trial_days, annual_months: b.settings.annual_months, founders_months: b.settings.founders_months, founders_after_pct: b.settings.founders_after_pct },
     founders: { left: Math.max(0, b.founders.limit - b.founders.used), limit: b.founders.limit, pct: b.settings.founders_pct },
     plans: b.plans.filter((p) => p.active).map((p) => ({ id: p.id, sites: p.sites, clicks: p.clicks, price: priceFor(p, currency, b.settings, disc) })).filter((p) => p.price),
-    methods: methods.map((m) => ({ id: m.id, kind: m.kind, label: m.label || '', details: m.details || {} })) });
+    methods: methods.map((m) => ({ id: m.id, kind: m.kind, label: m.label || '', details: m.details || {} })),
+    payments: role === 'owner' ? await orgPayments(db, org.id) : [] });
 }
 export async function methodsFor(db, org, currency) {
   let owner = null;
