@@ -21,7 +21,8 @@ export function world(extra) {
     const res = await route(new Request('https://api.maestrolt.com' + path, { method, headers, body: o.body === undefined ? undefined : JSON.stringify(o.body), redirect: 'manual' }), o.env || env, f);
     let body = null; const ct = res.headers.get('content-type') || '';
     if (ct.includes('json')) body = await res.clone().json().catch(() => null);
-    return { status: res.status, body, headers: res.headers, cookies: res.headers.getSetCookie ? res.headers.getSetCookie() : [], location: res.headers.get('location') };
+    const text = ct.includes('csv') ? await res.clone().text() : null;
+    return { status: res.status, body, text, headers: res.headers, cookies: res.headers.getSetCookie ? res.headers.getSetCookie() : [], location: res.headers.get('location') };
   };
   return { fs, g, f, env, call };
 }

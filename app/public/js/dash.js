@@ -296,10 +296,13 @@
           kpi(T('st.spend'), money(t.cost, cur), LT.n(t.billed, 'click'), 'info'),
           kpi(T('st.on_bad'), money(t.invalid_cost, cur), T('st.of_spend', { p: pct(t.invalid_cost, t.cost) }), 'warn'),
           kpi(T('st.google_back'), LT.n(t.refunded, 'click'), T('st.unasked'), 'ok'),
-          kpi(T('st.claim'), money(t.invalid_cost * 0.6, cur), T('st.claim.sub'), 'ok'),
-        ]), el('button', { class: 'btn sm', type: 'button', text: T('st.pdf') })]),
+          kpi(T('st.claim'), money(t.claim != null ? t.claim : t.invalid_cost * 0.6, cur), t.claim_clicks != null ? T('st.claim.live', { n: LT.n(t.claim_clicks, 'click') }) : T('st.claim.sub'), 'ok'),
+        ]), el('div', { class: 'st-acts' }, [el('button', { class: 'btn sm st-pdf', type: 'button', text: T('st.pdf') }), DATA.statementCsv ? el('button', { class: 'btn ghost sm st-csv', type: 'button', text: T('st.csv') }) : null]),
+          DATA.statementCsv ? el('p', { class: 'hint', text: T('st.csv.how') }) : null]),
       ]));
-      view.querySelector('.btn.sm').addEventListener('click', function () { window.print(); });
+      view.querySelector('.st-pdf').addEventListener('click', function () { window.print(); });
+      var csv = view.querySelector('.st-csv');
+      if (csv) csv.addEventListener('click', function () { csv.disabled = true; DATA.statementCsv(state.site, state.range).then(function () { csv.disabled = false; toast(T('st.csv.ok')); }, function () { csv.disabled = false; toast(T('err.save')); }); });
       // حسب
       var seg = el('div', { class: 'seg', role: 'tablist' });
       var body = el('div');
@@ -1204,7 +1207,7 @@
       [T('cl.h.billed'), nf(k.billed)], [T('st.spend'), money(k.cost, cur)], [T('d.k.real'), nf(k.real)], [T('kpi.suspicious'), nf(k.suspicious)], [T('d.k.blocked'), nf(k.blocked)], [T('cl.h.leads'), nf(k.leads)],
     ].filter(function (x) { return x[1] !== '—'; }).slice(0, detailed ? 6 : 3).map(function (x) { return el('div', {}, [el('span', { text: x[0] }), el('b', { text: x[1] })]); }))]));
     if (rep.parts.chart) { var ch = el('div'); C.stacked(ch, o.days, o.scoring === false ? [{ key: 'real', label: T('cl.h.visits'), cls: 'c-real' }] : [{ key: 'real', label: T('status.real'), cls: 'c-real' }, { key: 'suspicious', label: T('status.suspicious'), cls: 'c-sus' }, { key: 'blocked', label: T('status.blocked'), cls: 'c-blk' }], { label: T('rd.quality'), height: 170 }); doc.appendChild(el('section', { class: 'rd-sec' }, [el('h3', { text: T('chart.quality.title') }), ch])); }
-    if (rep.parts.statement && !st.unavailable) {
+    if (rep.parts.statement && st && st.total && !st.unavailable) {
       var t = st.total, fun = el('div');
       C.hbars(fun, [{ label: T('d.k.billed'), value: t.billed, cls: 'c-data' }, { label: T('rd.offsite'), value: t.offsite, cls: 'c-data' }, { label: T('st.h.reached'), value: t.reached, cls: 'c-real' }, { label: T('rd.bad'), value: t.bad, cls: 'c-sus' }, { label: T('rd.not_loaded'), value: t.not_loaded, cls: 'c-blk' }].slice(0, detailed ? 5 : 3), { max: t.billed, compact: true });
       doc.appendChild(el('section', { class: 'rd-sec' }, [el('h3', { text: T('rp2.p.statement') }), fun]));
@@ -1504,11 +1507,15 @@
       view.querySelector('.story + .btn').addEventListener('click', function () { setLevel('detailed'); });
     });
   }
+  // كشف الحساب الحي (15 نوفمبر): من سحب جوجل اليومي · لو مش مربوط أو لسه مفيش بيانات بنقول كده
   function lStatement(view) {
-    clear(view);
-    view.appendChild(el('div', { class: 'callout' }, [el('b', { text: T('lst.title') }), el('span', { text: T('lst.text') })]));
-    view.appendChild(soonCard(T('lst.soon'), [1, 2, 3, 4, 5].map(function (n) { return T('lst.' + n); })));
-    return Promise.resolve();
+    return DATA.statement(state.site, state.range).then(function (d) {
+      if (d.linked && !d.empty) return vStatement(view);
+      clear(view);
+      view.appendChild(el('div', { class: 'callout' }, [el('b', { text: T(d.linked ? 'lst.empty' : 'lst.title') }), el('span', { text: d.linked ? T('lst.empty.s', { d: d.last_day || '—' }) : T('lst.text') }),
+        d.linked ? null : el('a', { class: 'btn sm', href: '#/sites', text: T('lst.link') })]));
+      view.appendChild(soonCard(T('lst.soon'), [1, 2, 3, 4, 5].map(function (n) { return T('lst.' + n); })));
+    });
   }
   function lProtection(view) {
     return DATA.protection(state.site, 7).then(function (p) {
@@ -1712,13 +1719,21 @@
   function planName(d, id) { var n = d && d.names && d.names[id], x = n && (LT.locale === 'en' ? n.en || n.ar : n.ar); if (x) return x; var k = 'bl.plan.' + id, t = T(k); return t === k ? id : t; }
   // سطور المزايا من الـ checklist: ✓ متاحة · ✗ مش في الباقة · الحدود برقمها أو «بلا حد»
   function legacyFeats(id) { var k = 'bl.f.' + id, t = T(k); return t === k ? [] : t.split('|').map(function (f) { return el('li', { text: f }); }); }
-  function featLines(p) {
-    var fs = p.features || [];
+  // الحدود (مواقع · نقرات · حملات…) أرقام كبيرة فوق · المزايا ✓ الأول وبعدها ✗ (مش في الباقة)
+  function featLim(p) {
+    var fs = (p.features || []).filter(function (f) { return f.kind === 'limit' && f.enabled; });
     if (!fs.length) return null;
-    return fs.map(function (f) {
-      var nm = LT.locale === 'en' ? f.name_en || f.name_ar : f.name_ar, txt = nm;
-      if (f.kind === 'limit' && f.enabled) txt = T('bl.ff.lim', { n: nm, v: f.value == null ? T('bl.ff.unl') : fmt(f.value) + (f.unit_ar && LT.locale !== 'en' ? ' ' + f.unit_ar : f.unit_en ? ' ' + f.unit_en : '') });
-      return el('li', { class: f.enabled ? 'yes' : 'no' }, [el('span', { class: 'sr', text: T(f.enabled ? 'bl.ff.yes' : 'bl.ff.no') }), el('span', { text: txt })]);
+    return el('div', { class: 'bl-lims' }, fs.map(function (f) {
+      var nm = LT.locale === 'en' ? f.name_en || f.name_ar : f.name_ar;
+      return el('div', { class: 'bl-lim' }, [el('b', { text: f.value == null ? '∞' : fmt(f.value) }), el('small', { text: nm })]);
+    }));
+  }
+  function featLines(p) {
+    var fs = (p.features || []).filter(function (f) { return f.kind !== 'limit'; });
+    if (!fs.length) return null;
+    return fs.filter(function (f) { return f.enabled; }).concat(fs.filter(function (f) { return !f.enabled; })).map(function (f) {
+      var nm = LT.locale === 'en' ? f.name_en || f.name_ar : f.name_ar;
+      return el('li', { class: f.enabled ? 'yes' : 'no' }, [el('span', { class: 'sr', text: T(f.enabled ? 'bl.ff.yes' : 'bl.ff.no') }), el('span', { text: nm })]);
     });
   }
   function vBilling(view) {
@@ -1774,15 +1789,16 @@
       var choose = el('button', { class: 'btn' + (bill.plan === p.id ? '' : ' ghost'), type: 'button', text: o.status === 'active' && o.plan === p.id ? T('bl.renew') : T('bl.choose') });
       choose.disabled = !!pend || !d.manage;
       choose.addEventListener('click', function () { bill.plan = p.id; bill.receipt = null; drawBilling(view, d, org); var c = document.getElementById('bl-checkout'); if (c) c.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
-      var best = p.badge || (p.badge === undefined && p.id === 'pro' ? T('bl.best') : null), fl = featLines(p);
+      var best = p.badge || (p.badge === undefined && p.id === 'pro' ? T('bl.best') : null), fl = featLines(p), lims = featLim(p);
       grid.appendChild(el('div', { class: 'bl-plan' + (best ? ' best' : '') + (bill.plan === p.id ? ' on' : '') }, [
         best ? el('span', { class: 'bl-tag', text: best }) : null,
         el('h3', { text: planName(d, p.id) }),
         el('div', { class: 'bl-price' }, [pr.discount ? el('s', { text: price2(was, pr.currency) }) : null, el('b', { text: price2(now2, pr.currency) }), el('span', { text: (proj ? T('bl.per.project') + ' ' : '') + (yr ? T('bl.per.year') : T('bl.per.month')) })]),
         pr.discount ? el('small', { class: 'bl-disc', text: p.discount_label ? T('bl.disc.l', { l: p.discount_label, p: pr.discount }) + (p.discount_ends_at ? ' · ' + T('bl.disc.ends', { d: dateAr(p.discount_ends_at) }) : '') : pr.source === 'founder' ? T('bl.disc.f', { p: pr.discount }) : T('bl.disc', { p: pr.discount }) }) : null,
         yr ? el('small', { class: 'dim', text: T('bl.year.eq', { m: price2(now2 / 12, pr.currency) }) }) : null,
-        el('ul', { class: 'bl-feat' + (fl ? ' ck' : '') }, (proj ? [el('li', { text: T('bl.f.project', { c: LT.n(p.campaigns_per_unit || 2, 'campaign') }) }), el('li', { text: T('bl.f.min', { n: fmt(p.min_units || 1) }) })] : [])
-          .concat(fl || (proj ? [] : [el('li', { text: T('bl.f.sites', { n: LT.n(p.sites, 'site') }) }), el('li', { text: T('bl.f.clicks', { n: fmt(p.clicks) }) })]).concat(legacyFeats(p.id)))),
+        lims,
+        el('ul', { class: 'bl-feat' + (fl ? ' bl-ck' : '') }, (proj ? [el('li', { text: T('bl.f.project', { c: LT.n(p.campaigns_per_unit || 2, 'campaign') }) }), el('li', { text: T('bl.f.min', { n: fmt(p.min_units || 1) }) })] : [])
+          .concat(fl || (proj || lims ? [] : [el('li', { text: T('bl.f.sites', { n: LT.n(p.sites, 'site') }) }), el('li', { text: T('bl.f.clicks', { n: fmt(p.clicks) }) })]).concat(legacyFeats(p.id)))),
         stepper,
         choose,
       ]));

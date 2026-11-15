@@ -40,7 +40,8 @@
     agency: null,
     sites: function () { return get('/v1/sites').then(function (b) { return (b.sites || []).map(function (s) { return { id: s.id, name: s.name, domain: (s.domains || [])[0] || '', currency: LT.t('sar'), org: b.all ? (s.org_name || '') : '', org_id: s.org_id }; }); }); },
     overview: function (site, range) { return overviewRaw(site, range).then(mapOverview); },
-    statement: function () { return Promise.resolve({ unavailable: 'ads' }); },
+    statement: function (site, range) { return get('/v1/dash/statement' + q(site, range)); },
+    statementCsv: function (site, range) { return LT.download('/v1/dash/statement.csv' + q(site, range)); },
     visits: function (site, range) { return get('/v1/dash/visits' + q(site, range)).then(function (b) { return (b.sessions || []).map(mapVisit); }); },
     session: function (site, sid) {
       return get('/v1/dash/session' + q(site) + '&sid=' + encodeURIComponent(sid)).then(function (b) {
