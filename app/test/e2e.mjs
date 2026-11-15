@@ -84,6 +84,9 @@ function fakeApi(over) {
       // الكلمات السلبية (negatives.js)
       if (p === '/v1/dash/negatives') return j(200, Object.assign({ ok: true, linked: true, manage: true, currency: 'USD', days: 30, cpc: 1.3, total_cost: 19.5, terms: 6, waste: 11, need_brief: false, level: 'conv', target: 4.5, totals: { cost: 19.5, conv: 4, real: 0, won: 0 }, watch: [{ term: 'جمعية الزواج في جدة', cost: 3.2, left: 3.55, clicks: 4 }], keywords: [{ keyword: 'تصريح زواج', match: 'BROAD', clicks: 40, visits: 33, contacts: 9, convos: 3, won: 1, cost: 52, cost_won: 52, verdict: 'good' }, { keyword: 'أبشر تصريح زواج', match: 'BROAD', clicks: 12, visits: 10, contacts: 6, convos: 0, won: 0, cost: 15, cost_won: null, verdict: 'no_close' }], audit: { broad_pct: 82, off_pct: 41, off_cost: 74.33, adj_clicks: 27, adj_cost: 23.44, adj_conv: 5, info_clicks: 31, info_cost: 11.79, bad_keywords: [{ keyword: 'أبشر تصريح زواج', match: 'BROAD', word: 'أبشر', why: 'يريد التقديم بنفسه', clicks: 2 }], unsafe: [] }, decided: st.negDecided || [] }, { suggestions: (st.negSug || [{ id: 'aaaa1111', text: 'وظائف', match: 'PHRASE', reason: 'intent_jobs', variants: ['وظائف', 'الوظائف'], narrowed: null, clicks: 2, cost: 2, conv: 0, terms: ['وظائف تصريح زواج', 'وظائف مكتب تعقيب'], campaigns: [{ id: '11', name: 'تصاريح' }, { id: '12', name: 'تعقيب' }], protect: false }, { id: 'bbbb2222', text: 'زواج', match: 'EXACT', reason: 'generic', variants: ['زواج'], narrowed: null, clicks: 4, cost: 9, conv: 0, terms: ['زواج'], campaigns: [{ id: '11', name: 'تصاريح' }], protect: true }, { id: 'cccc3333', text: 'إنشاء عقد زواج', match: 'PHRASE', reason: 'not_offer', why: 'لا ننشئ عقود الزواج', variants: ['إنشاء عقد زواج', 'انشاء عقد زواج'], narrowed: { from: 'عقد زواج', blocked: ['توثيق عقد زواج سعودي من أجنبية'] }, clicks: 1, cost: 1, conv: 1, terms: ['إنشاء عقد زواج إلكتروني'], campaigns: [{ id: '11', name: 'تصاريح' }], protect: false }]).filter((x) => !(st.negDone || []).includes(x.id)) }));
       if (p === '/v1/dash/negatives/decide') { const b = JSON.parse(req.postData()); st.negCalls = (st.negCalls || []).concat([Object.assign({ csrf: req.headers()['x-csrf-token'] }, b)]); st.negDone = (st.negDone || []).concat([b.id]); st.negDecided = (st.negDecided || []).concat([{ text: b.id === 'aaaa1111' ? 'وظائف' : 'شروط', match_type: 'PHRASE', decision: b.decision, at: new Date().toISOString(), applied_at: b.decision === 'add' ? new Date().toISOString() : null }]); return j(200, { ok: true, decision: b.decision, campaigns: 2 }); }
+      // حسابي والإعدادات (settings.js)
+      if (p === '/v1/dash/settings' && req.method() === 'POST') { const b = JSON.parse(req.postData()); st.setCalls = (st.setCalls || []).concat([Object.assign({ csrf: req.headers()['x-csrf-token'] }, b)]); return b.contact_phone === 'abc' ? j(400, { ok: false, error: 'phone' }) : j(200, { ok: true }); }
+      if (p === '/v1/dash/settings') return j(200, { ok: true, role: 'owner', manage: true, user: { email: 'mahmoud@example.com', name: 'محمود', sessions: 3 }, org: { id: 'org-1', name: 'شادو ديزاين', country: 'EG', currency: 'EGP', contact_phone: '', status: 'trial' }, sites: [{ id: 'SiteId123456', name: 'شادو', domain: 'shado.com', ads: { customer_id: '6456258009', currency: 'EGP' } }], telegram: 2 });
       // كشف الحساب (statement.js)
       if (p === '/v1/dash/statement.csv') { st.csvCalls = (st.csvCalls || 0) + 1; return route.fulfill({ status: 200, headers: Object.assign({ 'content-type': 'text/csv; charset=utf-8', 'content-disposition': 'attachment; filename="maestro-refund-x.csv"', 'access-control-expose-headers': 'content-disposition' }, cors), body: '\ufeffdate,gclid\r\n' }); }
       if (p === '/v1/dash/statement') return j(200, Object.assign({ ok: true }, st.statement || { linked: false }));
@@ -113,7 +116,7 @@ function fakeApi(over) {
         settings: { trial_days: 7, annual_months: 10, founders_months: 12, founders_after_pct: 20 }, founders: { left: 87, limit: 100, pct: 50 },
         coupons: true, names: { basic: { ar: 'الأساسية' }, pro: { ar: 'النمو' }, agency: { ar: 'الوكالات' } },
         plans: [['basic', 1, 2000, 1499], ['pro', 3, 10000, 3499], ['agency', 10, 40000, 500]].map(([id, sites, clicks, m]) => Object.assign({ id, sites, clicks, unit: 'account', min_units: 1, features: [{ key: 'sites', name_ar: 'المواقع', kind: 'limit', unit_ar: 'موقع', enabled: true, value: sites }, { key: 'ad_clicks', name_ar: 'نقرات الإعلان في الشهر', kind: 'limit', unit_ar: 'نقرة', enabled: true, value: clicks }, { key: 'campaigns', name_ar: 'الحملات', kind: 'limit', unit_ar: 'حملة', enabled: true, value: null }, { key: 'protection', name_ar: 'كشف النقرات المشبوهة وتسجيل الزيارات', kind: 'bool', enabled: true }, { key: 'telegram', name_ar: 'تنبيهات تليجرام', kind: 'bool', enabled: true }, { key: 'real_customers', name_ar: 'العملاء الحقيقيون واحتمالية التواصل', kind: 'bool', enabled: true }, { key: 'keywords_engine', name_ar: 'الكلمات السلبية والإيجابية بموافقتك', kind: 'bool', enabled: id !== 'basic' }, { key: 'conv_upload', name_ar: 'إرسال العملاء المؤكدين لجوجل أدز', kind: 'bool', enabled: id !== 'basic' }, { key: 'analysis', name_ar: 'تحليل الحملة وإصلاحها', kind: 'bool', enabled: id !== 'basic', value: null }, { key: 'team', name_ar: 'فريق وصلاحيات', kind: 'bool', enabled: id === 'agency' }, { key: 'brand_reports', name_ar: 'تقارير باسمك ولوجوك', kind: 'bool', enabled: id === 'agency' }], price: { currency: 'EGP', monthly: m, yearly: m * 10, discount: 50, monthly_now: m / 2, yearly_now: m * 5 } }, id === 'agency' ? { unit: 'project', min_units: 4, campaigns_per_unit: 2 } : {})),
-        methods: [{ id: 'm-ip', kind: 'instapay', label: '', details: { handle: 'maestro@instapay', name: 'Maestro LT' } }, { id: 'm-vf', kind: 'vodafone_cash', label: '', details: { numbers: ['01012345678'], name: 'Maestro LT' } }],
+        usage: { month: '2026-11', clicks: 45, limit: 15000, sites: 1, site_limit: 3 }, methods: [{ id: 'm-ip', kind: 'instapay', label: '', details: { handle: 'maestro@instapay', name: 'Maestro LT', link: 'https://ipn.eg/S/maestro/instapay/1' } }, { id: 'm-vf', kind: 'vodafone_cash', label: '', details: { numbers: ['01012345678'], name: 'Maestro LT' } }],
         payments: st.paid ? [{ id: 'p1', plan: 'pro', period: 'year', amount: 17495, currency: 'EGP', status: 'pending', reason: '', discount: 50, at: new Date().toISOString() }] : [{ id: 'p0', plan: 'basic', period: 'month', amount: 749.5, currency: 'EGP', status: 'rejected', reason: 'المبلغ غير مطابق', discount: 50, at: new Date(Date.now() - 864e5).toISOString() }] });
       if (p === '/v1/dash/billing/coupon') { const b = JSON.parse(req.postData()); st.cpCalls = (st.cpCalls || []).concat([b]); if (b.code.toUpperCase() === 'OLD') return j(400, { ok: false, error: 'coupon_expired' }); if (b.code.toUpperCase() === 'TEN') return j(200, { ok: true, currency: 'EGP', base: 34990, total: 17495, source: 'founder', coupon: { code: 'TEN', off: 3499, total: 31491 }, coupon_not_better: true }); return j(200, { ok: true, currency: 'EGP', base: 34990, total: 13996, source: 'coupon', coupon: { code: 'WIN60', off: 20994, total: 13996 } }); }
       if (p === '/v1/dash/billing/pay') { const b = JSON.parse(req.postData()); st.payCalls = (st.payCalls || []).concat([Object.assign({ csrf: req.headers()['x-csrf-token'] }, b)]); if (b.ref === 'USED-0001') return j(409, { ok: false, error: 'ref_used' }); st.paid = true; return j(200, { ok: true, status: 'pending', amount: 17495, currency: 'EGP' }); }
@@ -158,6 +161,7 @@ function fakeApi(over) {
     if (p.endsWith('/install-status')) return j(200, { ok: true, status: 'waiting', paired: true });
     if (p.endsWith('/pair-code')) return j(201, { ok: true, code: 'K7M2-QX9P', valid_minutes: 15 });
     if (p === '/v1/auth/logout') { st.signedIn = false; return j(200, { ok: true }); }
+    if (p === '/v1/auth/logout-others') { st.outOthers = (st.outOthers || 0) + 1; return j(200, { ok: true, ended: 2 }); }
     return j(404, { ok: false });
   };
   return st;
@@ -414,7 +418,7 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
   const apiCalls = []; pg.on('request', (r) => { if (r.url().startsWith('https://api.maestrolt.com')) apiCalls.push(r.url()); });
   await pg.goto('https://app.maestrolt.com/demo');
   await pg.waitForSelector('.answers .ans');
-  t('demo simple (default): 3 big answers, a short menu (9, with analysis, team, keywords and subscription), no tables or charts', (await pg.locator('.answers .ans').count()) === 3 && (await pg.locator('.side-nav a').count()) === 9 && (await pg.locator('#view table, #view svg.svg').count()) === 0 && (await pg.locator('#page-title').innerText()) === 'الخلاصة');
+  t('demo simple (default): 3 big answers, a short menu (10, with analysis, team, keywords, subscription and settings), no tables or charts', (await pg.locator('.answers .ans').count()) === 3 && (await pg.locator('.side-nav a').count()) === 10 && (await pg.locator('#view table, #view svg.svg').count()) === 0 && (await pg.locator('#page-title').innerText()) === 'الخلاصة');
   t('demo simple: "is your ad protected?" answers in words, at most 3 action cards', /محمي/.test(await pg.locator('.ans').first().innerText()) && (await pg.locator('.act').count()) <= 3);
   t('demo simple: the checklist counts the done steps and offers how-to for the missing ones', /\d من 6/.test(await pg.locator('.progress').innerText()) && (await pg.locator('.steps-check li').count()) === 6);
   t('demo simple: the week summary reads as a sentence', /وصلك .* زائر/.test(await pg.locator('.story').innerText()));
@@ -424,7 +428,7 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
   await shot(pg, 'demo-0-simple');
   await pg.locator('#level').getByRole('button', { name: 'احترافي' }).click();
   await pg.waitForSelector('.kpis .kpi');
-  t('demo: switching to detailed shows the full menu (13)', (await pg.locator('.side-nav a').count()) === 13);
+  t('demo: switching to detailed shows the full menu (14)', (await pg.locator('.side-nav a').count()) === 14);
   t('demo: the pro home — 8 KPI cards (with Google clicks and money protected), the status strip and the action cards', (await pg.locator('.kpis .kpi').count()) === 8 && /نقرات احتسبها جوجل/.test(await pg.locator('.kpis').innerText()) && /الحماية: تراقب كل زيارة/.test(await pg.locator('.status-strip').innerText()) && (await pg.locator('.act').count()) >= 2);
   t('demo: the traffic curve draws 3 smooth lines with a legend, plus donuts, visit cards and the hours heatmap', (await pg.locator('.area-chart .a-line').count()) === 3 && (await pg.locator('.chart-legend').first().locator('.lg').count()) === 3 && (await pg.locator('.donut').count()) === 2 && (await pg.locator('.vcard').count()) >= 3 && (await pg.locator('.heat .h-cell').count()) === 168);
   await pg.locator('.area-chart .hit').nth(2).hover();
@@ -711,6 +715,30 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
   if (pg.errors.length || pg.csp.length) console.log(pg.errors, pg.csp);
   await pg.context().close(); }
 
+// 27-ج) حسابي والإعدادات (16 نوفمبر)
+{ const api = fakeApi({ signedIn: true, sites: [{ id: 'SiteId123456', name: 'شادو', domains: ['shado.com'], paired: true, org_id: 'org-1' }] });
+  const pg = await page(api, { viewport: { width: 1280, height: 900 } });
+  await pg.goto('https://app.maestrolt.com/#/settings');
+  await pg.waitForSelector('.set-row');
+  const v = await pg.locator('#view').innerText();
+  t('settings: account from Google (no password), business, sites with the linked Google Ads id, alerts and app, and the business file', /mahmoud@example\.com/.test(v) && /بلا كلمة مرور|فلا توجد كلمة مرور/.test(v) && /Google Ads 645-625-8009/.test(v) && /مربوط بـ 2 محادثة/.test(v) && /ملف نشاطك/.test(v) && /منافسوك في السوق/.test(v));
+  await pg.getByLabel('واتساب النشاط').fill('abc');
+  await pg.locator('.set-grid').first().getByRole('button', { name: 'احفظ' }).click();
+  await pg.waitForFunction(() => /رقم الواتساب غير صحيح/.test(document.getElementById('toast').textContent));
+  await pg.getByLabel('واتساب النشاط').fill('01207950010');
+  await pg.locator('.set-grid').first().getByRole('button', { name: 'احفظ' }).click();
+  await pg.waitForFunction(() => /تم الحفظ/.test(document.getElementById('toast').textContent));
+  t('settings: saving the business sends name and WhatsApp with CSRF; a wrong number is said plainly', api.setCalls.length === 2 && api.setCalls[1].contact_phone === '01207950010' && api.setCalls[1].name === 'شادو ديزاين' && api.setCalls[1].csrf === 'csrf-token-123');
+  await pg.getByRole('button', { name: 'اخرج من كل الأجهزة الأخرى' }).click();
+  await pg.waitForFunction(() => /خرجت من 2 جهاز آخر/.test(document.getElementById('toast').textContent));
+  t('settings: sign out of all other devices', api.outOthers === 1);
+  await shot(pg, 'settings');
+  await pg.setViewportSize({ width: 390, height: 844 });
+  t('settings mobile: no sideways scrolling', await pg.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1));
+  t('settings: no console errors, no CSP violations', pg.errors.length === 0 && pg.csp.length === 0);
+  if (pg.errors.length || pg.csp.length) console.log(pg.errors, pg.csp);
+  await pg.context().close(); }
+
 // 27-ب) كشف الحساب الحي (15 نوفمبر): فين راحت كل نقرة · الفلوس · ملف طلب الاسترداد
 { const api = fakeApi({ signedIn: true, sites: [{ id: 'SiteId123456', name: 'الإنجاز', domains: ['enjaz.biz'], paired: true }] });
   api.statement = { linked: true, currency: 'SAR', total: { billed: 277, offsite: 40, reached: 210, bad: 18, not_loaded: 21, refunded: 6, cost: 1830, cpc: 6.61, invalid_cost: 257.79, claim: 218.13, claim_clicks: 33 },
@@ -788,10 +816,12 @@ for (const [days, kind, re] of [[1.5, 'warn', /متبقٍ يومين من تجر
   t('billing: yearly = 10 months (save 2), and the monthly equivalent is shown', /17,495 ج.م/.test(await pg.locator('.bl-plan.best').innerText()) && /وفّر شهرين/.test(await pg.locator('.bl-period').innerText()));
   await pg.locator('.bl-plan.best').getByRole('button', { name: 'اختر هذه الباقة' }).click();
   await pg.waitForSelector('#bl-checkout');
+  t('billing: checkout has «pay now in InstaPay» (the admin link), an order summary (plan · period · method · amount) and a safety note naming the exact address', (await pg.locator('a.bl-paynow').getAttribute('href')) === 'https://ipn.eg/S/maestro/instapay/1' && /الباقة/.test(await pg.locator('.bl-sum').innerText()) && /17,495/.test(await pg.locator('.bl-sum').innerText()) && /maestro@instapay/.test(await pg.locator('.bl-safe').innerText()));
   t('billing: checkout shows the exact amount, InstaPay address with copy, and switching to Vodafone Cash shows the wallet number', /17,495 ج.م/.test(await pg.locator('.bl-amount').innerText()) && /maestro@instapay/.test(await pg.locator('.bl-methods').innerText()));
   const b0 = await pg.locator('.bl-plan').first().innerText();
   t('billing: plan features come from the admin checklist — limits with their number or «unlimited», and what is not included is struck out', (await pg.locator('.bl-plan').first().locator('.bl-lim', { hasText: 'المواقع' }).innerText()).includes('1') && (await pg.locator('.bl-plan').first().locator('.bl-lim', { hasText: 'الحملات' }).innerText()).includes('∞') && (await pg.locator('.bl-plan').first().locator('.bl-feat li').last().getAttribute('class')) === 'no' && (await pg.locator('.bl-plan').first().locator('li.no', { hasText: 'تحليل الحملة' }).count()) === 1 && (await pg.evaluate(() => [...document.querySelectorAll('.bl-plan')].every((c) => { const r = c.getBoundingClientRect(); return [...c.querySelectorAll('li')].every((li) => li.getBoundingClientRect().bottom <= r.bottom + 1 && li.getBoundingClientRect().width > 120); }))));
   await pg.locator('.bl-plans').scrollIntoViewIfNeeded(); await shot(pg, 'billing-plans');
+  t('billing: this month usage (45 of 15,000 ad clicks · 1 of 3 sites), and a folded plan comparison with ✓/✕ and numbers per plan', /45 من 15,000/.test(await pg.locator('.bl-usage').innerText()) && /1 من 3/.test(await pg.locator('.bl-usage').innerText()) && await (async () => { await pg.locator('.bl-cmp summary').click(); const c = await pg.locator('.bl-cmp-t').innerText(); return /المواقع/.test(c) && /∞/.test(c) && /✕/.test(c) && (await pg.locator('.bl-cmp-t thead th').count()) === 4; })());
   await pg.getByRole('button', { name: 'عندك كوبون خصم؟' }).click();
   await pg.getByPlaceholder('كود الكوبون').fill('old');
   await pg.locator('.bl-cp').getByRole('button', { name: 'تطبيق', exact: true }).click();
@@ -1063,7 +1093,7 @@ for (const [days, kind, re] of [[1.5, 'warn', /متبقٍ يومين من تجر
   const pg = await page(api, { viewport: { width: 1440, height: 900 } });
   await pg.goto('https://app.maestrolt.com/');
   await pg.waitForSelector('.kpis .kpi');
-  t('live agency: an agency account opens on the detailed level', (await pg.locator('.side-nav a').count()) === 13);
+  t('live agency: an agency account opens on the detailed level', (await pg.locator('.side-nav a').count()) === 14);
   await pg.locator('.side-nav a[data-r="clients"]').click();
   await pg.waitForFunction(() => document.querySelectorAll('#view .tbl tbody tr').length === 2);
   t('live agency: all clients with real visits/contacts/customers', /60/.test(await pg.locator('#view .tbl').innerText()) && /دون نتيجة/.test(await pg.locator('#view .tbl').innerText()));

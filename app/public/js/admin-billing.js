@@ -193,14 +193,15 @@
     var list = el('div', { class: 'al-fields' }, data.methods.length ? data.methods.map(methodRow) : [el('p', { class: 'muted', text: T('adm.bl.m.none') })]);
     var kind = el('select', { 'aria-label': T('adm.bl.m.kind') }, ['instapay', 'vodafone_cash'].map(function (k) { return el('option', { value: k, text: T('adm.bl.k.' + k) }); }));
     var a = el('input', { type: 'text', class: 'bl-in', placeholder: T('adm.bl.m.handle') }), nm = el('input', { type: 'text', class: 'bl-in', placeholder: T('adm.bl.m.name') });
-    kind.addEventListener('change', function () { a.placeholder = T(kind.value === 'instapay' ? 'adm.bl.m.handle' : 'adm.bl.m.numbers'); });
+    var lk = el('input', { type: 'url', class: 'bl-in wide', dir: 'ltr', placeholder: T('adm.bl.m.link') });
+    kind.addEventListener('change', function () { a.placeholder = T(kind.value === 'instapay' ? 'adm.bl.m.handle' : 'adm.bl.m.numbers'); lk.hidden = kind.value !== 'instapay'; });
     var add = el('button', { class: 'btn sm', type: 'button', text: T('adm.bl.m.add') });
     add.addEventListener('click', function () {
-      var details = kind.value === 'instapay' ? { handle: a.value, name: nm.value } : { numbers: a.value.split(/[,،\s]+/).filter(Boolean), name: nm.value };
+      var details = kind.value === 'instapay' ? { handle: a.value, name: nm.value, link: lk.value.trim() } : { numbers: a.value.split(/[,،\s]+/).filter(Boolean), name: nm.value };
       add.disabled = true;
       api('/v1/platform/billing/method', { kind: kind.value, enabled: true, details: details, currencies: ['EGP'] }).then(function (r) { add.disabled = false; if (r.ok) { toast(T('adm.bl.saved')); load(); } else { var k = 'adm.bl.m.err.' + ((r.body && r.body.error) || 'x'), msg = T(k); toast(msg === k ? T('err.save') : msg, true); } });
     });
-    return card(T('adm.bl.methods'), [list, el('h3', { class: 'legend', text: T('adm.bl.m.new') }), el('div', { class: 'bl-add m-add' }, [kind, a, nm, add]), el('p', { class: 'hint', text: T('adm.bl.m.hint') })]);
+    return card(T('adm.bl.methods'), [list, el('h3', { class: 'legend', text: T('adm.bl.m.new') }), el('div', { class: 'bl-add m-add' }, [kind, a, nm, lk, add]), el('p', { class: 'hint', text: T('adm.bl.m.hint') })]);
   }
 
   function membersCard() {
