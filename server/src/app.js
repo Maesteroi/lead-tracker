@@ -14,6 +14,7 @@ import { dashTg, dashTgInvite, dashTgRemove } from './tglinks.js';
 import { tgTemplatesGet, tgTemplatesSave } from './tgtemplates.js';
 import { previewText } from './notify.js';
 import { contactLab } from './contactlab.js';
+import { dashNegatives, dashNegativesExisting, dashNegativeDecide } from './negatives.js';
 
 const SITE_ACT = /^\/v1\/sites\/([A-Za-z0-9]{6,20})\/(rotate-key|install-status|pair-code)$/;
 const ORG_ACT = /^\/v1\/platform\/orgs\/([^/]+)$/;
@@ -102,6 +103,10 @@ export async function handleApp(req, env, db, url, p, fetchImpl) {
     else if (m === 'GET' && p === '/v1/dash/conv/actions') res = await dashConvActions(req, env, db, sess, url, fetchImpl);
     else if (m === 'POST' && p === '/v1/dash/conv/action') res = await dashConvAction(req, env, db, sess, fetchImpl);
     else if (m === 'POST' && p === '/v1/dash/conv/send') res = await dashConvSend(req, env, db, sess, fetchImpl);
+    // الكلمات السلبية: اقتراحات من عبارات البحث + قرار صاحب الموقع + الإضافة لجوجل بموافقته (negatives.js)
+    else if (m === 'GET' && p === '/v1/dash/negatives') res = await dashNegatives(req, env, db, sess, url);
+    else if (m === 'GET' && p === '/v1/dash/negatives/existing') res = await dashNegativesExisting(req, env, db, sess, url, fetchImpl);
+    else if (m === 'POST' && p === '/v1/dash/negatives/decide') res = await dashNegativeDecide(req, env, db, sess, fetchImpl);
     // تنبيهات تليجرام للموقع: رابط ربط من اللوحة (tglinks.js)
     else if (m === 'GET' && p === '/v1/dash/tg') res = await dashTg(req, env, db, sess, url);
     else if (m === 'POST' && p === '/v1/dash/tg/invite') res = await dashTgInvite(req, env, db, sess);
