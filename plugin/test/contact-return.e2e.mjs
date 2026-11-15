@@ -38,10 +38,11 @@ const a = await run(async (page, sent) => {
 const waClick = a.find((d) => d.event === 'click' && d.ct === 'wa'), back = a.filter((d) => d.event === 'contact_return');
 t('WhatsApp click → left the page → came back: one contact_return', back.length === 1);
 t('it carries the same match code as the WhatsApp click, the type, and the seconds away', back[0] && back[0].mc === waClick.mc && back[0].ct === 'wa' && back[0].away >= 2 && back[0].away <= 4 && back[0].opened === 1);
+t('2.13.5: it also carries the screen-awake numbers (beats while away, beats in the first minute, wake %, longest gap)', back[0] && back[0].bt >= 1 && back[0].bt <= 4 && back[0].bt60 === back[0].bt && back[0].wake >= 90 && back[0].wake <= 100 && back[0].gap >= 0 && back[0].gap <= 2);
 
 const b = await run(async (page, sent) => { await page.click('#call'); await page.waitForTimeout(8800); return sent; });
 const nb = b.filter((d) => d.event === 'contact_return');
-t('call click and the page never left for 8 seconds: "clicked but the app did not open"', nb.length === 1 && nb[0].opened === 0 && nb[0].away === 0 && nb[0].ct === 'call' && !!nb[0].mc);
+t('call click and the page never left for 8 seconds: "clicked but the app did not open"', nb.length === 1 && nb[0].opened === 0 && nb[0].away === 0 && nb[0].ct === 'call' && !!nb[0].mc && nb[0].bt === undefined);
 
 const c = await run(async (page, sent) => { await page.click('#dev'); await hide(page, true); await page.waitForTimeout(1200); await hide(page, false); await page.waitForTimeout(300); return sent; });
 t('the developer-credit number is never measured', c.filter((d) => d.event === 'contact_return').length === 0);

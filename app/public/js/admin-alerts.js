@@ -81,5 +81,26 @@
       state = r.body; draw();
     });
   }
-  window.LTAdminAlerts = { open: open };
+  // «قياس التواصل (تجريبي)»: قراءة الشاشة وقت الغياب مقابل النتيجة اللي صاحب الموقع اختارها
+  function lab(target) {
+    clear(target); target.appendChild(el('p', {}, [el('span', { class: 'spinner' }), el('span', { text: T('adm.loading') })]));
+    api('/v1/platform/contact-lab').then(function (r) {
+      clear(target);
+      if (!r.ok) { target.appendChild(el('p', { class: 'muted', text: T('adm.load.fail') })); return; }
+      var d = r.body, pct = function (x) { return x == null ? '—' : x + '%'; };
+      var tb = el('tbody', {}, d.rows.map(function (x) {
+        return el('tr', {}, [el('td', {}, [el('b', { text: T('adm.lab.b.' + x.bucket) }), el('small', { class: 'dim', text: ' ' + T('adm.lab.b.' + x.bucket + '.d') })]),
+          el('td', { text: String(x.n) }), el('td', { text: String(x.won) }), el('td', { text: String(x.nomsg) }), el('td', { text: String(x.other) }), el('td', { text: String(x.open) }),
+          el('td', {}, [el('b', { text: pct(x.won_pct) })]), el('td', {}, [el('b', { text: pct(x.nomsg_pct) })])]);
+      }));
+      var head = ['adm.lab.h.reading', 'adm.lab.h.n', 'adm.lab.h.won', 'adm.lab.h.nomsg', 'adm.lab.h.other', 'adm.lab.h.open', 'adm.lab.h.won_pct', 'adm.lab.h.nomsg_pct'];
+      target.appendChild(el('section', { class: 'panel-card' }, [
+        el('div', { class: 'sec-head' }, [el('h2', { text: T('adm.lab') + ' · ' + T('adm.lab.trial') })]),
+        el('p', { class: 'muted', text: T('adm.lab.intro', { d: d.days, n: d.total }) }),
+        el('div', { class: 'tbl-wrap' }, [el('table', { class: 'tbl' }, [el('thead', {}, [el('tr', {}, head.map(function (h) { return el('th', { text: T(h) }); }))]), tb])]),
+        el('p', { class: 'hint', text: T('adm.lab.read') }),
+      ]));
+    });
+  }
+  window.LTAdminAlerts = { open: open, lab: lab };
 })();

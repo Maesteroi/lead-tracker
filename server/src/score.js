@@ -96,3 +96,14 @@ export function contactStrength(away, opened, lang, channel) {
   return { key, label: tr(lang, 's.' + key), detail: tr(lang, 's.' + key + '.d', v), away: tr(lang, 's.away', v),
     customer: { key: ck, label: tr(lang, 's.' + ck) } };
 }
+
+// 2.13.5 (تجريبي): الشاشة كانت شغالة وقت الغياب؟ (تجربة محمود 13 نوفمبر على أندرويد: محادثة 60 نبضة من 60، شاشة مقفولة 23)
+// بيرجّع null لو مفيش أرقام (بلجن قديم أو التطبيق ماتفتحش). bucket: chat · mid · lock · ios
+export function screenAwake(p, os) {
+  if (!p || p.beats == null || p.beats_60 == null) return null;
+  const away = Math.max(0, Number(p.away_seconds) || 0), exp = Math.max(1, Math.min(60, Math.floor(away)));
+  const b60 = Math.max(0, Number(p.beats_60) || 0), wake = p.wake_pct == null ? null : Math.max(0, Math.min(100, Number(p.wake_pct) || 0));
+  const ios = /ios|iphone|ipad/i.test(String(os || p.os || '')) && Number(p.beats) === 0;
+  const r = Math.min(1, b60 / exp);
+  return { beats60: b60, expected: exp, wake, ratio: Math.round(r * 100) / 100, bucket: ios ? 'ios' : r >= 0.75 ? 'chat' : r <= 0.45 ? 'lock' : 'mid' };
+}
