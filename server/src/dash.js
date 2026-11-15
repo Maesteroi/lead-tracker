@@ -43,7 +43,7 @@ const num = (v) => Number(v) || 0;
 const tally = (list, key) => { const m = new Map(); for (const x of list) { const k = key(x); if (k) m.set(k, (m.get(k) || 0) + 1); } return [...m.entries()].map(([name, n]) => ({ name, n })).sort((a, b) => b.n - a.n); };
 
 // الجلسات + درجة الخطر لكل واحدة (score.js) + حكم صاحب الموقع لو موجود
-async function scoredSessions(db, siteId, sinceTs, limit, lang) {
+export async function scoredSessions(db, siteId, sinceTs, limit, lang) {
   const list = (await db.req('POST', 'rpc/dash_sessions', { p_site: siteId, p_since: sinceTs, p_limit: limit })) || [];
   const verdicts = (await db.select('protection_verdicts?client_id=' + eq(siteId) + '&select=session_id,verdict').catch(() => [])) || [];
   const vm = new Map(verdicts.map((v) => [v.session_id, v.verdict]));
