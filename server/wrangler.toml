@@ -3,6 +3,8 @@ name = "maestro-api"
 main = "src/index.js"
 compatibility_date = "2026-09-01"
 workers_dev = true
+# المتغيرات اللي محمود بيحطها من لوحة Cloudflare تفضل بعد كل نشر (من غيرها النشر كان بيمسحها: ADS_PULL_ENABLED اتمسح 12 نوفمبر ووقف سحب جوجل أدز)
+keep_vars = true
 
 # الدومين: maestrolt.com على Cloudflare، فالدومين الفرعي بيتربط بالـWorker من هنا
 routes = [
@@ -17,10 +19,8 @@ crons = ["*/5 * * * *"]
 RECORDINGS_BUCKET = "recordings"
 # مش سر. لازم يفضل هنا، وإلا أي نشر من الريبو بيمسح المتغيرات اللي اتحطت من اللوحة
 SUPABASE_URL = "https://cimvozxvnrdryarjzpoq.supabase.co"
-
-# سحب جوجل أدز (S02) مقفول لحد ما السطر ده يتفك (بعد بوابة S01 وبموافقة محمود) والأسرار تحت تتحط.
-# لازم يتكتب هنا مش من اللوحة، وإلا أي نشر من الريبو بيمسحه.
-# ADS_PULL_ENABLED = "1"
+# سحب جوجل أدز على السيرفر شغال (قرار محمود 12 نوفمبر). هنا مش في اللوحة علشان مايتمسحش مع النشر
+ADS_PULL_ENABLED = "1"
 
 # الأسرار (مش هنا أبداً) — بتتحط من لوحة Cloudflare: Worker ← Settings ← Variables and Secrets:
 #   SUPABASE_SERVICE_KEY · ADMIN_TOKEN  (SUPABASE_URL فوق في [vars] لأنه مش سر)
