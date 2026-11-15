@@ -1779,6 +1779,11 @@
       return el('li', { class: f.enabled ? 'yes' : 'no' }, [el('span', { class: 'sr', text: T(f.enabled ? 'bl.ff.yes' : 'bl.ff.no') }), el('span', { text: nm })]);
     });
   }
+  // رمز QR لرابط الدفع (مكتبة qrcode-generator، MIT، جوه المشروع في /vendor/qrcode) · يمسحه من الكمبيوتر بكاميرا الموبايل
+  function qrImg(text) {
+    if (typeof window.qrcode !== 'function') return null;
+    try { var q = window.qrcode(0, 'M'); q.addData(text); q.make(); return el('img', { src: q.createDataURL(5, 2), alt: T('bl.qr'), width: '160', height: '160', class: 'bl-qr-img' }); } catch (e) { return null; }
+  }
   // مقارنة الباقات: كل ميزة سطر، و✓/✗ أو الرقم لكل باقة (من الـ checklist بتاع الأدمن) · مطوية
   function compareTable(d) {
     var plans = d.plans.filter(function (p) { return (p.features || []).length; });
@@ -1902,7 +1907,10 @@
     d.methods.forEach(function (m) {
       var on = bill.method === m.id, det = m.details || {}, lines = [];
       if (m.kind === 'instapay') lines.push(el('div', { class: 'bl-acc' }, [el('code', { text: det.handle || '' }), cp(det.handle || '')]));
-      if (m.kind === 'instapay' && det.link) lines.push(el('a', { class: 'btn bl-paynow', href: det.link, target: '_blank', rel: 'noopener', text: T('bl.paynow') }));
+      if (m.kind === 'instapay' && det.link) {
+        lines.push(el('a', { class: 'btn bl-paynow', href: det.link, target: '_blank', rel: 'noopener', text: T('bl.paynow') }));
+        var qr = qrImg(det.link); if (qr) lines.push(el('div', { class: 'bl-qr' }, [qr, el('small', { class: 'dim', text: T('bl.qr') })]));
+      }
       if (m.kind === 'vodafone_cash') (det.numbers || []).forEach(function (n) { lines.push(el('div', { class: 'bl-acc' }, [el('code', { text: n }), cp(n)])); });
       if (det.name) lines.push(el('small', { class: 'dim', text: T('bl.to', { n: det.name }) }));
       var r = el('input', { type: 'radio', name: 'bl-m', value: m.id }); r.checked = on;

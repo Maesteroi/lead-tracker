@@ -1883,6 +1883,7 @@ window.LT_LANG.en = {
   'bl.cmp': 'Compare plans: what do you get in each?',
   'bl.cmp.f': 'Feature',
   'bl.paynow': 'Pay now in InstaPay ↗',
+  'bl.qr': "Scan with your phone camera to open the payment page",
   'bl.sum': 'Your order',
   'bl.sum.plan': 'Plan',
   'bl.sum.period': 'Period',

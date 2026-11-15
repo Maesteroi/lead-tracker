@@ -716,3 +716,6 @@ svg.geo { width: 100%; height: auto; aspect-ratio: 1.7; display: block; backgrou
 .set-acts { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: 12px; }
 .set-next { list-style: none; margin: 14px 0 0; padding: 0; display: grid; gap: 6px; }
 .set-next li { display: flex; justify-content: space-between; gap: 8px; padding: 8px 12px; border-radius: 10px; border: 1px dashed var(--line); color: var(--muted); }
+.bl-qr { display: grid; justify-items: center; gap: 6px; margin-top: 8px; padding: 12px; border-radius: 14px; background: #fff; border: 1px solid var(--line); max-width: 220px; }
+.bl-qr-img { width: 160px; height: 160px; image-rendering: pixelated; }
+@media (max-width: 640px) { .bl-qr { display: none; } }
