@@ -287,11 +287,14 @@
       var cl = classify_(u, rh, rp);
       s = cl[0];
       var camp = qp('utm_campaign');
-      var detail = camp ? ('campaign=' + camp) : (rh && rh !== location.hostname ? rh : '');
+      // 2.13.6: لاحقة الرابط اللي Maestro LT بيضبطها في حساب الإعلانات (lt_kw={keyword}…) ← الكلمة تبقى التفصيل لحظة الزيارة
+      var ltkw = cl[1] === 'google_ads' ? qp('lt_kw') : '';
+      var detail = ltkw ? ltkw : camp ? ('campaign=' + camp) : (rh && rh !== location.hostname ? rh : '');
 
       var um = [];
-      q.replace(/[?&](utm_[a-z]+)=([^&#]*)/g, function (_, k, v) {
-        um.push(k.slice(4) + '=' + dec(v));
+      q.replace(/[?&]((?:utm|lt)_[a-z]+)=([^&#]*)/g, function (_, k, v) {
+        if (k === 'lt_kw' || !dec(v)) return;
+        um.push((k.indexOf('utm_') === 0 ? k.slice(4) : k) + '=' + dec(v));
       });
 
       st(SS, 'ltp_s', s);

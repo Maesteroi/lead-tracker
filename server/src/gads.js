@@ -49,6 +49,20 @@ export function adsClient({ env, access, customerId, loginCustomerId, fetchImpl 
       for (const chunk of Array.isArray(body) ? body : [body || {}]) for (const r of chunk.results || []) rows.push(r);
       return rows;
     },
+    // تعديل (بعد موافقة العميل بس، من اللي بيناديه): path زي 'adGroupCriteria:mutate' أو ':mutate' للحساب نفسه
+    async mutate(path, payload) {
+      client.ops++;
+      const res = await f0(fetchImpl)('https://googleads.googleapis.com/' + ver + '/customers/' + customerId + (path.startsWith(':') ? '' : '/') + path, { method: 'POST', headers, body: JSON.stringify(payload) });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const e0 = ((Array.isArray(body) ? body[0] : body) || {}).error || {};
+        const d = ((e0.details || [])[0] || {}).errors || [];
+        const err = new Error(String((d[0] && d[0].message) || e0.message || e0.status || 'error ' + res.status).slice(0, 300));
+        err.status = res.status;
+        throw err;
+      }
+      return body;
+    },
   };
   return client;
 }

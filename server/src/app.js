@@ -16,6 +16,8 @@ import { previewText } from './notify.js';
 import { contactLab } from './contactlab.js';
 import { dashBilling, platformBilling, platformPlanSave, platformBillingSettings, platformMethodSave, platformOwnPayments } from './billing.js';
 import { dashNegatives, dashNegativesExisting, dashNegativeDecide } from './negatives.js';
+import { dashKeywords, dashKeywordDecide } from './keywords.js';
+import { dashSuffix, dashSuffixSet } from './suffix.js';
 
 const SITE_ACT = /^\/v1\/sites\/([A-Za-z0-9]{6,20})\/(rotate-key|install-status|pair-code)$/;
 const ORG_ACT = /^\/v1\/platform\/orgs\/([^/]+)$/;
@@ -116,6 +118,12 @@ export async function handleApp(req, env, db, url, p, fetchImpl) {
     else if (m === 'GET' && p === '/v1/dash/negatives') res = await dashNegatives(req, env, db, sess, url);
     else if (m === 'GET' && p === '/v1/dash/negatives/existing') res = await dashNegativesExisting(req, env, db, sess, url, fetchImpl);
     else if (m === 'POST' && p === '/v1/dash/negatives/decide') res = await dashNegativeDecide(req, env, db, sess, fetchImpl);
+    // الكلمات الإيجابية: عبارات بتجيب عملاء ومش موجودة ككلمة ← تتضاف للمجموعة بموافقة صاحب الموقع (keywords.js)
+    else if (m === 'GET' && p === '/v1/dash/keywords') res = await dashKeywords(req, env, db, sess, url);
+    else if (m === 'POST' && p === '/v1/dash/keywords/decide') res = await dashKeywordDecide(req, env, db, sess, fetchImpl);
+    // لاحقة الرابط في حساب الإعلانات: فحص · وضبط بضغطة واحدة (suffix.js)
+    else if (m === 'GET' && p === '/v1/dash/suffix') res = await dashSuffix(req, env, db, sess, url, fetchImpl);
+    else if (m === 'POST' && p === '/v1/dash/suffix') res = await dashSuffixSet(req, env, db, sess, fetchImpl);
     // تنبيهات تليجرام للموقع: رابط ربط من اللوحة (tglinks.js)
     else if (m === 'GET' && p === '/v1/dash/tg') res = await dashTg(req, env, db, sess, url);
     else if (m === 'POST' && p === '/v1/dash/tg/invite') res = await dashTgInvite(req, env, db, sess);

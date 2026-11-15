@@ -171,8 +171,12 @@ export async function dashAdsUnlink(req, env, db, sess) {
 // حالة الربط لشاشة المواقع (من غير أي سر)
 export async function adsState(db, siteId) {
   try {
-    const r = await db.one('ads_credentials?client_id=' + eq(siteId) + '&status=in.(on,reauth)&select=customer_id,status,currency,last_ok_day,last_pull_at,last_error&order=updated_at.desc');
-    return r ? { linked: r.status === 'on', reauth: r.status === 'reauth', account: r.customer_id, currency: r.currency, last_ok_day: r.last_ok_day, last_error: r.last_error ? String(r.last_error).slice(0, 120) : null } : null;
+    let r;
+    try { r = await db.one('ads_credentials?client_id=' + eq(siteId) + '&status=in.(on,reauth)&select=customer_id,status,currency,last_ok_day,last_pull_at,last_error,final_url_suffix,suffix_checked_at&order=updated_at.desc'); }
+    catch (e) { r = await db.one('ads_credentials?client_id=' + eq(siteId) + '&status=in.(on,reauth)&select=customer_id,status,currency,last_ok_day,last_pull_at,last_error&order=updated_at.desc'); }   // قبل 0019
+    // لاحقة الرابط: null = لسه مااتفحصتش · true = بتاعتنا موجودة · false = مش موجودة
+    return r ? { linked: r.status === 'on', reauth: r.status === 'reauth', account: r.customer_id, currency: r.currency, last_ok_day: r.last_ok_day, last_error: r.last_error ? String(r.last_error).slice(0, 120) : null,
+      suffix: r.suffix_checked_at ? String(r.final_url_suffix || '').includes('lt_kw={keyword}') : null } : null;
   } catch (e) { return null; }   // 0002 لسه مااتطبّقتش
 }
 

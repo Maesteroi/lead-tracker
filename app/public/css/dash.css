@@ -483,3 +483,7 @@ svg.geo { width: 100%; height: auto; aspect-ratio: 1.7; display: block; backgrou
   .conv table.cards-m td.n { text-align: start; }
   .conv table.cards-m .rate { min-width: 0; justify-content: flex-start; }
 }
+/* صفحة الكلمات: تبويبين سلبية/إيجابية (15 نوفمبر) */
+.seg.kw-tabs { display: grid; grid-template-columns: 1fr 1fr; width: 100%; max-width: 560px; margin-bottom: 16px; }
+.seg.kw-tabs button { white-space: normal; line-height: 1.4; }
+.checks li .sfx { grid-column: 2 / -1; }

@@ -611,8 +611,57 @@
   }
 
   // ════════ الكلمات السلبية: اقتراحات من عبارات البحث · «أضِفها» لجوجل بموافقتك · «اتركها» ════════
+  // صفحة «الكلمات» (15 نوفمبر): تبويبين · سلبية (بتضيّع فلوسك) · إيجابية (بتجيب عملاء ومش موجودة ككلمة)
+  var kwTab = 'neg';
   function vNegatives(view) {
     if (!DATA.negatives) { clear(view); view.appendChild(soonCard(T('neg.title'), [T('neg.soon.1'), T('neg.soon.2'), T('neg.soon.3')])); return Promise.resolve(); }
+    clear(view);
+    var tabs = el('div', { class: 'seg kw-tabs', role: 'tablist' }), body = el('div');
+    [['neg', T('kw.tab.neg')], ['pos', T('kw.tab.pos')]].forEach(function (t) {
+      var b = el('button', { type: 'button', role: 'tab', 'aria-selected': kwTab === t[0] ? 'true' : 'false', text: t[1] });
+      b.addEventListener('click', function () { if (kwTab === t[0]) return; kwTab = t[0]; vNegatives(view); });
+      tabs.appendChild(b);
+    });
+    view.appendChild(tabs); view.appendChild(body);
+    body.appendChild(el('p', { class: 'loading', text: T('frame.loading') }));
+    return (kwTab === 'pos' && DATA.keywords ? vPositive(body) : vNegList(body)).catch(function () { clear(body); body.appendChild(el('p', { class: 'muted', text: T('frame.load_fail') })); });
+  }
+  function vPositive(view) {
+    return DATA.keywords(state.site).then(function (d) {
+      clear(view);
+      if (!d.linked) { view.appendChild(card(T('kw.title'), [el('p', {}, [el('span', { text: T('conv.not_linked') + ' ' }), el('a', { class: 'linkish', href: '#/sites', text: T('nav.sites') })])])); return; }
+      var cur = d.currency === 'SAR' ? T('sar') : d.currency;
+      var list = el('div', { class: 'neg-list' });
+      if (!d.suggestions.length) list.appendChild(el('p', { class: 'muted', text: T('kw.none') }));
+      d.suggestions.forEach(function (x) {
+        var acts = el('div', { class: 'neg-acts' });
+        if (d.manage) {
+          var add = el('button', { class: 'btn sm', type: 'button', text: T('kw.add') }), keep = el('button', { class: 'btn ghost sm', type: 'button', text: T('neg.keep') });
+          var sure = false;
+          add.addEventListener('click', function () {
+            if (!sure) { sure = true; add.textContent = T('kw.add.sure', { g: x.group.name || x.group.id }); return; }
+            add.disabled = keep.disabled = true;
+            DATA.kwDecide(state.site, x.id, 'add').then(function () { toast(T('kw.added', { k: x.text })); render(); }, function (e) { add.disabled = keep.disabled = false; sure = false; add.textContent = T('kw.add'); toast(T('neg.err') + (e.detail ? ' (' + String(e.detail).slice(0, 80) + ')' : '')); });
+          });
+          keep.addEventListener('click', function () { keep.disabled = add.disabled = true; DATA.kwDecide(state.site, x.id, 'keep').then(function () { toast(T('neg.kept', { k: x.text })); render(); }, function () { keep.disabled = add.disabled = false; toast(T('err.save')); }); });
+          acts.appendChild(add); acts.appendChild(keep);
+        }
+        list.appendChild(el('div', { class: 'neg-item kw-item' }, [
+          el('div', { class: 'neg-h' }, [el('b', { text: x.text }), el('span', { class: 'pill', text: T('neg.m.exact') }), el('span', { class: 'pill ok', text: T('kw.r.' + x.reason) })]),
+          el('p', { class: 'dim', text: T('kw.stats', { c: fmt(x.clicks), v: fmt(x.conv), m: money2(x.cost, cur) }) }),
+          el('p', { class: 'hint', text: T('kw.where', { g: x.group.name || x.group.id, c: x.group.campaign || '—' }) + (x.from.length ? ' · ' + T('kw.from', { k: x.from.map(function (f) { return f.text; }).join('، ') }) : '') }),
+          acts,
+        ]));
+      });
+      view.appendChild(card(T('kw.title'), [el('p', { class: 'hint', text: T('kw.intro', { d: d.days }) }), list]));
+      if (d.decided.length) {
+        view.appendChild(card(T('neg.decided'), [el('ul', { class: 'feed' }, d.decided.map(function (x) {
+          return el('li', {}, [el('span', { class: 'pill ' + (x.decision === 'add' ? (x.applied_at ? 'ok' : 'warn') : ''), text: T(x.decision === 'add' ? (x.applied_at ? 'neg.d.added' : 'neg.d.failed') : 'neg.d.kept') }), el('div', {}, [el('span', { text: x.text + ' · ' + T('neg.m.exact') })]), el('time', { text: timeAr(x.at) })]);
+        }))]));
+      }
+    });
+  }
+  function vNegList(view) {
     return DATA.negatives(state.site).then(function (d) {
       clear(view);
       if (!d.linked) { view.appendChild(card(T('neg.title'), [el('p', {}, [el('span', { text: T('conv.not_linked') + ' ' }), el('a', { class: 'linkish', href: '#/sites', text: T('nav.sites') })])])); return; }
@@ -698,7 +747,7 @@
           [T('sites.r.installed'), s.installed, s.installed ? (s.plugin ? T('sites.plugin', { v: s.plugin }) : T('sites.plugin.on')) + ' · ' + T('sites.last', { t: timeAr(s.last_event) }) : T(s.paired ? 'sites.paired_wait' : 'sites.not_paired')],
           [T('sites.r.delivery'), avg == null ? null : avg >= 99.5, avg == null ? T('sites.delivery.none') : T('sites.delivery', { p: avg })],
           adsRow(s),
-          [T('sites.r.suffix'), s.template == null ? null : s.template, s.template == null ? T(s.ads ? 'sites.suffix.optional' : 'sites.suffix.after') : T(s.template ? 'sites.suffix.ok' : 'sites.suffix.missing')],
+          suffixRow(s),
           [T('sites.r.own'), s.own ? true : DATA.live ? null : true, s.own ? LT.n(s.own, 'device') : T('sites.own.soon')],
         ];
         var extra = [];
@@ -1098,6 +1147,24 @@
       if (d.ads && d.ads.linked) view.appendChild(adsPanel(d.ads, sc));
       else if (!d.status.ads) view.appendChild(soonCard(T('ov.soon.title'), [T('ov.soon.1'), T('ov.soon.2'), T('ov.soon.3')]));
     });
+  }
+  // لاحقة الرابط (15 نوفمبر): بنضبطها إحنا في حساب الإعلانات بضغطة واحدة من صاحب الموقع (بتاعة أي أداة تانية بتفضل زي ما هي)
+  function suffixRow(s) {
+    var linked = s.ads_state && s.ads_state.linked, st = linked ? s.ads_state.suffix : null;
+    if (!linked || !DATA.suffixSet) return [T('sites.r.suffix'), null, T(s.ads ? 'sites.suffix.optional' : 'sites.suffix.after')];
+    if (st === true) return [T('sites.r.suffix'), true, T('sites.suffix.auto_ok')];
+    var manage = s.role === 'owner' || s.role === 'admin' || !s.role;
+    var box = el('div', { class: 'sfx' });
+    if (manage) {
+      var b = el('button', { class: 'btn sm', type: 'button', text: T('sites.suffix.set') }), sure = false;
+      b.addEventListener('click', function () {
+        if (!sure) { sure = true; b.textContent = T('sites.suffix.sure'); return; }
+        b.disabled = true;
+        DATA.suffixSet(s.id).then(function (r) { toast(T('sites.suffix.done') + (r.kept ? ' ' + T('sites.suffix.kept') : '')); render(); }, function (e) { b.disabled = false; sure = false; b.textContent = T('sites.suffix.set'); toast(T('sites.suffix.err') + (e.detail ? ' (' + String(e.detail).slice(0, 80) + ')' : '')); });
+      });
+      box.appendChild(b);
+    }
+    return [T('sites.r.suffix'), st === false ? false : null, T(st === false ? 'sites.suffix.missing' : 'sites.suffix.unchecked'), box];
   }
   // الجداول الصغيرة على الموبايل بتتحول لكروت: كل خانة رقم جنبها اسمها (15 نوفمبر)
   function cardRows(table, head) {
