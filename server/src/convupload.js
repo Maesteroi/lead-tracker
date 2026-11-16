@@ -50,25 +50,66 @@ export function googleError(j, status) {
   return parts.filter(Boolean).join(' | ').replace(/\s+/g, ' ').slice(0, 600);
 }
 
-// العملاء المؤكدين الجاهزين للرفع (ومعاهم الـgclid من الزيارة نفسها)
-// kind: 'won' = «تم» (الإجراء الأساسي) · 'real' = محادثة فعلية (تم · بيفكر · لغى) للإجراء الثانوي
-export async function candidates(db, site, now, kind) {
-  const since = new Date((now || Date.now()) - WINDOW_DAYS * 864e5).toISOString();
-  const pass = kind === 'real' ? (o) => CONVO.has(o) : (o) => o === WON;
-  const leads = ((await db.req('POST', 'rpc/dash_leads', { p_site: site.id, p_since: since })) || []).filter((l) => pass(l.outcome) && l.match_code && CODE_RE.test(l.match_code) && l.session_id);
+// العملاء الجاهزين للرفع، ومعاهم رقم النقرة من الزيارة نفسها:
+// gclid، أو gbraid/wbraid لنقرات الآيفون (١.٥ · 📖 Data Manager Event.adIdentifiers: gclid · gbraid · wbraid)
+// kind: 'won' = «تم» · 'real' = محادثة فعلية (تم · بيفكر · لغى) · 'strong' = تواصل قوي (غاب دقيقة أو أكتر بعد ضغطة واتساب/اتصال)
+const BRAID_RE = /^[A-Za-z0-9_-]{10,300}$/;
+export async function candidates(db, site, now, kind, days) {
+  const since = new Date((now || Date.now()) - (days || WINDOW_DAYS) * 864e5).toISOString();
+  let pass = kind === 'real' ? (l) => CONVO.has(l.outcome) : (l) => l.outcome === WON;
+  let strongSet = null;
+  if (kind === 'strong') {
+    const rets = (await db.select('raw_events?client_id=' + eq(site.id) + '&event=eq.contact_return&received_at=gte.' + encodeURIComponent(since) + '&select=match_code,payload&limit=5000').catch(() => [])) || [];
+    strongSet = new Set(rets.filter((r) => r.match_code && String((r.payload || {}).app_opened || '') !== '0' && Number((r.payload || {}).away_seconds) >= 60).map((r) => String(r.match_code).replace(/^#/, '')));
+    pass = (l) => strongSet.has(String(l.match_code));
+  }
+  const leads = ((await db.req('POST', 'rpc/dash_leads', { p_site: site.id, p_since: since })) || []).filter((l) => l.match_code && CODE_RE.test(l.match_code) && l.session_id && pass(l));
   const seen = new Set(), list = [];
   for (const l of leads) { if (seen.has(l.match_code)) continue; seen.add(l.match_code); list.push(l); }
-  const sids = [...new Set(list.map((l) => l.session_id))].filter((s) => /^[A-Za-z0-9_.:-]{4,80}$/.test(s));
-  const gclid = new Map();
+  const sids = [...new Set(list.map((l) => l.session_id))].filter((x) => /^[A-Za-z0-9_.:-]{4,80}$/.test(x));
+  const ids = new Map();
   for (let i = 0; i < sids.length; i += 80) {
     const part = sids.slice(i, i + 80);
-    const rows = (await db.select('raw_events?client_id=' + eq(site.id) + '&session_id=in.(' + part.map(encodeURIComponent).join(',') + ')&gclid=not.is.null&select=session_id,gclid,received_at&order=received_at.asc&limit=2000')) || [];
-    for (const r of rows) if (!gclid.has(r.session_id) && GCLID_RE.test(String(r.gclid))) gclid.set(r.session_id, String(r.gclid));
+    const rows = (await db.select('raw_events?client_id=' + eq(site.id) + '&session_id=in.(' + part.map(encodeURIComponent).join(',') + ')&event=eq.page_view&select=session_id,gclid,payload,received_at&order=received_at.asc&limit=2000')) || [];
+    for (const r of rows) {
+      if (ids.has(r.session_id)) continue;
+      const p = r.payload || {};
+      if (r.gclid && GCLID_RE.test(String(r.gclid))) ids.set(r.session_id, { type: 'gclid', id: String(r.gclid) });
+      else if (p.gbraid && BRAID_RE.test(String(p.gbraid))) ids.set(r.session_id, { type: 'gbraid', id: String(p.gbraid) });
+      else if (p.wbraid && BRAID_RE.test(String(p.wbraid))) ids.set(r.session_id, { type: 'wbraid', id: String(p.wbraid) });
+    }
   }
-  return list.filter((l) => gclid.has(l.session_id)).map((l) => Object.assign({}, l, { gclid: gclid.get(l.session_id) }));
+  return list.filter((l) => ids.has(l.session_id)).map((l) => { const x = ids.get(l.session_id); return Object.assign({}, l, { click: x, gclid: x.type === 'gclid' ? x.id : null }); });
 }
 
-// ── الحالة (لكل اللي يقدر يشوف اللوحة) ──
+// الإرسال نفسه (الزرار والرفع اليومي): كل حدث برقمه جوه الطلب (علشان requestStatus يقول أنهي اتقبل) وقيمته وعملته
+export async function sendEvents(env, db, site, cred, actionId, list, opts, fetchImpl) {
+  const o = opts || {}, prefix = o.prefix || '';
+  const rows = list.slice(0, MAX_PER_SEND).map((c, i) => ({ c, i, tx: 'mlt-' + prefix + site.id + '-' + c.match_code, time: new Date(Date.parse(c.outcome_at || c.at) || Date.parse(c.at)).toISOString(), value: typeof o.value === 'function' ? o.value(c) : o.value }));
+  const login = cred.login_customer_id || cred.customer_id;
+  const cur = /^[A-Z]{3}$/.test(String(cred.currency || '')) ? cred.currency : null;
+  const body = {
+    destinations: [{ operatingAccount: { accountType: 'GOOGLE_ADS', accountId: cred.customer_id }, loginAccount: { accountType: 'GOOGLE_ADS', accountId: login }, productDestinationId: actionId }],
+    events: rows.map((r) => Object.assign({ adIdentifiers: { [r.c.click.type]: r.c.click.id }, eventTimestamp: r.time, transactionId: r.tx, eventSource: 'WEB' }, cur && r.value ? { conversionValue: r.value, currency: cur } : {})),
+  };
+  let status = 0, j = {}, err = null;
+  try {
+    const access = await tokenOf(env, Object.assign({ _site: site.id }, cred), fetchImpl);
+    const res = await (fetchImpl || fetch)(DM_URL, { method: 'POST', headers: { Authorization: 'Bearer ' + access, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    status = res.status; j = await res.json().catch(() => ({}));
+    if (!res.ok) { err = googleError(j, res.status); console.error('conv send: ' + err); }
+  } catch (e) { err = short(e); }
+  const scope = status === 403 && /SCOPE|scope/.test(JSON.stringify(j));
+  const at = new Date().toISOString();
+  const recs = rows.map((r) => ({ client_id: site.id, match_code: r.c.match_code, customer_id: cred.customer_id, conversion_action_id: actionId, transaction_id: r.tx, event_time: r.time,
+    status: err ? 'failed' : 'sent', request_id: err ? null : String(j.requestId || '').slice(0, 80) || null, error: err, by_user: o.by || null, at, event_index: r.i, value: r.value || null, click_id_type: r.c.click.type, dm_status: err ? null : 'PROCESSING' }));
+  await db.insert('conv_uploads', recs, { onConflict: 'client_id,match_code,conversion_action_id', merge: true, returning: false }).catch(async (e) => {
+    if (!/event_index|value|click_id_type|dm_status/.test(String(e && e.message || e))) throw e;   // قبل 0031
+    await db.insert('conv_uploads', recs.map(({ event_index, value, click_id_type, dm_status, ...r }) => r), { onConflict: 'client_id,match_code,conversion_action_id', merge: true, returning: false });
+  });
+  return { ok: !err, sent: rows.length, err, scope, requestId: j.requestId || null, warnings: Array.isArray(j.fieldWarnings) ? j.fieldWarnings.length : 0 };
+}
+
 export async function dashConv(req, env, db, sess, url) {
   const site = await loadSite(db, sess, url.searchParams.get('site'));
   if (!site) return notFound();
@@ -188,26 +229,9 @@ export async function dashConvSend(req, env, db, sess, fetchImpl) {
   const sent = new Set(((await db.select('conv_uploads?client_id=' + eq(site.id) + '&conversion_action_id=' + eq(actionId) + '&status=eq.sent&select=match_code&limit=5000')) || []).map((r) => r.match_code));
   const list = (await candidates(db, site, null, real ? 'real' : 'won')).filter((c) => (real || want.has(c.match_code)) && !sent.has(c.match_code)).slice(0, MAX_PER_SEND);
   if (!list.length) return json({ ok: false, error: 'nothing' }, 409);
-  const rows = list.map((c) => ({ c, tx: 'mlt-' + (real ? 'r-' : '') + site.id + '-' + c.match_code, time: new Date(Date.parse(c.outcome_at || c.at) || Date.parse(c.at)).toISOString() }));
-  const login = cred.login_customer_id || cred.customer_id;
-  const V = await valuesOf(db, site.id), val = real ? V.convo : V.won, cur = /^[A-Z]{3}$/.test(String(cred.currency || '')) ? cred.currency : null;
-  const body = {
-    destinations: [{ operatingAccount: { accountType: 'GOOGLE_ADS', accountId: cred.customer_id }, loginAccount: { accountType: 'GOOGLE_ADS', accountId: login }, productDestinationId: actionId }],
-    // القيمة (16 نوفمبر): «تم» أغلى من «محادثة» علشان العروض تتعلم الفرق بين اللي بيسأل واللي بيدفع (Value-based bidding)
-    events: rows.map((r) => Object.assign({ adIdentifiers: { gclid: r.c.gclid }, eventTimestamp: r.time, transactionId: r.tx, eventSource: 'WEB' }, cur && val ? { conversionValue: val, currency: cur } : {})),
-  };
-  let status = 0, j = {}, err = null;
-  try {
-    const access = await tokenOf(env, Object.assign({ _site: site.id }, cred), fetchImpl);
-    const res = await (fetchImpl || fetch)(DM_URL, { method: 'POST', headers: { Authorization: 'Bearer ' + access, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-    status = res.status; j = await res.json().catch(() => ({}));
-    if (!res.ok) { err = googleError(j, res.status); console.error('conv send: ' + err); }
-  } catch (e) { err = short(e); }
-  // صلاحية datamanager مش موجودة في الربط الحالي ← العميل يعيد الربط
-  const scope = status === 403 && /SCOPE|scope/.test(JSON.stringify(j));
-  const at = new Date().toISOString();
-  await db.insert('conv_uploads', rows.map((r) => ({ client_id: site.id, match_code: r.c.match_code, customer_id: cred.customer_id, conversion_action_id: actionId, transaction_id: r.tx, event_time: r.time,
-    status: err ? 'failed' : 'sent', request_id: err ? null : String(j.requestId || '').slice(0, 80) || null, error: err, by_user: sess.user.id, at })), { onConflict: 'client_id,match_code,conversion_action_id', merge: true, returning: false });
+  const V = await valuesOf(db, site.id);
+  const r = await sendEvents(env, db, site, cred, actionId, list, { prefix: real ? 'r-' : '', value: real ? (c) => (c.outcome === WON ? V.won : V.convo) : V.won, by: sess.user.id }, fetchImpl);
+  const rows = { length: r.sent }, err = r.err, scope = r.scope, j = { requestId: r.requestId, fieldWarnings: new Array(r.warnings) };
   await audit(db, sess.user.id, 'conv_uploaded', !err, site.id + (real ? ' real ' : ' ') + rows.length + (err ? ' ' + err.slice(0, 60) : ''));
   if (err) return json({ ok: false, error: scope ? 'scope' : 'google', detail: err }, scope ? 403 : 502);
   return json({ ok: true, sent: rows.length, request_id: j.requestId || null, warnings: Array.isArray(j.fieldWarnings) ? j.fieldWarnings.length : 0 });

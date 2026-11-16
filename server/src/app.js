@@ -24,6 +24,7 @@ import { dashBlockIp, dashUnblockIp, dashBlocks, dashOwnDevice } from './blocks.
 import { dashRules, dashRulesSave } from './rules.js';
 import { dashAnalysis, dashAnalysisFix, dashAnalysisDone } from './analysis.js';
 import { dashCampfix, dashCampfixApply, dashCampfixUndo } from './campfix.js';
+import { dashSignal, dashSignalAuto } from './signal.js';
 import { dashOptimize, dashOptimizeDraft, dashOptimizeApply, dashOptimizeUndo, dashOptimizeValues } from './optimize.js';
 import { dashStatement, dashStatementCsv } from './statement.js';
 import { dashSettings, dashSettingsSave, logoutOthers } from './settings.js';
@@ -144,6 +145,8 @@ export async function handleApp(req, env, db, url, p, fetchImpl) {
     // «حلّل حملتك وأصلحها بضغطة» (analysis.js)
     else if (m === 'GET' && p === '/v1/dash/analysis') res = await dashAnalysis(req, env, db, sess, url, fetchImpl);
     else if (m === 'POST' && p === '/v1/dash/analysis/fix') res = await dashAnalysisFix(req, env, db, sess, fetchImpl);
+    else if (m === 'GET' && p === '/v1/dash/signal') res = await dashSignal(req, env, db, sess, url);
+    else if (m === 'POST' && p === '/v1/dash/signal/auto') res = await dashSignalAuto(req, env, db, sess);
     else if (m === 'GET' && p === '/v1/dash/optimize') res = await dashOptimize(req, env, db, sess, url, fetchImpl);
     else if (m === 'POST' && p === '/v1/dash/optimize/draft') res = await dashOptimizeDraft(req, env, db, sess, fetchImpl);
     else if (m === 'POST' && p === '/v1/dash/optimize/apply') res = await dashOptimizeApply(req, env, db, sess, fetchImpl);

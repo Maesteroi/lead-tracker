@@ -159,6 +159,8 @@ export function fakeGoogle(opts) {
     }
     // Data Manager API (رفع التحويلات): صلاحية datamanager لازم تكون في التوكن
     if (u.hostname === 'datamanager.googleapis.com') {
+      // ١.٤ حالة الرفع (📖 GET /v1/requestStatus:retrieve?requestId=)
+      if (u.pathname === '/v1/requestStatus:retrieve') { g.statusCalls = (g.statusCalls || []).concat([u.searchParams.get('requestId')]); return resp(200, (g.dmStatus || {})[u.searchParams.get('requestId')] || { requestStatusPerDestination: [{ requestStatus: 'SUCCESS', eventsIngestionStatus: { recordCount: '1' } }] }); }
       const tok = String(headers.Authorization || '').replace(/^Bearer /, '');
       const body = JSON.parse(init.body || '{}');
       g.ingest = g.ingest || []; g.ingest.push(body);
@@ -251,7 +253,9 @@ export function fakeGoogle(opts) {
       if (!issued.has(tok)) return apiErr(401, 'UNAUTHENTICATED', 'invalid credentials');
       const cid = u.pathname.split('/')[3]; const acct = g.accounts[cid];
       if (!acct) return apiErr(403, 'PERMISSION_DENIED', 'USER_PERMISSION_DENIED');
-      const op = (JSON.parse(init.body || '{}').operations || [])[0] || {};
+      const allOps = JSON.parse(init.body || '{}').operations || [];
+      if (allOps.length > 1 && allOps.every((o) => o.update)) { for (const o of allOps) { g.convUpdates = (g.convUpdates || []).concat([o]); const a = (acct.convActions || []).find((x) => o.update.resourceName.endsWith('/' + x.id)); if (a) a.primaryForGoal = o.update.primaryForGoal; } return resp(200, { results: allOps.map((o) => ({ resourceName: o.update.resourceName })) }); }
+      const op = allOps[0] || {};
       if (op.update) { g.convUpdates = (g.convUpdates || []).concat([op]); const a = (acct.convActions || []).find((x) => op.update.resourceName.endsWith('/' + x.id)); if (a) a.primaryForGoal = op.update.primaryForGoal; return resp(200, { results: [{ resourceName: op.update.resourceName }] }); }
       const id = String(900000 + (acct.convActions || []).length + 1);
       acct.convActions = (acct.convActions || []).concat([Object.assign({ id }, op.create)]);

@@ -901,3 +901,12 @@ svg.geo { width: 100%; height: auto; aspect-ratio: 1.7; display: block; backgrou
   .op-row select { width: 100%; }
 }
 .op-measure { margin: 2px 0 0; font-size: 13px; color: var(--muted); }
+/* الحزمة ١: سلّم الإشارة */
+.sig-kpis > div { gap: 2px; } .sig-kpis small { font-size: 11.5px; }
+.lad-steps { list-style: none; padding: 0; margin: 8px 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.lad-step { display: grid; gap: 3px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); }
+.lad-step.ok { border-color: color-mix(in srgb, var(--growth) 45%, var(--line)); }
+.lad-step.on { box-shadow: 0 0 0 2px var(--accent) inset; }
+.lad-auto { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; border-top: 1px dashed var(--line); padding-top: 8px; }
+.lad-auto p { margin: 0; }
+@media (max-width: 720px) { .lad-steps { grid-template-columns: 1fr; } }

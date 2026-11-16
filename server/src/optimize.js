@@ -20,6 +20,7 @@ import { expertOf } from './expert.js';
 import { windowData, funnelOf } from './analysis.js';
 import { loadBrief } from './brief.js';
 import { aiComplete } from './assistant.js';
+import { ladderOf, signalKpis } from './signal.js';
 
 const canManage = (sess, site) => ['owner', 'admin'].includes(roleFor(sess, site.org_id, site.id));
 const n0 = (v) => Number(v) || 0;
@@ -134,6 +135,17 @@ export async function optimizePlan(env, db, site, cred, fetchImpl, now) {
       data: { name: c.name, type: c.type, n: Math.round(counts.get(String(c.id)) || 0), contacts: S.contacts, won: S.won, sent }, now: 'primary', next: 'secondary' });
   }
   for (const x of cls.filter((y) => y.k === 'ad_call')) add('signal', { code: 'conv_adcall', ref: String(x.c.id), status: 'info', kind: 'none', data: { name: x.c.name, n: Math.round(counts.get(String(x.c.id)) || 0) } });
+  // ١.١ سلّم الإشارة: الهدف = أعمق مرحلة فيها 30 نتيجة في 30 يوم. تغييره = «تغيير تعريف التحويل» (بموافقة · وعليه بوابة التجربة الحية)
+  const lad = await ladderOf(env, db, site, t).catch(() => null);
+  const kpis = await signalKpis(db, site, cred, t).catch(() => null);
+  if (lad && ours) {
+    const real = cv.find((c) => String(c.id) === String(cred.real_action_id || '')), strongA = cv.find((c) => String(c.id) === String(cred.strong_action_id || ''));
+    const current = ours.primaryForGoal ? 'won' : real && real.primaryForGoal ? 'convo' : strongA && strongA.primaryForGoal ? 'strong' : null;
+    if (lad.ok && lad.target !== current && !(lad.target === 'convo' && !real))
+      add('signal', { code: 'ladder_target', ref: lad.target, status: 'warn', definition_change: true, data: { target: lad.target, current: current || 'none', won: lad.counts.won, convo: lad.counts.convo, strong: lad.counts.strong, v_won: lad.values.won, v_convo: lad.values.convo, v_strong: lad.values.strong, precision: lad.strong.precision },
+        now: current || 'none', next: lad.target, before: { won: !!ours.primaryForGoal, convo: !!(real && real.primaryForGoal), strong: !!(strongA && strongA.primaryForGoal) }, actions: { won: String(ours.id), convo: real ? String(real.id) : null, strong: strongA ? String(strongA.id) : null } });
+    else if (!lad.ok) add('signal', { code: 'ladder_below', status: 'info', kind: 'none', data: { won: lad.counts.won, convo: lad.counts.convo, strong: lad.counts.strong, min: lad.min, precision: lad.strong.precision, known: lad.strong.known } });
+  }
   const noOut = S.no_outcome || 0;
   if (noOut >= 3) add('signal', { code: 'outcomes', status: 'warn', kind: 'go', go: 'leads', data: { n: noOut, of: S.contacts } });
   const signalBad = !ours || fake.length > 0 || (ex && ex.signal.state === 'inflated');
@@ -259,6 +271,7 @@ export async function optimizePlan(env, db, site, cred, fetchImpl, now) {
     const blocked = signalBad || recentHas(['conv_primary', 'conv_secondary']);
     // ٠.١: الشرط على عدّ جوجل الفعلي على إجراءنا الأساسي · ٠.٢: الاستراتيجية الأصلية بكل إعداداتها بتتحفظ، والمحفظة مالهاش تراجع آلي
     const before = { type: c.bidding, ecpc: c.ecpc, ceiling: c.ceiling, tcpa: c.tcpa, portfolio: c.portfolio };
+    if (!(lad && lad.ok)) continue;   // ١.٨: مفيش اقتراح مزايدة والهدف المختار تحت الحد
     if (['MANUAL_CPC', 'ENHANCED_CPC', 'TARGET_SPEND'].includes(c.bidding) && maxconvReady(realConv, googleOurs, ours)) add('budget', { code: 'bid_maxconv', ref: c.id, campaign: c.id, status: blocked ? 'info' : 'warn', kind: blocked ? 'wait' : 'apply', data: { name: c.name, from: c.bidding, real: realConv, google: googleOurs, why: blocked ? 'signal' : '', no_undo: c.portfolio }, now: c.bidding, next: 'MAXIMIZE_CONVERSIONS', before, no_undo: c.portfolio });
     if (c.bidding === 'MAXIMIZE_CONVERSIONS' && !c.tcpa && S.won >= 30 && googleOurs >= 30 && S.cpw) add('budget', { code: 'bid_tcpa', ref: c.id, campaign: c.id, status: blocked ? 'info' : 'warn', kind: blocked ? 'wait' : 'apply', data: { name: c.name, target: r2(S.cpw * 1.1), won: S.won, no_undo: c.portfolio }, now: 0, next: r2(S.cpw * 1.1), before, no_undo: c.portfolio });
   }
@@ -270,7 +283,7 @@ export async function optimizePlan(env, db, site, cred, fetchImpl, now) {
   items.sort((a, b) => L[a.layer] - L[b.layer] || rank[a.status] - rank[b.status] || b.save - a.save);
   const actionable = items.filter((x) => ['apply', 'write'].includes(x.kind) && x.status !== 'info');
   const plan = actionable.slice().sort((a, b) => (a.layer === 'signal' ? -1 : 0) - (b.layer === 'signal' ? -1 : 0) || L[a.layer] - L[b.layer] || b.save - a.save).slice(0, 5).map((x) => x.key);
-  return { items, plan, layers: LAYERS, values: G.values, qs: wqs == null ? null : Math.round(wqs * 10) / 10,
+  return { items, plan, layers: LAYERS, values: G.values, ladder: lad, kpis, qs: wqs == null ? null : Math.round(wqs * 10) / 10,
     context: { cost: r2(cost), contacts: S.contacts, won: S.won, cpl: S.cpl, cpw: S.cpw, smart: search.filter((c) => SMART.has(c.bidding)).map((c) => c.name), campaigns: search.length, signal_ok: !signalBad },
     expert: ex, currency: cred.currency || '', _g: G };
 }
@@ -371,6 +384,21 @@ export const HANDLERS = {
     undo: async (c, t) => c.api.mutate('conversionActions:mutate', { operations: [{ update: { resourceName: 'customers/' + c.cred.customer_id + '/conversionActions/' + t.action_id, primaryForGoal: false }, updateMask: 'primaryForGoal' }] }) },
   conv_secondary: { apply: async (c) => { await c.api.mutate('conversionActions:mutate', { operations: [{ update: { resourceName: 'customers/' + c.cred.customer_id + '/conversionActions/' + c.it.ref, primaryForGoal: false }, updateMask: 'primaryForGoal' }] }); return { action_id: c.it.ref, name: c.it.data.name }; },
     undo: async (c, t) => c.api.mutate('conversionActions:mutate', { operations: [{ update: { resourceName: 'customers/' + c.cred.customer_id + '/conversionActions/' + t.action_id, primaryForGoal: true }, updateMask: 'primaryForGoal' }] }) },
+  // ١.١ تغيير هدف المزايدة: الإجراء المختار أساسي والباقي (بتاعنا) ثانوي. «تواصل قوي» بيتعمل لو مش موجود. التراجع بيرجّع الأساسي زي ما كان
+  ladder_target: { apply: async (c) => {
+      const A = Object.assign({}, c.it.actions || {});
+      if (c.it.next === 'strong' && !A.strong) {
+        const r = await c.api.mutate('conversionActions:mutate', { operations: [{ create: { name: 'Maestro LT – تواصل قوي', type: 'UPLOAD_CLICKS', category: 'CONTACT', status: 'ENABLED', valueSettings: { defaultValue: 1, alwaysUseDefaultValue: false } } }] });
+        A.strong = String(((r.results || [])[0] || {}).resourceName || '').split('/').pop() || null;
+        if (A.strong) await c.db.update('ads_credentials?client_id=' + eq(c.site.id) + '&customer_id=' + eq(c.cred.customer_id), { strong_action_id: A.strong, strong_action_name: 'Maestro LT – تواصل قوي' }).catch(() => {});
+      }
+      const ops = ['won', 'convo', 'strong'].filter((k) => A[k]).map((k) => ({ update: { resourceName: 'customers/' + c.cred.customer_id + '/conversionActions/' + A[k], primaryForGoal: k === c.it.next }, updateMask: 'primaryForGoal' }));
+      await c.api.mutate('conversionActions:mutate', { operations: ops });
+      return { actions: A, before_primary: c.it.before, target: c.it.next };
+    }, undo: async (c, t) => {
+      const ops = ['won', 'convo', 'strong'].filter((k) => (t.actions || {})[k]).map((k) => ({ update: { resourceName: 'customers/' + c.cred.customer_id + '/conversionActions/' + t.actions[k], primaryForGoal: !!(t.before_primary || {})[k] }, updateMask: 'primaryForGoal' }));
+      await c.api.mutate('conversionActions:mutate', { operations: ops });
+    } },
   partners_off: { apply: async (c) => { await c.api.mutate('campaigns:mutate', { operations: [{ update: { resourceName: camRn(c.cred, c.it.campaign), networkSettings: { targetSearchNetwork: false } }, updateMask: 'networkSettings.targetSearchNetwork' }] }); return {}; },
     undo: async (c, t) => c.api.mutate('campaigns:mutate', { operations: [{ update: { resourceName: camRn(c.cred, t.campaign), networkSettings: { targetSearchNetwork: true } }, updateMask: 'networkSettings.targetSearchNetwork' }] }) },
   display_off: { apply: async (c) => { await c.api.mutate('campaigns:mutate', { operations: [{ update: { resourceName: camRn(c.cred, c.it.campaign), networkSettings: { targetContentNetwork: false } }, updateMask: 'networkSettings.targetContentNetwork' }] }); return {}; },
