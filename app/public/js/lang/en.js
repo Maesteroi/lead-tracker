@@ -1965,6 +1965,7 @@ window.LT_LANG.en = {
   'bl.use.of': '{v} of {l}',
   'bl.cmp': 'Compare plans: what do you get in each?',
   'bl.cmp.f': 'Feature',
+  'bl.mine': "Your plan",
   'bl.paynow': 'Pay now in InstaPay ↗',
   'bl.qr': "Scan with your phone camera to open the payment page",
   'bl.sum': 'Your order',

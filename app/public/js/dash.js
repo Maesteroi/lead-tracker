@@ -1787,21 +1787,26 @@
     try { var q = window.qrcode(0, 'M'); q.addData(text); q.make(); return el('img', { src: q.createDataURL(5, 2), alt: T('bl.qr'), width: '160', height: '160', class: 'bl-qr-img' }); } catch (e) { return null; }
   }
   // مقارنة الباقات: كل ميزة سطر، و✓/✗ أو الرقم لكل باقة (من الـ checklist بتاع الأدمن) · مطوية
+  // مقارنة الباقات (16 نوفمبر): جدول حقيقي بيتحرك أفقي على الموبايل، وعمود المزايا ثابت، ورأس كل عمود اسم الباقة وسعرها
   function compareTable(d) {
     var plans = d.plans.filter(function (p) { return (p.features || []).length; });
     if (plans.length < 2) return null;
     var keys = [], byKey = {};
     plans.forEach(function (p) { p.features.forEach(function (f) { if (!byKey[f.key]) { byKey[f.key] = f; keys.push(f.key); } }); });
+    keys.sort(function (x, y) { return (byKey[x].kind === 'limit' ? 0 : 1) - (byKey[y].kind === 'limit' ? 0 : 1); });
     var cell = function (p, k) {
       var f = (p.features || []).filter(function (x) { return x.key === k; })[0];
-      if (!f || !f.enabled) return el('td', { class: 'no', text: '✕' });
+      if (!f || !f.enabled) return el('td', { class: 'no' }, [el('span', { 'aria-label': T('bl.ff.no'), text: '✕' })]);
       if (f.kind === 'limit') return el('td', { class: 'num', text: f.value == null ? '∞' : fmt(f.value) });
-      return el('td', { class: 'yes', text: '✓' });
+      return el('td', { class: 'yes' }, [el('span', { 'aria-label': T('bl.ff.yes'), text: '✓' })]);
     };
     var nm = function (f) { return LT.locale === 'en' ? f.name_en || f.name_ar : f.name_ar; };
-    return el('details', { class: 'bl-cmp' }, [el('summary', { text: T('bl.cmp') }), el('div', { class: 'tbl-wrap' }, [el('table', { class: 'tbl static bl-cmp-t' }, [
-      el('thead', {}, [el('tr', {}, [el('th', { text: T('bl.cmp.f') })].concat(plans.map(function (p) { return el('th', {}, [el('b', { text: planName(d, p.id) }), el('small', { text: price2(p.price.monthly_now, p.price.currency) + ' / ' + T('bl.per.month') })]); })))]),
-      el('tbody', {}, keys.map(function (k) { return el('tr', {}, [el('th', { scope: 'row', text: nm(byKey[k]) })].concat(plans.map(function (p) { return cell(p, k); }))); }))])])]);
+    var best = function (p) { return p.badge || (p.badge === undefined && p.id === 'pro'); };
+    var det = el('details', { class: 'bl-cmp' }, [el('summary', {}, [el('span', { text: T('bl.cmp') }), el('i', { 'aria-hidden': 'true', text: '⌄' })]), el('div', { class: 'cmp-wrap' }, [el('table', { class: 'cmp-t' }, [
+      el('thead', {}, [el('tr', {}, [el('th', { class: 'cmp-f', text: T('bl.cmp.f') })].concat(plans.map(function (p) { return el('th', { class: best(p) ? 'best' : '' }, [el('b', { text: planName(d, p.id) }), el('small', { text: price2(p.price.monthly_now, p.price.currency) + ' ' + T('bl.per.month') })]); })))]),
+      el('tbody', {}, keys.map(function (k) { return el('tr', { class: byKey[k].kind === 'limit' ? 'lim' : '' }, [el('th', { scope: 'row', class: 'cmp-f', text: nm(byKey[k]) })].concat(plans.map(function (p) { return cell(p, k); }))); }))])])]);
+    if (window.matchMedia && window.matchMedia('(min-width: 900px)').matches) det.open = true;
+    return det;
   }
   function vBilling(view) {
     clear(view);
@@ -1865,9 +1870,9 @@
       choose.disabled = !!pend || !d.manage;
       choose.addEventListener('click', function () { bill.plan = p.id; bill.receipt = null; drawBilling(view, d, org); var c = document.getElementById('bl-checkout'); if (c) c.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
       var best = p.badge || (p.badge === undefined && p.id === 'pro' ? T('bl.best') : null), fl = featLines(p), lims = featLim(p);
-      grid.appendChild(el('div', { class: 'bl-plan' + (best ? ' best' : '') + (bill.plan === p.id ? ' on' : '') }, [
-        best ? el('span', { class: 'bl-tag', text: best }) : null,
-        el('h3', { text: planName(d, p.id) }),
+      var mine = o.status === 'active' && o.plan === p.id;
+      grid.appendChild(el('div', { class: 'bl-plan' + (best ? ' best' : '') + (bill.plan === p.id ? ' on' : '') + (mine ? ' mine' : '') }, [
+        el('div', { class: 'bl-plan-h' }, [el('h3', { text: planName(d, p.id) }), best ? el('span', { class: 'bl-tag', text: best }) : null, mine ? el('span', { class: 'bl-mine', text: T('bl.mine') }) : null]),
         el('div', { class: 'bl-price' }, [pr.discount ? el('s', { text: price2(was, pr.currency) }) : null, el('b', { text: price2(now2, pr.currency) }), el('span', { text: (proj ? T('bl.per.project') + ' ' : '') + (yr ? T('bl.per.year') : T('bl.per.month')) })]),
         pr.discount ? el('small', { class: 'bl-disc', text: p.discount_label ? T('bl.disc.l', { l: p.discount_label, p: pr.discount }) + (p.discount_ends_at ? ' · ' + T('bl.disc.ends', { d: dateAr(p.discount_ends_at) }) : '') : pr.source === 'founder' ? T('bl.disc.f', { p: pr.discount }) : T('bl.disc', { p: pr.discount }) }) : null,
         yr ? el('small', { class: 'dim', text: T('bl.year.eq', { m: price2(now2 / 12, pr.currency) }) }) : null,

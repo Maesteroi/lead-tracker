@@ -861,7 +861,7 @@ for (const [days, kind, re] of [[1.5, 'warn', /متبقٍ يومين من تجر
   const b0 = await pg.locator('.bl-plan').first().innerText();
   t('billing: plan features come from the admin checklist — limits with their number or «unlimited», and what is not included is struck out', (await pg.locator('.bl-plan').first().locator('.bl-lim', { hasText: 'المواقع' }).innerText()).includes('1') && (await pg.locator('.bl-plan').first().locator('.bl-lim', { hasText: 'الحملات' }).innerText()).includes('∞') && (await pg.locator('.bl-plan').first().locator('.bl-feat li').last().getAttribute('class')) === 'no' && (await pg.locator('.bl-plan').first().locator('li.no', { hasText: 'تحليل الحملة' }).count()) === 1 && (await pg.evaluate(() => [...document.querySelectorAll('.bl-plan')].every((c) => { const r = c.getBoundingClientRect(); return [...c.querySelectorAll('li')].every((li) => li.getBoundingClientRect().bottom <= r.bottom + 1 && li.getBoundingClientRect().width > 120); }))));
   await pg.locator('.bl-plans').scrollIntoViewIfNeeded(); await shot(pg, 'billing-plans');
-  t('billing: this month usage (45 of 15,000 ad clicks · 1 of 3 sites), and a folded plan comparison with ✓/✕ and numbers per plan', /45 من 15,000/.test(await pg.locator('.bl-usage').innerText()) && /1 من 3/.test(await pg.locator('.bl-usage').innerText()) && await (async () => { await pg.locator('.bl-cmp summary').click(); const c = await pg.locator('.bl-cmp-t').innerText(); return /المواقع/.test(c) && /∞/.test(c) && /✕/.test(c) && (await pg.locator('.bl-cmp-t thead th').count()) === 4; })());
+  t('billing: this month usage (45 of 15,000 ad clicks · 1 of 3 sites), and a plan comparison (open on desktop) with ✓/✕ and numbers per plan', /45 من 15,000/.test(await pg.locator('.bl-usage').innerText()) && /1 من 3/.test(await pg.locator('.bl-usage').innerText()) && await (async () => { const c = await pg.locator('.cmp-t').innerText(); return (await pg.locator('.bl-cmp').getAttribute('open')) !== null && /المواقع/.test(c) && /∞/.test(c) && /✕/.test(c) && (await pg.locator('.cmp-t thead th').count()) === 4 && /الأكثر/.test(await pg.locator('.bl-plan.best').innerText()); })());
   await pg.getByRole('button', { name: 'عندك كوبون خصم؟' }).click();
   await pg.getByPlaceholder('كود الكوبون').fill('old');
   await pg.locator('.bl-cp').getByRole('button', { name: 'تطبيق', exact: true }).click();
@@ -897,6 +897,7 @@ for (const [days, kind, re] of [[1.5, 'warn', /متبقٍ يومين من تجر
   await shot(pg, 'billing-pending');
   await pg.setViewportSize({ width: 390, height: 844 });
   t('billing mobile: no sideways scrolling', await pg.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1));
+  if (SHOTS) { await pg.locator('.bl-plans').scrollIntoViewIfNeeded(); await pg.screenshot({ path: path.join(SHOTS, 'billing-mobile.png'), fullPage: true }); }
   t('billing: no console errors, no CSP violations', pg.errors.length === 0 && pg.csp.length === 0);
   if (pg.errors.length || pg.csp.length) console.log(pg.errors, pg.csp);
   await pg.context().close(); }
@@ -1241,7 +1242,7 @@ for (const [days, kind, re] of [[1.5, 'warn', /متبقٍ يومين من تجر
   await cp.nth(0).getByRole('button', { name: 'احفظ' }).click();
   await pg.waitForFunction(() => /تم الحفظ/.test(document.getElementById('toast').textContent));
   t('currency by country: switching Egypt to «by the dollar», rounded to 10, is saved for that country', (() => { const c = api.blCalls.filter((x) => x.path === '/v1/platform/billing/country').pop(); return c && c.country === 'EG' && c.currency === 'EGP' && c.mode === 'usd' && c.round_to === 10; })());
-  if (SHOTS) await pg.locator('section.panel-card', { has: pg.locator('.cp-row') }).screenshot({ path: path.join(SHOTS, 'admin-currency.png') });
+  if (SHOTS) await pg.locator('section.panel-card', { has: pg.locator('.cp-row') }).screenshot({ path: path.join(SHOTS, 'admin-currency.png') }).catch(() => {});
   // المدفوعات: الإيصال المستني فوق
   t('admin payments: the waiting receipt on top — account, plan, amount, founders offer, «same picture uploaded before», «waiting 21 hours»', /شادو ديزاين/.test(await pg.locator('.pay-item').innerText()) && /17,495 EGP/.test(await pg.locator('.pay-item').innerText()) && /الصورة نفسها رُفعت من قبل/.test(await pg.locator('.pay-item').innerText()) && /منتظر منذ 21 ساعة/.test(await pg.locator('.pay-item').innerText()) && (await pg.locator('.pay-item.late').count()) === 1);
   await pg.getByRole('button', { name: 'اعرض الإيصال' }).click();

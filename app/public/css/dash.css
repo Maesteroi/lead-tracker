@@ -738,3 +738,46 @@ svg.geo { width: 100%; height: auto; aspect-ratio: 1.7; display: block; backgrou
 .ai-mic.on { color: var(--bad); border-color: var(--bad); animation: ai-pulse 1s ease-in-out infinite; }
 @keyframes ai-pulse { 50% { opacity: .5; } }
 .drawer:not([hidden]) ~ .ai-fab { display: none; }
+/* صفحة الاشتراك: تصميم أغنى (16 نوفمبر) */
+.bl-plans { gap: 20px; }
+.bl-plan { padding: 26px 22px 22px; border-radius: 22px; box-shadow: 0 8px 28px rgba(11, 31, 77, .07); overflow: visible; }
+.bl-plan::before { content: ''; position: absolute; inset: 0 0 auto 0; height: 6px; border-radius: 22px 22px 0 0; background: linear-gradient(90deg, var(--line), var(--line)); }
+.bl-plan.best::before { background: linear-gradient(90deg, #1a6fe8, #00a8f0, #22b14c); }
+.bl-plan.best { border: 2px solid transparent; background: linear-gradient(var(--card), var(--card)) padding-box, linear-gradient(135deg, #1a6fe8, #22b14c) border-box; box-shadow: 0 16px 40px rgba(26, 111, 232, .18); }
+.bl-plan.mine { box-shadow: 0 0 0 3px color-mix(in srgb, var(--growth) 35%, transparent), 0 8px 28px rgba(11, 31, 77, .07); }
+.bl-plan-h { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.bl-plan-h h3 { flex: 1; font-size: 21px; }
+.bl-plan-h .bl-tag { position: static; }
+.bl-mine { padding: 3px 10px; border-radius: 999px; background: var(--ok-bg); color: var(--growth); font-size: 12px; font-weight: 800; }
+.bl-price b { font-size: 36px; letter-spacing: -.5px; }
+.bl-feat.bl-ck li { padding-inline-start: 30px; }
+.bl-feat.bl-ck li::before { width: 20px; height: 20px; display: inline-grid; place-items: center; border-radius: 50%; background: var(--ok-bg); font-size: 12px; top: 2px; }
+.bl-feat.bl-ck li.no::before { background: var(--bg); }
+.bl-plan > .btn { padding: 13px; font-size: 16px; border-radius: 14px; }
+.bl-plan.best > .btn:not(.ghost), .bl-plan.best > .btn.ghost { background: linear-gradient(120deg, #1a6fe8, #22b14c); color: #fff; border: 0; }
+.bl-cmp { margin-top: 22px; border-radius: 18px; padding: 0; overflow: hidden; background: var(--card); box-shadow: 0 8px 28px rgba(11, 31, 77, .06); }
+.bl-cmp > summary { list-style: none; display: flex; justify-content: space-between; align-items: center; padding: 16px 18px; font-size: 16px; }
+.bl-cmp > summary::-webkit-details-marker { display: none; }
+.bl-cmp[open] > summary i { transform: rotate(180deg); }
+.bl-cmp > summary i { font-style: normal; transition: transform .2s; color: var(--muted); }
+.cmp-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; border-top: 1px solid var(--line); }
+.cmp-t { width: 100%; border-collapse: separate; border-spacing: 0; min-width: 520px; font-size: 14px; }
+.cmp-t th, .cmp-t td { padding: 12px 14px; border-bottom: 1px solid var(--line); text-align: center; }
+.cmp-t .cmp-f { position: sticky; inset-inline-start: 0; z-index: 1; background: var(--card); text-align: start; font-weight: 500; min-width: 170px; box-shadow: -1px 0 0 var(--line) inset; }
+.cmp-t thead th { background: var(--bg); vertical-align: top; }
+.cmp-t thead th b { display: block; font: 800 15px var(--font-head); }
+.cmp-t thead th small { color: var(--muted); font-size: 12px; }
+.cmp-t thead th.best { background: color-mix(in srgb, #1a6fe8 10%, var(--card)); }
+.cmp-t thead .cmp-f { background: var(--bg); font-weight: 800; }
+.cmp-t tr.lim td { font: 800 16px var(--font-head); color: var(--ink); }
+.cmp-t td.yes span { display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: var(--ok-bg); color: var(--growth); font-weight: 900; }
+.cmp-t td.no span { color: var(--muted); opacity: .6; }
+.cmp-t tbody tr:last-child th, .cmp-t tbody tr:last-child td { border-bottom: 0; }
+@media (max-width: 640px) { .bl-price b { font-size: 32px; } .cmp-t .cmp-f { min-width: 140px; } }
+@media (max-width: 640px) {
+  .cmp-t { min-width: 0; font-size: 13px; table-layout: fixed; }
+  .cmp-t th, .cmp-t td { padding: 10px 6px; }
+  .cmp-t .cmp-f { min-width: 0; width: 38%; }
+  .cmp-t thead th b { font-size: 13px; } .cmp-t thead th small { font-size: 11px; }
+  .cmp-t tr.lim td { font-size: 14px; }
+}
