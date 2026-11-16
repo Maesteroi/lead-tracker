@@ -867,3 +867,36 @@ svg.geo { width: 100%; height: auto; aspect-ratio: 1.7; display: block; backgrou
   .cf-side { grid-column: 2; justify-items: start; grid-auto-flow: column; align-items: center; }
   .cf-head .btn { width: 100%; }
 }
+
+/* ── تحسين الحملة (16 نوفمبر) ── */
+.op-hero-h { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.op-hero-h h2 { margin: 0; }
+.op-plan-h { margin: 18px 0 2px; font-size: 18px; }
+.ex-kpis .bad { border-color: color-mix(in srgb, var(--c-blk) 50%, var(--line)); } .ex-kpis .bad b { color: var(--c-blk); }
+.op-list { display: grid; gap: 10px; margin-top: 10px; }
+.dx.op .cf-t { display: block; margin: 6px 0 4px; }
+.dx.op.compact { padding-block: 12px; }
+.op-tabs { display: flex; gap: 6px; overflow-x: auto; padding: 4px 2px 8px; margin: 8px 0 6px; scrollbar-width: thin; }
+.op-tabs button { flex: none; display: inline-flex; align-items: center; gap: 6px; font: inherit; font-weight: 700; font-size: 14px; color: var(--muted); background: var(--bg); border: 1px solid var(--line); border-radius: 999px; padding: 8px 14px; cursor: pointer; white-space: nowrap; }
+.op-tabs button[aria-selected="true"] { background: var(--accent); color: #fff; border-color: var(--accent); }
+.op-n { display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px; font-size: 12px; background: var(--c-sus); color: #fff; }
+.op-n.bad { background: var(--c-blk); }
+.op-tabs button[aria-selected="true"] .op-n { background: #fff; color: var(--accent); }
+.op-lwhy { margin: 6px 0 10px; padding: 10px 14px; border-radius: 12px; background: var(--bg); line-height: 1.75; }
+.op-kwlist { margin: 4px 0; padding-inline-start: 20px; display: grid; gap: 2px; font-size: 14px; }
+.op-wait { margin: 0; font-size: 13.5px; color: var(--muted); }
+.op-editor { display: grid; gap: 10px; margin-top: 12px; padding: 14px; border: 1px dashed color-mix(in srgb, var(--accent) 45%, var(--line)); border-radius: 12px; background: var(--bg); }
+.op-f { display: grid; gap: 4px; position: relative; min-width: 0; }
+.op-f input, .op-f textarea { width: 100%; font: inherit; padding: 9px 11px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); color: var(--ink); }
+.op-cnt { justify-self: end; font-size: 12px; color: var(--muted); } .op-cnt.over { color: var(--c-blk); font-weight: 800; }
+.op-row { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: end; }
+.op-row:has(> .op-f + .op-f) { grid-template-columns: 1fr 1fr; }
+.op-row select { width: auto; min-width: 120px; }
+.op-fs { border: 1px solid var(--line); border-radius: 10px; padding: 10px; display: grid; gap: 8px; margin: 0; }
+.op-valbox { display: grid; gap: 6px; padding: 14px; border: 1px solid var(--line); border-radius: 14px; margin-bottom: 10px; }
+.op-values { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+@media (max-width: 720px) {
+  .op-values { grid-template-columns: 1fr; }
+  .op-row, .op-row:has(> .op-f + .op-f) { grid-template-columns: 1fr; }
+  .op-row select { width: 100%; }
+}

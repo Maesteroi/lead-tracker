@@ -100,6 +100,12 @@ function fakeApi(over) {
       if (p === '/v1/dash/statement.csv') { st.csvCalls = (st.csvCalls || 0) + 1; return route.fulfill({ status: 200, headers: Object.assign({ 'content-type': 'text/csv; charset=utf-8', 'content-disposition': 'attachment; filename="maestro-refund-x.csv"', 'access-control-expose-headers': 'content-disposition' }, cors), body: '\ufeffdate,gclid\r\n' }); }
       if (p === '/v1/dash/statement') return j(200, Object.assign({ ok: true }, st.statement || { linked: false }));
       // تحليل الحملة (analysis.js)
+      if (p === '/v1/dash/optimize/draft') { const b = JSON.parse(req.postData()); return j(200, { ok: true, key: b.key, code: b.key.split(':')[0], limits: { headline: 30, description: 90, path: 15, callout: 25, sitelink: 25, sitelink_desc: 35, snippet: 25 },
+        draft: b.key.startsWith('rsa_new') ? { ai: true, headlines: [{ text: 'الدفع بعد الإنجاز', role: 'promise', pin: 'HEADLINE_1' }, { text: 'تصميم داخلي في جدة', role: 'city' }, { text: 'مصمم داخلي معتمد', role: 'trust' }], descriptions: ['تصميم داخلي وتنفيذ بجودة عالية في جدة، والدفع بعد الإنجاز.', 'تواصل معنا على واتساب واحصل على تصور مبدئي مجاني.'], path1: 'تصميم', path2: 'جدة', url: 'https://shado.com/' } : { callouts: ['الدفع بعد الإنجاز', 'زيارة موقع مجانية'] } }); }
+      if (p === '/v1/dash/optimize/apply') { const b = JSON.parse(req.postData()); st.opApply = (st.opApply || []).concat([Object.assign({ csrf: req.headers()['x-csrf-token'] }, b)]); const bad = Object.values(b.drafts || {}).some((d) => (d.headlines || []).some((h) => h.text.length > 30)); if (bad) return j(200, { ok: false, results: b.keys.map((k) => ({ key: k, ok: false, error: 'draft', detail: ['h:1'] })) }); st.opDone = (st.opDone || []).concat(b.keys.map((k, i) => ({ id: 200 + (st.opDone || []).length + i, code: k.split(':')[0], key: k, target: { name: 'شادو', ag: 'تصميم داخلي' }, at: new Date().toISOString(), undone: false }))); if (st.optimize) st.optimize.items = st.optimize.items.filter((x) => !b.keys.includes(x.key)); if (st.optimize) st.optimize.plan = st.optimize.plan.filter((k) => !b.keys.includes(k)); return j(200, { ok: true, results: b.keys.map((k) => ({ key: k, ok: true })) }); }
+      if (p === '/v1/dash/optimize/undo') { const b = JSON.parse(req.postData()); st.opUndo = (st.opUndo || []).concat([b]); (st.opDone || []).forEach((d) => { if (d.id === b.id) d.undone = true; }); return j(200, { ok: true }); }
+      if (p === '/v1/dash/optimize/values') { const b = JSON.parse(req.postData()); st.opValues = b.values; return b.values.won < b.values.convo ? j(400, { ok: false, error: 'order' }) : j(200, { ok: true, values: b.values }); }
+      if (p === '/v1/dash/optimize') return st.optimize ? j(200, Object.assign({ ok: true, linked: true, manage: true, currency: 'SAR', done: st.opDone || [] }, st.optimize)) : j(404, { ok: false });
       if (p === '/v1/dash/campfix/apply') { const b = JSON.parse(req.postData()); st.cfApply = (st.cfApply || []).concat([Object.assign({ csrf: req.headers()['x-csrf-token'] }, b)]); st.cfDone = (st.cfDone || []).concat(b.keys.map((k, i) => ({ id: 100 + (st.cfDone || []).length + i, code: k.split(':')[0], key: k, target: { name: 'شادو', n: 4 }, at: new Date().toISOString(), undone: false }))); st.campfix = (st.campfix || []).filter((x) => !b.keys.includes(x.key)); return j(200, { ok: true, results: b.keys.map((k) => ({ key: k, ok: true })) }); }
       if (p === '/v1/dash/campfix/undo') { const b = JSON.parse(req.postData()); st.cfUndo = (st.cfUndo || []).concat([b]); (st.cfDone || []).forEach((d) => { if (d.id === b.id) d.undone = true; }); return j(200, { ok: true }); }
       if (p === '/v1/dash/campfix') return j(200, { ok: true, linked: true, manage: true, currency: 'SAR', items: st.campfix || [], done: st.cfDone || [] });
@@ -812,6 +818,74 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
   if (pg.errors.length || pg.csp.length) console.log(pg.errors, pg.csp);
   await pg.context().close(); }
 
+// 27-و) تحسين الحملة: خطة الأسبوع + الطبقات · «اكتبهولي» · طبّق · تراجع (16 نوفمبر · claude/briefs/2026-11-16-campaign-optimization-engine.md)
+{ const api = fakeApi({ signedIn: true, sites: [{ id: 'SiteId123456', name: 'شادو', domains: ['shado.com'], paired: true }] });
+  const it = (o) => Object.assign({ status: 'warn', kind: 'apply', impact: 0, sure: true, data: {} }, o, { key: o.code + ':' + (o.ref || '') });
+  api.optimize = { layers: ['signal', 'traffic', 'search', 'quality', 'ads', 'landing', 'where', 'budget'], values: { won: 100, convo: 30, contact: 10 }, qs: 4.6,
+    context: { cost: 1369.04, contacts: 15, won: 0, cpl: 91.27, cpw: null, smart: ['شادو'], campaigns: 1, signal_ok: false },
+    items: [
+      it({ layer: 'signal', code: 'conv_secondary', ref: '55', status: 'bad', data: { name: 'نقرة على واتساب', type: 'WEBPAGE', n: 7, contacts: 15, won: 0, sent: 1 }, now: 'primary', next: 'secondary', impact: 1369.04 }),
+      it({ layer: 'signal', code: 'outcomes', kind: 'go', go: 'leads', data: { n: 15, of: 15 } }),
+      it({ layer: 'traffic', code: 'partners_off', ref: '11', campaign: '11', status: 'bad', data: { name: 'شادو', clicks: 31, cost: 186.4, conv: 0 }, now: 'on', next: 'off', impact: 186.4 }),
+      it({ layer: 'quality', code: 'qs_ctr', kind: 'layer', go: 'ads', status: 'bad', data: { n: 3, cost: 160.3, p: 38, list: [{ k: 'تصميم داخلي', qs: 4, cost: 84.05 }, { k: 'ديكور داخلي', qs: 3, cost: 47.11 }] }, impact: 160.3 }),
+      it({ layer: 'ads', code: 'rsa_new', ref: '1', kind: 'write', status: 'bad', data: { ag: 'تصميم داخلي', strength: 'AVERAGE', cost: 420, promise: 'الدفع بعد الإنجاز', n: 1 }, impact: 63 }),
+      it({ layer: 'ads', code: 'asset_callout', ref: '11', campaign: '11', kind: 'write', data: { name: 'شادو' } }),
+      it({ layer: 'landing', code: 'lp_rate', kind: 'guided', go: 'visits', status: 'warn', data: { p: 14, visits: 106 } }),
+      it({ layer: 'where', code: 'smart_note', kind: 'none', status: 'info', data: { name: 'شادو', bidding: 'MAXIMIZE_CONVERSIONS' } }),
+      it({ layer: 'budget', code: 'smart_on_bad_signal', kind: 'layer', go: 'signal', status: 'bad', data: { names: ['شادو'] }, impact: 410.7 })],
+    plan: ['conv_secondary:55', 'partners_off:11', 'rsa_new:1'],
+    expert: { keywords: [], places: [], times: [], devices: [], money: null, signal: { google: 7, contacts: 15, won: 0, primary: ['نقرة على واتساب'], state: 'ok' }, summary: {} } };
+  const pg = await page(api, { viewport: { width: 1280, height: 900 } });
+  await pg.goto('https://app.maestrolt.com/#/analysis');
+  await pg.waitForSelector('.op-hero');
+  const hero = await pg.locator('.op-hero').innerText();
+  t('optimize: the page is «campaign optimization»: spend, real contacts, deals, cost per contact, what Google learns from, quality score', (await pg.locator('#page-title').innerText()) === 'تحسين الحملة' && /صرفت 1,369\.04/.test(hero) && /15 تواصل حقيقي/.test(hero) && /إشارة خاطئة/.test(hero) && /4\.6 \/ 10/.test(hero));
+  t('optimize: this week\'s plan, the learning signal first, each with now → after and its money', (await pg.locator('.op-hero .dx').count()) === 3 && /اجعل «نقرة على واتساب» تحويلًا ثانويًا/.test(await pg.locator('.op-hero .dx').first().innerText()) && /تحويل أساسي \(يتعلم منه جوجل\)/.test(hero) && /تحويل ثانوي/.test(hero));
+  t('optimize: eight layers from the source down plus change tracking, with problem counts', (await pg.locator('.op-tabs button').count()) === 9 && /الإشارة/.test(await pg.locator('.op-tabs').innerText()) && /متابعة التعديلات/.test(await pg.locator('.op-tabs').innerText()));
+  const sig = await pg.locator('.op-panel').innerText();
+  t('optimize signal layer: the expert reasoning, conversion values, and the steps', /يشتري جوجل بميزانيتك نقرات من يضغط ولا يشتري/.test(sig) && (await pg.locator('.op-values input').count()) === 3 && /الأهداف ← التحويلات/.test(sig));
+  await pg.locator('.op-values input').nth(0).fill('20');
+  await pg.locator('.op-valbox').getByRole('button', { name: 'احفظ القواعد' }).click();
+  await pg.waitForFunction(() => /قيمة «تم» يجب أن تكون أكبر/.test(document.getElementById('toast').textContent));
+  t('optimize values: a deal worth less than a chat is refused plainly', api.opValues.won === 20);
+  await pg.getByRole('tab', { name: /نقاط الجودة/ }).click();
+  const q = await pg.locator('.op-panel').innerText();
+  t('optimize quality layer: the weak component names the broken layer and the keywords behind it', /3 كلمة «نسبة النقر المتوقعة» فيها أقل من المتوسط/.test(q) && /تصميم داخلي/.test(q) && (await pg.locator('.op-panel').getByRole('button', { name: /افتح طبقة «الإعلان والإضافات»/ }).count()) === 1);
+  await pg.locator('.op-panel').getByRole('button', { name: /افتح طبقة «الإعلان والإضافات»/ }).click();
+  const card = pg.locator('.op-panel .dx', { hasText: 'إعلان جديد أقوى' });
+  await card.getByRole('button', { name: 'اكتبه لي' }).click();
+  await card.locator('.op-editor input').first().waitFor();
+  t('optimize ad writer: the draft opens for editing, each field with Google\'s limit and the promise pinned first', (await card.locator('.op-editor .op-cnt').count()) >= 7 && (await card.locator('.op-editor input').first().inputValue()) === 'الدفع بعد الإنجاز' && (await card.locator('.op-editor select').first().inputValue()) === 'HEADLINE_1');
+  await card.locator('.op-editor input').nth(1).fill('تصميم داخلي فاخر في جدة بأسعار مناسبة للجميع');
+  t('optimize ad writer: a headline over 30 characters turns its counter red', (await card.locator('.op-cnt.over').count()) === 1);
+  const go = card.getByRole('button', { name: 'أنشئه في جوجل أدز' });
+  await go.click(); await card.getByRole('button', { name: /اضغط مرة أخرى/ }).click();
+  await pg.waitForFunction(() => /تتجاوز حدود جوجل/.test(document.getElementById('toast').textContent));
+  t('optimize ad writer: the server refuses the over-limit draft and nothing is created', api.opApply.length === 1 && !(api.opDone || []).length);
+  await card.locator('.op-editor input').nth(1).fill('تصميم داخلي في جدة');
+  await go.click();
+  await pg.waitForFunction(() => /طُبّق 1 تعديل/.test(document.getElementById('toast').textContent));
+  const sent = api.opApply.at(-1);
+  t('optimize ad writer: the edited ad is sent with its pins and CSRF', sent.keys[0] === 'rsa_new:1' && sent.drafts['rsa_new:1'].headlines[1].text === 'تصميم داخلي في جدة' && sent.drafts['rsa_new:1'].headlines[0].pin === 'HEADLINE_1' && sent.csrf === 'csrf-token-123');
+  await pg.waitForSelector('.op-hero');
+  const p1 = pg.locator('.op-hero .dx').first();
+  await p1.getByRole('button', { name: 'طبّق' }).click(); await p1.getByRole('button', { name: /اضغط مرة أخرى/ }).click();
+  await pg.waitForFunction(() => /طُبّق 1 تعديل/.test(document.getElementById('toast').textContent) && document.querySelectorAll('.op-hero .dx').length === 1);
+  t('optimize: «apply» from the plan sends that change only after a confirmation', api.opApply.at(-1).keys.join() === 'conv_secondary:55');
+  await pg.getByRole('tab', { name: /متابعة التعديلات/ }).click();
+  await pg.waitForSelector('.cf-done li');
+  await pg.locator('.cf-done li').first().getByRole('button', { name: 'تراجع' }).click(); await pg.locator('.cf-done li').first().getByRole('button', { name: /اضغط مرة أخرى/ }).click();
+  await pg.waitForFunction(() => /رجعت الإعدادات/.test(document.getElementById('toast').textContent));
+  t('optimize tracking: applied changes are listed with undo, and the old settings check is folded below', api.opUndo && api.opUndo[0].id === 200);
+  await shot(pg, 'optimize');
+  await pg.setViewportSize({ width: 390, height: 844 });
+  await pg.getByRole('tab', { name: /الإعلان والإضافات/ }).click();
+  t('optimize mobile: no sideways scrolling', await pg.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1));
+  await shot(pg, 'optimize-mobile');
+  t('optimize: no console errors, no CSP violations', pg.errors.length === 0 && pg.csp.length === 0);
+  if (pg.errors.length || pg.csp.length) console.log(pg.errors, pg.csp);
+  await pg.context().close(); }
+
 // 27-هـ) تقرير الخبير لتحليل الحملة (16 نوفمبر · «ضعيف ومبهم ومنقول من تحسين جوجل»)
 { const api = fakeApi({ signedIn: true, sites: [{ id: 'SiteId123456', name: 'الإنجاز', domains: ['enjaz.biz'], paired: true }] });
   const kw = (k, match, cost, clicks, reached, contacts, won, verdict, expected) => ({ k, match, cost, clicks, reached, real: reached, contacts, convos: won, won, cpl: contacts ? Math.round(cost / contacts * 100) / 100 : null, cpw: null, expected, verdict, save: verdict === 'cut' ? cost : 0, gain: 0 });
@@ -835,24 +909,6 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
   const pg = await page(api, { viewport: { width: 1280, height: 900 } });
   await pg.goto('https://app.maestrolt.com/#/analysis');
   await pg.waitForSelector('.ex-hero');
-  await pg.waitForSelector('.cf-item');
-  const cfv = await pg.locator('.cf').innerText();
-  t('campaign fix: first on the page, each change in the Google Ads settings as now → after with its 30-day cost', (await pg.locator('#view > .cf-slot').count()) === 1 && (await pg.locator('.cf-item').count()) === 4 && /أوقف شركاء البحث في حملة «شادو»/.test(cfv) && /يظهر في مواقع شركاء البحث/.test(cfv) && /بحث جوجل فقط/.test(cfv) && /31 نقرة من مواقع الشركاء بتكلفة 186\.40/.test(cfv) && /الموجودون في منطقتك فقط/.test(cfv) && /أضف 4 كلمة سلبية/.test(cfv));
-  await shot(pg, 'campfix');
-  await pg.locator('.cf-item').nth(2).locator('input[type=checkbox]').uncheck();
-  const all = pg.locator('.cf-head .btn');
-  t('campaign fix: «apply selected» counts the ticked items', /طبّق المحدد \(3\)/.test(await all.innerText()));
-  await all.click();
-  t('campaign fix: the first press only asks to confirm, with the money', !api.cfApply && /اضغط مرة أخرى/.test(await all.innerText()));
-  await all.click();
-  await pg.waitForFunction(() => /طُبّق 3 تعديل/.test(document.getElementById('toast').textContent));
-  t('campaign fix: only the ticked changes are sent, with CSRF', api.cfApply[0].keys.join(',') === 'partners_off:11,geo_presence:11,negatives:all' && api.cfApply[0].csrf === 'csrf-token-123');
-  await pg.waitForSelector('.cf-done li');
-  t('campaign fix: what was applied is listed with «undo», and the untouched item stays', (await pg.locator('.cf-done li').count()) === 3 && (await pg.locator('.cf-item').count()) === 1);
-  const undo = pg.locator('.cf-done li').first().getByRole('button', { name: 'تراجع' });
-  await undo.click(); await pg.locator('.cf-done li').first().getByRole('button', { name: /اضغط مرة أخرى/ }).click();
-  await pg.waitForFunction(() => /رجعت الإعدادات/.test(document.getElementById('toast').textContent));
-  t('campaign fix: «undo» restores that change after a confirmation', api.cfUndo && api.cfUndo[0].id === 100 && /تم التراجع/.test(await pg.locator('.cf-done').innerText()));
   const v = await pg.locator('#view').innerText();
   t('expert analysis: the summary in money (spent, real contacts, deals, cost per contact and per customer, expected saving) and the most important thing now', /صرفت 466\.00/.test(v) && /28 تواصل حقيقي/.test(v) && /233\.00/.test(v) && /61\.00/.test(await pg.locator('.ex-kpis').innerText()) && /جوجل يتعلم من تحويلات غير حقيقية/.test(await pg.locator('.ex-top').innerText()));
   t('expert analysis: the plan names each keyword and place with its numbers and impact, first the wrong learning signal then the money', (await pg.locator('.an-dx-list').first().locator('.dx').count()) === 5 && /جوجل سجّل 180 تحويلًا/.test(await pg.locator('.dx').first().innerText()) && /«تصريح زواج من وزارة الداخلية» \(واسعة\) صرفت 23\.00/.test(v) && /المتوقع حوالي 3\.4 تواصل/.test(v) && (await pg.locator('.ex-impact').count()) >= 3);
