@@ -21,6 +21,7 @@ import { dashNegatives, dashNegativesExisting, dashNegativeDecide } from './nega
 import { dashKeywords, dashKeywordDecide } from './keywords.js';
 import { dashBrief, dashBriefSave } from './brief.js';
 import { dashBlockIp, dashUnblockIp, dashBlocks, dashOwnDevice } from './blocks.js';
+import { dashRules, dashRulesSave } from './rules.js';
 import { dashAnalysis, dashAnalysisFix, dashAnalysisDone } from './analysis.js';
 import { dashStatement, dashStatementCsv } from './statement.js';
 import { dashSettings, dashSettingsSave, logoutOthers } from './settings.js';
@@ -125,6 +126,8 @@ export async function handleApp(req, env, db, url, p, fetchImpl) {
     else if (m === 'POST' && p === '/v1/dash/block') res = await dashBlockIp(req, env, db, sess, fetchImpl);
     else if (m === 'POST' && p === '/v1/dash/unblock') res = await dashUnblockIp(req, env, db, sess, fetchImpl);
     else if (m === 'GET' && p === '/v1/dash/blocks') res = await dashBlocks(req, env, db, sess, url);
+    else if (m === 'GET' && p === '/v1/dash/rules') res = await dashRules(req, env, db, sess, url);
+    else if (m === 'POST' && p === '/v1/dash/rules') res = await dashRulesSave(req, env, db, sess);
     else if (m === 'POST' && p === '/v1/dash/own') res = await dashOwnDevice(req, env, db, sess);
     // المساعد الذكي (assistant.js)
     else if (m === 'GET' && p === '/v1/dash/assistant') res = await dashAssistantState(req, env, db, sess, url);

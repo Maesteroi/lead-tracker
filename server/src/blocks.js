@@ -17,6 +17,7 @@ import { publicIp } from './geo.js';
 import { isDatacenter } from './score.js';
 
 export const MAX_ACCOUNT_IPS = 500, KEEP_FREE = 10;
+export { DAYS_DC, DAYS_OTHER, DAYS_REPEAT };
 const DAYS_DC = 90, DAYS_OTHER = 7, DAYS_REPEAT = 30;
 const SID_RE = /^[A-Za-z0-9_-]{6,64}$/;
 const canManage = (sess, site) => ['owner', 'admin'].includes(roleFor(sess, site.org_id, site.id));
@@ -38,6 +39,46 @@ async function sessionInfo(db, siteId, sid) {
 }
 
 // ── امنعه في جوجل ──
+// القلب المشترك (يدوي بضغطة · أو تلقائي من قواعد الحماية): IP الزيارة + بصمة جهازها، والمدة من قواعد الموقع
+export async function blockSession(env, db, site, cred, sid, opts, fetchImpl) {
+  const o = opts || {};
+  const info = await sessionInfo(db, site.id, sid);
+  if (!info || !info.ip) return { ok: false, error: 'no_ip', status: 409 };
+  const own = await db.one('own_devices?client_id=' + eq(site.id) + '&visitor_id=' + eq(info.visitor_id || '-') + '&select=id').catch(() => null);
+  if (own) return { ok: false, error: 'own', status: 409 };
+  const pr = await db.one('protection_rules?client_id=' + eq(site.id) + '&select=days').catch(() => null);
+  const D = Object.assign({ normal: DAYS_OTHER, repeat: DAYS_REPEAT, dc: DAYS_DC }, (pr && pr.days) || {});
+  const dc = isDatacenter(info.isp, info.asn);
+  const prev = await db.one('ip_blocks?client_id=' + eq(site.id) + '&customer_id=' + eq(cred.customer_id) + '&ip=' + eq(info.ip) + '&select=id,status,resource_name');
+  // رجع تاني بعد ما المنع خلص (زي منافس) أو نفس جهاز اتمنع قبل كده = متكرر: 30 يوم بدل 7 (16 نوفمبر)
+  const repeat = !!prev || o.reason === 'same_device';
+  const days = Math.max(1, Math.min(365, Number(dc ? D.dc : repeat ? D.repeat : D.normal) || DAYS_OTHER));
+  const now = new Date(), expires = new Date(now.getTime() + days * 864e5).toISOString();
+  if (prev && prev.status === 'active') {
+    await db.update('ip_blocks?id=' + eq(prev.id), { expires_at: expires, fingerprint: info.fingerprint || null, visitor_id: info.visitor_id || null });   // ممنوع أصلًا: بنمدّ المدة بس
+    return { ok: true, ip: info.ip, dc, expires_at: expires, already: true };
+  }
+  const row = { client_id: site.id, customer_id: cred.customer_id, ip: info.ip, session_id: sid, reason: String(o.reason || '').slice(0, 80) || null, network: String(info.isp || info.asn || '').slice(0, 80) || null, dc,
+    fingerprint: info.fingerprint || null, visitor_id: info.visitor_id || null, auto: !!o.auto,
+    status: 'active', by_user: o.by_user || null, created_at: now.toISOString(), expires_at: expires, removed_at: null, error: null, resource_name: null };
+  try {
+    const api = await apiFor(env, site, cred, fetchImpl);
+    const count = (await api.query("SELECT customer_negative_criterion.id FROM customer_negative_criterion WHERE customer_negative_criterion.type = 'IP_BLOCK'")).length;
+    if (count >= MAX_ACCOUNT_IPS - KEEP_FREE) return { ok: false, error: 'full', count, status: 409 };
+    const r = await api.mutate('customerNegativeCriteria:mutate', { operations: [{ create: { ipBlock: { ipAddress: info.ip } } }] });
+    row.resource_name = ((r.results || [])[0] || {}).resourceName || null;
+  } catch (e) {
+    row.status = 'failed'; row.error = String(e && e.message || e).slice(0, 300);
+  }
+  await db.insert('ip_blocks', [row], { onConflict: 'client_id,customer_id,ip', merge: true, returning: false }).catch(async (e) => {
+    if (!/fingerprint|visitor_id|auto/.test(String(e && e.message || e))) throw e;   // قبل 0029
+    const { fingerprint, visitor_id, auto, ...r2 } = row; await db.insert('ip_blocks', [r2], { onConflict: 'client_id,customer_id,ip', merge: true, returning: false });
+  });
+  await db.insert('ads_pull_runs', [{ client_id: site.id, source: 'server', ok: row.status === 'active', operations: 2, rows: { kind: o.auto ? 'ip_block_auto' : 'ip_block' }, at: now.toISOString() }], { returning: false }).catch(() => {});
+  if (row.status !== 'active') return { ok: false, error: 'google', detail: row.error, status: 502 };
+  return { ok: true, ip: info.ip, dc, repeat: repeat && !dc, expires_at: expires, days };
+}
+
 export async function dashBlockIp(req, env, db, sess, fetchImpl) {
   const b = await req.json().catch(() => ({}));
   const site = await loadSite(db, sess, b.site);
@@ -49,35 +90,10 @@ export async function dashBlockIp(req, env, db, sess, fetchImpl) {
   if (!cred) return json({ ok: false, error: 'not_linked' }, 409);
   const v = await db.one('protection_verdicts?client_id=' + eq(site.id) + '&session_id=' + eq(sid) + '&select=verdict').catch(() => null);
   if (v && v.verdict === 'real') return json({ ok: false, error: 'real' }, 409);
-  const info = await sessionInfo(db, site.id, sid);
-  if (!info || !info.ip) return json({ ok: false, error: 'no_ip' }, 409);
-  const own = await db.one('own_devices?client_id=' + eq(site.id) + '&visitor_id=' + eq(info.visitor_id || '-') + '&select=id').catch(() => null);
-  if (own) return json({ ok: false, error: 'own' }, 409);
-  const dc = isDatacenter(info.isp, info.asn);
-  const prev = await db.one('ip_blocks?client_id=' + eq(site.id) + '&customer_id=' + eq(cred.customer_id) + '&ip=' + eq(info.ip) + '&select=id,status,resource_name');
-  // رجع تاني بعد ما المنع خلص (أو اتمنع قبل كده) = متكرر، زي منافس: 30 يوم بدل 7 (16 نوفمبر)
-  const days = dc ? DAYS_DC : prev ? DAYS_REPEAT : DAYS_OTHER;
-  const now = new Date(), expires = new Date(now.getTime() + days * 864e5).toISOString();
-  if (prev && prev.status === 'active') {
-    await db.update('ip_blocks?id=' + eq(prev.id), { expires_at: expires });   // ممنوع أصلًا: بنمدّ المدة بس
-    return json({ ok: true, ip: info.ip, dc, expires_at: expires, already: true });
-  }
-  const row = { client_id: site.id, customer_id: cred.customer_id, ip: info.ip, session_id: sid, reason: String(b.reason || '').slice(0, 80) || null, network: String(info.isp || info.asn || '').slice(0, 80) || null, dc,
-    status: 'active', by_user: sess.user.id, created_at: now.toISOString(), expires_at: expires, removed_at: null, error: null, resource_name: null };
-  try {
-    const api = await apiFor(env, site, cred, fetchImpl);
-    const count = (await api.query("SELECT customer_negative_criterion.id FROM customer_negative_criterion WHERE customer_negative_criterion.type = 'IP_BLOCK'")).length;
-    if (count >= MAX_ACCOUNT_IPS - KEEP_FREE) return json({ ok: false, error: 'full', count }, 409);
-    const r = await api.mutate('customerNegativeCriteria:mutate', { operations: [{ create: { ipBlock: { ipAddress: info.ip } } }] });
-    row.resource_name = ((r.results || [])[0] || {}).resourceName || null;
-  } catch (e) {
-    row.status = 'failed'; row.error = String(e && e.message || e).slice(0, 300);
-  }
-  await db.insert('ip_blocks', [row], { onConflict: 'client_id,customer_id,ip', merge: true, returning: false });
-  await db.insert('ads_pull_runs', [{ client_id: site.id, source: 'server', ok: row.status === 'active', operations: 2, rows: { kind: 'ip_block' }, at: now.toISOString() }], { returning: false }).catch(() => {});
-  await audit(db, sess.user.id, 'ip_blocked', row.status === 'active', site.id + ' ' + sid + (dc ? ' dc' : ''));
-  if (row.status !== 'active') return json({ ok: false, error: 'google', detail: row.error }, 502);
-  return json({ ok: true, ip: info.ip, dc, repeat: !!prev && !dc, expires_at: expires });
+  const r = await blockSession(env, db, site, cred, sid, { reason: b.reason, by_user: sess.user.id }, fetchImpl);
+  await audit(db, sess.user.id, 'ip_blocked', r.ok, site.id + ' ' + sid + (r.dc ? ' dc' : ''));
+  if (!r.ok) { const st = r.status || 502; delete r.status; return json(r, st); }
+  return json(r);
 }
 
 async function removeBlock(env, db, site, cred, row, fetchImpl) {
@@ -107,9 +123,10 @@ const maskIp = (ip) => (String(ip).includes(':') ? String(ip).split(':').slice(0
 export async function dashBlocks(req, env, db, sess, url) {
   const site = await loadSite(db, sess, url.searchParams.get('site'));
   if (!site) return notFound();
-  const rows = (await db.select('ip_blocks?client_id=' + eq(site.id) + '&status=eq.active&select=id,ip,network,dc,reason,created_at,expires_at&order=created_at.desc&limit=200').catch(() => [])) || [];
+  const q = (cols) => db.select('ip_blocks?client_id=' + eq(site.id) + '&status=eq.active&select=' + cols + '&order=created_at.desc&limit=200');
+  const rows = (await q('id,ip,network,dc,reason,created_at,expires_at,auto,fingerprint').catch(() => q('id,ip,network,dc,reason,created_at,expires_at')).catch(() => [])) || [];   // قبل 0029: من غير البصمة
   const own = (await db.select('own_devices?client_id=' + eq(site.id) + '&select=id,label,created_at&order=created_at.desc&limit=50').catch(() => [])) || [];
-  return json({ ok: true, manage: canManage(sess, site), max: MAX_ACCOUNT_IPS, blocks: rows.map((r) => ({ id: r.id, ip: maskIp(r.ip), network: r.network || '', dc: !!r.dc, reason: r.reason || '', at: r.created_at, expires_at: r.expires_at })), own });
+  return json({ ok: true, manage: canManage(sess, site), max: MAX_ACCOUNT_IPS, blocks: rows.map((r) => ({ id: r.id, ip: maskIp(r.ip), network: r.network || '', dc: !!r.dc, reason: r.reason || '', at: r.created_at, expires_at: r.expires_at, auto: !!r.auto, device: !!r.fingerprint })), own });
 }
 
 // الكرون: المنع اللي مدته خلصت بيتشال من جوجل

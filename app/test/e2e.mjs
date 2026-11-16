@@ -116,7 +116,9 @@ function fakeApi(over) {
       if (p === '/v1/dash/block') { const b = JSON.parse(req.postData()); st.blockCalls = (st.blockCalls || []).concat([Object.assign({ csrf: req.headers()['x-csrf-token'] }, b)]); st.blocked = true; return j(200, { ok: true, ip: '51.36.1.2', dc: true, expires_at: new Date(Date.now() + 90 * 864e5).toISOString() }); }
       if (p === '/v1/dash/unblock') { st.unblocked = true; st.blocked = false; return j(200, { ok: true }); }
       if (p === '/v1/dash/own') { const b = JSON.parse(req.postData()); st.ownCalls = (st.ownCalls || []).concat([b]); return j(200, { ok: true }); }
-      if (p === '/v1/dash/blocks') return j(200, { ok: true, manage: true, max: 500, blocks: st.blocked ? [{ id: 1, ip: '45.77.x.x', network: 'DigitalOcean', dc: true, reason: 'بوت', at: new Date().toISOString(), expires_at: new Date(Date.now() + 90 * 864e5).toISOString() }] : [], own: [{ id: 3, label: 'جوال محمود', created_at: new Date().toISOString() }] });
+      if (p === '/v1/dash/rules' && req.method() === 'POST') { const b = JSON.parse(req.postData()); st.rulesCalls = (st.rulesCalls || []).concat([Object.assign({ csrf: req.headers()['x-csrf-token'] }, b)]); return j(200, { ok: true, rules: b.rules || st.rulesDef, auto: b.auto || 'confirmed', days: b.days || { normal: 7, repeat: 30, dc: 90 } }); }
+      if (p === '/v1/dash/rules') { st.rulesDef = { bot: { on: true, pts: 60 }, dc: { on: true, pts: 45 }, geo: { on: true, pts: 40 }, bounce: { on: true, pts: 25, secs: 3 }, idle: { on: true, pts: 15 }, repeat: { on: true, pts: 35, n: 3 }, suspicious: 40, high: 70 }; return j(200, { ok: true, manage: true, linked: true, rules: st.rulesDef, auto: 'confirmed', days: { normal: 7, repeat: 30, dc: 90 }, stats: { blocks: 9, auto: 6, same_device: 2, devices: 7 } }); }
+      if (p === '/v1/dash/blocks') return j(200, { ok: true, manage: true, max: 500, blocks: st.blocked ? [{ id: 1, ip: '45.77.x.x', network: 'DigitalOcean', dc: true, auto: true, device: true, reason: 'بوت', at: new Date().toISOString(), expires_at: new Date(Date.now() + 90 * 864e5).toISOString() }] : [], own: [{ id: 3, label: 'جوال محمود', created_at: new Date().toISOString() }] });
       // فهم النشاط (brief.js)
       if (p === '/v1/dash/brief' && req.method() === 'POST') { const b = JSON.parse(req.postData()); st.briefCalls = (st.briefCalls || []).concat([Object.assign({ csrf: req.headers()['x-csrf-token'] }, b)]); st.brief = { offer: b.offer, exclude: b.exclude }; return j(200, { ok: true, offer: b.offer, exclude: b.exclude }); }
       if (p === '/v1/dash/brief') { const br = st.brief || { offer: [], exclude: [] }; const known = new Set([...br.offer, ...br.exclude.map((x) => x.word)]); return j(200, { ok: true, manage: true, empty: !st.brief, brief: br, words: [{ word: 'تصريح', terms: 30, clicks: 80, cost: 50, conv: 9, real: 3, won: 1, sample: ['تصريح زواج من اجنبية', 'معقب تصريح'] }, { word: 'خطابه', terms: 4, clicks: 9, cost: 6, conv: 1, real: 0, won: 0, sample: ['خطابه في الرياض'] }, { word: 'استعلام عن معاملة', terms: 3, clicks: 4, cost: 2, conv: 0, real: 0, won: 0, sample: [] }].filter((w) => !known.has(w.word)) }); }
@@ -427,7 +429,7 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
   const apiCalls = []; pg.on('request', (r) => { if (r.url().startsWith('https://api.maestrolt.com')) apiCalls.push(r.url()); });
   await pg.goto('https://app.maestrolt.com/demo');
   await pg.waitForSelector('.answers .ans');
-  t('demo simple (default): 3 big answers, a short menu (10, with analysis, team, keywords, subscription and settings), no tables or charts', (await pg.locator('.answers .ans').count()) === 3 && (await pg.locator('.side-nav a').count()) === 10 && (await pg.locator('#view table, #view svg.svg').count()) === 0 && (await pg.locator('#page-title').innerText()) === 'الخلاصة');
+  t('demo simple (default): 3 big answers, a short menu (11, with analysis, rules, team, keywords, subscription and settings), no tables or charts', (await pg.locator('.answers .ans').count()) === 3 && (await pg.locator('.side-nav a').count()) === 11 && (await pg.locator('#view table, #view svg.svg').count()) === 0 && (await pg.locator('#page-title').innerText()) === 'الخلاصة');
   t('demo simple: "is your ad protected?" answers in words, at most 3 action cards', /محمي/.test(await pg.locator('.ans').first().innerText()) && (await pg.locator('.act').count()) <= 3);
   t('demo simple: the checklist counts the done steps and offers how-to for the missing ones', /\d من 6/.test(await pg.locator('.progress').innerText()) && (await pg.locator('.steps-check li').count()) === 6);
   t('demo simple: the week summary reads as a sentence', /وصلك .* زائر/.test(await pg.locator('.story').innerText()));
@@ -437,7 +439,7 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
   await shot(pg, 'demo-0-simple');
   await pg.locator('#level').getByRole('button', { name: 'احترافي' }).click();
   await pg.waitForSelector('.kpis .kpi');
-  t('demo: switching to detailed shows the full menu (14)', (await pg.locator('.side-nav a').count()) === 14);
+  t('demo: switching to detailed shows the full menu (15)', (await pg.locator('.side-nav a').count()) === 15);
   t('demo: the pro home — 8 KPI cards (with Google clicks and money protected), the status strip and the action cards', (await pg.locator('.kpis .kpi').count()) === 8 && /نقرات احتسبها جوجل/.test(await pg.locator('.kpis').innerText()) && /الحماية: تراقب كل زيارة/.test(await pg.locator('.status-strip').innerText()) && (await pg.locator('.act').count()) >= 2);
   t('demo: the traffic curve draws 3 smooth lines with a legend, plus donuts, visit cards and the hours heatmap', (await pg.locator('.area-chart .a-line').count()) === 3 && (await pg.locator('.chart-legend').first().locator('.lg').count()) === 3 && (await pg.locator('.donut').count()) === 2 && (await pg.locator('.vcard').count()) >= 3 && (await pg.locator('.heat .h-cell').count()) === 168);
   await pg.locator('.area-chart .hit').nth(2).hover();
@@ -776,6 +778,30 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
   await pg.setViewportSize({ width: 390, height: 844 });
   t('settings mobile: no sideways scrolling', await pg.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1));
   t('settings: no console errors, no CSP violations', pg.errors.length === 0 && pg.csp.length === 0);
+  if (pg.errors.length || pg.csp.length) console.log(pg.errors, pg.csp);
+  await pg.context().close(); }
+
+// 27-د) قواعد الحماية والمنع التلقائي بالبصمة (16 نوفمبر)
+{ const api = fakeApi({ signedIn: true, sites: [{ id: 'SiteId123456', name: 'الإنجاز', domains: ['enjaz.biz'], paired: true }] });
+  const pg = await page(api, { viewport: { width: 1280, height: 900 } });
+  await pg.goto('https://app.maestrolt.com/#/rules');
+  await pg.waitForSelector('.ru-rule');
+  const v = await pg.locator('#view').innerText();
+  t('rules: the page shows the auto mode (confirmed by default), what is never blocked, the six signals with points, thresholds, durations and the device fingerprint', /المؤكد فقط/.test(v) && /لا يُمنع تلقائيًا أبدًا/.test(v) && (await pg.locator('.ru-rule').count()) === 6 && /مشبوهة من/.test(v) && /متكرر أو نفس الجهاز/.test(v) && /بصمة الجهاز/.test(v) && /جهاز عاد بعنوان جديد/.test(v));
+  t('rules: the page is in the side menu', (await pg.locator('nav a[href="#/rules"]').count()) > 0);
+  await pg.getByRole('radio', { name: 'المؤكد والخطر العالي' }).click();
+  await pg.getByRole('switch', { name: 'خروج سريع' }).uncheck({ force: true });
+  await pg.getByLabel('نقطة · شبكة خوادم').fill('50'); await pg.getByLabel('نقطة · شبكة خوادم').press('Tab');
+  await pg.getByLabel('متكرر أو نفس الجهاز').fill('45'); await pg.getByLabel('متكرر أو نفس الجهاز').press('Tab');
+  await pg.getByRole('button', { name: 'احفظ القواعد' }).click();
+  await pg.waitForFunction(() => /حُفظت القواعد/.test(document.getElementById('toast').textContent));
+  const c = (api.rulesCalls || []).at(-1) || {};
+  t('rules: saving sends the mode, the turned-off signal, the new points and the duration with CSRF', c.auto === 'high' && c.rules.bounce.on === false && c.rules.dc.pts === 50 && c.days.repeat === 45 && c.csrf === 'csrf-token-123');
+  await shot(pg, 'rules');
+  await pg.setViewportSize({ width: 390, height: 844 });
+  t('rules mobile: no sideways scrolling', await pg.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1));
+  await shot(pg, 'rules-mobile');
+  t('rules: no console errors, no CSP violations', pg.errors.length === 0 && pg.csp.length === 0);
   if (pg.errors.length || pg.csp.length) console.log(pg.errors, pg.csp);
   await pg.context().close(); }
 
@@ -1134,7 +1160,7 @@ for (const [days, kind, re] of [[1.5, 'warn', /متبقٍ يومين من تجر
   const pg = await page(api, { viewport: { width: 1440, height: 900 } });
   await pg.goto('https://app.maestrolt.com/');
   await pg.waitForSelector('.kpis .kpi');
-  t('live agency: an agency account opens on the detailed level', (await pg.locator('.side-nav a').count()) === 14);
+  t('live agency: an agency account opens on the detailed level', (await pg.locator('.side-nav a').count()) === 15);
   await pg.locator('.side-nav a[data-r="clients"]').click();
   await pg.waitForFunction(() => document.querySelectorAll('#view .tbl tbody tr').length === 2);
   t('live agency: all clients with real visits/contacts/customers', /60/.test(await pg.locator('#view .tbl').innerText()) && /دون نتيجة/.test(await pg.locator('#view .tbl').innerText()));

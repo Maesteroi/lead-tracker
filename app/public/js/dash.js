@@ -29,6 +29,7 @@
     install: 'M12 3v12M7 10l5 5 5-5M5 21h14',
     analysis: 'M3 3v18h18M7 15l4-4 3 3 6-7M17 7h3v3',
     admin: 'M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1M15 4v4M9 10v4M17 16v4',
+    rules: 'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6zM9 12l2 2 4-4',
     settings: 'M12 15a3 3 0 100-6 3 3 0 000 6zM19.4 15a1.7 1.7 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.8-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1.1-1.5 1.7 1.7 0 00-1.8.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.8 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.5-1.1 1.7 1.7 0 00-.3-1.8l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.8.3H9a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.8-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.8V9a1.7 1.7 0 001.5 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z',
   };
   function icon(name) {
@@ -37,8 +38,8 @@
   }
 
   var T = LT.t;   // النصوص من ملف اللغة (js/lang/*.js)
-  var ROUTES = ['overview', 'analysis', 'clients', 'statement', 'visits', 'protection', 'negatives', 'leads', 'alerts', 'reports', 'sites', 'team', 'billing', 'settings'].map(function (k) { return [k, T('nav.' + k)]; });
-  var NAV = { simple: ['overview', 'analysis', 'leads', 'protection', 'negatives', 'alerts', 'sites', 'team', 'billing', 'settings'], detailed: ROUTES.map(function (r) { return r[0]; }) };
+  var ROUTES = ['overview', 'analysis', 'clients', 'statement', 'visits', 'protection', 'rules', 'negatives', 'leads', 'alerts', 'reports', 'sites', 'team', 'billing', 'settings'].map(function (k) { return [k, T('nav.' + k)]; });
+  var NAV = { simple: ['overview', 'analysis', 'leads', 'protection', 'rules', 'negatives', 'alerts', 'sites', 'team', 'billing', 'settings'], detailed: ROUTES.map(function (r) { return r[0]; }) };
   var BOTTOMS = { simple: ['overview', 'leads', 'protection', 'alerts'], detailed: ['overview', 'statement', 'visits', 'protection'] };
   var BOTTOM = BOTTOMS.detailed;
   var STATUS = { real: [T('status.real'), 'ok'], suspicious: [T('status.suspicious'), 'warn'], high: [T('status.high'), 'bad'], blocked: [T('status.blocked'), 'bad'] };
@@ -1567,7 +1568,7 @@
       var rows = b.blocks.map(function (x) {
         var un = b.manage ? el('button', { class: 'linkish', type: 'button', text: T('bk.unblock') }) : null;
         if (un) un.addEventListener('click', function () { un.disabled = true; DATA.unblockIp(state.site, x.id).then(function () { toast(T('bk.unblocked')); redraw(); }, function () { un.disabled = false; toast(T('va.e.google')); }); });
-        return el('li', {}, [el('span', { class: 'pill ' + (x.dc ? 'bad' : 'warn'), text: x.dc ? T('bk.dc') : T('bk.net') }), el('div', {}, [el('b', { class: 'ltr', text: x.ip }), el('small', { class: 'dim', text: (x.network ? x.network + ' · ' : '') + T('bk.until', { d: dateAr(x.expires_at) }) })]), un]);
+        return el('li', {}, [el('span', { class: 'pill ' + (x.dc ? 'bad' : 'warn'), text: x.dc ? T('bk.dc') : T('bk.net') }), el('div', {}, [el('b', { class: 'ltr', text: x.ip }), el('small', { class: 'dim', text: (x.network ? x.network + ' · ' : '') + T('bk.until', { d: dateAr(x.expires_at) }) }), x.auto || x.device ? el('small', { class: 'bk-tags' }, [x.auto ? el('span', { class: 'pill info', text: T('bk.auto') }) : null, x.device ? el('span', { class: 'pill', text: T('bk.device') }) : null]) : null]), un]);
       });
       var own = b.own.map(function (o) {
         var rm = el('button', { class: 'linkish', type: 'button', text: T('bk.own.remove') });
@@ -1579,6 +1580,105 @@
         el('h3', { class: 'legend', text: T('bk.own') }), own.length ? el('ul', { class: 'feed bk-list' }, own) : el('p', { class: 'muted', text: T('bk.own.none') })]));
     }, function () { clear(box); });
   }
+  // ════════ قواعد الحماية (16 نوفمبر · «فين صفحة مجموعة القواعد اللي على أساسها هتتم الحماية» · «فين بصمة الجهاز») ════════
+  // ١) أرقام آخر 30 يوم · ٢) المنع التلقائي (مقفول · المؤكد بس · المؤكد والخطر العالي) · ٣) الإشارات ونقاطها والحدود · ٤) مدة المنع · ٥) بصمة الجهاز
+  var RULE_KEYS = ['bot', 'dc', 'geo', 'bounce', 'idle', 'repeat'];
+  function vRules(view) {
+    clear(view);
+    if (!DATA.rules) { view.appendChild(soonCard(T('nav.rules'), [T('ru.demo.1'), T('ru.demo.2'), T('ru.demo.3')])); return Promise.resolve(); }
+    return DATA.rules(state.site).then(function (d) { drawRules(view, d); }, function () { clear(view); view.appendChild(el('p', { class: 'muted', text: T('ru.err') })); });
+  }
+  function drawRules(view, d) {
+    clear(view);
+    var R = JSON.parse(JSON.stringify(d.rules)), auto = d.auto, days = Object.assign({}, d.days), can = !!d.manage;
+    var dirty = false, save, reset;
+    var touch = function () { dirty = true; if (save) save.disabled = !can; };
+    // ١) الأرقام
+    view.appendChild(el('div', { class: 'kpis four' }, [
+      kpi(T('ru.k.blocks'), fmt(d.stats.blocks), T('ru.k.blocks.sub'), 'info'),
+      kpi(T('ru.k.auto'), fmt(d.stats.auto), T('ru.k.auto.sub'), d.stats.auto ? 'ok' : 'mute'),
+      kpi(T('ru.k.same'), fmt(d.stats.same_device), T('ru.k.same.sub'), d.stats.same_device ? 'warn' : 'mute'),
+      kpi(T('ru.k.devices'), fmt(d.stats.devices), T('ru.k.devices.sub'), 'info'),
+    ]));
+    if (!d.linked) view.appendChild(el('p', { class: 'ru-note' }, [el('span', { text: T('ru.not_linked') + ' ' }), el('a', { class: 'linkish', href: '#/sites', text: T('nav.sites') })]));
+    // ٢) المنع التلقائي
+    var seg = el('div', { class: 'seg wide3', role: 'radiogroup', 'aria-label': T('ru.auto') });
+    var hint = el('div', { class: 'ru-mode-d' });
+    var drawSeg = function () {
+      clear(seg);
+      ['off', 'confirmed', 'high'].forEach(function (k) {
+        var b = el('button', { type: 'button', role: 'radio', 'aria-checked': String(auto === k), text: T('ru.auto.' + k) });
+        if (!can) b.disabled = true;
+        b.addEventListener('click', function () { auto = k; drawSeg(); touch(); });
+        seg.appendChild(b);
+      });
+      clear(hint);
+      hint.appendChild(el('p', { text: T('ru.auto.' + auto + '.d') }));
+      if (auto !== 'off') hint.appendChild(el('ul', { class: 'ru-list' }, ['same', 'bot', 'dc'].concat(auto === 'high' ? ['high'] : []).map(function (k) { return el('li', { text: T('ru.when.' + k) }); })));
+    };
+    drawSeg();
+    view.appendChild(card(T('ru.auto'), [el('p', { class: 'muted', text: T('ru.auto.intro') }), seg, hint,
+      el('div', { class: 'ru-never' }, [el('b', { text: T('ru.never') }), el('ul', { class: 'ru-list ok' }, ['contact', 'real', 'own'].map(function (k) { return el('li', { text: T('ru.never.' + k) }); }))]),
+      el('p', { class: 'hint', text: T('ru.auto.tg') })]));
+    // ٣) الإشارات
+    var meter = el('div', { class: 'ru-meter', 'aria-hidden': 'true' });
+    var drawMeter = function () {
+      clear(meter);
+      var a = el('span', { class: 'm-real' }), b = el('span', { class: 'm-sus' }), c = el('span', { class: 'm-high' });
+      a.style.width = R.suspicious + '%'; b.style.width = (R.high - R.suspicious) + '%'; c.style.width = (100 - R.high) + '%';
+      [a, b, c].forEach(function (x) { meter.appendChild(x); });
+    };
+    var legend = el('p', { class: 'hint' });
+    var drawLegend = function () { legend.textContent = T('ru.th.legend', { s: R.suspicious, h: R.high }); };
+    var num = function (val, lo, hi, set, label) {
+      var i = el('input', { type: 'number', min: String(lo), max: String(hi), step: '1', value: String(val), class: 'ru-num', 'aria-label': label, inputmode: 'numeric' });
+      if (!can) i.disabled = true;
+      i.addEventListener('change', function () { var v = Math.round(Number(i.value)); if (!(v >= lo && v <= hi)) { i.value = String(val); toast(T('ru.e.range', { lo: lo, hi: hi })); return; } val = v; set(v); touch(); });
+      return i;
+    };
+    var rows = RULE_KEYS.map(function (k) {
+      var r = R[k];
+      var on = el('input', { type: 'checkbox', role: 'switch', 'aria-label': T('ru.r.' + k) }); on.checked = !!r.on; if (!can) on.disabled = true;
+      var line = el('div', { class: 'ru-rule' + (r.on ? '' : ' off') });
+      on.addEventListener('change', function () { r.on = on.checked; line.classList.toggle('off', !r.on); touch(); });
+      var extra = k === 'bounce' ? el('label', { class: 'ru-x' }, [el('span', { text: T('ru.x.secs') }), num(r.secs, 1, 30, function (v) { r.secs = v; }, T('ru.x.secs'))])
+        : k === 'repeat' ? el('label', { class: 'ru-x' }, [el('span', { text: T('ru.x.times') }), num(r.n, 2, 20, function (v) { r.n = v; }, T('ru.x.times'))]) : null;
+      [el('label', { class: 'ru-sw' }, [on, el('span', { class: 'ru-swt' })]),
+        el('div', { class: 'ru-t' }, [el('b', { text: T('ru.r.' + k) }), el('small', { class: 'dim', text: T('ru.r.' + k + '.d') }), extra]),
+        el('label', { class: 'ru-pts' }, [num(r.pts, 0, 100, function (v) { r.pts = v; }, T('ru.pts') + ' · ' + T('ru.r.' + k)), el('span', { class: 'dim', text: T('ru.pts') })])].forEach(function (x) { line.appendChild(x); });
+      return line;
+    });
+    var thS = num(R.suspicious, 10, 95, function (v) { R.suspicious = v; if (R.high < v + 5) { R.high = v + 5; thH.value = String(R.high); } drawMeter(); drawLegend(); }, T('ru.th.sus'));
+    var thH = num(R.high, 15, 100, function (v) { R.high = Math.max(v, R.suspicious + 5); thH.value = String(R.high); drawMeter(); drawLegend(); }, T('ru.th.high'));
+    drawMeter(); drawLegend();
+    view.appendChild(card(T('ru.signals'), [el('p', { class: 'muted', text: T('ru.signals.intro') }), el('div', { class: 'ru-rules' }, rows),
+      el('h3', { class: 'legend', text: T('ru.th') }),
+      el('div', { class: 'ru-th' }, [el('label', {}, [el('span', { text: T('ru.th.sus') }), thS]), el('label', {}, [el('span', { text: T('ru.th.high') }), thH])]),
+      meter, legend, el('p', { class: 'hint', text: T('ru.human') })]));
+    // ٤) المدة
+    view.appendChild(card(T('ru.days'), [el('p', { class: 'muted', text: T('ru.days.intro') }),
+      el('div', { class: 'ru-days' }, ['normal', 'repeat', 'dc'].map(function (k) {
+        return el('label', { class: 'ru-day' }, [el('b', { text: T('ru.days.' + k) }), el('small', { class: 'dim', text: T('ru.days.' + k + '.d') }),
+          el('span', { class: 'ru-dv' }, [num(days[k], 1, 365, function (v) { days[k] = v; }, T('ru.days.' + k)), el('span', { class: 'dim', text: T('ru.days.unit') })])]);
+      }))]));
+    // ٥) بصمة الجهاز
+    view.appendChild(card(T('ru.fp'), [el('ol', { class: 'ru-steps' }, ['1', '2', '3', '4'].map(function (k) { return el('li', { text: T('ru.fp.' + k) }); })),
+      el('p', { class: 'ru-soon' }, [el('span', { class: 'pill info', text: T('soon') }), el('span', { text: ' ' + T('ru.fp.hide') })])]));
+    // الحفظ
+    if (can) {
+      save = el('button', { class: 'btn', type: 'button', text: T('ru.save') }); save.disabled = true;
+      reset = el('button', { class: 'btn ghost', type: 'button', text: T('ru.reset') });
+      var send = function (body, btn) {
+        btn.disabled = true;
+        DATA.rulesSave(Object.assign({ site: state.site }, body)).then(function (r) { toast(T('ru.saved')); dirty = false; d.rules = r.rules; d.auto = r.auto; d.days = r.days; drawRules(view, d); }, function () { btn.disabled = false; toast(T('err.save')); });
+      };
+      save.addEventListener('click', function () { send({ rules: R, auto: auto, days: days }, save); });
+      var sure = false;
+      reset.addEventListener('click', function () { if (!sure) { sure = true; reset.textContent = T('ru.reset.q'); return; } send({ reset: true }, reset); });
+      view.appendChild(el('div', { class: 'ru-bar' }, [save, reset, el('small', { class: 'dim', text: T('ru.save.note') })]));
+    } else view.appendChild(el('p', { class: 'muted', text: T('ru.ask_owner') }));
+  }
+
   // ════════ تحليل الحملة وإصلاحها بضغطة (15 نوفمبر · المنهجية بند 10–12) ════════
   var AN_GO = { leads: 'leads', protection: 'protection', negatives: 'negatives', visits: 'visits' };
   // ── تحليل الحملة (إعادة تصميم 15 نوفمبر · محمود: «مهمة مش مفهومة · زوّد diagram · مع كل تشخيص اكتب الحل · صلّح الآن · ادخل ونفّذ ·
@@ -2073,7 +2173,7 @@
 
   var LIVE_VIEWS = { overview: lOverview, statement: lStatement, protection: lProtection };
 
-  var VIEWS = { overview: lOverview, clients: vClients, statement: vStatement, visits: vVisits, protection: vProtection, negatives: vNegatives, leads: vLeads, alerts: vAlerts, reports: vReports, sites: vSites, team: vTeam, billing: vBilling, analysis: vAnalysis, settings: vSettings };
+  var VIEWS = { overview: lOverview, clients: vClients, statement: vStatement, visits: vVisits, protection: vProtection, rules: vRules, negatives: vNegatives, leads: vLeads, alerts: vAlerts, reports: vReports, sites: vSites, team: vTeam, billing: vBilling, analysis: vAnalysis, settings: vSettings };
 
   // ── الدرج ──
   var lastFocus = null;

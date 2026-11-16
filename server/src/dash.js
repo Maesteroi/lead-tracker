@@ -13,7 +13,7 @@ import { loadSite, notFound, roleFor, visibleSites, isPlatform } from './sites.j
 import { deliveryRows, riyadhDay } from './health.js';
 import { OUTCOMES } from './notify.js';
 import { audit } from './auth.js';
-import { scoreSession, reasonGroup, outsideTarget, contactStrength, targetCountries, screenAwake } from './score.js';
+import { scoreSession, reasonGroup, outsideTarget, contactStrength, targetCountries, screenAwake, rulesOf } from './score.js';
 import { tr, countryName, langOf, duration } from './i18n.js';
 import { replaySet, loadReplay } from './replay.js';
 import { adsState } from './adslink.js';
@@ -51,7 +51,9 @@ export async function scoredSessions(db, siteId, sinceTs, limit, lang) {
   const vm = new Map(verdicts.map((v) => [v.session_id, v.verdict]));
   // زيارات أجهزة صاحب الموقع وفريقه («هذه زيارتي») مابتتحسبش في أي رقم
   const own = await ownSet(db, siteId);
-  const out = list.filter((s) => !isOwn(own, s)).map((s) => Object.assign({}, s, scoreSession(s, vm.get(s.session_id), lang), { lang: lang || 'ar', verdict: vm.get(s.session_id) || null, outside: outsideTarget(s.country_code, s.target_geo) }));
+  const pr = await db.one('protection_rules?client_id=' + eq(siteId) + '&select=rules').catch(() => null);   // قبل 0029: الافتراضي
+  const R = rulesOf(pr && pr.rules);
+  const out = list.filter((s) => !isOwn(own, s)).map((s) => Object.assign({}, s, scoreSession(s, vm.get(s.session_id), lang, R), { lang: lang || 'ar', verdict: vm.get(s.session_id) || null, outside: outsideTarget(s.country_code, s.target_geo) }));
   // اللي اتشال (علشان الأرقام اليومية تتظبط هي كمان)
   Object.defineProperty(out, 'own', { value: list.filter((s) => isOwn(own, s)), enumerable: false });
   return out;
