@@ -23,7 +23,7 @@ const ID = /^\d{1,20}$/;
 const CODES = ['partners_off', 'display_off', 'geo_presence', 'negatives', 'pause_kw'];
 
 async function credOf(db, site) {
-  return db.one('ads_credentials?client_id=' + eq(site.id) + '&status=eq.on&select=customer_id,login_customer_id,refresh_token_enc,currency&order=updated_at.desc');
+  return db.one('ads_credentials?client_id=' + eq(site.id) + '&status=eq.on&select=customer_id,login_customer_id,refresh_token_enc,currency,timezone&order=updated_at.desc');
 }
 async function apiFor(env, site, cred, fetchImpl) {
   const access = await accessToken(env, await openToken(env, cred.refresh_token_enc, site.id + ':' + cred.customer_id), fetchImpl);

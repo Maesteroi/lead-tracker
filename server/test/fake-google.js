@@ -12,7 +12,7 @@ import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 
 const CV_SEGMENTS = new Set(['segments.date', 'segments.device', 'segments.ad_network_type', 'segments.ad_sub_network_type', 'segments.click_type', 'segments.slot', 'segments.month_of_year']);
-const RESOURCES = new Set(['keyword_view', 'campaign_asset', 'customer_asset', 'customer_negative_criterion', 'campaign_criterion', 'shared_criterion', 'conversion_action', 'customer', 'customer_client', 'campaign', 'search_term_view', 'click_view', 'ad_group_ad', 'geo_target_constant', 'ad_group']);
+const RESOURCES = new Set(['keyword_view', 'campaign_asset', 'customer_asset', 'customer_negative_criterion', 'campaign_criterion', 'shared_criterion', 'conversion_action', 'customer', 'customer_client', 'campaign', 'search_term_view', 'click_view', 'ad_group_ad', 'geo_target_constant', 'ad_group', 'geographic_view']);
 
 export function fakeGoogle(opts) {
   opts = opts || {};
@@ -76,6 +76,13 @@ export function fakeGoogle(opts) {
       results = (acct.criteria || []).map((c) => ({ campaign: { id: String(c.campaignId) }, campaignCriterion: { type: c.type, negative: !!c.negative, bidModifier: c.bidModifier, device: c.device ? { type: c.device } : undefined } }));
     } else if (p.from === 'ad_group') {
       results = (acct.adGroups || []).map((a) => ({ campaign: { id: String(a.campaignId) }, adGroup: { id: String(a.id), name: a.name }, metrics: { costMicros: String(a.costMicros || 0), clicks: String(a.clicks || 0) } }));
+    }
+    else if (p.from === 'campaign' && p.select.includes('segments.device') && p.select.length === 2) {
+      results = Object.entries(acct.spendDevice || {}).map(([d, c]) => ({ segments: { device: d }, metrics: { costMicros: String(c) } }));
+    } else if (p.from === 'campaign' && p.select.includes('segments.hour')) {
+      results = Object.entries(acct.spendHour || {}).map(([h, c]) => ({ segments: { hour: Number(h) }, metrics: { costMicros: String(c) } }));
+    } else if (p.from === 'geographic_view') {
+      results = (acct.spendGeo || []).map((x) => ({ geographicView: { locationType: x.type || 'LOCATION_OF_PRESENCE' }, segments: { geoTargetCity: 'geoTargetConstants/' + x.city }, metrics: { costMicros: String(x.costMicros) } }));
     }
     else if (p.from === 'campaign' && p.select.includes('segments.ad_network_type')) {
       for (const c of (acct.campaigns || []).filter((x) => x.status !== 'REMOVED')) for (const [t, m] of Object.entries(c.byNetwork || {})) results.push({ campaign: { id: String(c.id) }, segments: { adNetworkType: t }, metrics: { clicks: String(m.clicks || 0), costMicros: String(m.costMicros || 0), conversions: m.conversions || 0 } });
@@ -196,7 +203,7 @@ export function fakeGoogle(opts) {
       const ops = JSON.parse(init.body || '{}').operations || [];
       if (ops.some((o) => !o.update || !o.updateMask)) return apiErr(400, 'INVALID_ARGUMENT', 'FieldMaskError');
       g.campaignMutations = (g.campaignMutations || []).concat(ops);
-      for (const o of ops) { const c = (acct.campaigns || []).find((x) => o.update.resourceName.endsWith('/' + x.id)); if (c && o.update.geoTargetTypeSetting) c.geo = o.update.geoTargetTypeSetting.positiveGeoTargetType; if (c && o.update.maximizeConversions) { c.bidding = 'MAXIMIZE_CONVERSIONS'; if (o.update.maximizeConversions.targetCpaMicros) c.tcpaMicros = Number(o.update.maximizeConversions.targetCpaMicros); } if (c && o.update.manualCpc) c.bidding = 'MANUAL_CPC'; const n = c && o.update.networkSettings; if (n && 'targetSearchNetwork' in n) c.partners = n.targetSearchNetwork; if (n && 'targetContentNetwork' in n) c.display = n.targetContentNetwork; }
+      for (const o of ops) { const c = (acct.campaigns || []).find((x) => o.update.resourceName.endsWith('/' + x.id)); if (c && o.update.geoTargetTypeSetting) c.geo = o.update.geoTargetTypeSetting.positiveGeoTargetType; if (c && o.update.maximizeConversions) { c.bidding = 'MAXIMIZE_CONVERSIONS'; if (o.update.maximizeConversions.targetCpaMicros) c.tcpaMicros = Number(o.update.maximizeConversions.targetCpaMicros); } if (c && o.update.manualCpc) { c.bidding = o.update.manualCpc.enhancedCpcEnabled ? 'ENHANCED_CPC' : 'MANUAL_CPC'; } if (c && o.update.targetSpend) { c.bidding = 'TARGET_SPEND'; c.ceiling = o.update.targetSpend.cpcBidCeilingMicros || null; } const n = c && o.update.networkSettings; if (n && 'targetSearchNetwork' in n) c.partners = n.targetSearchNetwork; if (n && 'targetContentNetwork' in n) c.display = n.targetContentNetwork; }
       return resp(200, { results: ops.map((o) => ({ resourceName: o.update.resourceName })) });
     }
     // PageSpeed Insights

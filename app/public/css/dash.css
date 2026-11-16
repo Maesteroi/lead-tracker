@@ -900,3 +900,4 @@ svg.geo { width: 100%; height: auto; aspect-ratio: 1.7; display: block; backgrou
   .op-row, .op-row:has(> .op-f + .op-f) { grid-template-columns: 1fr; }
   .op-row select { width: 100%; }
 }
+.op-measure { margin: 2px 0 0; font-size: 13px; color: var(--muted); }

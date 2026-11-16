@@ -8,9 +8,10 @@ import { sealToken } from '../src/crypto.js';
 import { clearPlanCache, validateDraft } from '../src/optimize.js';
 
 const KEY = Buffer.alloc(32, 1).toString('base64'), RT = 'RT-op-0123456789abcdef', CID = '9224475693';
+const ALL_CODES = 'conv_primary,conv_secondary,partners_off,display_off,geo_presence,pause_kw,negatives,asset_callout,asset_snippet,asset_call,asset_sitelink,rsa_new,geo_exclude,geo_bid,schedule_exclude,schedule_bid,device_off,device_bid,budget_up,budget_down,bid_maxconv,bid_tcpa';
 async function setup() {
   const w = world();
-  const env = Object.assign({}, w.env, { TOKEN_ENC_KEY: KEY, GOOGLE_CLIENT_ID: 'cid', GOOGLE_CLIENT_SECRET: 'csecret', TG_ALERTS: 'off', GEO_LOOKUP: 'off' });
+  const env = Object.assign({}, w.env, { TOKEN_ENC_KEY: KEY, GOOGLE_CLIENT_ID: 'cid', GOOGLE_CLIENT_SECRET: 'csecret', TG_ALERTS: 'off', GEO_LOOKUP: 'off', OPT_LIVE_VERIFIED: ALL_CODES });
   const owner = await loggedIn(w, 'owner@enjaz.example');
   const pc = (u, path, body) => w.call('POST', path, { env, cookie: u.sess, body, headers: { origin: 'https://app.maestrolt.com', 'x-csrf-token': u.csrf } });
   const gc = (u, path) => w.call('GET', path, { env, cookie: u.sess });
@@ -54,7 +55,9 @@ test('optimize: every layer from the source down, the learning signal first, and
   const cs = by('conv_secondary')[0];
   assert.deepEqual([cs.layer, cs.kind, cs.data.name, cs.data.n, cs.now, cs.next], ['signal', 'apply', 'نقرة واتساب', 20, 'primary', 'secondary'], 'a WhatsApp click counted as a primary conversion teaches bidding the wrong thing');
   assert.ok(!by('conv_secondary').some((x) => x.data.name.includes('Maestro')), 'our real-customer action stays primary');
-  assert.ok(by('partners_off').length && by('display_off').length && by('geo_presence').length, 'traffic quality settings');
+  assert.ok(by('display_off').length && by('geo_presence').length, 'traffic quality settings');
+  assert.ok(!by('partners_off').length && by('partners_watch').length && by('partners_watch')[0].save === 0, '0.4: no evidence that partners convert worse → watch, with no money');
+  assert.ok(r.items.every((x) => !('impact' in x)) && by('rsa_new')[0].save === 0 && by('rsa_new')[0].impact_est === null, '0.8: no money without a data source');
   const qs = by('qs_ctr')[0];
   assert.deepEqual([qs.layer, qs.go, qs.data.n], ['quality', 'ads', 2], 'below-average predicted CTR points to the ad copy');
   assert.equal(by('qs_lp')[0].go, 'landing', 'below-average landing page experience points to the page');
@@ -155,4 +158,78 @@ test('optimize places: with smart bidding a dead city is excluded (Google ignore
   const gb = r2.items.find((x) => x.code === 'geo_bid' && x.data.k === 'جدة');
   assert.ok(gb && gb.mod >= 0.5 && gb.mod < 1, 'manual bidding: a lower bid, pulled toward the account average (not -100% on 20 visits)');
   assert.ok(!r2.items.some((x) => x.code === 'geo_exclude'));
+});
+
+import { convClass, maxconvReady, restoreStrategy, HANDLERS } from '../src/optimize.js';
+
+test('0.1 bidding readiness counts conversations once and needs Google\'s own count', () => {
+  const ours = { primaryForGoal: true };
+  assert.equal(maxconvReady(10, 40, ours), false, '10 conversations (5 of them «done») are 10, not 15');
+  assert.equal(maxconvReady(20, 12, ours), false, 'Google received fewer than 15 on our primary action');
+  assert.equal(maxconvReady(15, 15, ours), true);
+  assert.equal(maxconvReady(30, 30, { primaryForGoal: false }), false, 'our action must be primary');
+});
+
+test('0.2 undo restores the original bidding strategy exactly; a portfolio strategy has no automatic undo', async () => {
+  const CIDX = '111', cred = { customer_id: CIDX };
+  for (const before of [{ type: 'MANUAL_CPC', ecpc: false }, { type: 'ENHANCED_CPC', ecpc: true }, { type: 'TARGET_SPEND', ceiling: '2500000' }]) {
+    const camp = { bidding: before.type, ceiling: before.ceiling || null }, ops = [];
+    const api = { mutate: async (path, body) => { for (const o of body.operations) { ops.push(o); const u = o.update; if (u.maximizeConversions) camp.bidding = 'MAXIMIZE_CONVERSIONS'; if (u.manualCpc) camp.bidding = u.manualCpc.enhancedCpcEnabled ? 'ENHANCED_CPC' : 'MANUAL_CPC'; if (u.targetSpend) { camp.bidding = 'TARGET_SPEND'; camp.ceiling = u.targetSpend.cpcBidCeilingMicros || null; } } return { results: [] }; } };
+    const target = await HANDLERS.bid_maxconv.apply({ api, cred, it: { campaign: '11', before } });
+    assert.equal(camp.bidding, 'MAXIMIZE_CONVERSIONS');
+    await HANDLERS.bid_maxconv.undo({ api, cred }, Object.assign({ campaign: '11' }, target));
+    assert.equal(camp.bidding, before.type, before.type + ' comes back');
+    if (before.ceiling) assert.equal(camp.ceiling, before.ceiling, 'with its CPC ceiling');
+    assert.ok(ops.every((o) => o.updateMask), 'every update has a field mask');
+  }
+  assert.throws(() => restoreStrategy(cred, '11', { type: 'MANUAL_CPC', portfolio: true }), /no_auto_undo/);
+});
+
+test('0.3 conversion actions: only confirmed fake ones are offered as secondary; ad calls and purchases are never touched', () => {
+  assert.equal(convClass({ type: 'WEBPAGE', category: 'PAGE_VIEW' }, 2, 5), 'fake');
+  assert.equal(convClass({ type: 'WEBPAGE', category: 'CONTACT' }, 40, 10), 'fake', 'counts 3× our real contacts or more');
+  assert.equal(convClass({ type: 'WEBPAGE', category: 'CONTACT' }, 12, 10), 'other', 'close to reality: left alone');
+  assert.equal(convClass({ type: 'AD_CALL', category: 'PHONE_CALL_LEAD' }, 90, 5), 'ad_call');
+  assert.equal(convClass({ type: 'WEBPAGE', category: 'PURCHASE' }, 900, 5), 'purchase');
+  assert.equal(convClass({ type: 'GOOGLE_ANALYTICS_4_PURCHASE', category: 'DEFAULT' }, 900, 5), 'purchase');
+});
+
+test('0.3 a store whose primary conversion is a purchase gets zero «make secondary» suggestions', async () => {
+  clearPlanCache();
+  const s = await setup();
+  s.w.g.accounts[CID].convActions = [{ id: '7', name: 'شراء', type: 'WEBPAGE', category: 'PURCHASE', status: 'ENABLED', primaryForGoal: true }, { id: '222', name: 'Maestro LT – عميل مؤكد', type: 'UPLOAD_CLICKS', status: 'ENABLED', primaryForGoal: true }];
+  s.w.g.accounts[CID].convStats = [{ id: '7', name: 'شراء', n: 500 }];
+  const r = (await s.gc(s.owner, '/v1/dash/optimize?site=' + s.site.id)).body;
+  assert.equal(r.items.filter((x) => x.code === 'conv_secondary').length, 0);
+});
+
+test('0.6 spend per place comes from Google itself (geographic_view), not clicks × average CPC', async () => {
+  const smart = await placesWorld('MAXIMIZE_CONVERSIONS');
+  smart.w.g.accounts[CID].spendGeo = [{ city: '1012088', costMicros: 180e6 }, { city: '1012089', costMicros: 220e6 }, { city: '1012089', costMicros: 50e6, type: 'AREA_OF_INTEREST' }];
+  smart.w.g.accounts[CID].spendDevice = { MOBILE: 400e6 };
+  const r = (await smart.gc(smart.owner, '/v1/dash/optimize?site=' + smart.site.id)).body;
+  const jed = r.expert.places.find((p) => p.k === 'جدة'), ruh = r.expert.places.find((p) => p.k === 'الرياض');
+  assert.ok(Math.abs(jed.cost - 220) / 220 < 0.01 && !jed.est, 'Jeddah = 220 from Google (interest rows excluded), within 1%');
+  assert.ok(Math.abs(ruh.cost - 180) / 180 < 0.01);
+  assert.equal(r.expert.devices.find((d) => d.k === 'MOBILE').cost, 400);
+  const ex = r.items.find((x) => x.code === 'geo_exclude');
+  assert.equal(ex.save, 220, 'proven waste uses the real spend');
+});
+
+test('0.9 live-trial gate: a change type not yet tried live is locked for customers (no button, refused on the server); a platform admin can run the trial', async () => {
+  clearPlanCache();
+  const s = await setup();
+  const env = Object.assign({}, s.env, { OPT_LIVE_VERIFIED: 'asset_callout' });
+  const gc = (u, path) => s.w.call('GET', path, { env, cookie: u.sess });
+  const pc = (u, path, body) => s.w.call('POST', path, { env, cookie: u.sess, body, headers: { origin: 'https://app.maestrolt.com', 'x-csrf-token': u.csrf } });
+  const r = (await gc(s.owner, '/v1/dash/optimize?site=' + s.site.id)).body;
+  const cs = r.items.find((x) => x.code === 'conv_secondary'), co = r.items.find((x) => x.code === 'asset_callout');
+  assert.deepEqual([cs.kind, cs.locked], ['locked', true], 'not verified live → locked');
+  assert.equal(co.kind, 'write', 'verified type stays usable');
+  const a = (await pc(s.owner, '/v1/dash/optimize/apply', { site: s.site.id, keys: [cs.key] })).body;
+  assert.deepEqual([a.results[0].ok, a.results[0].error], [false, 'locked']);
+  assert.equal((s.w.g.convUpdates || []).length, 0, 'nothing reached Google');
+  s.w.fs.t.users.find((u) => u.id === s.owner.me.user.id).platform_admin = true;
+  const t = (await pc(s.owner, '/v1/dash/optimize/apply', { site: s.site.id, keys: [cs.key] })).body;
+  assert.equal(t.results[0].ok, true, 'the platform admin runs the live trial');
 });

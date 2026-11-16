@@ -824,15 +824,15 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
   api.optimize = { layers: ['signal', 'traffic', 'search', 'quality', 'ads', 'landing', 'where', 'budget'], values: { won: 100, convo: 30, contact: 10 }, qs: 4.6,
     context: { cost: 1369.04, contacts: 15, won: 0, cpl: 91.27, cpw: null, smart: ['شادو'], campaigns: 1, signal_ok: false },
     items: [
-      it({ layer: 'signal', code: 'conv_secondary', ref: '55', status: 'bad', data: { name: 'نقرة على واتساب', type: 'WEBPAGE', n: 7, contacts: 15, won: 0, sent: 1 }, now: 'primary', next: 'secondary', impact: 1369.04 }),
+      it({ layer: 'signal', code: 'conv_secondary', ref: '55', status: 'bad', data: { name: 'نقرة على واتساب', type: 'WEBPAGE', n: 7, contacts: 15, won: 0, sent: 1 }, now: 'primary', next: 'secondary' }),
       it({ layer: 'signal', code: 'outcomes', kind: 'go', go: 'leads', data: { n: 15, of: 15 } }),
-      it({ layer: 'traffic', code: 'partners_off', ref: '11', campaign: '11', status: 'bad', data: { name: 'شادو', clicks: 31, cost: 186.4, conv: 0 }, now: 'on', next: 'off', impact: 186.4 }),
-      it({ layer: 'quality', code: 'qs_ctr', kind: 'layer', go: 'ads', status: 'bad', data: { n: 3, cost: 160.3, p: 38, list: [{ k: 'تصميم داخلي', qs: 4, cost: 84.05 }, { k: 'ديكور داخلي', qs: 3, cost: 47.11 }] }, impact: 160.3 }),
-      it({ layer: 'ads', code: 'rsa_new', ref: '1', kind: 'write', status: 'bad', data: { ag: 'تصميم داخلي', strength: 'AVERAGE', cost: 420, promise: 'الدفع بعد الإنجاز', n: 1 }, impact: 63 }),
+      it({ layer: 'traffic', code: 'partners_off', ref: '11', campaign: '11', status: 'bad', data: { name: 'شادو', clicks: 31, cost: 186.4, conv: 0, rate: 3.2, search_rate: 14.1, confidence: 99 }, now: 'on', next: 'off', save: 186.4 }),
+      it({ layer: 'quality', code: 'qs_ctr', kind: 'layer', go: 'ads', status: 'bad', data: { n: 3, cost: 160.3, p: 38, list: [{ k: 'تصميم داخلي', qs: 4, cost: 84.05 }, { k: 'ديكور داخلي', qs: 3, cost: 47.11 }] } }),
+      it({ layer: 'ads', code: 'rsa_new', ref: '1', kind: 'write', status: 'bad', data: { ag: 'تصميم داخلي', strength: 'AVERAGE', cost: 420, promise: 'الدفع بعد الإنجاز', n: 1 } }),
       it({ layer: 'ads', code: 'asset_callout', ref: '11', campaign: '11', kind: 'write', data: { name: 'شادو' } }),
       it({ layer: 'landing', code: 'lp_rate', kind: 'guided', go: 'visits', status: 'warn', data: { p: 14, visits: 106 } }),
       it({ layer: 'where', code: 'smart_note', kind: 'none', status: 'info', data: { name: 'شادو', bidding: 'MAXIMIZE_CONVERSIONS' } }),
-      it({ layer: 'budget', code: 'smart_on_bad_signal', kind: 'layer', go: 'signal', status: 'bad', data: { names: ['شادو'] }, impact: 410.7 })],
+      it({ layer: 'budget', code: 'smart_on_bad_signal', kind: 'layer', go: 'signal', status: 'bad', data: { names: ['شادو'] } })],
     plan: ['conv_secondary:55', 'partners_off:11', 'rsa_new:1'],
     expert: { keywords: [], places: [], times: [], devices: [], money: null, signal: { google: 7, contacts: 15, won: 0, primary: ['نقرة على واتساب'], state: 'ok' }, summary: {} } };
   const pg = await page(api, { viewport: { width: 1280, height: 900 } });
@@ -841,6 +841,7 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
   const hero = await pg.locator('.op-hero').innerText();
   t('optimize: the page is «campaign optimization»: spend, real contacts, deals, cost per contact, what Google learns from, quality score', (await pg.locator('#page-title').innerText()) === 'تحسين الحملة' && /صرفت 1,369\.04/.test(hero) && /15 تواصل حقيقي/.test(hero) && /إشارة خاطئة/.test(hero) && /4\.6 \/ 10/.test(hero));
   t('optimize: this week\'s plan, the learning signal first, each with now → after and its money', (await pg.locator('.op-hero .dx').count()) === 3 && /اجعل «نقرة على واتساب» تحويلًا ثانويًا/.test(await pg.locator('.op-hero .dx').first().innerText()) && /تحويل أساسي \(يتعلم منه جوجل\)/.test(hero) && /تحويل ثانوي/.test(hero));
+  t('optimize (0.8): money only with a source — proven waste on partners (with its evidence and confidence), «measured after applying» for the signal change', /هدر مثبت ≈ 186\.40/.test(hero) && /تواصلت بنسبة 3\.2% مقابل 14\.1%/.test(hero) && /ثقة 99%/.test(hero) && /الأثر سيُقاس بعد التطبيق/.test(await pg.locator('.op-hero .dx').first().innerText()) && !/1,369\.04 ر\.س في 30/.test(hero));
   t('optimize: eight layers from the source down plus change tracking, with problem counts', (await pg.locator('.op-tabs button').count()) === 9 && /الإشارة/.test(await pg.locator('.op-tabs').innerText()) && /متابعة التعديلات/.test(await pg.locator('.op-tabs').innerText()));
   const sig = await pg.locator('.op-panel').innerText();
   t('optimize signal layer: the expert reasoning, conversion values, and the steps', /يشتري جوجل بميزانيتك نقرات من يضغط ولا يشتري/.test(sig) && (await pg.locator('.op-values input').count()) === 3 && /الأهداف ← التحويلات/.test(sig));
