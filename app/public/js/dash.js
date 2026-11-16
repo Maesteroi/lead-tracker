@@ -1709,6 +1709,8 @@
     if (d.match) o.match = T('ex.match.' + d.match) !== 'ex.match.' + d.match ? T('ex.match.' + d.match) : d.match;
     if (d.k && /^(DESKTOP|TABLET|MOBILE)$/.test(d.k)) o.k = T('ex.dev.' + d.k);
     if (d.m != null) o.m = Math.round((d.m - 1) * 100) + '%';
+    o.est = d.est ? ' ' + T('op.est') : '';
+    o.conf = d.confidence != null ? ' ' + T('op.conf', { c: d.confidence }) : '';
     if (d.from && /^[A-Z_]+$/.test(d.from)) o.from = T('op.bid.' + d.from) !== 'op.bid.' + d.from ? T('op.bid.' + d.from) : d.from;
     if (d.bidding) o.bidding = T('op.bid.' + d.bidding) !== 'op.bid.' + d.bidding ? T('op.bid.' + d.bidding) : d.bidding;
     return o;
@@ -1777,12 +1779,15 @@
   function opCard(x, n, d, view, cur, compact) {
     var v = opVars(x, cur), kids = [];
     kids.push(el('div', { class: 'dx-h' }, [el('span', { class: 'dx-n', text: String(n) }), el('span', { class: 'pill ' + (x.status === 'bad' ? 'bad' : x.status === 'warn' ? 'warn' : 'info'), text: T('op.st.' + x.status) }), el('small', { class: 'dim', text: T('op.l.' + x.layer) }),
-      x.impact > 0 ? el('span', { class: 'pill info ex-impact', text: T('cf.impact', { m: money2(x.impact, cur) }) }) : null]));
+      // ٠.٨: هدر مثبت (صرف فعلي من غير نتيجة) · تغيير صرف · أو «الأثر هيتقاس بعد التطبيق» — مفيش فلوس من غير مصدر
+      x.save > 0 ? el('span', { class: 'pill info ex-impact', text: T('op.save', { m: money2(x.save, cur) }) }) : x.spend_change ? el('span', { class: 'pill ex-impact', text: T('op.spend_change', { m: (x.spend_change > 0 ? '+' : '−') + money2(Math.abs(x.spend_change), cur) }) }) : null]));
     kids.push(el('b', { class: 'cf-t', text: T('op.t.' + x.code, v) }));
     if (x.now != null && x.next != null) kids.push(el('div', { class: 'cf-diff' }, [el('span', { class: 'cf-now', text: T('cf.now') + ' ' + opVal(x, 'now', cur) }), el('span', { class: 'cf-arrow', 'aria-hidden': 'true', text: '←' }), el('span', { class: 'cf-next', text: T('cf.after') + ' ' + opVal(x, 'next', cur) })]));
     if (T('op.e.' + x.code) !== 'op.e.' + x.code) kids.push(el('p', { class: 'cf-ev', text: T('op.e.' + x.code, v) }));
     if (!compact && T('op.w.' + x.code) !== 'op.w.' + x.code) kids.push(el('p', { class: 'dx-why' }, [el('b', { text: T('op.why') + ' ' }), el('span', { text: T('op.w.' + x.code, v) })]));
     if (!compact && T('op.how.' + x.code) !== 'op.how.' + x.code) kids.push(el('div', { class: 'dx-how' }, [el('b', { text: T('an.how') }), el('ol', {}, T('op.how.' + x.code, v).split('|').map(function (s) { return el('li', { text: s }); }))]));
+    if ((x.kind === 'apply' || x.kind === 'write') && !(x.save > 0) && !x.spend_change) kids.push(el('p', { class: 'op-measure', text: x.impact_est != null ? T('op.impact_est', { m: money2(x.impact_est, cur) }) : T('op.measured') }));
+    if (x.no_undo) kids.push(el('p', { class: 'op-wait', text: T('op.no_undo') }));
     if (x.data && x.data.list && !compact) kids.push(el('ul', { class: 'op-kwlist' }, x.data.list.map(function (k) { return el('li', {}, [el('b', { text: k.k }), el('small', { class: 'dim', text: ' · ' + T('op.qs_of', { q: k.qs == null ? '—' : k.qs }) + ' · ' + money2(k.cost, cur) })]); })));
     var acts = el('div', { class: 'dx-acts' }), editor = el('div', { class: 'op-editor' }); editor.hidden = true;
     if (d.manage) {
@@ -1795,6 +1800,7 @@
         w.addEventListener('click', function () { w.disabled = true; w.textContent = T('op.writing'); DATA.optimizeDraft(state.site, x.key).then(function (r) { w.hidden = true; openEditor(editor, x, r.draft, r.limits, view); }, function () { w.disabled = false; w.textContent = T('op.write'); toast(T('err.save')); }); });
         acts.appendChild(w);
       } else if (x.kind === 'wait') acts.appendChild(el('p', { class: 'op-wait', text: T('op.wait.' + ((x.data && x.data.why) || 'week')) }));
+      else if (x.kind === 'locked') acts.appendChild(el('p', { class: 'op-wait', text: T('op.locked') }));
     }
     if (x.go && OP_GO[x.go]) acts.appendChild(el('a', { class: 'btn ghost sm', href: '#/' + OP_GO[x.go] + (x.tab ? '' : ''), text: T('an.goin', { p: T('op.go.' + x.go) }) }));
     if (x.kind === 'layer' && x.go) { var lb = el('button', { class: 'btn ghost sm', type: 'button', text: T('op.tolayer', { l: T('op.l.' + x.go) }) }); lb.addEventListener('click', function () { if (view._opShow) { view._opShow(x.go); var t = view.querySelector('.op-layers'); if (t) t.scrollIntoView({ behavior: 'smooth' }); } }); acts.appendChild(lb); }
@@ -2078,12 +2084,12 @@
     (list || []).forEach(function (x) {
       tb.appendChild(el('tr', {}, [
         el('td', { class: 'first' }, [el('b', { text: x.k }), isKw && x.match ? el('small', { class: 'dim', text: ' · ' + (T('ex.match.' + x.match) !== 'ex.match.' + x.match ? T('ex.match.' + x.match) : x.match) }) : null]),
-        el('td', { 'data-l': T('ex.h.cost'), text: (isKw ? '' : '≈ ') + money2(x.cost, cur) }),
+        el('td', { 'data-l': T('ex.h.cost'), text: (x.est ? '≈ ' : '') + money2(x.cost, cur) + (x.est ? ' ' + T('op.est') : '') }),
         el('td', { 'data-l': T(isTime ? 'ex.h.visits' : 'ex.h.reached'), text: fmt(isTime ? x.clicks : x.reached) + (isTime ? '' : ' / ' + fmt(x.clicks)) }),
         el('td', { 'data-l': T('ex.h.contacts'), text: fmt(x.contacts) }),
         el('td', { 'data-l': T('ex.h.won'), text: fmt(x.won) }),
         el('td', { 'data-l': T('ex.h.cpl'), text: x.cpl == null ? '—' : money2(x.cpl, cur) }),
-        el('td', { 'data-l': T('ex.h.verdict'), class: 'last' }, [el('span', { class: 'pill ' + ({ scale: 'ok', keep: 'info', reduce: 'warn', cut: 'bad', thin: '' })[x.verdict], text: T('ex.v.' + x.verdict) }), x.verdict === 'cut' || x.verdict === 'thin' ? el('small', { class: 'dim ex-exp', text: T('ex.expected', { n: x.expected }) }) : null])]));
+        el('td', { 'data-l': T('ex.h.verdict'), class: 'last' }, [el('span', { class: 'pill ' + ({ scale: 'ok', keep: 'info', reduce: 'warn', cut: 'bad', watch: '', thin: '' })[x.verdict], text: T('ex.v.' + x.verdict) }), x.verdict === 'cut' || x.verdict === 'watch' ? el('small', { class: 'dim ex-exp', text: T('ex.expected', { n: x.expected }) + (x.confidence != null ? ' · ' + T('op.conf', { c: x.confidence }) : '') }) : null])]));
     });
     var table = (list || []).length ? el('div', { class: 'tbl-wrap' }, [el('table', { class: 'tbl static ex-t' }, [el('thead', {}, [el('tr', {}, ['name', 'cost', isTime ? 'visits' : 'reached', 'contacts', 'won', 'cpl', 'verdict'].map(function (h) { return el('th', { text: T('ex.h.' + h) }); }))]), tb])]) : el('p', { class: 'muted', text: T('ex.none') });
     if (!title) return table;

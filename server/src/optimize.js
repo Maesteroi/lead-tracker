@@ -11,7 +11,7 @@ import { eq } from './db.js';
 import { json } from './util.js';
 import { openToken } from './crypto.js';
 import { accessToken, adsClient } from './gads.js';
-import { loadSite, notFound, roleFor } from './sites.js';
+import { loadSite, notFound, roleFor, isPlatform } from './sites.js';
 import { audit } from './auth.js';
 import { scoredSessions } from './dash.js';
 import { suggest, addNegative } from './negatives.js';
@@ -37,7 +37,7 @@ const LIMITS = { headline: 30, description: 90, path: 15, callout: 25, sitelink:
 const BAD_TEXT = /(\+?\d[\d\s-]{6,}\d|https?:|www\.|!!|\?\?|رقم\s*1|#1)/i;   // أرقام تليفونات ولينكات وعلامات مكررة وادعاء «رقم 1» من غير دليل
 
 async function credOf(db, site) {
-  const q = (cols) => db.one('ads_credentials?client_id=' + eq(site.id) + '&status=eq.on&select=customer_id,login_customer_id,refresh_token_enc,currency,conversion_action_id,conversion_action_name' + cols + '&order=updated_at.desc');
+  const q = (cols) => db.one('ads_credentials?client_id=' + eq(site.id) + '&status=eq.on&select=customer_id,login_customer_id,refresh_token_enc,currency,timezone,conversion_action_id,conversion_action_name' + cols + '&order=updated_at.desc');
   return q(',real_action_id,real_action_name').catch(() => q(''));
 }
 async function apiFor(env, site, cred, fetchImpl) {
@@ -50,11 +50,22 @@ export async function valuesOf(db, siteId) {
 }
 const safeQ = (api, q) => api.query(q).catch((e) => { console.error('optimize q: ' + String(e && e.message || e).slice(0, 140)); return null; });
 
+// ٠.٣ تصنيف الإجراء الأساسي اللي مش بتاعنا: وهمي مؤكد · مكالمات من الإعلان · شراء بقيمة · غيره (مابيتلمسش)
+export function convClass(c, count, contacts) {
+  const type = String(c.type || ''), cat = String(c.category || '');
+  if (cat === 'PURCHASE' || cat === 'STORE_SALE' || /PURCHASE|STORE_SALES|TRANSACTION/.test(type)) return 'purchase';
+  if (type === 'AD_CALL') return 'ad_call';
+  if (cat === 'PAGE_VIEW' || (count >= 10 && count >= 3 * Math.max(1, contacts))) return 'fake';
+  return 'other';
+}
+// ٠.١: النقل لأقصى تحويلات بس لو جوجل استلم فعلاً 15 أو أكتر على إجراءنا الأساسي، وعندنا 15 محادثة فعلية أو أكتر
+export function maxconvReady(convos, googleOurs, ours) { return !!ours && !!ours.primaryForGoal && googleOurs >= 15 && convos >= 15; }
+
 // ── تجميع البيانات مرة واحدة ──
 async function gather(env, db, site, cred, fetchImpl, t) {
   const api = await apiFor(env, site, cred, fetchImpl);
-  const [camps, nets, convs, convStats, kws, ads, cAssets, aAssets, crit, agStats] = await Promise.all([
-    safeQ(api, "SELECT campaign.id, campaign.name, campaign.advertising_channel_type, campaign.bidding_strategy_type, campaign.network_settings.target_google_search, campaign.network_settings.target_search_network, campaign.network_settings.target_content_network, campaign.geo_target_type_setting.positive_geo_target_type, campaign.maximize_conversions.target_cpa_micros, campaign_budget.resource_name, campaign_budget.amount_micros, campaign_budget.explicitly_shared, metrics.clicks, metrics.cost_micros, metrics.conversions, metrics.search_budget_lost_impression_share, metrics.search_rank_lost_impression_share FROM campaign WHERE campaign.status = 'ENABLED' AND segments.date DURING LAST_30_DAYS"),
+  const [camps, nets, convs, convStats, kws, ads, cAssets, aAssets, crit, agStats, spDev, spHour, spGeo] = await Promise.all([
+    safeQ(api, "SELECT campaign.id, campaign.name, campaign.advertising_channel_type, campaign.bidding_strategy_type, campaign.bidding_strategy, campaign.manual_cpc.enhanced_cpc_enabled, campaign.target_spend.cpc_bid_ceiling_micros, campaign.network_settings.target_google_search, campaign.network_settings.target_search_network, campaign.network_settings.target_content_network, campaign.geo_target_type_setting.positive_geo_target_type, campaign.maximize_conversions.target_cpa_micros, campaign_budget.resource_name, campaign_budget.amount_micros, campaign_budget.explicitly_shared, metrics.clicks, metrics.cost_micros, metrics.conversions, metrics.search_budget_lost_impression_share, metrics.search_rank_lost_impression_share FROM campaign WHERE campaign.status = 'ENABLED' AND segments.date DURING LAST_30_DAYS"),
     safeQ(api, "SELECT campaign.id, segments.ad_network_type, metrics.clicks, metrics.cost_micros, metrics.conversions FROM campaign WHERE campaign.status = 'ENABLED' AND segments.date DURING LAST_30_DAYS"),
     safeQ(api, "SELECT conversion_action.id, conversion_action.name, conversion_action.type, conversion_action.category, conversion_action.primary_for_goal, conversion_action.status FROM conversion_action WHERE conversion_action.status = 'ENABLED'"),
     safeQ(api, "SELECT segments.conversion_action, segments.conversion_action_name, metrics.all_conversions FROM customer WHERE segments.date DURING LAST_30_DAYS"),
@@ -64,6 +75,10 @@ async function gather(env, db, site, cred, fetchImpl, t) {
     safeQ(api, "SELECT customer_asset.field_type FROM customer_asset WHERE customer_asset.status = 'ENABLED'"),
     safeQ(api, "SELECT campaign.id, campaign_criterion.type, campaign_criterion.negative, campaign_criterion.bid_modifier, campaign_criterion.device.type, campaign_criterion.location.geo_target_constant FROM campaign_criterion WHERE campaign.status = 'ENABLED'"),
     safeQ(api, "SELECT campaign.id, ad_group.id, ad_group.name, metrics.cost_micros, metrics.clicks FROM ad_group WHERE ad_group.status = 'ENABLED' AND segments.date DURING LAST_30_DAYS"),
+    // ٠.٦ الصرف الفعلي (📖 segments.device · segments.hour مع campaign · geographic_view + segments.geo_target_city + metrics.cost_micros)
+    safeQ(api, "SELECT segments.device, metrics.cost_micros FROM campaign WHERE campaign.status = 'ENABLED' AND segments.date DURING LAST_30_DAYS"),
+    safeQ(api, "SELECT segments.hour, metrics.cost_micros FROM campaign WHERE campaign.status = 'ENABLED' AND segments.date DURING LAST_30_DAYS"),
+    safeQ(api, "SELECT geographic_view.location_type, segments.geo_target_city, metrics.cost_micros FROM geographic_view WHERE segments.date DURING LAST_30_DAYS"),
   ]);
   const since = new Date(t - 30 * DAY).toISOString();
   const [sessions, leads, brief, org, values, recent] = await Promise.all([
@@ -74,7 +89,13 @@ async function gather(env, db, site, cred, fetchImpl, t) {
     valuesOf(db, site.id),
     db.select('analysis_fixes?client_id=' + eq(site.id) + '&status=eq.tracking&at=gte.' + new Date(t - 7 * DAY).toISOString() + '&select=action,target,at&limit=100').catch(() => []),
   ]);
-  return { api, camps: camps || [], nets: nets || [], convs: convs || [], convStats: convStats || [], kws: kws || [], ads: ads || [], cAssets: cAssets || [], aAssets: aAssets || [], crit: crit || [], agStats: agStats || [],
+  // الصرف الفعلي لكل جهاز وساعة ومدينة (التواجد بس) وشبكة. لو نداء وقع: undefined ← expert بيقدّر وبيكتب «تقديري»
+  const spend = {};
+  if (spDev) { spend.device = {}; for (const r of spDev) { const k = (r.segments || {}).device; if (k) spend.device[k] = (spend.device[k] || 0) + n0((r.metrics || {}).costMicros) / 1e6; } }
+  if (spHour) { const h = new Map(); for (const r of spHour) { const k = n0((r.segments || {}).hour); h.set(k, (h.get(k) || 0) + n0((r.metrics || {}).costMicros) / 1e6); } spend.hours = [...h.entries()].map(([hour, cost]) => ({ hour, cost })); }
+  if (spGeo) { spend.city = {}; for (const r of spGeo) { if (((r.geographicView || {}).locationType || 'LOCATION_OF_PRESENCE') !== 'LOCATION_OF_PRESENCE') continue; const id = String((r.segments || {}).geoTargetCity || '').split('/').pop(); if (id) spend.city[id] = (spend.city[id] || 0) + n0((r.metrics || {}).costMicros) / 1e6; } }
+  if (nets) { spend.network = {}; for (const r of nets) { const k = (r.segments || {}).adNetworkType; if (k) spend.network[k] = (spend.network[k] || 0) + n0((r.metrics || {}).costMicros) / 1e6; } }
+  return { api, spend, camps: camps || [], nets: nets || [], convs: convs || [], convStats: convStats || [], kws: kws || [], ads: ads || [], cAssets: cAssets || [], aAssets: aAssets || [], crit: crit || [], agStats: agStats || [],
     sessions: sessions || [], leads: leads || [], brief, org, values, recent: recent || [] };
 }
 
@@ -83,15 +104,17 @@ export async function optimizePlan(env, db, site, cred, fetchImpl, now) {
   const t = now || Date.now();
   const G = await gather(env, db, site, cred, fetchImpl, t);
   const items = [];
-  const add = (layer, o) => items.push(Object.assign({ layer, status: 'warn', kind: 'apply', impact: 0, sure: true, data: {} }, o, { key: o.code + ':' + (o.ref || '') }));
+  // ٠.٨: save = صرف فعلي من غير نتيجة ومثبت · spend_change = تغيير ميزانية · impact_est = فاضي لو مش معروف. مفيش رقم فلوس من غير مصدر
+  const add = (layer, o) => items.push(Object.assign({ layer, status: 'warn', kind: 'apply', save: 0, spend_change: null, impact_est: null, sure: true, data: {} }, o, { key: o.code + ':' + (o.ref || '') }));
   const recentHas = (codes, ref) => G.recent.some((r) => codes.includes(r.action) && (!ref || String((r.target || {}).campaign || '') === String(ref)));
   const C = G.camps.map((r) => ({ id: String((r.campaign || {}).id || ''), name: (r.campaign || {}).name || '', channel: (r.campaign || {}).advertisingChannelType || '', bidding: (r.campaign || {}).biddingStrategyType || '',
     ns: (r.campaign || {}).networkSettings || {}, geo: ((r.campaign || {}).geoTargetTypeSetting || {}).positiveGeoTargetType || '', tcpa: n0(((r.campaign || {}).maximizeConversions || {}).targetCpaMicros) / 1e6,
     budgetRn: (r.campaignBudget || {}).resourceName || '', budget: n0((r.campaignBudget || {}).amountMicros) / 1e6, shared: !!(r.campaignBudget || {}).explicitlyShared,
+    portfolio: !!(r.campaign || {}).biddingStrategy, ecpc: !!(((r.campaign || {}).manualCpc || {}).enhancedCpcEnabled), ceiling: ((r.campaign || {}).targetSpend || {}).cpcBidCeilingMicros || null,
     clicks: n0((r.metrics || {}).clicks), cost: n0((r.metrics || {}).costMicros) / 1e6, gconv: n0((r.metrics || {}).conversions), lostBudget: n0((r.metrics || {}).searchBudgetLostImpressionShare), lostRank: n0((r.metrics || {}).searchRankLostImpressionShare) })).filter((c) => ID.test(c.id));
   const search = C.filter((c) => c.channel === 'SEARCH');
   const cost = C.reduce((a, c) => a + c.cost, 0);
-  const ex = await expertOf(db, site, cred, t, { sessions: G.sessions, leads: G.leads }).catch(() => null);
+  const ex = await expertOf(db, site, cred, t, { sessions: G.sessions, leads: G.leads, spend: G.spend }).catch(() => null);
   const S = (ex && ex.summary) || { contacts: 0, won: 0, convos: 0, cpl: null, cpw: null };
 
   // ── ١) الإشارة ──
@@ -100,40 +123,48 @@ export async function optimizePlan(env, db, site, cred, fetchImpl, now) {
   for (const r of G.convStats) { const id = String((r.segments || {}).conversionAction || '').split('/').pop(); counts.set(id, (counts.get(id) || 0) + n0((r.metrics || {}).allConversions)); }
   const ours = cv.find((c) => String(c.id) === String(cred.conversion_action_id || ''));
   const sent = ((await db.select('conv_uploads?client_id=' + eq(site.id) + '&status=eq.sent&select=id&limit=1').catch(() => [])) || []).length;
-  const fake = cv.filter((c) => c.primaryForGoal && String(c.id) !== String(cred.conversion_action_id || '') && String(c.id) !== String(cred.real_action_id || '') && c.type !== 'UPLOAD_CLICKS');
+  // ٠.٣: تلات فئات بس للإجراءات الأساسية اللي مش بتاعتنا (📖 ConversionActionType/Category)
+  const others = cv.filter((c) => c.primaryForGoal && String(c.id) !== String(cred.conversion_action_id || '') && String(c.id) !== String(cred.real_action_id || '') && c.type !== 'UPLOAD_CLICKS');
+  const cls = others.map((c) => ({ c, k: convClass(c, counts.get(String(c.id)) || 0, S.contacts) }));
+  const fake = cls.filter((x) => x.k === 'fake').map((x) => x.c);
   if (!ours) add('signal', { code: 'conv_setup', status: 'bad', kind: 'go', go: 'leads', data: { g: r2(ex ? ex.signal.google : 0), n: S.contacts, won: S.won } });
   else {
-    if (!ours.primaryForGoal) add('signal', { code: 'conv_primary', ref: ours.id, status: 'bad', data: { name: ours.name }, now: 'secondary', next: 'primary', impact: r2(cost) });
+    if (!ours.primaryForGoal) add('signal', { code: 'conv_primary', ref: ours.id, status: 'bad', data: { name: ours.name }, now: 'secondary', next: 'primary' });
     for (const c of fake) add('signal', { code: 'conv_secondary', ref: String(c.id), status: sent ? 'bad' : 'warn', sure: !!sent, kind: sent ? 'apply' : 'go', go: sent ? null : 'leads',
-      data: { name: c.name, type: c.type, n: Math.round(counts.get(String(c.id)) || 0), contacts: S.contacts, won: S.won, sent }, now: 'primary', next: 'secondary', impact: sent ? r2(cost / Math.max(1, fake.length)) : 0 });
+      data: { name: c.name, type: c.type, n: Math.round(counts.get(String(c.id)) || 0), contacts: S.contacts, won: S.won, sent }, now: 'primary', next: 'secondary' });
   }
+  for (const x of cls.filter((y) => y.k === 'ad_call')) add('signal', { code: 'conv_adcall', ref: String(x.c.id), status: 'info', kind: 'none', data: { name: x.c.name, n: Math.round(counts.get(String(x.c.id)) || 0) } });
   const noOut = S.no_outcome || 0;
   if (noOut >= 3) add('signal', { code: 'outcomes', status: 'warn', kind: 'go', go: 'leads', data: { n: noOut, of: S.contacts } });
   const signalBad = !ours || fake.length > 0 || (ex && ex.signal.state === 'inflated');
+  const googleOurs = ours ? Math.round(counts.get(String(ours.id)) || 0) : 0;   // ٠.١: اللي جوجل استلمه فعلاً على إجراءنا الأساسي
 
   // ── ٢) جودة الزيارات ──
   const netOf = (id, type) => { const x = { clicks: 0, cost: 0, conv: 0 }; for (const r of G.nets) if (String((r.campaign || {}).id) === id && (r.segments || {}).adNetworkType === type) { x.clicks += n0((r.metrics || {}).clicks); x.cost += n0((r.metrics || {}).costMicros) / 1e6; x.conv += n0((r.metrics || {}).conversions); } return x; };
   const adS = G.sessions.filter((s) => s.ad), outside = adS.filter((s) => s.outside).length;
   for (const c of search) {
     const sp = netOf(c.id, 'SEARCH_PARTNERS'), cn = netOf(c.id, 'CONTENT'), gs = netOf(c.id, 'SEARCH');
-    if (c.ns.targetSearchNetwork) add('traffic', { code: 'partners_off', ref: c.id, campaign: c.id, data: { name: c.name, clicks: sp.clicks, cost: r2(sp.cost), conv: r2(sp.conv) }, now: 'on', next: 'off', impact: r2(sp.cost), status: sp.cost ? 'bad' : 'warn' });
-    if (c.ns.targetContentNetwork) add('traffic', { code: 'display_off', ref: c.id, campaign: c.id, data: { name: c.name, clicks: cn.clicks, cost: r2(cn.cost), conv: r2(cn.conv) }, now: 'on', next: 'off', impact: r2(cn.cost), status: cn.cost ? 'bad' : 'warn' });
-    if (c.geo && c.geo !== 'PRESENCE') add('traffic', { code: 'geo_presence', ref: c.id, campaign: c.id, data: { name: c.name, outside, of: adS.length, p: pct(outside, adS.length) }, now: c.geo, next: 'PRESENCE', impact: r2(adS.length ? (outside / adS.length) * (gs.cost + sp.cost) : 0) });
+    // ٠.٤: الحكم بالدليل (نسبة التواصل الحقيقي لنقرات الشركاء مقارنة بالبحث، في نفس عيلة الفحوصات). من غير دليل: «راقب» ومن غير فلوس
+    const PT = ex && ex.partners;
+    if (c.ns.targetSearchNetwork && PT && PT.verdict === 'cut') add('traffic', { code: 'partners_off', ref: c.id, campaign: c.id, data: { name: c.name, clicks: sp.clicks, cost: r2(sp.cost), conv: r2(sp.conv), rate: PT.rate, search_rate: PT.search_rate, confidence: PT.confidence }, now: 'on', next: 'off', save: r2(sp.cost), status: 'bad' });
+    else if (c.ns.targetSearchNetwork) add('traffic', { code: 'partners_watch', ref: c.id, status: 'info', kind: 'none', data: { name: c.name, reached: PT ? PT.reached : 0, rate: PT ? PT.rate : null, search_rate: PT ? PT.search_rate : null } });
+    if (c.ns.targetContentNetwork) add('traffic', { code: 'display_off', ref: c.id, campaign: c.id, data: { name: c.name, clicks: cn.clicks, cost: r2(cn.cost), conv: r2(cn.conv) }, now: 'on', next: 'off', status: cn.cost ? 'bad' : 'warn' });
+    if (c.geo && c.geo !== 'PRESENCE') add('traffic', { code: 'geo_presence', ref: c.id, campaign: c.id, data: { name: c.name, outside, of: adS.length, p: pct(outside, adS.length) }, now: c.geo, next: 'PRESENCE' });
   }
   const m = ex && ex.money;
-  if (m && m.bad && m.cpc) add('traffic', { code: 'bad_clicks', status: pct(m.bad, m.reached) >= 15 ? 'warn' : 'info', kind: 'go', go: 'rules', data: { n: m.bad, of: m.reached, p: pct(m.bad, m.reached), cost: r2(m.bad * m.cpc) }, impact: r2(m.bad * m.cpc) });
+  if (m && m.bad && m.cpc) add('traffic', { code: 'bad_clicks', status: pct(m.bad, m.reached) >= 15 ? 'warn' : 'info', kind: 'go', go: 'rules', data: { n: m.bad, of: m.reached, p: pct(m.bad, m.reached), cost: r2(m.bad * m.cpc), est: true } });
 
   // ── ٣) البحث والنية ──
   const neg = await suggest(db, site, cred, t).catch(() => null);
   const safe = ((neg && neg.suggestions) || []).filter((s) => !s.protect && !(s.blocks_own || []).length);
-  if (safe.length) add('search', { code: 'negatives', ref: 'all', data: { n: safe.length, cost: r2(safe.reduce((a, s) => a + n0(s.cost), 0)), terms: safe.slice(0, 6).map((s) => s.text) }, impact: r2(safe.reduce((a, s) => a + n0(s.cost), 0)) });
+  if (safe.length) add('search', { code: 'negatives', ref: 'all', data: { n: safe.length, cost: r2(safe.reduce((a, s) => a + n0(s.cost), 0)), terms: safe.slice(0, 6).map((s) => s.text) }, save: r2(safe.reduce((a, s) => a + n0(s.cost), 0)) });
   const review = ((neg && neg.suggestions) || []).length - safe.length;
   if (review > 0) add('search', { code: 'negatives_review', status: 'info', kind: 'go', go: 'negatives', data: { n: review } });
-  for (const k of ((ex && ex.keywords) || []).filter((x) => x.verdict === 'cut').slice(0, 5)) add('search', { code: 'pause_kw', ref: k.k + '|' + k.match, data: { k: k.k, match: k.match, cost: k.cost, clicks: k.clicks, reached: k.reached, expected: k.expected }, impact: k.save, status: 'bad' });
+  for (const k of ((ex && ex.keywords) || []).filter((x) => x.verdict === 'cut').slice(0, 5)) add('search', { code: 'pause_kw', ref: k.k + '|' + k.match, data: { k: k.k, match: k.match, cost: k.cost, clicks: k.clicks, reached: k.reached, expected: k.expected, confidence: k.confidence }, save: k.save, status: 'bad' });
   const pos = await suggestPositive(db, site, cred, t).catch(() => null);
   if (pos && pos.suggestions && pos.suggestions.length) add('search', { code: 'positives', status: 'info', kind: 'go', go: 'negatives', tab: 'pos', data: { n: pos.suggestions.length, terms: pos.suggestions.slice(0, 4).map((s) => s.text || s.term).filter(Boolean) } });
   // المطابقة الواسعة من غير إشارة كفاية = بتصرف على نوايا بعيدة
-  const realConv = S.convos + S.won;
+  const realConv = S.convos;   // ٠.١: «تم» جوه المحادثات أصلاً (CONVO)، مايتعدّش مرتين
   const broadCost = G.kws.filter((r) => ((r.adGroupCriterion || {}).keyword || {}).matchType === 'BROAD').reduce((a, r) => a + n0((r.metrics || {}).costMicros) / 1e6, 0);
   const kwCost = G.kws.reduce((a, r) => a + n0((r.metrics || {}).costMicros) / 1e6, 0);
   if (broadCost > 0 && pct(broadCost, kwCost) >= 40 && (realConv < 30 || !search.some((c) => SMART.has(c.bidding)))) add('search', { code: 'broad_no_signal', status: 'warn', kind: 'guided', data: { p: pct(broadCost, kwCost), cost: r2(broadCost), real: realConv } });
@@ -146,7 +177,7 @@ export async function optimizePlan(env, db, site, cred, fetchImpl, now) {
     const low = qrows.filter((x) => x[comp] === 'BELOW_AVERAGE').sort((a, b) => b.cost - a.cost);
     if (!low.length) continue;
     const c0 = low.reduce((a, x) => a + x.cost, 0);
-    add('quality', { code, status: pct(c0, kwCost) >= 30 ? 'bad' : 'warn', kind: 'layer', go, data: { n: low.length, cost: r2(c0), p: pct(c0, kwCost), list: low.slice(0, 6).map((x) => ({ k: x.k, qs: x.qs, cost: r2(x.cost) })), qs: wqs == null ? null : Math.round(wqs * 10) / 10 }, impact: r2(c0) });
+    add('quality', { code, status: pct(c0, kwCost) >= 30 ? 'bad' : 'warn', kind: 'layer', go, data: { n: low.length, cost: r2(c0), p: pct(c0, kwCost), list: low.slice(0, 6).map((x) => ({ k: x.k, qs: x.qs, cost: r2(x.cost) })), qs: wqs == null ? null : Math.round(wqs * 10) / 10 } });
   }
   if (wqs != null) add('quality', { code: 'qs_avg', status: wqs >= 7 ? 'info' : 'warn', kind: 'none', data: { qs: Math.round(wqs * 10) / 10, n: withQs.length } });
 
@@ -175,7 +206,7 @@ export async function optimizePlan(env, db, site, cred, fetchImpl, now) {
     const noPromise = promises.length && !heads.some((h) => promises.some((p) => h.includes(p.split(' ')[0])));
     if (!weak && !noPromise) continue;
     const info = agCost.get(ag) || { cost: 0, name: (list[0].adGroup || {}).name || '' };
-    add('ads', { code: 'rsa_new', ref: ag, kind: 'write', status: weak ? 'bad' : 'warn', data: { ag: info.name, strength: strengths[0] || '', cost: r2(info.cost), promise: noPromise ? promises[0] : '', n: list.length }, impact: r2(info.cost * 0.15), adGroup: ag, finalUrl: (((list[0].adGroupAd || {}).ad || {}).finalUrls || [])[0] || '' });
+    add('ads', { code: 'rsa_new', ref: ag, kind: 'write', status: weak ? 'bad' : 'warn', data: { ag: info.name, strength: strengths[0] || '', cost: r2(info.cost), promise: noPromise ? promises[0] : '', n: list.length }, adGroup: ag, finalUrl: (((list[0].adGroupAd || {}).ad || {}).finalUrls || [])[0] || '' });
   }
 
   // ── ٦) صفحة الهبوط ──
@@ -196,20 +227,20 @@ export async function optimizePlan(env, db, site, cred, fetchImpl, now) {
     const modOf = (x) => Math.max(0.5, Math.min(1.3, Math.round(shrunk(x) * 20) / 20));
     const schedules = G.crit.filter((r) => String((r.campaign || {}).id) === main.id && (r.campaignCriterion || {}).type === 'AD_SCHEDULE').length;
     for (const p of (ex.places || []).filter((x) => x.verdict === 'cut' && /^\d+$/.test(x.id || '')).slice(0, 3)) {
-      if (smart) add('where', { code: 'geo_exclude', ref: main.id + '|' + p.id, campaign: main.id, data: { k: p.k, cost: p.cost, clicks: p.clicks, expected: p.expected, name: main.name }, geo: p.id, impact: p.save, now: 'on', next: 'off' });
-      else add('where', { code: 'geo_bid', ref: main.id + '|' + p.id, campaign: main.id, data: { k: p.k, cost: p.cost, clicks: p.clicks, expected: p.expected, name: main.name, m: modOf(p) }, geo: p.id, mod: modOf(p), impact: r2(p.cost * (1 - modOf(p))) });
+      if (smart) add('where', { code: 'geo_exclude', ref: main.id + '|' + p.id, campaign: main.id, data: { k: p.k, cost: p.cost, clicks: p.clicks, expected: p.expected, name: main.name, est: !!p.est, confidence: p.confidence }, geo: p.id, save: p.save, now: 'on', next: 'off' });
+      else add('where', { code: 'geo_bid', ref: main.id + '|' + p.id, campaign: main.id, data: { k: p.k, cost: p.cost, clicks: p.clicks, expected: p.expected, name: main.name, m: modOf(p), est: !!p.est }, geo: p.id, mod: modOf(p) });
     }
     if (!smart) for (const p of (ex.places || []).filter((x) => x.verdict === 'scale' && /^\d+$/.test(x.id || '')).slice(0, 2)) {
-      const mm = modOf(p); if (mm >= 1.15) add('where', { code: 'geo_bid', ref: main.id + '|' + p.id, campaign: main.id, status: 'info', data: { k: p.k, cost: p.cost, clicks: p.clicks, name: main.name, m: mm, n: p.contacts }, geo: p.id, mod: mm, impact: 0 });
+      const mm = modOf(p); if (mm >= 1.15) add('where', { code: 'geo_bid', ref: main.id + '|' + p.id, campaign: main.id, status: 'info', data: { k: p.k, cost: p.cost, clicks: p.clicks, name: main.name, m: mm, n: p.contacts, est: !!p.est }, geo: p.id, mod: mm });
     }
     const deadTimes = (ex.times || []).filter((x) => x.verdict === 'cut');
     if (deadTimes.length && !schedules) {
-      if (smart) add('where', { code: 'schedule_exclude', ref: main.id, campaign: main.id, data: { name: main.name, blocks: deadTimes.map((x) => x.k), cost: r2(deadTimes.reduce((a, x) => a + x.cost, 0)) }, blocks: deadTimes.map((x) => x.k), impact: r2(deadTimes.reduce((a, x) => a + x.save, 0)) });
-      else { const mods = {}; for (const x of ex.times || []) mods[x.k] = x.verdict === 'cut' ? 0.5 : modOf(x); add('where', { code: 'schedule_bid', ref: main.id, campaign: main.id, data: { name: main.name, mods }, mods, impact: r2(deadTimes.reduce((a, x) => a + x.cost * 0.5, 0)) }); }
+      if (smart) add('where', { code: 'schedule_exclude', ref: main.id, campaign: main.id, data: { name: main.name, blocks: deadTimes.map((x) => x.k), cost: r2(deadTimes.reduce((a, x) => a + x.cost, 0)), est: deadTimes.some((x) => x.est) }, blocks: deadTimes.map((x) => x.k), save: r2(deadTimes.reduce((a, x) => a + x.save, 0)) });
+      else { const mods = {}; for (const x of ex.times || []) mods[x.k] = x.verdict === 'cut' ? 0.5 : modOf(x); add('where', { code: 'schedule_bid', ref: main.id, campaign: main.id, data: { name: main.name, mods }, mods }); }
     } else if (deadTimes.length && schedules) add('where', { code: 'schedule_exists', status: 'info', kind: 'guided', data: { name: main.name, blocks: deadTimes.map((x) => x.k) } });
     for (const d of (ex.devices || []).filter((x) => ['DESKTOP', 'TABLET'].includes(x.k) && x.verdict === 'cut')) {
       const cur = G.crit.find((r) => String((r.campaign || {}).id) === main.id && ((r.campaignCriterion || {}).device || {}).type === d.k);
-      add('where', { code: smart ? 'device_off' : 'device_bid', ref: main.id + '|' + d.k, campaign: main.id, data: { k: d.k, cost: d.cost, clicks: d.clicks, expected: d.expected, name: main.name, m: smart ? 0 : 0.5 }, device: d.k, mod: smart ? 0 : 0.5, before: cur ? n0((cur.campaignCriterion || {}).bidModifier) || 1 : 1, impact: smart ? d.save : r2(d.cost * 0.5) });
+      add('where', { code: smart ? 'device_off' : 'device_bid', ref: main.id + '|' + d.k, campaign: main.id, data: { k: d.k, cost: d.cost, clicks: d.clicks, expected: d.expected, name: main.name, m: smart ? 0 : 0.5, est: !!d.est }, device: d.k, mod: smart ? 0 : 0.5, before: cur ? n0((cur.campaignCriterion || {}).bidModifier) || 1 : 1, save: smart ? d.save : 0 });
     }
     if (smart) add('where', { code: 'smart_note', status: 'info', kind: 'none', data: { name: main.name, bidding: main.bidding } });
   }
@@ -221,22 +252,24 @@ export async function optimizePlan(env, db, site, cred, fetchImpl, now) {
   for (const c of search.filter((x) => x.cost > 0)) {
     const r = camp.get(c.id) || { contacts: 0, won: 0 }, cpl = r.contacts ? c.cost / r.contacts : null;
     const wait = recentHas(['budget_up', 'budget_down'], c.id);
-    if (!c.shared && c.lostBudget >= 0.2 && cpl != null && avgCpl && cpl <= avgCpl * 1.1 && r.contacts >= 3) add('budget', { code: 'budget_up', ref: c.id, campaign: c.id, status: wait ? 'info' : 'warn', kind: wait ? 'wait' : 'apply', data: { name: c.name, lost: Math.round(c.lostBudget * 100), cpl: r2(cpl), avg: r2(avgCpl), from: r2(c.budget), to: r2(c.budget * 1.2), extra: cpl ? Math.floor(c.budget * 0.2 * 30 / cpl) : 0 }, now: r2(c.budget), next: r2(c.budget * 1.2), budgetRn: c.budgetRn, budget: c.budget, impact: r2(c.budget * 0.2 * 30) });
-    if (!c.shared && avgCpl && c.cost >= 2 * avgCpl && (cpl == null || cpl >= 1.8 * avgCpl)) add('budget', { code: 'budget_down', ref: c.id, campaign: c.id, status: wait ? 'info' : 'warn', kind: wait ? 'wait' : 'apply', data: { name: c.name, cpl: cpl == null ? null : r2(cpl), avg: r2(avgCpl), n: r.contacts, from: r2(c.budget), to: r2(c.budget * 0.8) }, now: r2(c.budget), next: r2(c.budget * 0.8), budgetRn: c.budgetRn, budget: c.budget, impact: r2(c.budget * 0.2 * 30) });
+    if (!c.shared && c.lostBudget >= 0.2 && cpl != null && avgCpl && cpl <= avgCpl * 1.1 && r.contacts >= 3) add('budget', { code: 'budget_up', ref: c.id, campaign: c.id, status: wait ? 'info' : 'warn', kind: wait ? 'wait' : 'apply', data: { name: c.name, lost: Math.round(c.lostBudget * 100), cpl: r2(cpl), avg: r2(avgCpl), from: r2(c.budget), to: r2(c.budget * 1.2), extra: cpl ? Math.floor(c.budget * 0.2 * 30 / cpl) : 0 }, now: r2(c.budget), next: r2(c.budget * 1.2), budgetRn: c.budgetRn, budget: c.budget, spend_change: r2(c.budget * 0.2 * 30) });
+    if (!c.shared && avgCpl && c.cost >= 2 * avgCpl && (cpl == null || cpl >= 1.8 * avgCpl)) add('budget', { code: 'budget_down', ref: c.id, campaign: c.id, status: wait ? 'info' : 'warn', kind: wait ? 'wait' : 'apply', data: { name: c.name, cpl: cpl == null ? null : r2(cpl), avg: r2(avgCpl), n: r.contacts, from: r2(c.budget), to: r2(c.budget * 0.8) }, now: r2(c.budget), next: r2(c.budget * 0.8), budgetRn: c.budgetRn, budget: c.budget, spend_change: -r2(c.budget * 0.2 * 30) });
     if (c.lostRank >= 0.4 && c.lostBudget < 0.1) add('budget', { code: 'lost_rank', ref: c.id, status: 'info', kind: 'layer', go: 'quality', data: { name: c.name, p: Math.round(c.lostRank * 100) } });
     // الاستراتيجية: يدوي ← أقصى تحويلات (لما فيه 15 تحويل حقيقي أو أكتر والإشارة سليمة) ← تكلفة مستهدفة (30 أو أكتر)
     const blocked = signalBad || recentHas(['conv_primary', 'conv_secondary']);
-    if (['MANUAL_CPC', 'ENHANCED_CPC', 'TARGET_SPEND'].includes(c.bidding) && realConv >= 15) add('budget', { code: 'bid_maxconv', ref: c.id, campaign: c.id, status: blocked ? 'info' : 'warn', kind: blocked ? 'wait' : 'apply', data: { name: c.name, from: c.bidding, real: realConv, why: blocked ? 'signal' : '' }, now: c.bidding, next: 'MAXIMIZE_CONVERSIONS' });
-    if (c.bidding === 'MAXIMIZE_CONVERSIONS' && !c.tcpa && S.won >= 30 && S.cpw) add('budget', { code: 'bid_tcpa', ref: c.id, campaign: c.id, status: blocked ? 'info' : 'warn', kind: blocked ? 'wait' : 'apply', data: { name: c.name, target: r2(S.cpw * 1.1), won: S.won }, now: 0, next: r2(S.cpw * 1.1) });
+    // ٠.١: الشرط على عدّ جوجل الفعلي على إجراءنا الأساسي · ٠.٢: الاستراتيجية الأصلية بكل إعداداتها بتتحفظ، والمحفظة مالهاش تراجع آلي
+    const before = { type: c.bidding, ecpc: c.ecpc, ceiling: c.ceiling, tcpa: c.tcpa, portfolio: c.portfolio };
+    if (['MANUAL_CPC', 'ENHANCED_CPC', 'TARGET_SPEND'].includes(c.bidding) && maxconvReady(realConv, googleOurs, ours)) add('budget', { code: 'bid_maxconv', ref: c.id, campaign: c.id, status: blocked ? 'info' : 'warn', kind: blocked ? 'wait' : 'apply', data: { name: c.name, from: c.bidding, real: realConv, google: googleOurs, why: blocked ? 'signal' : '', no_undo: c.portfolio }, now: c.bidding, next: 'MAXIMIZE_CONVERSIONS', before, no_undo: c.portfolio });
+    if (c.bidding === 'MAXIMIZE_CONVERSIONS' && !c.tcpa && S.won >= 30 && googleOurs >= 30 && S.cpw) add('budget', { code: 'bid_tcpa', ref: c.id, campaign: c.id, status: blocked ? 'info' : 'warn', kind: blocked ? 'wait' : 'apply', data: { name: c.name, target: r2(S.cpw * 1.1), won: S.won, no_undo: c.portfolio }, now: 0, next: r2(S.cpw * 1.1), before, no_undo: c.portfolio });
   }
-  if (signalBad && search.some((c) => SMART.has(c.bidding))) add('budget', { code: 'smart_on_bad_signal', status: 'bad', kind: 'layer', go: 'signal', data: { names: search.filter((c) => SMART.has(c.bidding)).map((c) => c.name).slice(0, 3) }, impact: r2(cost * 0.3) });
+  if (signalBad && search.some((c) => SMART.has(c.bidding))) add('budget', { code: 'smart_on_bad_signal', status: 'bad', kind: 'layer', go: 'signal', data: { names: search.filter((c) => SMART.has(c.bidding)).map((c) => c.name).slice(0, 3) } });
 
   // الترتيب: الطبقة (من المنبع) ثم الأثر · وخطة الأسبوع = أهم 5 قابلة للتنفيذ
   const L = Object.fromEntries(LAYERS.map((l, i) => [l, i]));
   const rank = { bad: 0, warn: 1, info: 2 };
-  items.sort((a, b) => L[a.layer] - L[b.layer] || rank[a.status] - rank[b.status] || b.impact - a.impact);
+  items.sort((a, b) => L[a.layer] - L[b.layer] || rank[a.status] - rank[b.status] || b.save - a.save);
   const actionable = items.filter((x) => ['apply', 'write'].includes(x.kind) && x.status !== 'info');
-  const plan = actionable.slice().sort((a, b) => (a.layer === 'signal' ? -1 : 0) - (b.layer === 'signal' ? -1 : 0) || b.impact - a.impact).slice(0, 5).map((x) => x.key);
+  const plan = actionable.slice().sort((a, b) => (a.layer === 'signal' ? -1 : 0) - (b.layer === 'signal' ? -1 : 0) || L[a.layer] - L[b.layer] || b.save - a.save).slice(0, 5).map((x) => x.key);
   return { items, plan, layers: LAYERS, values: G.values, qs: wqs == null ? null : Math.round(wqs * 10) / 10,
     context: { cost: r2(cost), contacts: S.contacts, won: S.won, cpl: S.cpl, cpw: S.cpw, smart: search.filter((c) => SMART.has(c.bidding)).map((c) => c.name), campaigns: search.length, signal_ok: !signalBad },
     expert: ex, currency: cred.currency || '', _g: G };
@@ -312,6 +345,16 @@ export async function draftFor(env, db, site, it, P, fetchImpl) {
 
 // ── التنفيذ والتراجع لكل نوع ──
 const camRn = (cred, id) => 'customers/' + cred.customer_id + '/campaigns/' + id;
+// ٠.٢: نرجّع الاستراتيجية الأصلية بالظبط (بإعداداتها). المحفظة (bidding_strategy) مالهاش تراجع آلي، وده بيتقال قبل التطبيق
+export function restoreStrategy(cred, campaign, st) {
+  if (!st || !st.type) throw Object.assign(new Error('no_auto_undo'), { code: 'no_auto_undo' });
+  if (st.portfolio) throw Object.assign(new Error('no_auto_undo'), { code: 'no_auto_undo' });
+  const rn = camRn(cred, campaign);
+  if (st.type === 'MANUAL_CPC' || st.type === 'ENHANCED_CPC') return { update: { resourceName: rn, manualCpc: { enhancedCpcEnabled: st.type === 'ENHANCED_CPC' || !!st.ecpc } }, updateMask: 'manualCpc.enhancedCpcEnabled' };
+  if (st.type === 'TARGET_SPEND') return st.ceiling ? { update: { resourceName: rn, targetSpend: { cpcBidCeilingMicros: String(st.ceiling) } }, updateMask: 'targetSpend.cpcBidCeilingMicros' } : { update: { resourceName: rn, targetSpend: {} }, updateMask: 'targetSpend' };
+  if (st.type === 'MAXIMIZE_CONVERSIONS') return { update: { resourceName: rn, maximizeConversions: { targetCpaMicros: String(Math.round(n0(st.tcpa) * 1e6)) } }, updateMask: 'maximizeConversions.targetCpaMicros' };
+  throw Object.assign(new Error('no_auto_undo'), { code: 'no_auto_undo' });
+}
 async function linkAssets(api, cred, campaign, field, assets) {
   const made = await api.mutate('assets:mutate', { operations: assets.map((a) => ({ create: a })) });
   const rns = (made.results || []).map((r) => r.resourceName).filter(Boolean);
@@ -382,12 +425,24 @@ export const HANDLERS = {
     undo: async (c, t) => c.api.mutate('campaignBudgets:mutate', { operations: [{ update: { resourceName: t.budget_rn, amountMicros: String(Math.round(n0(t.before_amount) * 1e6)) }, updateMask: 'amountMicros' }] }) },
   budget_down: { apply: async (c) => { await c.api.mutate('campaignBudgets:mutate', { operations: [{ update: { resourceName: c.it.budgetRn, amountMicros: String(Math.round(c.it.budget * 0.8 * 1e6)) }, updateMask: 'amountMicros' }] }); return { budget_rn: c.it.budgetRn, before_amount: c.it.budget, after_amount: r2(c.it.budget * 0.8) }; },
     undo: async (c, t) => c.api.mutate('campaignBudgets:mutate', { operations: [{ update: { resourceName: t.budget_rn, amountMicros: String(Math.round(n0(t.before_amount) * 1e6)) }, updateMask: 'amountMicros' }] }) },
-  bid_maxconv: { apply: async (c) => { await c.api.mutate('campaigns:mutate', { operations: [{ update: { resourceName: camRn(c.cred, c.it.campaign), maximizeConversions: {} }, updateMask: 'maximizeConversions' }] }); return {}; },
-    undo: async (c, t) => c.api.mutate('campaigns:mutate', { operations: [{ update: { resourceName: camRn(c.cred, t.campaign), manualCpc: {} }, updateMask: 'manualCpc' }] }) },
-  bid_tcpa: { apply: async (c) => { await c.api.mutate('campaigns:mutate', { operations: [{ update: { resourceName: camRn(c.cred, c.it.campaign), maximizeConversions: { targetCpaMicros: String(Math.round(c.it.next * 1e6)) } }, updateMask: 'maximizeConversions.targetCpaMicros' }] }); return { target: c.it.next }; },
-    undo: async (c, t) => c.api.mutate('campaigns:mutate', { operations: [{ update: { resourceName: camRn(c.cred, t.campaign), maximizeConversions: { targetCpaMicros: '0' } }, updateMask: 'maximizeConversions.targetCpaMicros' }] }) },
+  bid_maxconv: { apply: async (c) => {
+      await c.api.mutate('campaigns:mutate', { operations: [{ update: { resourceName: camRn(c.cred, c.it.campaign), maximizeConversions: {} }, updateMask: 'maximizeConversions' }] });
+      return { strategy: c.it.before || null };
+    }, undo: async (c, t) => c.api.mutate('campaigns:mutate', { operations: [restoreStrategy(c.cred, t.campaign, t.strategy)] }) },
+  bid_tcpa: { apply: async (c) => { await c.api.mutate('campaigns:mutate', { operations: [{ update: { resourceName: camRn(c.cred, c.it.campaign), maximizeConversions: { targetCpaMicros: String(Math.round(c.it.next * 1e6)) } }, updateMask: 'maximizeConversions.targetCpaMicros' }] }); return { target: c.it.next, strategy: c.it.before || null }; },
+    undo: async (c, t) => c.api.mutate('campaigns:mutate', { operations: [restoreStrategy(c.cred, t.campaign, t.strategy)] }) },
 };
 HANDLERS.device_bid = { apply: async (c) => { await c.api.mutate('campaignCriteria:mutate', { operations: [{ update: { resourceName: camRn(c.cred, c.it.campaign).replace('/campaigns/', '/campaignCriteria/') + '~' + DEVICE_ID[c.it.device], bidModifier: c.it.mod }, updateMask: 'bidModifier' }] }); return { device: c.it.device, before: c.it.before }; }, undo: HANDLERS.device_off.undo };
+
+// ── ٠.٩ بوابة التجربة الحية: نوع التعديل اللي ماتجربش حي على حساب حقيقي (طبّق ← اتأكد ← تراجع ← اتأكد) بيتقفل للعملاء.
+// الأنواع اللي عدّت بتتكتب في OPT_LIVE_VERIFIED (أسرار/متغيرات Cloudflare، مفصولة بفواصل) بعد ما الدليل يتسجّل في claude/gates/optimize-live.md.
+// إدارة المنصة بس تقدر تطبّق نوع مقفول (علشان التجربة نفسها على حسابات محمود).
+export function liveVerified(env) { return new Set(String((env && env.OPT_LIVE_VERIFIED) || '').split(',').map((x) => x.trim()).filter(Boolean)); }
+function gate(env, sess, items) {
+  const ok = liveVerified(env), admin = isPlatform(sess);
+  for (const x of items) if ((x.kind === 'apply' || x.kind === 'write') && !ok.has(x.code)) { x.locked = true; if (!admin) x.kind = 'locked'; }
+  return items;
+}
 
 // ── الواجهات ──
 const cache = new Map();   // آخر خطة لكل موقع (دقيقتين) علشان «طبّق» مايقراش جوجل كله تاني
@@ -413,7 +468,7 @@ export async function dashOptimize(req, env, db, sess, url, fetchImpl) {
   try {
     const P = await planFor(env, db, site, cred, fetchImpl, true);
     const { _g, expert, ...pub } = P;
-    return json(Object.assign({ ok: true, linked: true, manage: canManage(sess, site) }, pub, { items: P.items.map(publicItem), done: await doneList(db, site, Date.now()),
+    return json(Object.assign({ ok: true, linked: true, manage: canManage(sess, site) }, pub, { items: gate(env, sess, P.items.map(publicItem)), done: await doneList(db, site, Date.now()),
       expert: expert ? { keywords: expert.keywords, places: expert.places, times: expert.times, devices: expert.devices, money: expert.money, signal: expert.signal, summary: expert.summary } : null }));
   } catch (e) { console.error('optimize: ' + String(e && e.message || e).slice(0, 160)); return json({ ok: false, error: 'google' }, 502); }
 }
@@ -456,6 +511,7 @@ export async function dashOptimizeApply(req, env, db, sess, fetchImpl) {
   for (const key of keys) {
     const it = P.items.find((x) => x.key === key), h = it && HANDLERS[it.code];
     if (!it || !h || !['apply', 'write'].includes(it.kind)) { res.push({ key, ok: false, error: 'gone' }); continue; }
+    if (!liveVerified(env).has(it.code) && !isPlatform(sess)) { res.push({ key, ok: false, error: 'locked' }); continue; }   // ٠.٩
     let draft = null;
     if (h.draft) {
       const v = validateDraft(it.code, ((b.drafts || {})[key]) || {});
@@ -490,7 +546,7 @@ export async function dashOptimizeUndo(req, env, db, sess, fetchImpl) {
   const api = await apiFor(env, site, cred, fetchImpl), t = row.target || {};
   if (t.campaign && !ID.test(String(t.campaign))) return json({ ok: false, error: 'bad_request' }, 400);
   try { await h.undo({ env, db, site, cred, sess, api, fetchImpl, now: Date.now() }, t); }
-  catch (e) { await audit(db, sess.user.id, 'optimize_undo', false, site.id + ' ' + String(e.message || e).slice(0, 100)); return json({ ok: false, error: 'google', detail: String(e.message || e).slice(0, 160) }, 502); }
+  catch (e) { await audit(db, sess.user.id, 'optimize_undo', false, site.id + ' ' + String(e.message || e).slice(0, 100)); return json({ ok: false, error: e.code === 'no_auto_undo' ? 'no_auto_undo' : 'google', detail: String(e.message || e).slice(0, 160) }, e.code === 'no_auto_undo' ? 409 : 502); }
   await db.update('analysis_fixes?id=' + eq(row.id), { status: 'closed', target: Object.assign({}, t, { undone_at: new Date().toISOString(), undone_by: sess.user.id }) });
   await audit(db, sess.user.id, 'optimize_undo', true, site.id + ' ' + row.action);
   cache.delete(site.id);
