@@ -1,14 +1,18 @@
 -- Maestro LT — المساعد الذكي (16 نوفمبر · claude/briefs/2026-11-16-ai-assistant.md · محمود: «تمام · بالصوت مع الكتابة · الأدمن يختار
 -- الموديل ويدخل الـAPI · أكتر من موديل للـ3 مهام · وطبقة التعليم المستمر»).
--- ai_settings: صف واحد. المفتاح متشفّر (AES-GCM، نفس تشفير توكنات جوجل) ومابيرجعش للمتصفح أبدًا، بس آخر 4 حروف.
---   models: موديل لكل مهمة { brief: بناء ملف النشاط · answer: أسئلة عن الأرقام · suggest: اقتراحات التحسين }.
--- ai_chats: المحادثات (النص بس، من غير بيانات حساسة). ai_lessons: التعليم المستمر: تصحيحات العميل (لموقعه) ودروس الأدمن (للكل).
+-- ai_settings: صف واحد.
+--   keys: مفتاح لكل مزوّد (anthropic · openai · gemini · deepseek) متشفّر (AES-GCM) ومابيرجعش للمتصفح، و key_last4 آخر 4 حروف بس.
+--   chains: لكل مرحلة سلسلة نماذج بالترتيب [{provider, model, price:[دخل,خرج]}] (لو الأول فشل أو ميزانيته خلصت، اللي بعده).
+--   budgets: ميزانية شهرية بالدولار لكل مزوّد (إنذار عند 80%، وتخطّي عند 100%). alerted: آخر إنذار اتبعت لكل سبب (مرة في اليوم).
+-- ai_chats: المحادثات (النص بس). ai_lessons: التعليم المستمر: تصحيحات العميل (لنشاطه) ودروس الأدمن (للكل).
 -- ai_feedback: 👍/👎 على كل رد، ومعاه التصحيح لو فيه. RLS من غير سياسات.
 create table if not exists ai_settings (
   id           int primary key default 1 check (id = 1),
-  api_key_enc  text,
-  key_last4    text,
-  models       jsonb not null default '{"brief":"claude-opus-5-5","answer":"claude-opus-5-5","suggest":"claude-opus-5-5"}',
+  keys         jsonb not null default '{}',
+  key_last4    jsonb not null default '{}',
+  chains       jsonb not null default '{"brief":[{"provider":"anthropic","model":"claude-opus-5-5"}],"answer":[{"provider":"anthropic","model":"claude-opus-5-5"}],"suggest":[{"provider":"anthropic","model":"claude-opus-5-5"}]}',
+  budgets      jsonb not null default '{}',
+  alerted      jsonb not null default '{}',
   daily_limit  int not null default 40 check (daily_limit between 0 and 1000),
   enabled      boolean not null default true,
   updated_by   uuid,

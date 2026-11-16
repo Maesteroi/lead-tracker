@@ -271,3 +271,10 @@ button.switch[aria-checked="true"]::after { inset-inline-start: 21px; }
 @media (max-width: 640px) { .bl-in { min-width: 0; width: 100%; } .bl-frow .bl-in, .bl-frow .bl-in.sm { width: 100%; } .bl-fitem { align-items: flex-start; } }
 .bl-in.wide { min-width: 240px; }
 .set-f { display: grid; gap: 4px; margin: 0 0 12px; } .set-f span { font-size: 14px; color: var(--muted); }
+/* المساعد الذكي: المزوّدين وسلسلة النماذج */
+.ai-prov .bl-in { min-width: 180px; }
+.ai-chains { display: grid; gap: 12px; margin: 8px 0 12px; }
+.ai-chain { display: grid; gap: 8px; padding: 12px; border: 1px solid var(--line); border-radius: 12px; }
+.ai-link { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.ai-n { display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: var(--bg); font-weight: 800; font-size: 13px; }
+.ai-link .bl-in { min-width: 200px; }

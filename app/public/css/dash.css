@@ -737,3 +737,4 @@ svg.geo { width: 100%; height: auto; aspect-ratio: 1.7; display: block; backgrou
 .ai-btns { display: flex; gap: 8px; justify-content: flex-end; }
 .ai-mic.on { color: var(--bad); border-color: var(--bad); animation: ai-pulse 1s ease-in-out infinite; }
 @keyframes ai-pulse { 50% { opacity: .5; } }
+.drawer:not([hidden]) ~ .ai-fab { display: none; }

@@ -276,28 +276,62 @@
     ]);
   }
 
-  // المساعد الذكي (16 نوفمبر): المفتاح (متشفّر، بيظهر آخر 4 بس) · موديل لكل مهمة · الحد اليومي · تشغيل/إيقاف · اختبار · الاستهلاك · الدروس العامة
+  // المساعد الذكي (16 نوفمبر): مفتاح وميزانية لكل مزوّد (Anthropic · OpenAI · Gemini · DeepSeek) · لكل مرحلة سلسلة نماذج بالترتيب
+  // (اسم النموذج بإيدك + السعر) · لو الأول فشل أو ميزانيته خلصت يكمل اللي بعده، وإنذار تليجرام قبل ما الرصيد يخلص · الحد اليومي · الدروس
+  var aiDraft = null;
   function aiCard() {
     var wrap = card(T('adm.ai.title'), [el('p', {}, [el('span', { class: 'spinner' })])], T('adm.ai.sub'));
     api('/v1/platform/ai').then(function (r) {
       if (!r.ok) return;
       var d = r.body, body = wrap; while (body.childNodes.length > 2) body.removeChild(body.lastChild);
-      var key = el('input', { type: 'password', class: 'bl-in wide', dir: 'ltr', autocomplete: 'off', placeholder: d.key_last4 ? '•••• ' + d.key_last4 : 'sk-ant-…', 'aria-label': T('adm.ai.key') });
-      var models = {}, grid = el('div', { class: 'bl-grid' }, d.tasks.map(function (t) {
-        var sel = el('select', { 'aria-label': T('adm.ai.t.' + t) }, d.choices.map(function (c) { return el('option', { value: c.id, text: c.id + ' ($' + c.price[0] + ' / $' + c.price[1] + ')' }); }));
-        sel.value = d.models[t]; models[t] = sel;
-        return el('label', {}, [el('span', { text: T('adm.ai.t.' + t) }), sel]);
-      }));
+      var provs = Object.keys(d.providers);
+      if (!aiDraft) { aiDraft = {}; d.tasks.forEach(function (t) { aiDraft[t] = d.chains[t].map(function (x) { return { provider: x.provider, model: x.model, price: (x.price || ['', '']).slice() }; }); }); }
+      // المزوّدين
+      var keyIn = {}, budIn = {};
+      var ptab = el('div', { class: 'tbl-wrap' }, [el('table', { class: 'tbl static ai-prov' }, [el('thead', {}, [el('tr', {}, ['adm.ai.p', 'adm.ai.key', 'adm.ai.budget', 'adm.ai.spent'].map(function (h) { return el('th', { text: T(h) }); }))]),
+        el('tbody', {}, provs.map(function (id) {
+          var p = d.providers[id];
+          keyIn[id] = el('input', { type: 'password', class: 'bl-in', dir: 'ltr', autocomplete: 'off', placeholder: p.last4 ? '•••• ' + p.last4 : p.from_env ? T('adm.ai.from_env') : T('adm.ai.key.ph'), 'aria-label': T('adm.ai.key') + ' ' + p.label });
+          budIn[id] = num(p.budget || '', { class: 'bl-num sm', placeholder: '$', 'aria-label': T('adm.ai.budget') + ' ' + p.label });
+          var pct = p.budget ? Math.round(p.spent_month / p.budget * 100) : null;
+          return el('tr', {}, [el('th', { scope: 'row', text: p.label }), el('td', {}, [keyIn[id]]), el('td', {}, [budIn[id]]), el('td', { class: pct >= 80 ? 'warn-text' : '', text: '$' + p.spent_month + (pct != null ? ' (' + pct + '%)' : '') })]);
+        }))])]);
+      // سلسلة لكل مرحلة
+      var dl = el('datalist', { id: 'ai-models' }, [].concat.apply([], provs.map(function (id) { return d.providers[id].suggest.map(function (m) { return el('option', { value: m }); }); })));
+      var chainsBox = el('div', { class: 'ai-chains' });
+      var drawChains = function () {
+        clear(chainsBox);
+        d.tasks.forEach(function (t) {
+          var list = aiDraft[t];
+          var rows = list.map(function (it, i) {
+            var ps = el('select', { 'aria-label': T('adm.ai.p') }, provs.map(function (id) { return el('option', { value: id, text: d.providers[id].label }); })); ps.value = it.provider;
+            var md = el('input', { type: 'text', class: 'bl-in', dir: 'ltr', list: 'ai-models', value: it.model, placeholder: T('adm.ai.model.ph'), 'aria-label': T('adm.ai.model') });
+            var pi = num(it.price[0], { class: 'bl-num sm', placeholder: T('adm.ai.in'), 'aria-label': T('adm.ai.in') }), po = num(it.price[1], { class: 'bl-num sm', placeholder: T('adm.ai.out'), 'aria-label': T('adm.ai.out') });
+            ps.addEventListener('change', function () { it.provider = ps.value; }); md.addEventListener('input', function () { it.model = md.value.trim(); });
+            pi.addEventListener('input', function () { it.price[0] = pi.value; }); po.addEventListener('input', function () { it.price[1] = po.value; });
+            var up = el('button', { class: 'linkish', type: 'button', 'aria-label': T('adm.ai.up'), text: '↑' }); up.disabled = i === 0;
+            up.addEventListener('click', function () { list.splice(i - 1, 0, list.splice(i, 1)[0]); drawChains(); });
+            var rm = el('button', { class: 'linkish', type: 'button', text: T('adm.bl.del') }); rm.hidden = list.length < 2;
+            rm.addEventListener('click', function () { list.splice(i, 1); drawChains(); });
+            var tst = el('button', { class: 'linkish', type: 'button', text: T('adm.ai.test') });
+            tst.addEventListener('click', function () { tst.disabled = true; api('/v1/platform/ai/test', { provider: it.provider, model: it.model }).then(function (x) { tst.disabled = false; toast(x.ok ? T('adm.ai.test.ok', { m: x.body.provider + ' · ' + x.body.model, r: x.body.reply }) : T('adm.ai.e.' + ((x.body && x.body.error) || 'ai')), !x.ok); }); });
+            return el('div', { class: 'ai-link' }, [el('span', { class: 'ai-n', text: String(i + 1) }), ps, md, pi, po, up, tst, rm]);
+          });
+          var add = el('button', { class: 'btn ghost sm', type: 'button', text: T('adm.ai.add') }); add.hidden = list.length >= 4;
+          add.addEventListener('click', function () { list.push({ provider: 'anthropic', model: '', price: ['', ''] }); drawChains(); });
+          chainsBox.appendChild(el('div', { class: 'ai-chain' }, [el('b', { text: T('adm.ai.t.' + t) })].concat(rows, [add])));
+        });
+      };
+      drawChains();
       var lim = num(d.daily_limit, { class: 'bl-num sm', 'aria-label': T('adm.ai.limit') });
       var on = el('button', { class: 'switch', type: 'button', role: 'switch', 'aria-checked': String(!!d.enabled), 'aria-label': T('adm.ai.on') });
       on.addEventListener('click', function () { api('/v1/platform/ai', { enabled: !d.enabled }).then(function () { toast(T('adm.bl.saved')); load(); }); });
       var save = saveBtn(function () {
-        var b = { models: {}, daily_limit: Number(lim.value) }; d.tasks.forEach(function (t) { b.models[t] = models[t].value; });
-        if (key.value.trim()) b.api_key = key.value.trim();
-        return api('/v1/platform/ai', b).then(function (x) { if (!x.ok) toast(T(x.body && x.body.error === 'key' ? 'adm.ai.e.key' : 'err.save'), true); return x.ok ? x.body : { ok: false, quiet: true }; });
+        var b = { keys: {}, budgets: {}, chains: {}, daily_limit: Number(lim.value) };
+        provs.forEach(function (id) { if (keyIn[id].value.trim()) b.keys[id] = keyIn[id].value.trim(); if (budIn[id].value !== '') b.budgets[id] = Number(budIn[id].value); });
+        d.tasks.forEach(function (t) { b.chains[t] = aiDraft[t].filter(function (x) { return x.model; }).map(function (x) { var o = { provider: x.provider, model: x.model }; if (x.price[0] !== '' && x.price[1] !== '') o.price = [Number(x.price[0]), Number(x.price[1])]; return o; }); });
+        return api('/v1/platform/ai', b).then(function (x) { if (!x.ok) { var e = x.body || {}; toast(T('adm.ai.e.' + (e.error || 'x')) + (e.provider ? ' (' + e.provider + ')' : '') + (e.task ? ' (' + T('adm.ai.t.' + e.task) + ')' : ''), true); return { ok: false, quiet: true }; } aiDraft = null; return x.body; });
       });
-      var test = el('button', { class: 'btn ghost sm', type: 'button', text: T('adm.ai.test') });
-      test.addEventListener('click', function () { test.disabled = true; api('/v1/platform/ai/test', { model: models.answer.value }).then(function (x) { test.disabled = false; toast(x.ok ? T('adm.ai.test.ok', { m: x.body.model, r: x.body.reply }) : T('adm.ai.e.' + ((x.body && x.body.error) || 'ai')), !x.ok); }); });
       var lessons = el('div', { class: 'al-fields' }, (d.lessons || []).map(function (l) {
         var sw = el('button', { class: 'switch', type: 'button', role: 'switch', 'aria-checked': String(!!l.active), 'aria-label': l.text });
         sw.addEventListener('click', function () { api('/v1/platform/ai/lesson', { id: l.id, active: !l.active }).then(function () { load(); }); });
@@ -305,11 +339,11 @@
       }));
       var lt = el('input', { type: 'text', class: 'bl-in wide', maxlength: '500', placeholder: T('adm.ai.l.ph') }), la = el('button', { class: 'btn sm', type: 'button', text: T('adm.ai.l.add') });
       la.addEventListener('click', function () { api('/v1/platform/ai/lesson', { text: lt.value.trim() }).then(function (x) { if (x.ok) { toast(T('adm.bl.saved')); load(); } else toast(T('err.save'), true); }); });
-      [el('div', { class: 'al-row' }, [el('span', { text: T(d.configured ? (d.from_env ? 'adm.ai.st.env' : 'adm.ai.st.ok') : 'adm.ai.st.no') }), on]),
-        el('label', { class: 'set-f' }, [el('span', { text: T('adm.ai.key') }), key]), el('p', { class: 'hint', text: T('adm.ai.key.i') }),
-        el('h3', { class: 'legend', text: T('adm.ai.models') }), grid,
+      [el('div', { class: 'al-row' }, [el('span', { text: T(d.configured ? 'adm.ai.st.ok' : 'adm.ai.st.no') }), on]),
+        el('h3', { class: 'legend', text: T('adm.ai.provs') }), ptab, el('p', { class: 'hint', text: T('adm.ai.key.i') }),
+        el('h3', { class: 'legend', text: T('adm.ai.models') }), el('p', { class: 'hint', text: T('adm.ai.chain.i') }), dl, chainsBox,
         el('label', { class: 'bl-check' }, [el('span', { text: T('adm.ai.limit') }), lim]),
-        el('div', { class: 'bl-add' }, [save, test]),
+        el('div', { class: 'bl-add' }, [save]),
         el('p', { class: 'hint', text: T('adm.ai.usage', { n: d.usage.calls, f: d.usage.failed, c: d.usage.cost_usd }) }),
         el('h3', { class: 'legend', text: T('adm.ai.lessons') }), el('p', { class: 'hint', text: T('adm.ai.lessons.i') }), lessons, el('div', { class: 'bl-add' }, [lt, la])].forEach(function (n) { body.appendChild(n); });
     });
