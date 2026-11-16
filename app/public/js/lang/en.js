@@ -2433,4 +2433,16 @@ window.LT_LANG.en = {
   'op.t.conv_adcall': 'Calls from the ad: «{name}»', 'op.e.conv_adcall': 'It recorded {n} calls in 30 days.', 'op.w.conv_adcall': 'These calls happen from the ad directly and never pass through your site, so we do not see them yet. We do not touch this conversion.',
   'ex.v.watch': 'Watch',
   'op.locked': 'In live trial: we test this type of change on our own accounts first, and it opens for you once confirmed.',
+  // Package 1: signal ladder
+  'sg.k.purity': 'Signal purity', 'sg.k.purity.d': 'Our real conversions ÷ what Google counts', 'sg.k.lag': 'Upload delay', 'sg.k.lag.d': 'From outcome to Google (median)', 'sg.k.hours': '{n} hours',
+  'sg.k.accept': 'Google acceptance', 'sg.k.accept.d': 'Of uploaded conversions', 'sg.k.pending': '{n} under review at Google', 'sg.k.outcomes': 'Recorded outcomes', 'sg.k.outcomes.d': 'Of {n} contacts',
+  'sg.ladder': 'Signal ladder: what does Google learn from?', 'sg.ladder.sub': 'Smart bidding needs about 30 conversions a month. We pick the deepest stage that reached 30, and each conversion is sent with value = chance of becoming «closed» × job value.',
+  'sg.st.won': 'Closed', 'sg.st.convo': 'Real conversation', 'sg.st.strong': 'Strong contact', 'sg.count': '{n} of {m}', 'sg.value': 'Value {v}', 'sg.target': 'Current target',
+  'sg.strong.ok': '«Strong contact» is a valid signal: {p}% became a real conversation (over {n} cases).', 'sg.strong.no': '«Strong contact» is not a signal yet: {p}% precision over {n} cases (needs {mp}% over at least {mn}).',
+  'sg.auto.on': 'Turn on daily upload', 'sg.auto.off': 'Turn off daily upload', 'sg.auto.is_on': 'Daily upload is on.', 'sg.auto.is_off': 'Daily upload is off.', 'sg.auto.d': 'Every new outcome is sent to Google within 24 hours without a press. The manual button in «Real customers» stays.',
+  'sg.auto.started': 'Daily upload is on.', 'sg.auto.stopped': 'Daily upload is off.',
+  'op.t.ladder_target': 'Make the bidding target «{target}»', 'op.e.ladder_target': 'In 30 days: closed {won} · real conversations {convo} · strong contacts {strong}. Values: closed {v_won} · conversation {v_convo}.',
+  'op.w.ladder_target': 'This changes the conversion definition: Google learns from the stage with enough data instead of a rare one, each conversion with its value, so it learns who asks versus who pays. The campaign relearns for about two weeks.',
+  'op.v.ladder_target.won': 'Closed', 'op.v.ladder_target.convo': 'Real conversation', 'op.v.ladder_target.strong': 'Strong contact', 'op.v.ladder_target.none': 'No primary target',
+  'op.t.ladder_below': 'No stage has reached {min} results yet', 'op.e.ladder_below': 'In 30 days: closed {won} · real conversations {convo} · strong contacts {strong}.', 'op.w.ladder_below': 'No bidding change will be suggested before a stage reaches {min}. Record each contact\'s outcome to get there faster.',
 };

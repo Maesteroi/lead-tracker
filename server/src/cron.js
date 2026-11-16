@@ -11,6 +11,7 @@ import { remindPending } from './payments.js';
 import { fxRefresh } from './billing.js';
 import { expireBlocks } from './blocks.js';
 import { autoBlocks } from './rules.js';
+import { autoUploads, checkStatuses, conversionStopped, outcomeReminders } from './signal.js';
 import { cleanPending, adsLinkReady } from './adslink.js';
 
 const H = 3600 * 1000;
@@ -110,6 +111,13 @@ export async function runScheduled(env, db, opts) {
   try { out.clicks = await dailyClicksReports(env, db, opts && opts.fetchImpl); } catch (e) { out.clicks = { error: String(e && e.message || e).slice(0, 80) }; }
   // منع الـIP اللي مدته خلصت بيتشال من جوجل (blocks.js): مستقل
   try { out.blocks = await expireBlocks(env, db, opts && opts.fetchImpl); } catch (e) { out.blocks = { error: String(e && e.message || e).slice(0, 80) }; }
+  // سلّم الإشارة (الحزمة ١ · signal.js): هل جوجل قبل (كل 5 دقايق) · الرفع اليومي التلقائي والتنبيهات والتذكير (مرة في الساعة). كله مستقل
+  try { out.dm_status = await checkStatuses(env, db, opts && opts.fetchImpl); } catch (e) { out.dm_status = { error: String(e && e.message || e).slice(0, 80) }; }
+  if (new Date().getUTCMinutes() < 5) {
+    try { out.auto_upload = await autoUploads(env, db, opts && opts.fetchImpl); } catch (e) { out.auto_upload = { error: String(e && e.message || e).slice(0, 80) }; }
+    try { out.conv_stopped = await conversionStopped(env, db, opts && opts.fetchImpl); } catch (e) { out.conv_stopped = { error: String(e && e.message || e).slice(0, 80) }; }
+    try { out.reminders = await outcomeReminders(env, db, opts && opts.fetchImpl); } catch (e) { out.reminders = { error: String(e && e.message || e).slice(0, 80) }; }
+  }
   // المنع التلقائي حسب «قواعد الحماية» (rules.js): المؤكد بس، والمشكوك فيه بموافقة صاحب الموقع
   try { out.auto_blocks = await autoBlocks(env, db, opts && opts.fetchImpl); } catch (e) { out.auto_blocks = { error: String(e && e.message || e).slice(0, 80) }; }
   // سعر الصرف للأسعار «حسب الدولار» (مرة كل 12 ساعة): مستقل

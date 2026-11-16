@@ -233,3 +233,21 @@ test('0.9 live-trial gate: a change type not yet tried live is locked for custom
   const t = (await pc(s.owner, '/v1/dash/optimize/apply', { site: s.site.id, keys: [cs.key] })).body;
   assert.equal(t.results[0].ok, true, 'the platform admin runs the live trial');
 });
+
+test('1.8 + 1.1: below 30 at every stage → the ladder says so and no bidding suggestion appears; changing the target makes only that action primary and undo restores the old primaries', async () => {
+  clearPlanCache();
+  const s = await setup();
+  const r = (await s.gc(s.owner, '/v1/dash/optimize?site=' + s.site.id)).body;
+  const lb = r.items.find((x) => x.code === 'ladder_below');
+  assert.ok(lb && lb.data.min === 30, 'the ladder tells why there is no target yet');
+  assert.ok(!r.items.some((x) => x.code === 'bid_maxconv' || x.code === 'bid_tcpa'), 'no bidding suggestion while the target is below the bar');
+  assert.ok(r.kpis && 'acceptance' in r.kpis && 'outcome_rate' in r.kpis, 'signal KPIs come with the page');
+  const ops = [];
+  const api = { mutate: async (path, body) => { ops.push(...body.operations); return { results: body.operations.map(() => ({ resourceName: 'x' })) }; } };
+  const it = { next: 'convo', actions: { won: '222', convo: '333' }, before: { won: true, convo: false } };
+  const t = await HANDLERS.ladder_target.apply({ api, cred: { customer_id: CID }, it, db: null, site: null });
+  assert.deepEqual(ops.map((o) => [o.update.resourceName.split('/').pop(), o.update.primaryForGoal]), [['222', false], ['333', true]], 'one stage as the bidding goal (Google advice for lead gen)');
+  ops.length = 0;
+  await HANDLERS.ladder_target.undo({ api, cred: { customer_id: CID } }, t);
+  assert.deepEqual(ops.map((o) => [o.update.resourceName.split('/').pop(), o.update.primaryForGoal]), [['222', true], ['333', false]]);
+});

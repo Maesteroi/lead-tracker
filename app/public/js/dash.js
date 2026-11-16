@@ -1710,7 +1710,7 @@
     if (d.k && /^(DESKTOP|TABLET|MOBILE)$/.test(d.k)) o.k = T('ex.dev.' + d.k);
     if (d.m != null) o.m = Math.round((d.m - 1) * 100) + '%';
     o.est = d.est ? ' ' + T('op.est') : '';
-    o.conf = d.confidence != null ? ' ' + T('op.conf', { c: d.confidence }) : '';
+    o.conf = d.confidence != null ? T('op.conf', { c: d.confidence }) : '';
     if (d.from && /^[A-Z_]+$/.test(d.from)) o.from = T('op.bid.' + d.from) !== 'op.bid.' + d.from ? T('op.bid.' + d.from) : d.from;
     if (d.bidding) o.bidding = T('op.bid.' + d.bidding) !== 'op.bid.' + d.bidding ? T('op.bid.' + d.bidding) : d.bidding;
     return o;
@@ -1754,7 +1754,7 @@
       if (layer === 'done') { drawOpDone(box, d, view, cur); return; }
       var list = items.filter(function (x) { return x.layer === layer; });
       box.appendChild(el('p', { class: 'op-lwhy', text: T('op.lwhy.' + layer) }));
-      if (layer === 'signal') box.appendChild(valuesCard(d, cur));
+      if (layer === 'signal') { box.appendChild(signalKpis(d)); box.appendChild(ladderCard(d, cur)); box.appendChild(valuesCard(d, cur)); }
       if (!list.length) box.appendChild(el('p', { class: 'an-weak ok', text: T('op.lclean') }));
       else box.appendChild(el('div', { class: 'op-list' }, list.map(function (x, i) { return opCard(x, i + 1, d, view, cur, false); })));
       var ex = d.expert;
@@ -1867,6 +1867,34 @@
     var go = el('button', { class: 'btn', type: 'button', text: T('op.ed.apply') }), sure = false;
     go.addEventListener('click', function () { if (!sure) { sure = true; go.textContent = T('an.do.sure'); return; } var dr = {}; dr[x.key] = collect(); opApply(view, [x.key], dr, go, T('op.ed.apply')); });
     box.appendChild(el('div', { class: 'dx-acts' }, [go, el('small', { class: 'dim', text: T('op.ed.note') })]));
+  }
+  // الحزمة ١: مؤشرات الإشارة · السلّم · الرفع اليومي
+  function signalKpis(d) {
+    var k = d.kpis || {}, pc = function (v) { return v == null ? '—' : v + '%'; };
+    var cell = function (label, val, hint, cls) { return el('div', { class: cls || '' }, [el('span', { text: label }), el('b', { text: val }), hint ? el('small', { class: 'dim', text: hint }) : null]); };
+    return el('div', { class: 'ex-kpis sig-kpis' }, [
+      cell(T('sg.k.purity'), pc(k.purity), T('sg.k.purity.d'), k.purity != null && k.purity < 50 ? 'bad' : ''),
+      cell(T('sg.k.lag'), k.lag_hours == null ? '—' : T('sg.k.hours', { n: k.lag_hours }), T('sg.k.lag.d'), k.lag_hours != null && k.lag_hours > 24 ? 'bad' : ''),
+      cell(T('sg.k.accept'), pc(k.acceptance), k.pending ? T('sg.k.pending', { n: k.pending }) : T('sg.k.accept.d'), k.acceptance != null && k.acceptance < 95 ? 'bad' : ''),
+      cell(T('sg.k.outcomes'), pc(k.outcome_rate), T('sg.k.outcomes.d', { n: k.contacts || 0 }), k.outcome_rate != null && k.outcome_rate < 60 ? 'bad' : '')]);
+  }
+  function ladderCard(d, cur) {
+    var L = d.ladder; if (!L) return el('div');
+    var step = function (k) { var on = L.target === k; return el('li', { class: 'lad-step' + (on ? ' on' : '') + (L.counts[k] >= L.min ? ' ok' : '') }, [el('b', { text: T('sg.st.' + k) }), el('span', { text: T('sg.count', { n: L.counts[k], m: L.min }) }), el('small', { class: 'dim', text: T('sg.value', { v: money2(L.values[k], cur) }) }), on ? el('span', { class: 'pill ok', text: T('sg.target') }) : null]); };
+    var box = el('div', { class: 'op-valbox lad' }, [el('b', { text: T('sg.ladder') }), el('p', { class: 'hint', text: T('sg.ladder.sub') }), el('ol', { class: 'lad-steps' }, ['won', 'convo', 'strong'].map(step)),
+      el('p', { class: 'hint', text: L.strong.usable ? T('sg.strong.ok', { p: L.strong.precision, n: L.strong.known }) : T('sg.strong.no', { p: L.strong.precision == null ? '—' : L.strong.precision, n: L.strong.known, mp: L.strong.min_precision, mn: L.strong.min_known }) })]);
+    if (DATA.signal) {
+      var auto = el('div', { class: 'lad-auto' }); box.appendChild(auto);
+      DATA.signal(state.site).then(function (sg) {
+        clear(auto);
+        var on = !!sg.auto_upload, b = el('button', { class: on ? 'btn ghost sm' : 'btn sm', type: 'button', text: T(on ? 'sg.auto.off' : 'sg.auto.on') });
+        if (!sg.manage) b.disabled = true;
+        b.addEventListener('click', function () { b.disabled = true; DATA.signalAuto(state.site, !on).then(function () { toast(T(on ? 'sg.auto.stopped' : 'sg.auto.started')); var nb = ladderCard(d, cur); box.replaceWith(nb); }, function () { b.disabled = false; toast(T('err.save')); }); });
+        auto.appendChild(el('p', {}, [el('b', { text: T(on ? 'sg.auto.is_on' : 'sg.auto.is_off') + ' ' }), el('span', { class: 'dim', text: T('sg.auto.d') })]));
+        auto.appendChild(b);
+      }, function () { clear(auto); });
+    }
+    return box;
   }
   // قيم التحويلات
   function valuesCard(d, cur) {

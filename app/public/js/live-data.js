@@ -121,6 +121,9 @@
     // قواعد الحماية والمنع التلقائي (rules.js)
     rules: function (site) { return get('/v1/dash/rules?site=' + encodeURIComponent(site)); },
     rulesSave: function (body) { return LT.api('/v1/dash/rules', { method: 'POST', body: body }).then(function (r) { if (!r.ok) throw new Error(r.body && r.body.error || 'http'); return r.body; }); },
+    // سلّم الإشارة (signal.js)
+    signal: function (site) { return LT.api('/v1/dash/signal?site=' + encodeURIComponent(site)).then(function (r) { if (!r.ok) throw new Error('http'); return r.body; }); },
+    signalAuto: function (site, on) { return LT.api('/v1/dash/signal/auto', { method: 'POST', body: { site: site, on: !!on } }).then(function (r) { if (!r.ok) throw new Error('http'); return r.body; }); },
     // تحسين الحملة (optimize.js)
     optimize: function (site) { return LT.api('/v1/dash/optimize?site=' + encodeURIComponent(site)).then(function (r) { if (!r.ok) throw new Error('http'); return r.body; }); },
     optimizeDraft: function (site, key) { return LT.api('/v1/dash/optimize/draft', { method: 'POST', body: { site: site, key: key } }).then(function (r) { if (!r.ok) throw new Error(r.body && r.body.error || 'http'); return r.body; }); },
