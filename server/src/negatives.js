@@ -163,6 +163,25 @@ export async function dashNegativesExisting(req, env, db, sess, url, fetchImpl) 
   } catch (e) { console.error('negatives read: ' + String(e && e.message || e).slice(0, 160)); return json({ ok: false, error: 'google' }, 502); }
 }
 
+// إضافة سلبية لجوجل (مشتركة بين صفحة الكلمات و«حسّن حملتك بضغطة»): كل أشكال الكتابة، في كل حملة العبارة ظهرت فيها.
+// بترجّع أسماء المعايير اللي اتعملت علشان «تراجع» يقدر يشيلها.
+export async function addNegative(env, db, site, cred, s, fetchImpl) {
+  const ver = String(env.ADS_API_VERSION || ADS_VERSION_DEFAULT).trim();
+  try {
+    const access = await accessToken(env, await openToken(env, cred.refresh_token_enc, site.id + ':' + cred.customer_id), fetchImpl);
+    const headers = { Authorization: 'Bearer ' + access, 'Content-Type': 'application/json' };
+    if (cred.login_customer_id) headers['login-customer-id'] = cred.login_customer_id;
+    const texts = (s.variants && s.variants.length ? s.variants : [s.text]).slice(0, 8);
+    const ops = s.campaigns.filter((c) => /^\d{1,20}$/.test(c.id)).flatMap((c) => texts.map((tx) => ({ create: { campaign: 'customers/' + cred.customer_id + '/campaigns/' + c.id, negative: true, keyword: { text: tx, matchType: s.match } } })));
+    if (!ops.length) return { ok: false, error: 'no_campaign' };
+    const res = await (fetchImpl || fetch)('https://googleads.googleapis.com/' + ver + '/customers/' + cred.customer_id + '/campaignCriteria:mutate', { method: 'POST', headers, body: JSON.stringify({ operations: ops }) });
+    const j = await res.json().catch(() => ({}));
+    await db.insert('ads_pull_runs', [{ client_id: site.id, source: 'server', ok: res.ok, operations: 1, rows: { kind: 'negative_add', n: ops.length }, at: new Date().toISOString() }], { returning: false }).catch(() => {});
+    if (!res.ok) { const e0 = ((Array.isArray(j) ? j[0] : j) || {}).error || {}; return { ok: false, error: String(e0.message || e0.status || 'error ' + res.status).slice(0, 300) }; }
+    return { ok: true, resources: (j.results || []).map((r) => r.resourceName).filter(Boolean) };
+  } catch (e) { return { ok: false, error: String(e && e.message || e).slice(0, 300) }; }
+}
+
 // القرار: «أضِفها» (بتتضاف لجوجل دلوقتي) أو «اتركها» (مابتتقترحش تاني)
 export async function dashNegativeDecide(req, env, db, sess, fetchImpl) {
   const b = await req.json().catch(() => ({}));
@@ -177,23 +196,9 @@ export async function dashNegativeDecide(req, env, db, sess, fetchImpl) {
   if (!s) return json({ ok: false, error: 'not_found' }, 404);
   const row = { client_id: site.id, text: s.text, match_type: s.match, decision: b.decision, reason: s.reason, campaigns: s.campaigns.map((c) => c.id), cost: s.cost, by_user: sess.user.id, at: new Date().toISOString(), applied_at: null, error: null };
   if (b.decision === 'add') {
-    const ver = String(env.ADS_API_VERSION || ADS_VERSION_DEFAULT).trim();
-    try {
-      const access = await accessToken(env, await openToken(env, cred.refresh_token_enc, site.id + ':' + cred.customer_id), fetchImpl);
-      const headers = { Authorization: 'Bearer ' + access, 'Content-Type': 'application/json' };
-      if (cred.login_customer_id) headers['login-customer-id'] = cred.login_customer_id;
-      // السلبيات مابتتوسعش لوحدها: بنضيف كل أشكال الكتابة، في كل حملة العبارة ظهرت فيها
-      const texts = (s.variants && s.variants.length ? s.variants : [s.text]).slice(0, 8);
-      const ops = s.campaigns.filter((c) => /^\d{1,20}$/.test(c.id)).flatMap((c) => texts.map((tx) => ({ create: { campaign: 'customers/' + cred.customer_id + '/campaigns/' + c.id, negative: true, keyword: { text: tx, matchType: s.match } } })));
-      if (!ops.length) return json({ ok: false, error: 'no_campaign' }, 409);
-      const res = await (fetchImpl || fetch)('https://googleads.googleapis.com/' + ver + '/customers/' + cred.customer_id + '/campaignCriteria:mutate', { method: 'POST', headers, body: JSON.stringify({ operations: ops }) });
-      const j = await res.json().catch(() => ({}));
-      await db.insert('ads_pull_runs', [{ client_id: site.id, source: 'server', ok: res.ok, operations: 1, rows: { kind: 'negative_add', n: ops.length }, at: new Date().toISOString() }], { returning: false }).catch(() => {});
-      if (!res.ok) {
-        const e0 = ((Array.isArray(j) ? j[0] : j) || {}).error || {};
-        row.error = String(e0.message || e0.status || 'error ' + res.status).slice(0, 300);
-      } else row.applied_at = new Date().toISOString();
-    } catch (e) { row.error = String(e && e.message || e).slice(0, 300); }
+    const r = await addNegative(env, db, site, cred, s, fetchImpl);
+    if (r.error === 'no_campaign') return json({ ok: false, error: 'no_campaign' }, 409);
+    if (r.ok) row.applied_at = new Date().toISOString(); else row.error = r.error;
   }
   await db.insert('neg_decisions', [row], { onConflict: 'client_id,text,match_type', merge: true, returning: false });
   await audit(db, sess.user.id, b.decision === 'add' ? 'negative_added' : 'negative_kept', !row.error, site.id + ' ' + s.match + ' ' + s.text.slice(0, 60));

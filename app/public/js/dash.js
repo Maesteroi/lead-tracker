@@ -1690,7 +1690,72 @@
     clear(view);
     if (!DATA.analysis) { view.appendChild(soonCard(T('nav.analysis'), [T('an.demo.1'), T('an.demo.2'), T('an.demo.3')])); return Promise.resolve(); }
     view.appendChild(el('div', { class: 'loading' }, [el('span', { class: 'spinner' }), document.createTextNode(T('an.running'))]));
-    return DATA.analysis(state.site).then(function (d) { drawAnalysis(view, d); }, function () { clear(view); view.appendChild(el('p', { class: 'muted', text: T('an.err') })); });
+    return DATA.analysis(state.site).then(function (d) {
+      drawAnalysis(view, d);
+      // «حسّن حملتك بضغطة» فوق الكل (16 نوفمبر · زي ClickBan وأكتر)
+      if (d.linked && DATA.campfix) { var cf = el('div', { class: 'cf-slot' }); view.insertBefore(cf, view.firstChild); campfixCard(cf, view); }
+    }, function () { clear(view); view.appendChild(el('p', { class: 'muted', text: T('an.err') })); });
+  }
+  // ════════ حسّن حملتك بضغطة: تعديلات حقيقية في إعدادات جوجل أدز «الآن ← بعد»، بموافقتك، وتراجع لأي تعديل ════════
+  function campfixCard(box, view) {
+    clear(box);
+    box.appendChild(el('section', { class: 'panel-card cf' }, [el('h2', { text: T('cf.title') }), el('p', {}, [el('span', { class: 'spinner' }), el('span', { text: T('cf.loading') })])]));
+    DATA.campfix(state.site).then(function (d) {
+      clear(box);
+      var cur = d.currency === 'SAR' ? T('sar') : d.currency, items = d.items || [], picked = {};
+      var total = function () { return items.filter(function (x) { return picked[x.key]; }).reduce(function (a, x) { return a + (x.impact || 0); }, 0); };
+      var applyAll = el('button', { class: 'btn', type: 'button' }), sure = false;
+      var sync = function () { var n = items.filter(function (x) { return picked[x.key]; }).length; sure = false; applyAll.disabled = !n; applyAll.textContent = T('cf.apply_n', { n: fmt(n) }); };
+      var send = function (keys, btn, label) {
+        btn.disabled = true;
+        DATA.campfixApply(state.site, keys).then(function (r) {
+          var ok = r.results.filter(function (x) { return x.ok; }).length, bad = r.results.length - ok;
+          toast(T('cf.applied', { n: fmt(ok) }) + (bad ? ' ' + T('cf.failed', { n: fmt(bad) }) : ''));
+          campfixCard(box, view);
+        }, function () { btn.disabled = false; btn.textContent = label; toast(T('va.e.google')); });
+      };
+      var rows = items.map(function (x) {
+        picked[x.key] = true;
+        var v = cfVars(x, cur);
+        var cb = el('input', { type: 'checkbox', checked: '', 'aria-label': T('cf.t.' + x.code, v) }); if (!d.manage) cb.disabled = true;
+        cb.addEventListener('change', function () { picked[x.key] = cb.checked; sync(); });
+        var one = d.manage ? el('button', { class: 'btn ghost sm', type: 'button', text: T('cf.apply') }) : null, oneSure = false;
+        if (one) one.addEventListener('click', function () { if (!oneSure) { oneSure = true; one.textContent = T('an.do.sure'); return; } send([x.key], one, T('cf.apply')); });
+        return el('article', { class: 'cf-item' }, [
+          el('label', { class: 'cf-cb' }, [cb]),
+          el('div', { class: 'cf-main' }, [
+            el('b', { class: 'cf-t', text: T('cf.t.' + x.code, v) }),
+            x.now ? el('div', { class: 'cf-diff' }, [el('span', { class: 'cf-now', text: T('cf.now') + ' ' + T('cf.v.' + x.code + '.' + x.now) }), el('span', { class: 'cf-arrow', 'aria-hidden': 'true', text: '←' }), el('span', { class: 'cf-next', text: T('cf.after') + ' ' + T('cf.v.' + x.code + '.' + x.next) })]) : null,
+            el('p', { class: 'cf-ev', text: T('cf.e.' + x.code, v) }),
+            el('p', { class: 'cf-why dim', text: T('cf.w.' + x.code, v) })]),
+          el('div', { class: 'cf-side' }, [x.impact ? el('span', { class: 'pill info', text: T('cf.impact', { m: money2(x.impact, cur) }) }) : null, one])]);
+      });
+      sync();
+      if (d.manage && items.length) applyAll.addEventListener('click', function () {
+        if (!sure) { sure = true; applyAll.textContent = T('cf.sure', { m: money2(total(), cur) }); return; }
+        send(items.filter(function (x) { return picked[x.key]; }).map(function (x) { return x.key; }), applyAll, T('cf.apply_n', { n: '' }));
+      });
+      var done = (d.done || []).map(function (f) {
+        var undo = d.manage && !f.undone ? el('button', { class: 'linkish', type: 'button', text: T('cf.undo') }) : null, uSure = false;
+        if (undo) undo.addEventListener('click', function () {
+          if (!uSure) { uSure = true; undo.textContent = T('cf.undo.sure'); return; }
+          undo.disabled = true;
+          DATA.campfixUndo(state.site, f.id).then(function () { toast(T('cf.undone')); campfixCard(box, view); }, function () { undo.disabled = false; toast(T('va.e.google')); });
+        });
+        var tg = f.target || {};
+        return el('li', { class: f.undone ? 'undone' : '' }, [el('span', { text: (f.undone ? '↺ ' : '✓ ') + T('cf.d.' + f.code, { name: tg.name || '', k: tg.keyword || '', n: fmt(tg.n || 0) }) }), el('small', { class: 'dim', text: ' · ' + dateAr(f.at) + (f.undone ? ' · ' + T('cf.was_undone') : '') }), undo]);
+      });
+      box.appendChild(el('section', { class: 'panel-card cf' }, [
+        el('div', { class: 'cf-head' }, [el('div', {}, [el('h2', { text: T('cf.title') }), el('p', { class: 'muted', text: items.length ? T('cf.sub', { n: fmt(items.length), m: money2(items.reduce(function (a, x) { return a + (x.impact || 0); }, 0), cur) }) : T('cf.clean') })]),
+          d.manage && items.length ? applyAll : null]),
+        items.length ? el('div', { class: 'cf-list' }, rows) : null,
+        !d.manage && items.length ? el('p', { class: 'muted', text: T('conv.ask_owner') }) : null,
+        done.length ? el('div', { class: 'cf-done' }, [el('h3', { class: 'legend', text: T('cf.done') }), el('ul', {}, done), el('p', { class: 'hint', text: T('cf.done.hint') })]) : null]));
+    }, function () { clear(box); box.appendChild(el('section', { class: 'panel-card cf' }, [el('h2', { text: T('cf.title') }), el('p', { class: 'muted', text: T('cf.err') })])); });
+  }
+  function cfVars(x, cur) {
+    return { name: x.name || '', k: x.k || '', match: x.match ? (T('ex.match.' + x.match) !== 'ex.match.' + x.match ? T('ex.match.' + x.match) : x.match) : '', clicks: fmt(x.clicks || 0), cost: money2(x.cost || 0, cur), conv: fmt(x.conv || 0),
+      p: x.p || 0, outside: fmt(x.outside || 0), of: fmt(x.of || 0), n: fmt(x.n || 0), terms: (x.terms || []).join('، '), reached: fmt(x.reached || 0), expected: x.expected || 0, cr: x.conv_rate || 0, sr: x.search_rate || 0 };
   }
   function drawAnalysis(view, d) {
     clear(view);

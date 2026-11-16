@@ -63,6 +63,12 @@ export function fakeGoogle(opts) {
     else if (p.from === 'campaign_asset') results = (acct.campaignAssets || []).map((t) => ({ campaign: { id: '11' }, campaignAsset: { fieldType: t } }));
     else if (p.from === 'customer_asset') results = (acct.customerAssets || []).map((t) => ({ customerAsset: { fieldType: t } }));
     else if (p.from === 'keyword_view') results = (acct.keywords || []).filter((k) => k.status === 'ENABLED').map((k) => ({ adGroupCriterion: { resourceName: k.rn, keyword: { text: k.text, matchType: k.matchType }, status: k.status } }));
+    else if (p.from === 'campaign' && p.select.includes('segments.ad_network_type')) {
+      for (const c of (acct.campaigns || []).filter((x) => x.status !== 'REMOVED')) for (const [t, m] of Object.entries(c.byNetwork || {})) results.push({ campaign: { id: String(c.id) }, segments: { adNetworkType: t }, metrics: { clicks: String(m.clicks || 0), costMicros: String(m.costMicros || 0), conversions: m.conversions || 0 } });
+    } else if (p.from === 'campaign' && p.select.includes('campaign.network_settings.target_search_network')) {
+      results = (acct.campaigns || []).filter((c) => c.status !== 'REMOVED' && c.status !== 'PAUSED').map((c) => ({ campaign: { id: String(c.id), name: c.name, advertisingChannelType: c.channel || 'SEARCH',
+        networkSettings: { targetGoogleSearch: true, targetSearchNetwork: c.partners !== false, targetContentNetwork: !!c.display }, geoTargetTypeSetting: { positiveGeoTargetType: c.geo || 'PRESENCE_OR_INTEREST' } } }));
+    }
     else if (p.from === 'campaign' && /DURING LAST_30_DAYS/.test(q)) {
       results = (acct.campaigns || []).filter((c) => c.status !== 'REMOVED').map((c) => ({ campaign: { id: String(c.id), name: c.name, advertisingChannelType: c.channel || 'SEARCH', biddingStrategyType: c.bidding || 'MAXIMIZE_CONVERSIONS', geoTargetTypeSetting: { positiveGeoTargetType: c.geo || 'PRESENCE_OR_INTEREST' } },
         metrics: { clicks: String(c.m30 ? c.m30.clicks : 0), costMicros: String(c.m30 ? c.m30.costMicros : 0), conversions: c.m30 ? c.m30.conversions : 0, searchBudgetLostImpressionShare: c.m30 ? c.m30.lostBudget || 0 : 0, searchRankLostImpressionShare: c.m30 ? c.m30.lostRank || 0 : 0 } }));
@@ -147,9 +153,10 @@ export function fakeGoogle(opts) {
       if (!acct) return apiErr(403, 'PERMISSION_DENIED', 'USER_PERMISSION_DENIED');
       if (g.mutateFail) return apiErr(400, 'INVALID_ARGUMENT', 'Request contains an invalid argument.');
       const ops = JSON.parse(init.body || '{}').operations || [];
+      if (ops.some((o) => o.remove)) { g.negRemoved = (g.negRemoved || []).concat(ops.map((o) => o.remove)); acct.negatives = (acct.negatives || []).filter((n) => !ops.some((o) => o.remove === n.rn)); return resp(200, { results: ops.map((o) => ({ resourceName: o.remove })) }); }
       g.negMutations = (g.negMutations || []).concat(ops.map((o) => Object.assign({ customer: cid }, o.create)));
-      acct.negatives = (acct.negatives || []).concat(ops.map((o) => ({ campaignId: o.create.campaign.split('/').pop(), text: o.create.keyword.text, matchType: o.create.keyword.matchType })));
-      return resp(200, { results: ops.map((o, i) => ({ resourceName: 'customers/' + cid + '/campaignCriteria/' + o.create.campaign.split('/').pop() + '~' + (1000 + i) })) });
+      const base = (acct.negatives || []).length; acct.negatives = (acct.negatives || []).concat(ops.map((o, i) => ({ campaignId: o.create.campaign.split('/').pop(), text: o.create.keyword.text, matchType: o.create.keyword.matchType, rn: 'customers/' + cid + '/campaignCriteria/' + o.create.campaign.split('/').pop() + '~' + (1000 + base + i) })));
+      return resp(200, { results: ops.map((o, i) => ({ resourceName: 'customers/' + cid + '/campaignCriteria/' + o.create.campaign.split('/').pop() + '~' + (1000 + base + i) })) });
     }
     // استبعاد على مستوى الحساب (CustomerNegativeCriterionService): create { ipBlock } · remove resourceName
     if (u.hostname === 'googleads.googleapis.com' && /\/customerNegativeCriteria:mutate$/.test(u.pathname)) {
@@ -173,7 +180,7 @@ export function fakeGoogle(opts) {
       const ops = JSON.parse(init.body || '{}').operations || [];
       if (ops.some((o) => !o.update || !o.updateMask)) return apiErr(400, 'INVALID_ARGUMENT', 'FieldMaskError');
       g.campaignMutations = (g.campaignMutations || []).concat(ops);
-      for (const o of ops) { const c = (acct.campaigns || []).find((x) => o.update.resourceName.endsWith('/' + x.id)); if (c && o.update.geoTargetTypeSetting) c.geo = o.update.geoTargetTypeSetting.positiveGeoTargetType; }
+      for (const o of ops) { const c = (acct.campaigns || []).find((x) => o.update.resourceName.endsWith('/' + x.id)); if (c && o.update.geoTargetTypeSetting) c.geo = o.update.geoTargetTypeSetting.positiveGeoTargetType; const n = c && o.update.networkSettings; if (n && 'targetSearchNetwork' in n) c.partners = n.targetSearchNetwork; if (n && 'targetContentNetwork' in n) c.display = n.targetContentNetwork; }
       return resp(200, { results: ops.map((o) => ({ resourceName: o.update.resourceName })) });
     }
     // PageSpeed Insights

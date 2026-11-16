@@ -100,6 +100,9 @@ function fakeApi(over) {
       if (p === '/v1/dash/statement.csv') { st.csvCalls = (st.csvCalls || 0) + 1; return route.fulfill({ status: 200, headers: Object.assign({ 'content-type': 'text/csv; charset=utf-8', 'content-disposition': 'attachment; filename="maestro-refund-x.csv"', 'access-control-expose-headers': 'content-disposition' }, cors), body: '\ufeffdate,gclid\r\n' }); }
       if (p === '/v1/dash/statement') return j(200, Object.assign({ ok: true }, st.statement || { linked: false }));
       // تحليل الحملة (analysis.js)
+      if (p === '/v1/dash/campfix/apply') { const b = JSON.parse(req.postData()); st.cfApply = (st.cfApply || []).concat([Object.assign({ csrf: req.headers()['x-csrf-token'] }, b)]); st.cfDone = (st.cfDone || []).concat(b.keys.map((k, i) => ({ id: 100 + (st.cfDone || []).length + i, code: k.split(':')[0], key: k, target: { name: 'شادو', n: 4 }, at: new Date().toISOString(), undone: false }))); st.campfix = (st.campfix || []).filter((x) => !b.keys.includes(x.key)); return j(200, { ok: true, results: b.keys.map((k) => ({ key: k, ok: true })) }); }
+      if (p === '/v1/dash/campfix/undo') { const b = JSON.parse(req.postData()); st.cfUndo = (st.cfUndo || []).concat([b]); (st.cfDone || []).forEach((d) => { if (d.id === b.id) d.undone = true; }); return j(200, { ok: true }); }
+      if (p === '/v1/dash/campfix') return j(200, { ok: true, linked: true, manage: true, currency: 'SAR', items: st.campfix || [], done: st.cfDone || [] });
       if (p === '/v1/dash/analysis' && st.expert) return j(200, { ok: true, linked: true, manage: true, currency: 'SAR', score: 46, weakest: 'measure', at: new Date().toISOString(), funnel: { cost: 466, clicks: 710, visits: 133, real: 125, contacts: 28, outcomes: 19, convos: 7, won: 2 }, leak: null, fixes: [], sections: [{ key: 'measure', title: 'measure', weight: 20, score: 0, items: [{ status: 'bad', code: 'no_upload', data: { n: 1 }, fix: { go: 'leads' }, key: 'no_upload:' }] }], expert: st.expert });
       if (p === '/v1/dash/analysis') return j(200, { ok: true, linked: true, manage: true, currency: 'SAR', score: st.anFixed ? 58 : 46, weakest: 'measure', at: new Date().toISOString(), pagespeed: true, funnel: { cost: 1830, clicks: 277, visits: 124, real: 115, contacts: 29, outcomes: 20, convos: 6, won: 1 }, leak: { from: 'outcomes', to: 'convos', rate: 30, bench: 60, section: 'terms' }, fixes: (st.anFixed ? [{ id: 2, code: 'bad_keyword', key: 'bad_keyword:أبشر تصريح زواج', mode: 'auto', action: 'pause_keyword', target: { keyword: 'أبشر تصريح زواج', match: 'BROAD' }, note: st.anFix[0].note || '', at: new Date().toISOString(), days: 0, metric: 'convo_rate', verdict: 'wait', before: { contact_rate: 23.4, convo_rate: 4.8, won_rate: 0.8, cost_contact: 63.1, cost_won: 1830 }, after: { contact_rate: null, convo_rate: null, won_rate: null, cost_contact: null, cost_won: null } }] : []).concat(st.anDone ? [{ id: 1, code: 'speed', key: 'speed:', mode: 'manual', action: null, target: {}, note: st.anDone.note, at: new Date(Date.now() - 9 * 864e5).toISOString(), days: 9, metric: 'convo_rate', verdict: 'better', before: { contact_rate: 18, convo_rate: 4, won_rate: 0.5, cost_contact: 80, cost_won: 2000 }, after: { contact_rate: 26, convo_rate: 7.5, won_rate: 1.2, cost_contact: 55, cost_won: 1100 } }] : []), sections: [
         { key: 'measure', weight: 20, score: 0, items: [{ status: 'bad', code: 'no_upload', key: 'no_upload:', data: { n: 1 }, fix: { go: 'leads' } }, { status: 'bad', code: 'conv_inflated', key: 'conv_inflated:', data: { g: 20, won: 1 } }] },
@@ -824,9 +827,32 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
       { status: 'bad', code: 'x_cut_kw', data: { k: 'تصريح زواج من وزارة الداخلية', match: 'BROAD', cost: 23, clicks: 18, reached: 16, expected: 3.4, cpl: 16.64 }, fix: { action: 'pause_keyword', keyword: 'تصريح زواج من وزارة الداخلية', match: 'BROAD' }, impact: 23, key: 'x_cut_kw:تصريح زواج من وزارة الداخلية' },
       { status: 'warn', code: 'x_cut_place', data: { k: 'الدمام', cost: 38, clicks: 58, expected: 3.2 }, fix: null, impact: 38, key: 'x_cut_place:الدمام' },
       { status: 'info', code: 'x_scale', data: { k: 'طلب موافقة زواج', cpl: 4.67, avg: 16.64, save: 61, extra: 13 }, fix: { go: 'negatives' }, impact: 61, key: 'x_scale:طلب موافقة زواج' }] };
+  api.campfix = [
+    { code: 'partners_off', campaign: '11', name: 'شادو', now: 'on', next: 'off', clicks: 31, cost: 186.4, conv: 0, impact: 186.4, sure: true, key: 'partners_off:11' },
+    { code: 'geo_presence', campaign: '11', name: 'شادو', now: 'PRESENCE_OR_INTEREST', next: 'PRESENCE', outside: 9, of: 106, p: 8, impact: 112.2, sure: true, key: 'geo_presence:11' },
+    { code: 'display_off', campaign: '11', name: 'شادو', now: 'on', next: 'off', clicks: 12, cost: 48, conv: 0, impact: 48, sure: true, key: 'display_off:11' },
+    { code: 'negatives', k: 'all', n: 4, cost: 39.5, terms: ['ديكور مجاني', 'وظائف مصمم ديكور', 'كورس تصميم داخلي'], impact: 39.5, sure: true, key: 'negatives:all' }];
   const pg = await page(api, { viewport: { width: 1280, height: 900 } });
   await pg.goto('https://app.maestrolt.com/#/analysis');
   await pg.waitForSelector('.ex-hero');
+  await pg.waitForSelector('.cf-item');
+  const cfv = await pg.locator('.cf').innerText();
+  t('campaign fix: first on the page, each change in the Google Ads settings as now → after with its 30-day cost', (await pg.locator('#view > .cf-slot').count()) === 1 && (await pg.locator('.cf-item').count()) === 4 && /أوقف شركاء البحث في حملة «شادو»/.test(cfv) && /يظهر في مواقع شركاء البحث/.test(cfv) && /بحث جوجل فقط/.test(cfv) && /31 نقرة من مواقع الشركاء بتكلفة 186\.40/.test(cfv) && /الموجودون في منطقتك فقط/.test(cfv) && /أضف 4 كلمة سلبية/.test(cfv));
+  await shot(pg, 'campfix');
+  await pg.locator('.cf-item').nth(2).locator('input[type=checkbox]').uncheck();
+  const all = pg.locator('.cf-head .btn');
+  t('campaign fix: «apply selected» counts the ticked items', /طبّق المحدد \(3\)/.test(await all.innerText()));
+  await all.click();
+  t('campaign fix: the first press only asks to confirm, with the money', !api.cfApply && /اضغط مرة أخرى/.test(await all.innerText()));
+  await all.click();
+  await pg.waitForFunction(() => /طُبّق 3 تعديل/.test(document.getElementById('toast').textContent));
+  t('campaign fix: only the ticked changes are sent, with CSRF', api.cfApply[0].keys.join(',') === 'partners_off:11,geo_presence:11,negatives:all' && api.cfApply[0].csrf === 'csrf-token-123');
+  await pg.waitForSelector('.cf-done li');
+  t('campaign fix: what was applied is listed with «undo», and the untouched item stays', (await pg.locator('.cf-done li').count()) === 3 && (await pg.locator('.cf-item').count()) === 1);
+  const undo = pg.locator('.cf-done li').first().getByRole('button', { name: 'تراجع' });
+  await undo.click(); await pg.locator('.cf-done li').first().getByRole('button', { name: /اضغط مرة أخرى/ }).click();
+  await pg.waitForFunction(() => /رجعت الإعدادات/.test(document.getElementById('toast').textContent));
+  t('campaign fix: «undo» restores that change after a confirmation', api.cfUndo && api.cfUndo[0].id === 100 && /تم التراجع/.test(await pg.locator('.cf-done').innerText()));
   const v = await pg.locator('#view').innerText();
   t('expert analysis: the summary in money (spent, real contacts, deals, cost per contact and per customer, expected saving) and the most important thing now', /صرفت 466\.00/.test(v) && /28 تواصل حقيقي/.test(v) && /233\.00/.test(v) && /61\.00/.test(await pg.locator('.ex-kpis').innerText()) && /جوجل يتعلم من تحويلات غير حقيقية/.test(await pg.locator('.ex-top').innerText()));
   t('expert analysis: the plan names each keyword and place with its numbers and impact, first the wrong learning signal then the money', (await pg.locator('.an-dx-list').first().locator('.dx').count()) === 5 && /جوجل سجّل 180 تحويلًا/.test(await pg.locator('.dx').first().innerText()) && /«تصريح زواج من وزارة الداخلية» \(واسعة\) صرفت 23\.00/.test(v) && /المتوقع حوالي 3\.4 تواصل/.test(v) && (await pg.locator('.ex-impact').count()) >= 3);

@@ -844,3 +844,26 @@ svg.geo { width: 100%; height: auto; aspect-ratio: 1.7; display: block; backgrou
 .an-check > summary { cursor: pointer; padding: 4px 0; list-style-position: inside; }
 .an-check[open] > summary { margin-bottom: 8px; }
 @media (max-width: 720px) { .ex-kpis { grid-template-columns: repeat(2, 1fr); } .ex-kpis b { font-size: 17px; } }
+
+/* ── حسّن حملتك بضغطة (16 نوفمبر) ── */
+.cf { border: 2px solid color-mix(in srgb, var(--accent) 35%, var(--line)); }
+.cf-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; flex-wrap: wrap; }
+.cf-head h2 { margin: 0 0 4px; }
+.cf-list { display: grid; gap: 10px; margin-top: 14px; }
+.cf-item { display: grid; grid-template-columns: auto 1fr auto; gap: 12px; align-items: start; padding: 14px; border: 1px solid var(--line); border-radius: 14px; background: var(--card); }
+.cf-cb input { width: 20px; height: 20px; margin-top: 3px; accent-color: var(--accent); }
+.cf-main { display: grid; gap: 6px; min-width: 0; }
+.cf-t { font-size: 16px; }
+.cf-diff { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 14px; }
+.cf-now { padding: 4px 10px; border-radius: 8px; background: color-mix(in srgb, var(--c-blk) 10%, var(--card)); text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--c-blk) 60%, transparent); }
+.cf-next { padding: 4px 10px; border-radius: 8px; background: color-mix(in srgb, var(--growth) 14%, var(--card)); font-weight: 700; }
+.cf-arrow { color: var(--muted); }
+.cf-ev { margin: 0; } .cf-why { margin: 0; font-size: 13.5px; }
+.cf-side { display: grid; gap: 8px; justify-items: end; }
+.cf-done { margin-top: 16px; } .cf-done ul { list-style: none; padding: 0; margin: 6px 0; display: grid; gap: 6px; }
+.cf-done li { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; } .cf-done li.undone { opacity: .6; }
+@media (max-width: 720px) {
+  .cf-item { grid-template-columns: auto 1fr; }
+  .cf-side { grid-column: 2; justify-items: start; grid-auto-flow: column; align-items: center; }
+  .cf-head .btn { width: 100%; }
+}
