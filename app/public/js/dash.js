@@ -1681,7 +1681,7 @@
   }
 
   // ════════ تحليل الحملة وإصلاحها بضغطة (15 نوفمبر · المنهجية بند 10–12) ════════
-  var AN_GO = { leads: 'leads', protection: 'protection', negatives: 'negatives', visits: 'visits' };
+  var AN_GO = { leads: 'leads', protection: 'protection', negatives: 'negatives', visits: 'visits', statement: 'statement' };
   // ── تحليل الحملة (إعادة تصميم 15 نوفمبر · محمود: «مهمة مش مفهومة · زوّد diagram · مع كل تشخيص اكتب الحل · صلّح الآن · ادخل ونفّذ ·
   //    خانة ملاحظات · ومراقبة نتيجة الإصلاح في التحويل مش الزيارات») ──
   // ١) الدرجة وأضعف حلقة · ٢) رسم القمع بالتحويل وأكبر تسريب · ٣) التشخيصات: المشكلة · ليه مهمة · الحل خطوة خطوة · صلّح الآن / ادخل ونفّذ /
@@ -1697,26 +1697,39 @@
     if (!d.linked) { view.appendChild(card(T('nav.analysis'), [el('p', {}, [el('span', { text: T('conv.not_linked') + ' ' }), el('a', { class: 'linkish', href: '#/sites', text: T('nav.sites') })])])); return; }
     var cur = d.currency === 'SAR' ? T('sar') : d.currency, fixes = d.fixes || [], fixedBy = {};
     fixes.forEach(function (f) { if (!fixedBy[f.key]) fixedBy[f.key] = f; });
+    if (d.expert) {
+      drawExpert(view, d, cur, fixedBy);
+      if (fixes.length) view.appendChild(fixesCard(fixes, cur));
+      // الفحص الأساسي (الإعدادات): تحت، مقفول
+      var chk = el('div');
+      drawChecklist(chk, d, cur, fixedBy, fixes, view);
+      view.appendChild(el('details', { class: 'panel-card an-check' }, [el('summary', {}, [el('b', { text: T('ex.check') }), el('small', { class: 'dim', text: ' · ' + T('an.score') + ' ' + d.score + '/100' })]), el('p', { class: 'muted', text: T('ex.check.sub') }), chk]));
+      return;
+    }
+    drawChecklist(view, d, cur, fixedBy, fixes, view);
+  }
+  function drawChecklist(view, d, cur, fixedBy, fixes, root) {
+    var inExpert = view !== root;
     // ١) الدرجة
     var ring = el('div', { class: 'an-ring' }); C.ring(ring, d.score, { label: T('an.score'), text: String(d.score) });
     var weak = d.sections.filter(function (x) { return x.key === d.weakest; })[0];
-    var again = el('button', { class: 'btn ghost sm', type: 'button', text: T('an.again') }); again.addEventListener('click', function () { vAnalysis(view); });
+    var again = el('button', { class: 'btn ghost sm', type: 'button', text: T('an.again') }); again.addEventListener('click', function () { vAnalysis(root); });
     view.appendChild(el('section', { class: 'panel-card an-hero' }, [ring, el('div', { class: 'an-hero-t' }, [
       el('h2', { text: T('an.title') }), el('p', { class: 'muted', text: T('an.sub2') }),
       weak ? el('p', { class: 'an-weak' }, [el('b', { text: T('an.weakest') + ' ' }), el('span', { text: T('an.s.' + weak.key) })]) : el('p', { class: 'an-weak ok', text: T('an.allgood') }),
       el('div', { class: 'an-meta' }, [el('small', { class: 'dim', text: T('an.at', { t: timeAr(d.at) }) }), again])])]));
     // ٢) القمع
-    if (d.funnel) view.appendChild(funnelCard(d.funnel, d.leak, cur));
+    if (d.funnel && !inExpert) view.appendChild(funnelCard(d.funnel, d.leak, cur));
     // ٣) التشخيصات (المشاكل بس، بترتيب المنهجية، وأضعف قسم الأول)
     var probs = [];
     d.sections.forEach(function (sx, si) { sx.items.forEach(function (it) { if (it.status !== 'ok') probs.push({ it: it, sx: sx, si: si }); }); });
     var rank = { bad: 0, warn: 1, info: 2 };
     probs.sort(function (a, b) { return (a.sx.key === d.weakest ? -1 : 0) - (b.sx.key === d.weakest ? -1 : 0) || rank[a.it.status] - rank[b.it.status] || a.si - b.si; });
-    var list = el('div', { class: 'an-dx-list' }, probs.map(function (p, i) { return dxCard(p.it, p.sx, i + 1, d, view, cur, fixedBy[p.it.key]); }));
+    var list = el('div', { class: 'an-dx-list' }, probs.map(function (p, i) { return dxCard(p.it, p.sx, i + 1, d, root, cur, fixedBy[p.it.key]); }));
     view.appendChild(el('section', { class: 'panel-card' }, [el('div', { class: 'sec-head' }, [el('h2', { text: T('an.dx.title', { n: probs.filter(function (p) { return p.it.status !== 'info'; }).length }) })]),
       el('p', { class: 'muted', text: T('an.dx.sub') }), probs.length ? list : el('p', { class: 'an-weak ok', text: T('an.allgood') })]));
     // ٤) متابعة الإصلاحات
-    if (fixes.length) view.appendChild(fixesCard(fixes, cur));
+    if (fixes.length && !inExpert) view.appendChild(fixesCard(fixes, cur));
     // ٥) الأقسام والسليم
     var oks = []; d.sections.forEach(function (sx) { sx.items.forEach(function (it) { if (it.status === 'ok') oks.push(it); }); });
     view.appendChild(el('section', { class: 'panel-card' }, [el('div', { class: 'sec-head' }, [el('h2', { text: T('an.secs') })]),
@@ -1726,6 +1739,97 @@
         return el('li', { class: sx.key === d.weakest ? 'weakest' : '' }, [el('span', { text: T('an.s.' + sx.key) }), bar, el('b', { text: T('an.pts', { a: sx.score, b: sx.weight }) })]);
       })),
       oks.length ? el('details', { class: 'an-ok' }, [el('summary', { text: T('an.oks', { n: oks.length }) }), el('ul', {}, oks.map(function (it) { return el('li', { text: '✓ ' + T('an.i.' + it.code, anVars(it, cur)) }); }))]) : null]));
+  }
+  // ════════ تقرير الخبير (16 نوفمبر · «ضعيف ومبهم ومنقول من تحسين جوجل») ════════
+  // ١) الخلاصة بالفلوس · ٢) خطة العمل بالاسم ومترتبة بالفلوس · ٣) فين راحت فلوسك · ٤) جوجل بيتعلم من إيه · ٥) الكلمات بالنتيجة · ٦) الأماكن والأوقات والأجهزة
+  function exVars(dd, cur) {
+    var o = {}; Object.keys(dd || {}).forEach(function (k) { var v = dd[k]; o[k] = Array.isArray(v) ? v.join('، ') : typeof v === 'number' ? (/^(cost|cpl|avg|save|cpc)$/.test(k) ? money2(v, cur) : fmt(v)) : (v == null ? '' : String(v)); });
+    if (/^(night|morning|afternoon|evening)$/.test(o.k || '')) o.k = T('ex.time.' + o.k);
+    if (dd && dd.match) o.match = T('ex.match.' + dd.match) !== 'ex.match.' + dd.match ? T('ex.match.' + dd.match) : dd.match;
+    return o;
+  }
+  function drawExpert(view, d, cur, fixedBy) {
+    var x = d.expert, S = x.summary, M = x.money;
+    // ١) الخلاصة
+    var again = el('button', { class: 'btn ghost sm', type: 'button', text: T('an.again') }); again.addEventListener('click', function () { vAnalysis(view); });
+    var top = x.plan[0];
+    view.appendChild(el('section', { class: 'panel-card ex-hero' }, [
+      el('h2', { text: T('ex.title') }),
+      el('p', { class: 'ex-lead', text: T('ex.lead', { cost: money2(S.cost, cur), n: fmt(S.contacts), won: fmt(S.won) }) }),
+      el('div', { class: 'ex-kpis' }, [
+        el('div', {}, [el('span', { text: T('ex.k.cost') }), el('b', { text: money2(S.cost, cur) })]),
+        el('div', {}, [el('span', { text: T('ex.k.cpl') }), el('b', { text: S.cpl == null ? '—' : money2(S.cpl, cur) })]),
+        el('div', {}, [el('span', { text: T('ex.k.cpw') }), el('b', { text: S.cpw == null ? '—' : money2(S.cpw, cur) })]),
+        el('div', { class: S.save ? 'save' : '' }, [el('span', { text: T('ex.k.save') }), el('b', { text: S.save ? money2(S.save, cur) : '—' })])]),
+      top ? el('p', { class: 'ex-top' }, [el('b', { text: T('ex.top') + ' ' }), el('span', { text: T('ex.t.' + top.code, exVars(top.data, cur)) })]) : el('p', { class: 'ex-top ok', text: T('ex.nothing') }),
+      S.no_outcome ? el('p', { class: 'hint', text: T('ex.need_out', { n: fmt(S.no_outcome) }) }) : null,
+      el('div', { class: 'an-meta' }, [el('small', { class: 'dim', text: T('an.at', { t: timeAr(d.at) }) + ' · ' + T('ex.window') }), again])]));
+    // ٢) خطة العمل
+    var plan = x.plan.map(function (p, i) { return exCard(p, i + 1, d, view, cur, fixedBy[p.key]); });
+    view.appendChild(el('section', { class: 'panel-card' }, [el('div', { class: 'sec-head' }, [el('h2', { text: T('ex.plan', { n: x.plan.length }) })]), el('p', { class: 'muted', text: T('ex.plan.sub') }),
+      plan.length ? el('div', { class: 'an-dx-list' }, plan) : el('p', { class: 'an-weak ok', text: T('ex.nothing') })]));
+    // ٣) فين راحت فلوسك
+    view.appendChild(moneyCard(M, cur));
+    // ٤) إشارة التعلّم
+    view.appendChild(signalCard(x.signal));
+    // ٥) الكلمات
+    view.appendChild(exTable(T('ex.kw'), T('ex.kw.sub'), x.keywords, cur, true));
+    // ٦) الأماكن والأوقات والأجهزة
+    var tabs = [['places', x.places], ['times', x.times.map(function (t) { return Object.assign({}, t, { k: T('ex.time.' + t.k) }); })], ['devices', x.devices.map(function (t) { return Object.assign({}, t, { k: T('ex.dev.' + t.k) !== 'ex.dev.' + t.k ? T('ex.dev.' + t.k) : t.k }); })]];
+    var seg = el('div', { class: 'seg', role: 'tablist' }), box = el('div');
+    var show = function (i) { clear(box); Array.prototype.forEach.call(seg.children, function (b, j) { b.setAttribute('aria-selected', String(i === j)); }); box.appendChild(exTable(null, null, tabs[i][1], cur, false, tabs[i][0] === 'times')); };
+    tabs.forEach(function (t, i) { var b = el('button', { type: 'button', role: 'tab', text: T('ex.dim.' + t[0]) }); b.addEventListener('click', function () { show(i); }); seg.appendChild(b); });
+    view.appendChild(el('section', { class: 'panel-card' }, [el('div', { class: 'sec-head' }, [el('h2', { text: T('ex.where') })]), el('p', { class: 'muted', text: T('ex.where.sub') }), seg, box]));
+    show(0);
+  }
+  function exCard(p, n, d, view, cur, done) {
+    var it = { status: p.status, code: p.code, data: p.data, fix: p.fix, key: p.key };
+    var c = dxCard(it, { key: 'plan' }, n, d, view, cur, done, exVars(p.data, cur));
+    if (p.impact > 0 && p.code !== 'x_signal') { var h = c.querySelector('.dx-h'); if (h) h.appendChild(el('span', { class: 'pill ' + (p.code === 'x_scale' ? 'ok' : 'info') + ' ex-impact', text: T(p.code === 'x_scale' ? 'ex.gain' : 'ex.impact', { m: money2(p.impact, cur) }) })); }
+    return c;
+  }
+  // فين راحت الفلوس: من النقرة المدفوعة للعميل، وكل خطوة بفلوسها التقريبية
+  function moneyCard(M, cur) {
+    var rows = [
+      ['billed', M.billed, M.cost, ''],
+      ['offsite', M.offsite, M.offsite * M.cpc, 'info'],
+      ['unreached', M.unreached, M.unreached * M.cpc, M.url && M.unreached / M.url >= 0.3 ? 'bad' : 'warn'],
+      ['bad', M.bad, M.bad * M.cpc, 'warn'],
+      ['real', M.real, null, ''],
+      ['contacts', M.contacts, null, 'ok'],
+      ['convos', M.convos, null, 'ok'],
+      ['won', M.won, null, 'ok']];
+    var max = Math.max(1, M.billed);
+    return el('section', { class: 'panel-card ex-money' }, [el('div', { class: 'sec-head' }, [el('h2', { text: T('ex.money') })]), el('p', { class: 'muted', text: T('ex.money.sub', { cpc: money2(M.cpc, cur) }) }),
+      el('ol', { class: 'fn' }, rows.map(function (r) {
+        var bar = el('i', { class: 'fn-bar ' + r[3] }, [el('i')]); bar.firstChild.style.width = Math.max(2, Math.round(Math.sqrt(r[1] / max) * 100)) + '%';
+        return el('li', { class: 'fn-step' + (r[3] === 'bad' ? ' leak' : '') }, [el('div', { class: 'fn-h' }, [el('span', { text: T('ex.m.' + r[0]) }), el('b', { text: fmt(r[1]) }), r[2] != null && r[0] !== 'billed' ? el('small', { class: 'dim', text: '≈ ' + money2(r[2], cur) }) : r[0] === 'billed' ? el('small', { class: 'dim', text: money2(r[2], cur) }) : null]), bar]);
+      })),
+      M.refunded ? el('p', { class: 'hint', text: T('ex.m.refunded', { n: fmt(M.refunded) }) }) : null]);
+  }
+  function signalCard(g) {
+    var max = Math.max(1, g.google, g.contacts);
+    var bar = function (label, v, cls) { var b = el('i', { class: 'fn-bar ' + cls }, [el('i')]); b.firstChild.style.width = Math.max(2, Math.round(v / max * 100)) + '%'; return el('li', { class: 'fn-step' }, [el('div', { class: 'fn-h' }, [el('span', { text: label }), el('b', { text: fmt(v) })]), b]); };
+    return el('section', { class: 'panel-card' }, [el('div', { class: 'sec-head' }, [el('h2', { text: T('ex.sig') })]), el('p', { class: 'muted', text: T('ex.sig.sub') }),
+      el('ol', { class: 'fn' }, [bar(T('ex.sig.google'), g.google, g.state === 'inflated' ? 'bad' : ''), bar(T('ex.sig.contacts'), g.contacts, 'ok'), bar(T('ex.sig.won'), g.won, 'ok')]),
+      el('p', { class: 'fn-note ' + (g.state === 'ok' ? 'ok' : 'bad'), text: T('ex.sig.' + g.state, { names: (g.primary || []).join('، ') || '—' }) })]);
+  }
+  // جدول بالنتيجة: الاسم · الصرف · وصلت · تواصل · تم · تكلفة التواصل · الحكم
+  function exTable(title, sub, list, cur, isKw, isTime) {
+    var tb = el('tbody');
+    (list || []).forEach(function (x) {
+      tb.appendChild(el('tr', {}, [
+        el('td', { class: 'first' }, [el('b', { text: x.k }), isKw && x.match ? el('small', { class: 'dim', text: ' · ' + (T('ex.match.' + x.match) !== 'ex.match.' + x.match ? T('ex.match.' + x.match) : x.match) }) : null]),
+        el('td', { 'data-l': T('ex.h.cost'), text: (isKw ? '' : '≈ ') + money2(x.cost, cur) }),
+        el('td', { 'data-l': T(isTime ? 'ex.h.visits' : 'ex.h.reached'), text: fmt(isTime ? x.clicks : x.reached) + (isTime ? '' : ' / ' + fmt(x.clicks)) }),
+        el('td', { 'data-l': T('ex.h.contacts'), text: fmt(x.contacts) }),
+        el('td', { 'data-l': T('ex.h.won'), text: fmt(x.won) }),
+        el('td', { 'data-l': T('ex.h.cpl'), text: x.cpl == null ? '—' : money2(x.cpl, cur) }),
+        el('td', { 'data-l': T('ex.h.verdict'), class: 'last' }, [el('span', { class: 'pill ' + ({ scale: 'ok', keep: 'info', reduce: 'warn', cut: 'bad', thin: '' })[x.verdict], text: T('ex.v.' + x.verdict) }), x.verdict === 'cut' || x.verdict === 'thin' ? el('small', { class: 'dim ex-exp', text: T('ex.expected', { n: x.expected }) }) : null])]));
+    });
+    var table = (list || []).length ? el('div', { class: 'tbl-wrap' }, [el('table', { class: 'tbl static ex-t' }, [el('thead', {}, [el('tr', {}, ['name', 'cost', isTime ? 'visits' : 'reached', 'contacts', 'won', 'cpl', 'verdict'].map(function (h) { return el('th', { text: T('ex.h.' + h) }); }))]), tb])]) : el('p', { class: 'muted', text: T('ex.none') });
+    if (!title) return table;
+    return el('section', { class: 'panel-card' }, [el('div', { class: 'sec-head' }, [el('h2', { text: title })]), el('p', { class: 'muted', text: sub }), table, el('p', { class: 'hint', text: T('ex.v.legend') })]);
   }
   function anVars(it, cur) {
     var dd = it.data || {};
@@ -1754,8 +1858,8 @@
       f.outcomes < f.contacts / 2 ? el('p', { class: 'hint', text: T('an.fn.need_out', { n: fmt(f.contacts - f.outcomes) }) }) : null]);
   }
   // بطاقة تشخيص: المشكلة · ليه مهمة · الحل خطوة خطوة · التنفيذ (صلّح الآن في جوجل · ادخل ونفّذ · نفّذته) + ملاحظات
-  function dxCard(it, sx, n, d, view, cur, done) {
-    var v = anVars(it, cur), how = T('an.how.' + it.code), f = it.fix || {};
+  function dxCard(it, sx, n, d, view, cur, done, vars) {
+    var v = vars || anVars(it, cur), how = T('an.how.' + it.code), f = it.fix || {};
     var kids = [el('div', { class: 'dx-h' }, [el('span', { class: 'dx-n', text: String(n) }), el('span', { class: 'pill ' + (it.status === 'bad' ? 'bad' : it.status === 'warn' ? 'warn' : 'info'), text: T('an.st.' + it.status) }), el('small', { class: 'dim', text: T('an.s.' + sx.key) })]),
       el('p', { class: 'dx-what', text: T('an.i.' + it.code, v) })];
     if (T('an.f.' + it.code) !== 'an.f.' + it.code) kids.push(el('p', { class: 'dx-why' }, [el('b', { text: T('an.why') + ' ' }), el('span', { text: T('an.f.' + it.code, v) })]));

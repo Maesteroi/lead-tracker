@@ -826,3 +826,21 @@ svg.geo { width: 100%; height: auto; aspect-ratio: 1.7; display: block; backgrou
   .ru-bar .btn { flex: 1; min-width: 0; padding-inline: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .ru-bar small { display: none; }
 }
+
+/* ── تقرير الخبير لتحليل الحملة (16 نوفمبر) ── */
+.ex-hero h2 { margin: 0 0 8px; }
+.ex-lead { font-size: 17px; line-height: 1.8; margin: 0 0 14px; }
+.ex-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 14px; }
+.ex-kpis > div { display: grid; gap: 4px; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--bg); }
+.ex-kpis span { font-size: 13px; color: var(--muted); }
+.ex-kpis b { font-size: 20px; font-family: var(--font-head, inherit); }
+.ex-kpis .save { border-color: color-mix(in srgb, var(--growth) 50%, var(--line)); }
+.ex-kpis .save b { color: var(--growth); }
+.ex-top { padding: 12px 14px; border-radius: 12px; background: color-mix(in srgb, var(--c-blk) 10%, var(--card)); border-inline-start: 4px solid var(--c-blk); margin: 0 0 10px; line-height: 1.7; }
+.ex-top.ok { background: color-mix(in srgb, var(--growth) 10%, var(--card)); border-color: var(--growth); }
+.ex-impact { margin-inline-start: auto; }
+.fn-bar.bad > i { background: var(--c-blk); } .fn-bar.warn > i { background: var(--c-sus); } .fn-bar.ok > i { background: linear-gradient(90deg, var(--growth), #7ed957); } .fn-bar.info > i { background: var(--c-mute); }
+.ex-t td .ex-exp { display: block; margin-top: 2px; }
+.an-check > summary { cursor: pointer; padding: 4px 0; list-style-position: inside; }
+.an-check[open] > summary { margin-bottom: 8px; }
+@media (max-width: 720px) { .ex-kpis { grid-template-columns: repeat(2, 1fr); } .ex-kpis b { font-size: 17px; } }
