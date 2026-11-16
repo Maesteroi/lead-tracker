@@ -17,7 +17,7 @@ import { publicIp } from './geo.js';
 import { isDatacenter } from './score.js';
 
 export const MAX_ACCOUNT_IPS = 500, KEEP_FREE = 10;
-const DAYS_DC = 90, DAYS_OTHER = 7;
+const DAYS_DC = 90, DAYS_OTHER = 7, DAYS_REPEAT = 30;
 const SID_RE = /^[A-Za-z0-9_-]{6,64}$/;
 const canManage = (sess, site) => ['owner', 'admin'].includes(roleFor(sess, site.org_id, site.id));
 const canAct = (sess, site) => { const r = roleFor(sess, site.org_id, site.id); return !!r && r !== 'viewer'; };
@@ -54,8 +54,10 @@ export async function dashBlockIp(req, env, db, sess, fetchImpl) {
   const own = await db.one('own_devices?client_id=' + eq(site.id) + '&visitor_id=' + eq(info.visitor_id || '-') + '&select=id').catch(() => null);
   if (own) return json({ ok: false, error: 'own' }, 409);
   const dc = isDatacenter(info.isp, info.asn);
-  const now = new Date(), expires = new Date(now.getTime() + (dc ? DAYS_DC : DAYS_OTHER) * 864e5).toISOString();
   const prev = await db.one('ip_blocks?client_id=' + eq(site.id) + '&customer_id=' + eq(cred.customer_id) + '&ip=' + eq(info.ip) + '&select=id,status,resource_name');
+  // رجع تاني بعد ما المنع خلص (أو اتمنع قبل كده) = متكرر، زي منافس: 30 يوم بدل 7 (16 نوفمبر)
+  const days = dc ? DAYS_DC : prev ? DAYS_REPEAT : DAYS_OTHER;
+  const now = new Date(), expires = new Date(now.getTime() + days * 864e5).toISOString();
   if (prev && prev.status === 'active') {
     await db.update('ip_blocks?id=' + eq(prev.id), { expires_at: expires });   // ممنوع أصلًا: بنمدّ المدة بس
     return json({ ok: true, ip: info.ip, dc, expires_at: expires, already: true });
@@ -75,7 +77,7 @@ export async function dashBlockIp(req, env, db, sess, fetchImpl) {
   await db.insert('ads_pull_runs', [{ client_id: site.id, source: 'server', ok: row.status === 'active', operations: 2, rows: { kind: 'ip_block' }, at: now.toISOString() }], { returning: false }).catch(() => {});
   await audit(db, sess.user.id, 'ip_blocked', row.status === 'active', site.id + ' ' + sid + (dc ? ' dc' : ''));
   if (row.status !== 'active') return json({ ok: false, error: 'google', detail: row.error }, 502);
-  return json({ ok: true, ip: info.ip, dc, expires_at: expires });
+  return json({ ok: true, ip: info.ip, dc, repeat: !!prev && !dc, expires_at: expires });
 }
 
 async function removeBlock(env, db, site, cred, row, fetchImpl) {

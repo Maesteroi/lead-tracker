@@ -428,7 +428,7 @@
         if (!sure) { sure = true; blk.textContent = T('va.block.sure'); return; }
         blk.disabled = true;
         DATA.blockIp(state.site, v.id, (v.reasons || [])[0] || '').then(function (r) {
-          toast(r.already ? T('va.block.again') : T(r.dc ? 'va.block.dc' : 'va.block.ok')); blk.textContent = T('va.blocked'); if (after) after();
+          toast(r.already ? T('va.block.again') : T(r.dc ? 'va.block.dc' : r.repeat ? 'va.block.repeat' : 'va.block.ok')); blk.textContent = T('va.blocked'); if (after) after();
         }, function (e) { blk.disabled = false; sure = false; blk.textContent = T('va.block'); var k = 'va.e.' + e.message; toast(T(k) === k ? T('va.e.google') : T(k)); });
       });
       row.appendChild(blk);
@@ -1673,7 +1673,7 @@
           if (!sure) { sure = true; b.textContent = T('an.do.sure'); return; }
           b.disabled = true;
           DATA.analysisFix(state.site, Object.assign({ key: it.key, note: noteBox.value.trim() }, f)).then(function () { toast(T('an.done.' + f.action) + ' ' + T('an.tracking')); vAnalysis(view); },
-            function (e) { b.disabled = false; sure = false; b.textContent = T('an.fixnow') + ' · ' + T('an.do.' + f.action); toast(T('va.e.google') + (e.detail ? ' (' + String(e.detail).slice(0, 80) + ')' : '')); });
+            function (e) { b.disabled = false; sure = false; b.textContent = T('an.fixnow') + ' · ' + T('an.do.' + f.action); toast(e.message === 'not_live' ? T('an.e.not_live') : T('va.e.google') + (e.detail ? ' (' + String(e.detail).slice(0, 80) + ')' : '')); });
         });
         acts.appendChild(b);
       }
@@ -1746,7 +1746,9 @@
         el('div', { class: 'set-acts' }, [installed() ? el('span', { class: 'pill ok', text: T('set.installed') }) : installBtn('btn ghost sm'), ls])]);
       // ملف نشاطك
       var fileBox = el('div');
-      var file = card(T('set.file'), [el('p', { class: 'hint', text: T('set.file.i') }), fileBox,
+      var withAi = DATA.assistantState ? el('button', { class: 'btn sm', type: 'button', text: '✦ ' + T('ai.build') }) : null;
+      if (withAi) withAi.addEventListener('click', function () { ai.chat = null; ai.msgs = []; openAssistant('brief'); });
+      var file = card(T('set.file'), [el('p', { class: 'hint', text: T('set.file.i') }), withAi, fileBox,
         el('ul', { class: 'set-next' }, ['set.file.n1', 'set.file.n2', 'set.file.n3'].map(function (k) { return el('li', {}, [el('span', { text: T(k) }), el('span', { class: 'pill', text: T('set.soon') })]); }))]);
       view.appendChild(el('div', { class: 'grid-2 set-grid' }, [biz, acct]));
       view.appendChild(file);
@@ -1778,6 +1780,11 @@
       var nm = LT.locale === 'en' ? f.name_en || f.name_ar : f.name_ar;
       return el('li', { class: f.enabled ? 'yes' : 'no' }, [el('span', { class: 'sr', text: T(f.enabled ? 'bl.ff.yes' : 'bl.ff.no') }), el('span', { text: nm })]);
     });
+  }
+  // رمز QR لرابط الدفع (مكتبة qrcode-generator، MIT، جوه المشروع في /vendor/qrcode) · يمسحه من الكمبيوتر بكاميرا الموبايل
+  function qrImg(text) {
+    if (typeof window.qrcode !== 'function') return null;
+    try { var q = window.qrcode(0, 'M'); q.addData(text); q.make(); return el('img', { src: q.createDataURL(5, 2), alt: T('bl.qr'), width: '160', height: '160', class: 'bl-qr-img' }); } catch (e) { return null; }
   }
   // مقارنة الباقات: كل ميزة سطر، و✓/✗ أو الرقم لكل باقة (من الـ checklist بتاع الأدمن) · مطوية
   function compareTable(d) {
@@ -1902,7 +1909,10 @@
     d.methods.forEach(function (m) {
       var on = bill.method === m.id, det = m.details || {}, lines = [];
       if (m.kind === 'instapay') lines.push(el('div', { class: 'bl-acc' }, [el('code', { text: det.handle || '' }), cp(det.handle || '')]));
-      if (m.kind === 'instapay' && det.link) lines.push(el('a', { class: 'btn bl-paynow', href: det.link, target: '_blank', rel: 'noopener', text: T('bl.paynow') }));
+      if (m.kind === 'instapay' && det.link) {
+        lines.push(el('a', { class: 'btn bl-paynow', href: det.link, target: '_blank', rel: 'noopener', text: T('bl.paynow') }));
+        var qr = qrImg(det.link); if (qr) lines.push(el('div', { class: 'bl-qr' }, [qr, el('small', { class: 'dim', text: T('bl.qr') })]));
+      }
       if (m.kind === 'vodafone_cash') (det.numbers || []).forEach(function (n) { lines.push(el('div', { class: 'bl-acc' }, [el('code', { text: n }), cp(n)])); });
       if (det.name) lines.push(el('small', { class: 'dim', text: T('bl.to', { n: det.name }) }));
       var r = el('input', { type: 'radio', name: 'bl-m', value: m.id }); r.checked = on;
@@ -2062,6 +2072,109 @@
 
   // ── الدرج ──
   var lastFocus = null;
+  // ════════ المساعد الذكي (16 نوفمبر): كتابة وصوت · 3 مهام · اقتراح ملف النشاط والحفظ بضغطة · 👍/👎 والتصحيح يتعلّم منه ════════
+  var ai = { task: 'answer', chat: null, msgs: [], speak: false, busy: false };
+  try { ai.speak = sessionStorage.getItem('lt_ai_speak') === '1'; } catch (e) { /* عادي */ }
+  function assistantFab() {
+    if (!DATA.assistantState || $('ai-fab')) return;
+    var b = el('button', { class: 'ai-fab', id: 'ai-fab', type: 'button', 'aria-label': T('ai.open') }, [el('span', { 'aria-hidden': 'true', text: '✦' }), el('b', { text: T('ai.open') })]);
+    b.addEventListener('click', function () { openAssistant(); });
+    document.body.appendChild(b);
+  }
+  function openAssistant(task) {
+    if (task) ai.task = task;
+    var body = clear($('d-body'));
+    $('d-title').textContent = T('ai.title'); $('d-sub').textContent = T('ai.sub');
+    body.appendChild(el('p', {}, [el('span', { class: 'spinner' }), el('span', { text: T('frame.loading') })]));
+    openDrawer();
+    DATA.assistantState(state.site).then(function (st) {
+      if (!st.ready) { clear(body); body.appendChild(el('p', { class: 'muted', text: T('ai.not_ready') })); return; }
+      if (st.chat && !ai.chat && (!task || st.chat.task === task)) { ai.chat = st.chat.id; ai.task = st.chat.task; ai.msgs = st.chat.messages || []; }
+      drawAssistant();
+    }, function () { clear(body); body.appendChild(el('p', { class: 'muted', text: T('frame.load_fail') })); });
+  }
+  function drawAssistant() {
+    var body = clear($('d-body'));
+    var tabs = el('div', { class: 'seg ai-tasks', role: 'tablist' });
+    ['brief', 'answer', 'suggest'].forEach(function (k) {
+      var t = el('button', { type: 'button', role: 'tab', 'aria-selected': ai.task === k ? 'true' : 'false', text: T('ai.t.' + k) });
+      t.addEventListener('click', function () { if (ai.task === k) return; ai.task = k; ai.chat = null; ai.msgs = []; drawAssistant(); });
+      tabs.appendChild(t);
+    });
+    body.appendChild(tabs);
+    var log = el('div', { class: 'ai-log', 'aria-live': 'polite' });
+    if (!ai.msgs.length) log.appendChild(el('div', { class: 'ai-msg bot' }, [el('p', { text: T('ai.hello.' + ai.task) })]));
+    ai.msgs.forEach(function (m, i) { log.appendChild(aiMsg(m, i)); });
+    if (ai.busy) log.appendChild(el('div', { class: 'ai-msg bot' }, [el('span', { class: 'spinner' }), el('span', { text: ' ' + T('ai.thinking') })]));
+    body.appendChild(log);
+    setTimeout(function () { log.scrollTop = log.scrollHeight; }, 0);
+    // الكتابة + الصوت
+    var input = el('textarea', { class: 'ai-in', rows: '2', maxlength: '2000', placeholder: T('ai.ph'), 'aria-label': T('ai.ph') });
+    var send = el('button', { class: 'btn sm', type: 'button', text: T('ai.send') });
+    var mic = el('button', { class: 'btn ghost sm ai-mic', type: 'button', 'aria-label': T('ai.mic'), title: T('ai.mic'), text: '🎙' });
+    var spk = el('button', { class: 'btn ghost sm', type: 'button', 'aria-pressed': String(ai.speak), title: T('ai.speak'), text: ai.speak ? '🔊' : '🔈' });
+    var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) mic.hidden = true;
+    mic.addEventListener('click', function () {
+      try {
+        var rec = new SR(); rec.lang = LT.locale === 'en' ? 'en-US' : 'ar-EG'; rec.interimResults = true; rec.maxAlternatives = 1;
+        mic.classList.add('on'); mic.textContent = '●';
+        rec.onresult = function (e) { var t = ''; for (var k = 0; k < e.results.length; k++) t += e.results[k][0].transcript; input.value = t; };
+        rec.onend = function () { mic.classList.remove('on'); mic.textContent = '🎙'; if (input.value.trim()) go(); };
+        rec.onerror = function () { mic.classList.remove('on'); mic.textContent = '🎙'; toast(T('ai.mic.err')); };
+        rec.start();
+      } catch (e) { toast(T('ai.mic.err')); }
+    });
+    spk.addEventListener('click', function () { ai.speak = !ai.speak; try { sessionStorage.setItem('lt_ai_speak', ai.speak ? '1' : '0'); } catch (e) { /* عادي */ } if (!ai.speak && window.speechSynthesis) window.speechSynthesis.cancel(); drawAssistant(); });
+    var go = function () {
+      var text = input.value.trim(); if (!text || ai.busy) return;
+      ai.msgs.push({ role: 'user', text: text }); ai.busy = true; drawAssistant();
+      DATA.assistant({ site: state.site, task: ai.task, chat_id: ai.chat, message: text }).then(function (r) {
+        ai.busy = false; ai.chat = r.chat_id || ai.chat; ai.msgs.push({ role: 'assistant', text: r.reply, proposal: r.proposal, turn: r.turn }); drawAssistant(); say(r.reply);
+      }, function (e) { ai.busy = false; ai.msgs.pop(); drawAssistant(); var k = 'ai.e.' + e.message; toast(T(k) === k ? T('ai.e.ai') : T(k)); var i2 = $('d-body').querySelector('.ai-in'); if (i2) i2.value = text; });
+    };
+    send.addEventListener('click', go);
+    input.addEventListener('keydown', function (e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); go(); } });
+    setFoot(el('div', { class: 'ai-bar' }, [input, el('div', { class: 'ai-btns' }, [mic, spk, send])]));
+    if (!ai.busy) input.focus();
+  }
+  function say(text) {
+    if (!ai.speak || !window.speechSynthesis || !text) return;
+    try { var u = new SpeechSynthesisUtterance(text); u.lang = LT.locale === 'en' ? 'en-US' : 'ar-SA'; window.speechSynthesis.cancel(); window.speechSynthesis.speak(u); } catch (e) { /* عادي */ }
+  }
+  function aiMsg(m, i) {
+    var box = el('div', { class: 'ai-msg ' + (m.role === 'user' ? 'me' : 'bot') }, [el('p', { text: m.text })]);
+    if (m.role !== 'assistant') return box;
+    if (m.proposal) box.appendChild(proposalCard(m.proposal));
+    // 👍/👎 والتصحيح (التعليم المستمر)
+    if (ai.chat && m.turn != null) {
+      var up = el('button', { class: 'linkish', type: 'button', 'aria-label': T('ai.good'), text: '👍' }), down = el('button', { class: 'linkish', type: 'button', 'aria-label': T('ai.bad'), text: '👎' });
+      var fb = el('div', { class: 'ai-fb' }, [up, down]);
+      up.addEventListener('click', function () { DATA.assistantFeedback({ site: state.site, chat_id: ai.chat, turn: m.turn, rating: 1 }).then(function () { clear(fb); fb.appendChild(el('small', { class: 'dim', text: T('ai.thanks') })); }); });
+      down.addEventListener('click', function () {
+        clear(fb);
+        var note = el('input', { type: 'text', class: 'bl-in', maxlength: '500', placeholder: T('ai.fix.ph'), 'aria-label': T('ai.fix.ph') }), ok = el('button', { class: 'btn ghost sm', type: 'button', text: T('ai.fix.send') });
+        ok.addEventListener('click', function () { DATA.assistantFeedback({ site: state.site, chat_id: ai.chat, turn: m.turn, rating: -1, note: note.value.trim() }).then(function (r) { clear(fb); fb.appendChild(el('small', { class: 'dim', text: T(r.learned ? 'ai.learned' : 'ai.thanks') })); }); });
+        fb.appendChild(note); fb.appendChild(ok); note.focus();
+      });
+      box.appendChild(fb);
+    }
+    return box;
+  }
+  // اقتراح ملف النشاط: يتعرض، والحفظ بضغطة (بيتدمج مع الملف الحالي)
+  function proposalCard(p) {
+    var list = function (k, items, fmtx) { return items && items.length ? el('div', {}, [el('b', { text: T('ai.p.' + k) }), el('ul', {}, items.map(function (x) { return el('li', { text: fmtx(x) }); }))]) : null; };
+    var save = el('button', { class: 'btn sm', type: 'button', text: T('ai.p.save') });
+    save.addEventListener('click', function () {
+      save.disabled = true;
+      DATA.brief(state.site).then(function (cur) {
+        var c = cur.brief || { offer: [], exclude: [], fears: [] }, uniq = function (a) { var seen = {}; return a.filter(function (x) { var k = typeof x === 'string' ? x : x.word || x.fear; if (seen[k]) return false; seen[k] = 1; return true; }); };
+        return DATA.briefSave(state.site, { about: p.about || c.about || '', offer: uniq((c.offer || []).concat(p.offer || [])), exclude: uniq((c.exclude || []).concat(p.exclude || [])), fears: uniq((c.fears || []).concat(p.fears || [])) });
+      }).then(function () { save.textContent = T('ai.p.saved'); toast(T('ai.p.saved')); }, function (e) { save.disabled = false; toast(e.message === 'banned' ? T('bf.banned', { l: e.label || '' }) : T('err.save')); });
+    });
+    return el('div', { class: 'ai-prop' }, [el('b', { class: 'ai-prop-h', text: T('ai.p.title') }), p.about ? el('p', { text: p.about }) : null,
+      list('offer', p.offer, String), list('exclude', p.exclude, function (x) { return x.word + (x.why ? ' — ' + x.why : ''); }), list('fears', p.fears, function (x) { return x.fear + ' ← ' + x.promise; }), save]);
+  }
   function setFoot(node) { var f = clear($('d-foot')); if (node) { f.appendChild(node); f.hidden = false; } else f.hidden = true; }
   function openDrawer() { lastFocus = document.activeElement; $('scrim').hidden = false; $('drawer').hidden = false; document.body.style.overflow = 'hidden'; $('d-close').focus(); }
   function closeDrawer() { $('scrim').hidden = true; $('drawer').hidden = true; document.body.style.overflow = ''; setFoot(null); if (lastFocus && lastFocus.focus) lastFocus.focus(); }
@@ -2092,7 +2205,7 @@
         if (adsN && /^[a-f0-9]{48}$/.test(adsN) && DATA.adsAccounts) { state.adsNonce = adsN; try { history.replaceState(null, '', location.pathname + '#/sites'); } catch (e) { /* عادي */ } location.hash = '#/sites'; }
         buildNav(); buildTop();
         if (!s.length && DATA.live) { location.hash = '#/sites'; }
-        render(); hideBoot();
+        render(); hideBoot(); assistantFab();
       });
     }).catch(function () { var v = clear($('view')); v.appendChild(card(T('frame.load_fail'), [el('p', { text: T('frame.load_fail_hint') })])); });
   }

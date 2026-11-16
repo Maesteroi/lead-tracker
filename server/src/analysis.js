@@ -80,7 +80,7 @@ export function leakOf(fn) {
   if (worst) delete worst.k;
   return worst;
 }
-async function windowData(db, site, sinceTs) {
+export async function windowData(db, site, sinceTs) {
   const since = new Date(sinceTs).toISOString();
   const [sessions, leads, daily] = await Promise.all([
     scoredSessions(db, site.id, since, 5000, 'ar').catch(() => []),
@@ -297,9 +297,10 @@ export async function dashAnalysisFix(req, env, db, sess, fetchImpl) {
     if (b.action === 'pause_keyword') {
       const text = String(b.keyword || '').slice(0, 80), match = String(b.match || '');
       if (!text || !/^(EXACT|PHRASE|BROAD)$/.test(match)) return json({ ok: false, error: 'bad_request' }, 400);
-      const rows = await api.query("SELECT ad_group_criterion.resource_name, ad_group_criterion.keyword.text, ad_group_criterion.keyword.match_type FROM keyword_view WHERE ad_group_criterion.status = 'ENABLED'");
+      const rows = await api.query("SELECT ad_group_criterion.resource_name, ad_group_criterion.keyword.text, ad_group_criterion.keyword.match_type FROM keyword_view WHERE ad_group_criterion.status = 'ENABLED' AND ad_group.status = 'ENABLED' AND campaign.status != 'REMOVED'");
       const targets = rows.map((r) => r.adGroupCriterion || {}).filter((c) => (c.keyword || {}).text === text && (c.keyword || {}).matchType === match).map((c) => c.resourceName).filter(Boolean);
-      if (!targets.length) return json({ ok: false, error: 'not_found' }, 404);
+      // الكلمة مش شغالة في مجموعة حية (اتشالت، أو مجموعتها أو حملتها اتشالت): مفيش حاجة توقف
+      if (!targets.length) return json({ ok: false, error: 'not_live' }, 409);
       await api.mutate('adGroupCriteria:mutate', { operations: targets.slice(0, 20).map((rn) => ({ update: { resourceName: rn, status: 'PAUSED' }, updateMask: 'status' })) });
       await audit(db, sess.user.id, 'keyword_paused', true, site.id + ' ' + match + ' ' + text.slice(0, 60));
       await recordFix(db, site, sess, { code: 'bad_keyword', item_key: String(b.key || keyOf('bad_keyword', { k: text })).slice(0, 140), mode: 'auto', action: 'pause_keyword', target: { keyword: text, match }, note: note(b) }).catch((e) => console.error('fix record: ' + e.message));

@@ -3,7 +3,7 @@
   X-Frame-Options: DENY
   X-Content-Type-Options: nosniff
   Referrer-Policy: no-referrer
-  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=()
+  Permissions-Policy: camera=(), microphone=(self), geolocation=(), payment=()
   Cache-Control: no-cache
 
 # «▶ شوف الزيارة»: المشغّل بيعيد بناء صفحة موقع العميل جوه إطار مقفول (من غير سكريبتات)، فمحتاج style مضمّن وصور وخطوط الموقع.

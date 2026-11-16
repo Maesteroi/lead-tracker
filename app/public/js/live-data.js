@@ -105,6 +105,9 @@
     negatives: function (site) { return LT.api('/v1/dash/negatives?site=' + encodeURIComponent(site)).then(function (r) { if (!r.ok) throw new Error('http'); return r.body; }); },
     negExisting: function (site) { return LT.api('/v1/dash/negatives/existing?site=' + encodeURIComponent(site)).then(function (r) { if (!r.ok) throw new Error('http'); return r.body; }); },
     // الاشتراك والدفع بالإيصال (billing.js · payments.js)
+    assistantState: function (site) { return get('/v1/dash/assistant?site=' + encodeURIComponent(site)); },
+    assistant: function (body) { return LT.api('/v1/dash/assistant', { method: 'POST', body: body }).then(function (r) { if (!r.ok) throw new Error(r.body && r.body.error || 'http'); return r.body; }); },
+    assistantFeedback: function (body) { return LT.api('/v1/dash/assistant/feedback', { method: 'POST', body: body }).then(function (r) { if (!r.ok) throw new Error('http'); return r.body; }); },
     settings: function (org) { return get('/v1/dash/settings?org=' + encodeURIComponent(org)); },
     settingsSave: function (body) { return LT.api('/v1/dash/settings', { method: 'POST', body: body }).then(function (r) { if (!r.ok) throw new Error(r.body && r.body.error || 'http'); return r.body; }); },
     logoutOthers: function () { return LT.api('/v1/auth/logout-others', { method: 'POST', body: {} }).then(function (r) { if (!r.ok) throw new Error('http'); return r.body; }); },

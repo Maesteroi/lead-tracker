@@ -30,6 +30,9 @@ jobs:
             echo "::endgroup::"
           done
           exit $fail
+      - name: السيرفر — تثبيت المكتبات (مكتبة Claude الرسمية)
+        working-directory: server
+        run: npm ci --ignore-scripts
       - name: السيرفر — الاختبارات
         working-directory: server
         run: node --test test/*.test.js
