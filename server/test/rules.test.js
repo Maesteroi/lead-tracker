@@ -91,3 +91,15 @@ test('auto block: mode off blocks nothing; data centre without interaction is co
   assert.deepEqual(reasons, ['45.77.10.20:dc', '51.36.8.8:bot']);
   const dc = s.w.fs.t.ip_blocks.find((r) => r.reason === 'dc'); assert.ok((Date.parse(dc.expires_at) - Date.now()) / 864e5 > 89);
 });
+
+test('overview: a visit that started yesterday and ended after midnight counts on its start day only, so «real» never exceeds «visits» (16 Nov: 16 visits, 20 real)', async () => {
+  const s = await setup();
+  const today = new Date(Date.now() + 3 * 36e5).toISOString().slice(0, 10);
+  const yday = new Date(Date.now() + 3 * 36e5 - 864e5).toISOString().slice(0, 10);
+  await s.ev({ session_id: 'SOLD001', visitor_id: 'VO1', ip: '51.36.1.1', time: yday + ' 23:50:00' });
+  await s.ev({ session_id: 'SOLD001', visitor_id: 'VO1', ip: '51.36.1.1', event: 'exit', time: today + ' 00:10:00' });
+  await s.ev({ session_id: 'SNEW001', visitor_id: 'VN1', ip: '51.36.1.2', time: today + ' 09:00:00' });
+  const k = (await s.gc(s.owner, '/v1/dash/overview?range=1&site=' + s.site.id)).body.kpi;
+  assert.equal(k.sessions, 1);
+  assert.equal(k.real + k.suspicious + k.high, 1, JSON.stringify(k));
+});
