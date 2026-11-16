@@ -41,6 +41,9 @@ export function periodOf(url, now) {
   return { from, to, n, days, sinceTs: new Date(dayTs(from)).toISOString(), untilTs: new Date(dayTs(to) + 864e5).toISOString(), prevFrom: addD(from, -n), prevTo: addD(from, -1), current: to === today };
 }
 const inPeriod = (pd) => (x) => { const t = Date.parse(x.started_at || x.at); return !(t >= Date.parse(pd.untilTs)); };
+// الزيارة بتتحسب في يوم ما بدأت (بتوقيت الموقع زي «الزيارات» اليومية)، مش في يوم آخر حدث فيها:
+// زيارة بدأت امبارح بالليل وقفلت بعد نص الليل كانت بتدخل «حقيقية» النهارده من غير ما تدخل «الزيارات» (16 نوفمبر: 16 زيارة و20 حقيقية)
+const sessIn = (pd) => (x) => { const d = dayOf(x); return inPeriod(pd)(x) && d >= pd.from && d <= pd.to; };
 const num = (v) => Number(v) || 0;
 const tally = (list, key) => { const m = new Map(); for (const x of list) { const k = key(x); if (k) m.set(k, (m.get(k) || 0) + 1); } return [...m.entries()].map(([name, n]) => ({ name, n })).sort((a, b) => b.n - a.n); };
 
@@ -79,10 +82,10 @@ export async function dashOverview(req, env, db, sess, url) {
   const prev = daily.filter((d) => String(d.day).slice(0, 10) >= pd.prevFrom && String(d.day).slice(0, 10) <= pd.prevTo);
   const sinceTs = pd.sinceTs;
   const [all, rp] = await Promise.all([scoredSessions(db, site.id, sinceTs, 2000, lang), replaySet(db, site.id, sinceTs)]);
-  const sessions = all.filter(inPeriod(pd));
+  const sessions = all.filter(sessIn(pd));
   for (const x of sessions) x.replay = rp.has(x.session_id);
   // زيارات أجهزة صاحب الموقع («هذه زيارتي») بتتشال من الأرقام اليومية كمان
-  for (const o of (all.own || []).filter(inPeriod(pd))) { const d = days.find((x) => x.day === dayOf(o)); if (d) { d.sessions = Math.max(0, d.sessions - 1); d.pageviews = Math.max(0, d.pageviews - num(o.pages)); if (o.contacts) d.contacts = Math.max(0, d.contacts - String(o.contacts).split(',').filter(Boolean).length); } }
+  for (const o of (all.own || []).filter(sessIn(pd))) { const d = days.find((x) => x.day === dayOf(o)); if (d) { d.sessions = Math.max(0, d.sessions - 1); d.pageviews = Math.max(0, d.pageviews - num(o.pages)); if (o.contacts) d.contacts = Math.max(0, d.contacts - String(o.contacts).split(',').filter(Boolean).length); } }
   const sc = new Map();
   for (const x of sessions) { const k = dayOf(x); const c = sc.get(k) || { real: 0, suspicious: 0, high: 0 }; c[x.status]++; sc.set(k, c); }
   for (const d of days) { const c = sc.get(d.day) || { real: 0, suspicious: 0, high: 0 }; d.real = c.real; d.suspicious = c.suspicious; d.high = c.high; }
@@ -151,7 +154,7 @@ export async function dashVisits(req, env, db, sess, url) {
   if (!site) return notFound();
   const pd = periodOf(url, Date.now()), since = pd.sinceTs;
   const [all, rp] = await Promise.all([scoredSessions(db, site.id, since, 1000, langOf(url.searchParams.get('lang'))), replaySet(db, site.id, since)]);
-  const list = all.filter(inPeriod(pd));
+  const list = all.filter(sessIn(pd));
   return json({ ok: true, sessions: list.map((s) => Object.assign(sessionView(s), { replay: rp.has(s.session_id) })) });
 }
 // تواصل من زيارة بره البلد المستهدف: بيتعلّم «بره النطاق» (ملحوظة) ومابيستناش نتيجة
@@ -175,7 +178,7 @@ export async function dashProtection(req, env, db, sess, url) {
   if (!site) return notFound();
   const pd = periodOf(url, Date.now()), since = pd.sinceTs;
   const [all, rp] = await Promise.all([scoredSessions(db, site.id, since, 2000, langOf(url.searchParams.get('lang'))), replaySet(db, site.id, since)]);
-  const list = all.filter(inPeriod(pd));
+  const list = all.filter(sessIn(pd));
   for (const x of list) x.replay = rp.has(x.session_id);
   const ads = list.filter((x) => x.ad);
   const reasons = new Map();
