@@ -731,6 +731,8 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
   const pg = await page(api, { viewport: { width: 1280, height: 900 } });
   await pg.goto('https://app.maestrolt.com/#/overview');
   await pg.waitForSelector('#ai-fab');
+  t('assistant: the floating button uses our own icon (chat bubble with a growth line), not a sparkle', (await pg.locator('#ai-fab svg.ic').count()) === 1 && !/✦/.test(await pg.locator('#ai-fab').innerText()));
+  if (SHOTS) await pg.locator('#ai-fab').screenshot({ path: path.join(SHOTS, 'ai-fab.png') });
   await pg.locator('#ai-fab').click();
   await pg.waitForSelector('.ai-log');
   t('assistant: a floating «ask the assistant» opens a chat with 3 tasks and a voice button', (await pg.locator('.ai-tasks [role=tab]').count()) === 3 && (await pg.locator('.ai-bar textarea').count()) === 1);
@@ -752,6 +754,7 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
   await pg.waitForFunction(() => /حُفظ في ملف نشاطك/.test(document.getElementById('toast').textContent));
   t('assistant: the business file proposal is shown and saved only on the owner press (merged into the brief)', api.briefCalls && api.briefCalls.at(-1).offer.includes('تصريح زواج') && api.briefCalls.at(-1).fears[0].promise === 'الدفع بعد الإنجاز');
   await pg.setViewportSize({ width: 390, height: 844 });
+  if (SHOTS) { await pg.keyboard.press('Escape'); await pg.locator('#ai-fab').screenshot({ path: path.join(SHOTS, 'ai-fab-mobile.png') }).catch(() => {}); }
   t('assistant mobile: no sideways scrolling', await pg.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1));
   t('assistant: no console errors, no CSP violations', pg.errors.length === 0 && pg.csp.length === 0);
   if (pg.errors.length || pg.csp.length) console.log(pg.errors, pg.csp);

@@ -29,6 +29,7 @@
     install: 'M12 3v12M7 10l5 5 5-5M5 21h14',
     analysis: 'M3 3v18h18M7 15l4-4 3 3 6-7M17 7h3v3',
     admin: 'M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1M15 4v4M9 10v4M17 16v4',
+    assistant: 'M4.5 4.5h15a1.5 1.5 0 011.5 1.5v10a1.5 1.5 0 01-1.5 1.5H11l-4.5 3.5v-3.5h-2A1.5 1.5 0 013 16V6a1.5 1.5 0 011.5-1.5zM7 13.5l3-3 2.2 2.2L17 8M14 8h3v3',
     rules: 'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6zM9 12l2 2 4-4',
     settings: 'M12 15a3 3 0 100-6 3 3 0 000 6zM19.4 15a1.7 1.7 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.8-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1.1-1.5 1.7 1.7 0 00-1.8.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.8 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.5-1.1 1.7 1.7 0 00-.3-1.8l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.8.3H9a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.8-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.8V9a1.7 1.7 0 001.5 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z',
   };
@@ -1846,7 +1847,7 @@
         el('div', { class: 'set-acts' }, [installed() ? el('span', { class: 'pill ok', text: T('set.installed') }) : installBtn('btn ghost sm'), ls])]);
       // ملف نشاطك
       var fileBox = el('div');
-      var withAi = DATA.assistantState ? el('button', { class: 'btn sm', type: 'button', text: '✦ ' + T('ai.build') }) : null;
+      var withAi = DATA.assistantState ? el('button', { class: 'btn sm ai-btn', type: 'button' }, [icon('assistant'), el('span', { text: T('ai.build') })]) : null;
       if (withAi) withAi.addEventListener('click', function () { ai.chat = null; ai.msgs = []; openAssistant('brief'); });
       var file = card(T('set.file'), [el('p', { class: 'hint', text: T('set.file.i') }), withAi, fileBox,
         el('ul', { class: 'set-next' }, ['set.file.n1', 'set.file.n2', 'set.file.n3'].map(function (k) { return el('li', {}, [el('span', { text: T(k) }), el('span', { class: 'pill', text: T('set.soon') })]); }))]);
@@ -2182,7 +2183,7 @@
   try { ai.speak = sessionStorage.getItem('lt_ai_speak') === '1'; } catch (e) { /* عادي */ }
   function assistantFab() {
     if (!DATA.assistantState || $('ai-fab')) return;
-    var b = el('button', { class: 'ai-fab', id: 'ai-fab', type: 'button', 'aria-label': T('ai.open') }, [el('span', { 'aria-hidden': 'true', text: '✦' }), el('b', { text: T('ai.open') })]);
+    var b = el('button', { class: 'ai-fab', id: 'ai-fab', type: 'button', 'aria-label': T('ai.open') }, [icon('assistant'), el('b', { text: T('ai.open') })]);
     b.addEventListener('click', function () { openAssistant(); });
     document.body.appendChild(b);
   }
