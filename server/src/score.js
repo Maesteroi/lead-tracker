@@ -28,7 +28,28 @@ export function outsideTarget(cc, targetGeo) {
 }
 export const isDatacenter = (isp, asn) => DC_ASN.has(String(asn || '').toUpperCase()) || (!!isp && DC.test(String(isp)));
 
-export function scoreSession(s, verdict, lang) {
+// قواعد الحماية الافتراضية (بتتغير لكل موقع من صفحة «قواعد الحماية» · protection_rules)
+export const DEFAULT_RULES = {
+  bot: { on: true, pts: 60 }, dc: { on: true, pts: 45 }, geo: { on: true, pts: 40 },
+  bounce: { on: true, pts: 25, secs: 3 }, idle: { on: true, pts: 15 }, repeat: { on: true, pts: 35, n: 3 },
+  suspicious: 40, high: 70,
+};
+const clampN = (v, lo, hi, d) => { const x = Number(v); return Number.isFinite(x) ? Math.max(lo, Math.min(hi, Math.round(x))) : d; };
+export function rulesOf(raw) {
+  const r = raw || {}, out = {};
+  for (const k of ['bot', 'dc', 'geo', 'bounce', 'idle', 'repeat']) {
+    const d = DEFAULT_RULES[k], x = r[k] || {};
+    out[k] = { on: x.on === undefined ? d.on : x.on !== false, pts: clampN(x.pts, 0, 100, d.pts) };
+    if (k === 'bounce') out[k].secs = clampN(x.secs, 1, 30, d.secs);
+    if (k === 'repeat') out[k].n = clampN(x.n, 2, 20, d.n);
+  }
+  out.suspicious = clampN(r.suspicious, 10, 95, DEFAULT_RULES.suspicious);
+  out.high = Math.max(out.suspicious + 5, clampN(r.high, 15, 100, DEFAULT_RULES.high));
+  return out;
+}
+
+export function scoreSession(s, verdict, lang, rulesIn) {
+  const R = rulesIn || DEFAULT_RULES;
   lang = lang || 'ar';
   const reasons = [], codes = [];
   let score = 0;
@@ -37,15 +58,15 @@ export function scoreSession(s, verdict, lang) {
   const secs = n(s.seconds), inter = n(s.interactions), moves = n(s.mouse_moves), scroll = n(s.scroll);
   const cc = String(s.country_code || '').toUpperCase();
 
-  if (s.automation) add(60, tr(lang, 'r.bot'), 'bot');
-  if (isDatacenter(s.isp, s.asn)) add(45, tr(lang, 'r.dc', { isp: String(s.isp || s.asn).slice(0, 40) }), 'dc');
+  if (R.bot.on && s.automation) add(R.bot.pts, tr(lang, 'r.bot'), 'bot');
+  if (R.dc.on && isDatacenter(s.isp, s.asn)) add(R.dc.pts, tr(lang, 'r.dc', { isp: String(s.isp || s.asn).slice(0, 40) }), 'dc');
   const targets = targetCountries(s.target_geo);
-  if (ad && cc && targets.length && !targets.includes(cc)) add(40, tr(lang, 'r.geo', { from: countryName(lang, cc, s.country), to: targets.map((c) => countryName(lang, c)).join(tr(lang, 'and')) }), 'geo');
-  if (ad && secs != null && secs <= 3 && !inter) add(25, tr(lang, 'r.bounce', { s: count(lang, Math.max(0, Math.round(secs)), 'sec') }), 'bounce');
-  else if (ad && !inter && !moves && !scroll) add(15, tr(lang, 'r.idle'), 'idle');
+  if (R.geo.on && ad && cc && targets.length && !targets.includes(cc)) add(R.geo.pts, tr(lang, 'r.geo', { from: countryName(lang, cc, s.country), to: targets.map((c) => countryName(lang, c)).join(tr(lang, 'and')) }), 'geo');
+  if (R.bounce.on && ad && secs != null && secs <= R.bounce.secs && !inter) add(R.bounce.pts, tr(lang, 'r.bounce', { s: count(lang, Math.max(0, Math.round(secs)), 'sec') }), 'bounce');
+  else if (R.idle.on && ad && !inter && !moves && !scroll) add(R.idle.pts, tr(lang, 'r.idle'), 'idle');
   const rep = n(s.fp_ad_sessions) || 0;
-  if (ad && rep >= 3) add(35, tr(lang, 'r.repeat', { n: count(lang, rep, 'time') }), 'repeat');
-  else if (ad && rep === 2) add(10, tr(lang, 'r.repeat2'), 'repeat');
+  if (R.repeat.on && ad && rep >= R.repeat.n) add(R.repeat.pts, tr(lang, 'r.repeat', { n: count(lang, rep, 'time') }), 'repeat');
+  else if (R.repeat.on && ad && rep >= 2) add(Math.round(R.repeat.pts / 3.5), tr(lang, 'r.repeat2'), 'repeat');
 
   // إشارات إنسان حقيقي بتنزّل الدرجة
   if (s.contacts) score -= 35;
@@ -54,7 +75,7 @@ export function scoreSession(s, verdict, lang) {
 
   score = Math.max(0, Math.min(100, Math.round(score)));
   const checks = sessionChecks(s, { ad, secs, inter, moves, scroll, cc, targets, rep }, lang);
-  let status = score >= 70 ? 'high' : score >= 40 ? 'suspicious' : 'real';
+  let status = score >= R.high ? 'high' : score >= R.suspicious ? 'suspicious' : 'real';
   if (verdict === 'real') { status = 'real'; reasons.unshift(tr(lang, 'r.v_real')); }
   if (verdict === 'fraud') { status = 'high'; score = Math.max(score, 90); reasons.unshift(tr(lang, 'r.v_fraud')); }
   return { score, status, reasons, codes, ad, checks };

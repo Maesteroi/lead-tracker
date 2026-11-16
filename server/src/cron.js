@@ -10,6 +10,7 @@ import { dailyClicksReports } from './clicksreport.js';
 import { remindPending } from './payments.js';
 import { fxRefresh } from './billing.js';
 import { expireBlocks } from './blocks.js';
+import { autoBlocks } from './rules.js';
 import { cleanPending, adsLinkReady } from './adslink.js';
 
 const H = 3600 * 1000;
@@ -109,6 +110,8 @@ export async function runScheduled(env, db, opts) {
   try { out.clicks = await dailyClicksReports(env, db, opts && opts.fetchImpl); } catch (e) { out.clicks = { error: String(e && e.message || e).slice(0, 80) }; }
   // منع الـIP اللي مدته خلصت بيتشال من جوجل (blocks.js): مستقل
   try { out.blocks = await expireBlocks(env, db, opts && opts.fetchImpl); } catch (e) { out.blocks = { error: String(e && e.message || e).slice(0, 80) }; }
+  // المنع التلقائي حسب «قواعد الحماية» (rules.js): المؤكد بس، والمشكوك فيه بموافقة صاحب الموقع
+  try { out.auto_blocks = await autoBlocks(env, db, opts && opts.fetchImpl); } catch (e) { out.auto_blocks = { error: String(e && e.message || e).slice(0, 80) }; }
   // سعر الصرف للأسعار «حسب الدولار» (مرة كل 12 ساعة): مستقل
   try { out.fx = await fxRefresh(env, db, opts && opts.fetchImpl); } catch (e) { out.fx = { error: String(e && e.message || e).slice(0, 80) }; }
   // إيصالات مستنية أكتر من 20 ساعة ← تذكير للإدارة مرة واحدة (payments.js)
