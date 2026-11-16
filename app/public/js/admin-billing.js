@@ -276,13 +276,53 @@
     ]);
   }
 
+  // المساعد الذكي (16 نوفمبر): المفتاح (متشفّر، بيظهر آخر 4 بس) · موديل لكل مهمة · الحد اليومي · تشغيل/إيقاف · اختبار · الاستهلاك · الدروس العامة
+  function aiCard() {
+    var wrap = card(T('adm.ai.title'), [el('p', {}, [el('span', { class: 'spinner' })])], T('adm.ai.sub'));
+    api('/v1/platform/ai').then(function (r) {
+      if (!r.ok) return;
+      var d = r.body, body = wrap; while (body.childNodes.length > 2) body.removeChild(body.lastChild);
+      var key = el('input', { type: 'password', class: 'bl-in wide', dir: 'ltr', autocomplete: 'off', placeholder: d.key_last4 ? '•••• ' + d.key_last4 : 'sk-ant-…', 'aria-label': T('adm.ai.key') });
+      var models = {}, grid = el('div', { class: 'bl-grid' }, d.tasks.map(function (t) {
+        var sel = el('select', { 'aria-label': T('adm.ai.t.' + t) }, d.choices.map(function (c) { return el('option', { value: c.id, text: c.id + ' ($' + c.price[0] + ' / $' + c.price[1] + ')' }); }));
+        sel.value = d.models[t]; models[t] = sel;
+        return el('label', {}, [el('span', { text: T('adm.ai.t.' + t) }), sel]);
+      }));
+      var lim = num(d.daily_limit, { class: 'bl-num sm', 'aria-label': T('adm.ai.limit') });
+      var on = el('button', { class: 'switch', type: 'button', role: 'switch', 'aria-checked': String(!!d.enabled), 'aria-label': T('adm.ai.on') });
+      on.addEventListener('click', function () { api('/v1/platform/ai', { enabled: !d.enabled }).then(function () { toast(T('adm.bl.saved')); load(); }); });
+      var save = saveBtn(function () {
+        var b = { models: {}, daily_limit: Number(lim.value) }; d.tasks.forEach(function (t) { b.models[t] = models[t].value; });
+        if (key.value.trim()) b.api_key = key.value.trim();
+        return api('/v1/platform/ai', b).then(function (x) { if (!x.ok) toast(T(x.body && x.body.error === 'key' ? 'adm.ai.e.key' : 'err.save'), true); return x.ok ? x.body : { ok: false, quiet: true }; });
+      });
+      var test = el('button', { class: 'btn ghost sm', type: 'button', text: T('adm.ai.test') });
+      test.addEventListener('click', function () { test.disabled = true; api('/v1/platform/ai/test', { model: models.answer.value }).then(function (x) { test.disabled = false; toast(x.ok ? T('adm.ai.test.ok', { m: x.body.model, r: x.body.reply }) : T('adm.ai.e.' + ((x.body && x.body.error) || 'ai')), !x.ok); }); });
+      var lessons = el('div', { class: 'al-fields' }, (d.lessons || []).map(function (l) {
+        var sw = el('button', { class: 'switch', type: 'button', role: 'switch', 'aria-checked': String(!!l.active), 'aria-label': l.text });
+        sw.addEventListener('click', function () { api('/v1/platform/ai/lesson', { id: l.id, active: !l.active }).then(function () { load(); }); });
+        return el('div', { class: 'al-row' }, [el('span', {}, [el('span', { text: l.text }), el('small', { class: 'dim', text: ' · ' + T(l.client_id ? 'adm.ai.l.site' : 'adm.ai.l.all') })]), sw]);
+      }));
+      var lt = el('input', { type: 'text', class: 'bl-in wide', maxlength: '500', placeholder: T('adm.ai.l.ph') }), la = el('button', { class: 'btn sm', type: 'button', text: T('adm.ai.l.add') });
+      la.addEventListener('click', function () { api('/v1/platform/ai/lesson', { text: lt.value.trim() }).then(function (x) { if (x.ok) { toast(T('adm.bl.saved')); load(); } else toast(T('err.save'), true); }); });
+      [el('div', { class: 'al-row' }, [el('span', { text: T(d.configured ? (d.from_env ? 'adm.ai.st.env' : 'adm.ai.st.ok') : 'adm.ai.st.no') }), on]),
+        el('label', { class: 'set-f' }, [el('span', { text: T('adm.ai.key') }), key]), el('p', { class: 'hint', text: T('adm.ai.key.i') }),
+        el('h3', { class: 'legend', text: T('adm.ai.models') }), grid,
+        el('label', { class: 'bl-check' }, [el('span', { text: T('adm.ai.limit') }), lim]),
+        el('div', { class: 'bl-add' }, [save, test]),
+        el('p', { class: 'hint', text: T('adm.ai.usage', { n: d.usage.calls, f: d.usage.failed, c: d.usage.cost_usd }) }),
+        el('h3', { class: 'legend', text: T('adm.ai.lessons') }), el('p', { class: 'hint', text: T('adm.ai.lessons.i') }), lessons, el('div', { class: 'bl-add' }, [lt, la])].forEach(function (n) { body.appendChild(n); });
+    });
+    return wrap;
+  }
+
   function load() {
     api('/v1/platform/billing').then(function (r) {
       clear(box);
       if (!r.ok) { box.appendChild(el('p', { class: 'muted', text: T('adm.load.fail') })); return; }
       data = r.body;
       box.appendChild(paymentsCard());
-      if (data.super) { box.appendChild(plansCard()); if (data.catalog) box.appendChild(featuresCard()); if (data.coupons) box.appendChild(couponsCard()); if (data.countries) box.appendChild(countriesCard()); box.appendChild(settingsCard()); }
+      if (data.super) { box.appendChild(plansCard()); if (data.catalog) box.appendChild(featuresCard()); if (data.coupons) box.appendChild(couponsCard()); if (data.countries) box.appendChild(countriesCard()); box.appendChild(settingsCard()); box.appendChild(aiCard()); }
       box.appendChild(methodsCard());
       var mc = membersCard(); if (mc) box.appendChild(mc);
     });

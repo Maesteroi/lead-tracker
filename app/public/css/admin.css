@@ -270,3 +270,4 @@ button.switch[aria-checked="true"]::after { inset-inline-start: 21px; }
 .bl-in.sm { min-width: 110px; width: 130px; }
 @media (max-width: 640px) { .bl-in { min-width: 0; width: 100%; } .bl-frow .bl-in, .bl-frow .bl-in.sm { width: 100%; } .bl-fitem { align-items: flex-start; } }
 .bl-in.wide { min-width: 240px; }
+.set-f { display: grid; gap: 4px; margin: 0 0 12px; } .set-f span { font-size: 14px; color: var(--muted); }

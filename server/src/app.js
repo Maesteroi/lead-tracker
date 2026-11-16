@@ -24,6 +24,7 @@ import { dashBlockIp, dashUnblockIp, dashBlocks, dashOwnDevice } from './blocks.
 import { dashAnalysis, dashAnalysisFix, dashAnalysisDone } from './analysis.js';
 import { dashStatement, dashStatementCsv } from './statement.js';
 import { dashSettings, dashSettingsSave, logoutOthers } from './settings.js';
+import { dashAssistant, dashAssistantState, dashAssistantFeedback, platformAi, platformAiSave, platformAiTest, platformAiLesson } from './assistant.js';
 import { dashSuffix, dashSuffixSet } from './suffix.js';
 
 const SITE_ACT = /^\/v1\/sites\/([A-Za-z0-9]{6,20})\/(rotate-key|install-status|pair-code)$/;
@@ -90,6 +91,10 @@ export async function handleApp(req, env, db, url, p, fetchImpl) {
     else if (m === 'POST' && p === '/v1/platform/billing/plan/delete') res = await platformPlanDelete(req, env, db, sess);
     else if (m === 'POST' && p === '/v1/platform/billing/feature') res = await platformFeatureSave(req, env, db, sess);
     else if (m === 'POST' && p === '/v1/platform/billing/coupon') res = await platformCouponSave(req, env, db, sess);
+    else if (m === 'GET' && p === '/v1/platform/ai') res = await platformAi(req, env, db, sess);
+    else if (m === 'POST' && p === '/v1/platform/ai') res = await platformAiSave(req, env, db, sess);
+    else if (m === 'POST' && p === '/v1/platform/ai/test') res = await platformAiTest(req, env, db, sess, fetchImpl);
+    else if (m === 'POST' && p === '/v1/platform/ai/lesson') res = await platformAiLesson(req, env, db, sess);
     // المدفوعات: المراجعة بالإيصال (payments.js)
     else if (m === 'GET' && p === '/v1/platform/payments') res = await platformPayments(req, env, db, sess, url);
     else if (m === 'GET' && p === '/v1/platform/payments/receipt') res = await platformReceipt(req, env, db, sess, url);
@@ -121,6 +126,10 @@ export async function handleApp(req, env, db, url, p, fetchImpl) {
     else if (m === 'POST' && p === '/v1/dash/unblock') res = await dashUnblockIp(req, env, db, sess, fetchImpl);
     else if (m === 'GET' && p === '/v1/dash/blocks') res = await dashBlocks(req, env, db, sess, url);
     else if (m === 'POST' && p === '/v1/dash/own') res = await dashOwnDevice(req, env, db, sess);
+    // المساعد الذكي (assistant.js)
+    else if (m === 'GET' && p === '/v1/dash/assistant') res = await dashAssistantState(req, env, db, sess, url);
+    else if (m === 'POST' && p === '/v1/dash/assistant') res = await dashAssistant(req, env, db, sess, fetchImpl);
+    else if (m === 'POST' && p === '/v1/dash/assistant/feedback') res = await dashAssistantFeedback(req, env, db, sess);
     // حسابي والإعدادات (settings.js)
     else if (m === 'GET' && p === '/v1/dash/settings') res = await dashSettings(req, env, db, sess, url);
     else if (m === 'POST' && p === '/v1/dash/settings') res = await dashSettingsSave(req, env, db, sess);

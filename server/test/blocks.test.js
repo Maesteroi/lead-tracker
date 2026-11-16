@@ -48,6 +48,10 @@ test('block in Google: the suspicious visit IP is excluded at account level afte
   assert.deepEqual(out, { removed: 1, failed: 0 });
   assert.deepEqual(s.w.g.accounts[CID].ipBlocks.map((b) => b.ip), ['45.77.10.20'], 'removed from Google too');
   assert.ok(s.w.fs.t.auth_events.some((x) => x.kind === 'ip_blocked' && x.ok));
+  // رجع ينقر تاني بعد ما المنع خلص (زي منافس): المرة دي 30 يوم
+  const again = await s.pc(s.owner, '/v1/dash/block', { site: s.site.id, sid: 'SESBAD1' });
+  assert.equal(again.body.repeat, true);
+  const d2 = (Date.parse(again.body.expires_at) - Date.now()) / 864e5; assert.ok(d2 > 29.9 && d2 < 30.1, 'a repeat offender gets 30 days');
 });
 
 test('block in Google: never a visit judged «real customer», never your own device, staff cannot, and a full account (500) is refused plainly', async () => {

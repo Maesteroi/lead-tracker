@@ -14,7 +14,7 @@ import { scoredSessions, periodOf } from './dash.js';
 const n0 = (v) => Number(v) || 0;
 const r2 = (v) => Math.round(n0(v) * 100) / 100;
 
-async function build(db, site, pd) {
+export async function build(db, site, pd) {
   let cred;
   try { cred = await db.one('ads_credentials?client_id=' + eq(site.id) + '&status=eq.on&select=customer_id,currency,last_ok_day&order=updated_at.desc'); } catch (e) { cred = null; }
   if (!cred) return { linked: false };

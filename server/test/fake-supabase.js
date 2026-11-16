@@ -1,7 +1,7 @@
 // محاكي صغير لـSupabase (PostgREST + Storage) للاختبارات، من غير إنترنت.
 // بيدعم بس اللي السيرفر بيستخدمه: eq · neq · gt · gte · lt · lte · is · not.is · like · in · order (nullsfirst) · limit · on_conflict.
 
-const SERIAL = new Set(['analysis_fixes', 'own_devices', 'ip_blocks', 'raw_events', 'contact_clicks', 'messages', 'outcomes', 'ai_calls', 'ads_clicks', 'ads_search_terms', 'ads_campaign_daily', 'ads_account_health', 'ads_pull_runs', 'auth_events']);
+const SERIAL = new Set(['ai_lessons', 'ai_feedback', 'analysis_fixes', 'own_devices', 'ip_blocks', 'raw_events', 'contact_clicks', 'messages', 'outcomes', 'ai_calls', 'ads_clicks', 'ads_search_terms', 'ads_campaign_daily', 'ads_account_health', 'ads_pull_runs', 'auth_events']);
 const DEFAULTS = {
   clients: () => ({ paired_at: null, org_id: null, domains: [], created_at: new Date().toISOString(), status: 'on', timezone: 'Asia/Riyadh', country_code: '966', thresholds: { serious_call_s: 120, weak_call_s: 30, wa_match_min: 10, call_match_s: 90 }, consents: {}, ai_budget_month: 10 }),
   devices: () => ({ status: 'on', health: {} }),
@@ -31,6 +31,7 @@ const DEFAULTS = {
   ads_credentials: () => ({ status: 'on', login_customer_id: null, campaign_ids: null, currency: null, timezone: null, backfill_from: null, last_pull_at: null, last_ok_day: null, last_error: null }),
 };
 const UNIQUE = {
+  ai_settings: [['id']],
   clients: [['id']], ads_link_pending: [['id']], devices: [['token_hash']], pair_codes: [['code']],
   site_pair_codes: [['code_hash']], site_health: [['client_id', 'day']], protection_verdicts: [['client_id', 'session_id']], replay_sessions: [['client_id', 'session_id']], daily_reports: [['kind', 'day']], ip_geo: [['ip']], tg_sessions: [['client_id', 'session_id', 'chat_id']], users: [['google_sub']], memberships: [['user_id', 'org_id']], platform_members: [['user_id']], platform_roles: [['name']], sessions: [['token_hash']],
   raw_events: [['client_id', 'dedupe_key']], conv_uploads: [['client_id', 'match_code', 'conversion_action_id']], tg_links: [['client_id', 'chat_id']], tg_invites: [['code_hash']], tg_templates: [['audience']], neg_decisions: [['client_id', 'text', 'match_type']], features: [['key']], plan_features: [['plan_id', 'feature_key']], coupons: [['code']], site_brief: [['client_id']], ip_blocks: [['client_id', 'customer_id', 'ip']], own_devices: [['client_id', 'visitor_id']], kw_decisions: [['client_id', 'text', 'match_type']], plans: [['id']], plan_prices: [['plan_id', 'currency']], billing_settings: [['id']], contact_clicks: [['client_id', 'match_code', 'type']],
