@@ -121,6 +121,16 @@
     // قواعد الحماية والمنع التلقائي (rules.js)
     rules: function (site) { return get('/v1/dash/rules?site=' + encodeURIComponent(site)); },
     rulesSave: function (body) { return LT.api('/v1/dash/rules', { method: 'POST', body: body }).then(function (r) { if (!r.ok) throw new Error(r.body && r.body.error || 'http'); return r.body; }); },
+    // تحسين الحملة (optimize.js)
+    optimize: function (site) { return LT.api('/v1/dash/optimize?site=' + encodeURIComponent(site)).then(function (r) { if (!r.ok) throw new Error('http'); return r.body; }); },
+    optimizeDraft: function (site, key) { return LT.api('/v1/dash/optimize/draft', { method: 'POST', body: { site: site, key: key } }).then(function (r) { if (!r.ok) throw new Error(r.body && r.body.error || 'http'); return r.body; }); },
+    optimizeApply: function (site, keys, drafts) { return LT.api('/v1/dash/optimize/apply', { method: 'POST', body: { site: site, keys: keys, drafts: drafts || {} } }).then(function (r) { if (!r.ok && !(r.body && r.body.results)) throw new Error(r.body && r.body.error || 'http'); return r.body; }); },
+    optimizeUndo: function (site, id) { return LT.api('/v1/dash/optimize/undo', { method: 'POST', body: { site: site, id: id } }).then(function (r) { if (!r.ok) throw new Error(r.body && r.body.error || 'http'); return r.body; }); },
+    optimizeValues: function (site, values) { return LT.api('/v1/dash/optimize/values', { method: 'POST', body: { site: site, values: values } }).then(function (r) { if (!r.ok) throw new Error(r.body && r.body.error || 'http'); return r.body; }); },
+    // حسّن حملتك بضغطة (campfix.js)
+    campfix: function (site) { return LT.api('/v1/dash/campfix?site=' + encodeURIComponent(site)).then(function (r) { if (!r.ok) throw new Error('http'); return r.body; }); },
+    campfixApply: function (site, keys) { return LT.api('/v1/dash/campfix/apply', { method: 'POST', body: { site: site, keys: keys } }).then(function (r) { if (!r.ok) throw new Error(r.body && r.body.error || 'http'); return r.body; }); },
+    campfixUndo: function (site, id) { return LT.api('/v1/dash/campfix/undo', { method: 'POST', body: { site: site, id: id } }).then(function (r) { if (!r.ok) throw new Error(r.body && r.body.error || 'http'); return r.body; }); },
     // «امنعه في جوجل» و«هذه زيارتي» (blocks.js)
     blockIp: function (site, sid, reason) { return LT.api('/v1/dash/block', { method: 'POST', body: { site: site, sid: sid, reason: reason } }).then(function (r) { if (!r.ok) { var e = new Error(r.body && r.body.error || 'http'); e.detail = r.body && r.body.detail; throw e; } return r.body; }); },
     unblockIp: function (site, id) { return LT.api('/v1/dash/unblock', { method: 'POST', body: { site: site, id: id } }).then(function (r) { if (!r.ok) throw new Error('http'); return r.body; }); },

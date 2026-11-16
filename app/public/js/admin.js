@@ -279,13 +279,20 @@
   // ── الأقسام: الحسابات · الفريق · السجل ──
   function showTab(t) {
     ['accounts', 'team', 'audit', 'alerts', 'lab', 'billing'].forEach(function (k) { $('tab-' + k).hidden = k !== t; $('tab-btn-' + k).setAttribute('aria-selected', String(k === t)); });
+    // الموبايل: قايمة بزرار (☰) بدل الأزرار الملخبطة (16 نوفمبر)
+    $('tabs-current').textContent = $('tab-btn-' + t).textContent; menuOpen(false);
     if (t === 'team') window.LTAdminTeam.team($('tab-team'), toast);
     if (t === 'audit') window.LTAdminTeam.audit($('tab-audit'), toast);
     if (t === 'alerts') window.LTAdminAlerts.open($('tab-alerts'), toast);
     if (t === 'lab') window.LTAdminAlerts.lab($('tab-lab'));
     if (t === 'billing') window.LTAdminBilling.open($('tab-billing'), toast);
   }
-  function wireTabs() { Array.prototype.forEach.call(document.querySelectorAll('#tabs [data-tab]'), function (b) { b.addEventListener('click', function () { showTab(b.getAttribute('data-tab')); }); }); }
+  function menuOpen(on) { $('tabs').classList.toggle('open', on); $('tabs-toggle').setAttribute('aria-expanded', String(on)); }
+  function wireTabs() {
+    $('tabs-toggle').addEventListener('click', function () { menuOpen(!$('tabs').classList.contains('open')); });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') menuOpen(false); });
+    Array.prototype.forEach.call(document.querySelectorAll('#tabs [data-tab]'), function (b) { b.addEventListener('click', function () { showTab(b.getAttribute('data-tab')); }); });
+  }
 
   // ── الربط ──
   function wire() {

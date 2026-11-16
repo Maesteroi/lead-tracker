@@ -29,6 +29,7 @@
     install: 'M12 3v12M7 10l5 5 5-5M5 21h14',
     analysis: 'M3 3v18h18M7 15l4-4 3 3 6-7M17 7h3v3',
     admin: 'M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1M15 4v4M9 10v4M17 16v4',
+    assistant: 'M4.5 4.5h15a1.5 1.5 0 011.5 1.5v10a1.5 1.5 0 01-1.5 1.5H11l-4.5 3.5v-3.5h-2A1.5 1.5 0 013 16V6a1.5 1.5 0 011.5-1.5zM7 13.5l3-3 2.2 2.2L17 8M14 8h3v3',
     rules: 'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6zM9 12l2 2 4-4',
     settings: 'M12 15a3 3 0 100-6 3 3 0 000 6zM19.4 15a1.7 1.7 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.8-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1.1-1.5 1.7 1.7 0 00-1.8.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.8 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.5-1.1 1.7 1.7 0 00-.3-1.8l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.8.3H9a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.8-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.8V9a1.7 1.7 0 001.5 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z',
   };
@@ -1680,7 +1681,7 @@
   }
 
   // ════════ تحليل الحملة وإصلاحها بضغطة (15 نوفمبر · المنهجية بند 10–12) ════════
-  var AN_GO = { leads: 'leads', protection: 'protection', negatives: 'negatives', visits: 'visits' };
+  var AN_GO = { leads: 'leads', protection: 'protection', negatives: 'negatives', visits: 'visits', statement: 'statement' };
   // ── تحليل الحملة (إعادة تصميم 15 نوفمبر · محمود: «مهمة مش مفهومة · زوّد diagram · مع كل تشخيص اكتب الحل · صلّح الآن · ادخل ونفّذ ·
   //    خانة ملاحظات · ومراقبة نتيجة الإصلاح في التحويل مش الزيارات») ──
   // ١) الدرجة وأضعف حلقة · ٢) رسم القمع بالتحويل وأكبر تسريب · ٣) التشخيصات: المشكلة · ليه مهمة · الحل خطوة خطوة · صلّح الآن / ادخل ونفّذ /
@@ -1688,34 +1689,305 @@
   function vAnalysis(view) {
     clear(view);
     if (!DATA.analysis) { view.appendChild(soonCard(T('nav.analysis'), [T('an.demo.1'), T('an.demo.2'), T('an.demo.3')])); return Promise.resolve(); }
-    view.appendChild(el('div', { class: 'loading' }, [el('span', { class: 'spinner' }), document.createTextNode(T('an.running'))]));
+    view.appendChild(el('div', { class: 'loading' }, [el('span', { class: 'spinner' }), document.createTextNode(T('op.loading'))]));
+    // محرّك تحسين الحملة (16 نوفمبر): خطة الأسبوع + الطبقات من المنبع للمصب · والتحليل القديم بقى في «متابعة التعديلات»
+    var old = function () { return DATA.analysis(state.site).then(function (d) { drawAnalysis(view, d); }, function () { clear(view); view.appendChild(el('p', { class: 'muted', text: T('an.err') })); }); };
+    if (DATA.optimize) return DATA.optimize(state.site).then(function (d) { drawOptimize(view, d); }, old);   // لو المحرّك وقع: التحليل القديم
     return DATA.analysis(state.site).then(function (d) { drawAnalysis(view, d); }, function () { clear(view); view.appendChild(el('p', { class: 'muted', text: T('an.err') })); });
+  }
+  // ════════ تحسين الحملة ════════
+  var OP_GO = { leads: 'leads', protection: 'protection', negatives: 'negatives', visits: 'visits', statement: 'statement', rules: 'rules', settings: 'settings' };
+  var OP_MONEY = /^(cost|cpl|avg|save|from|to|target|budget|now_money)$/;
+  function opVars(x, cur) {
+    var d = x.data || {}, o = {};
+    Object.keys(d).forEach(function (k) {
+      var v = d[k];
+      if (Array.isArray(v)) o[k] = v.map(function (y) { return typeof y === 'object' ? y.k : (/^(night|morning|afternoon|evening)$/.test(y) ? T('ex.time.' + y) : y); }).join('، ');
+      else if (typeof v === 'number') o[k] = OP_MONEY.test(k) ? money2(v, cur) : fmt(v);
+      else o[k] = v == null ? '' : String(v);
+    });
+    if (d.match) o.match = T('ex.match.' + d.match) !== 'ex.match.' + d.match ? T('ex.match.' + d.match) : d.match;
+    if (d.k && /^(DESKTOP|TABLET|MOBILE)$/.test(d.k)) o.k = T('ex.dev.' + d.k);
+    if (d.m != null) o.m = Math.round((d.m - 1) * 100) + '%';
+    if (d.from && /^[A-Z_]+$/.test(d.from)) o.from = T('op.bid.' + d.from) !== 'op.bid.' + d.from ? T('op.bid.' + d.from) : d.from;
+    if (d.bidding) o.bidding = T('op.bid.' + d.bidding) !== 'op.bid.' + d.bidding ? T('op.bid.' + d.bidding) : d.bidding;
+    return o;
+  }
+  function opVal(x, which, cur) {
+    var v = x[which];
+    if (v == null) return '';
+    if (typeof v === 'number') return money2(v, cur) + (/^budget_/.test(x.code) ? ' ' + T('op.per_day') : '');
+    var k = 'op.v.' + x.code + '.' + v;
+    if (T(k) !== k) return T(k);
+    if (T('op.bid.' + v) !== 'op.bid.' + v) return T('op.bid.' + v);
+    var k2 = 'cf.v.' + x.code + '.' + v;
+    return T(k2) !== k2 ? T(k2) : String(v);
+  }
+  function drawOptimize(view, d) {
+    clear(view);
+    if (!d.linked) { view.appendChild(card(T('nav.analysis'), [el('p', {}, [el('span', { text: T('conv.not_linked') + ' ' }), el('a', { class: 'linkish', href: '#/sites', text: T('nav.sites') })])])); return; }
+    var cur = d.currency === 'SAR' ? T('sar') : d.currency, c = d.context || {}, items = d.items || [];
+    var byKey = {}; items.forEach(function (x) { byKey[x.key] = x; });
+    var again = el('button', { class: 'btn ghost sm', type: 'button', text: T('an.again') }); again.addEventListener('click', function () { vAnalysis(view); });
+    // ١) الخلاصة + خطة الأسبوع
+    var plan = (d.plan || []).map(function (k) { return byKey[k]; }).filter(Boolean);
+    view.appendChild(el('section', { class: 'panel-card op-hero' }, [
+      el('div', { class: 'op-hero-h' }, [el('h2', { text: T('op.title') }), again]),
+      el('p', { class: 'ex-lead', text: T('op.lead', { cost: money2(c.cost, cur), n: fmt(c.contacts || 0), won: fmt(c.won || 0) }) }),
+      el('div', { class: 'ex-kpis' }, [
+        el('div', {}, [el('span', { text: T('ex.k.cpl') }), el('b', { text: c.cpl == null ? '—' : money2(c.cpl, cur) })]),
+        el('div', {}, [el('span', { text: T('ex.k.cpw') }), el('b', { text: c.cpw == null ? '—' : money2(c.cpw, cur) })]),
+        el('div', { class: c.signal_ok ? 'save' : 'bad' }, [el('span', { text: T('op.k.signal') }), el('b', { text: T(c.signal_ok ? 'op.k.signal.ok' : 'op.k.signal.bad') })]),
+        el('div', {}, [el('span', { text: T('op.k.qs') }), el('b', { text: d.qs == null ? '—' : String(d.qs) + ' / 10' })])]),
+      el('h3', { class: 'op-plan-h', text: T('op.plan', { n: fmt(plan.length) }) }),
+      el('p', { class: 'muted', text: plan.length ? T('op.plan.sub') : T('op.plan.none') }),
+      plan.length ? el('div', { class: 'op-list' }, plan.map(function (x, i) { return opCard(x, i + 1, d, view, cur, true); })) : null]));
+    // ٢) الطبقات
+    var tabs = (d.layers || []).concat(['done']);
+    var seg = el('div', { class: 'op-tabs', role: 'tablist', 'aria-label': T('op.layers') }), box = el('div', { class: 'op-panel' });
+    var show = function (layer) {
+      clear(box);
+      Array.prototype.forEach.call(seg.children, function (b) { b.setAttribute('aria-selected', String(b.getAttribute('data-l') === layer)); });
+      try { sessionStorage.setItem('lt_op_tab', layer); } catch (e) { /* مش مهم */ }
+      if (layer === 'done') { drawOpDone(box, d, view, cur); return; }
+      var list = items.filter(function (x) { return x.layer === layer; });
+      box.appendChild(el('p', { class: 'op-lwhy', text: T('op.lwhy.' + layer) }));
+      if (layer === 'signal') box.appendChild(valuesCard(d, cur));
+      if (!list.length) box.appendChild(el('p', { class: 'an-weak ok', text: T('op.lclean') }));
+      else box.appendChild(el('div', { class: 'op-list' }, list.map(function (x, i) { return opCard(x, i + 1, d, view, cur, false); })));
+      var ex = d.expert;
+      if (ex && layer === 'signal' && ex.signal) box.appendChild(signalCard(ex.signal));
+      if (ex && layer === 'traffic' && ex.money) box.appendChild(moneyCard(ex.money, cur));
+      if (ex && layer === 'search') box.appendChild(exTable(T('ex.kw'), T('ex.kw.sub'), ex.keywords, cur, true));
+      if (ex && layer === 'where') { box.appendChild(exTable(T('ex.dim.places'), T('ex.where.sub'), ex.places, cur, false)); box.appendChild(exTable(T('ex.dim.times'), null, (ex.times || []).map(function (t) { return Object.assign({}, t, { k: T('ex.time.' + t.k) }); }), cur, false, true)); box.appendChild(exTable(T('ex.dim.devices'), null, (ex.devices || []).map(function (t) { return Object.assign({}, t, { k: T('ex.dev.' + t.k) !== 'ex.dev.' + t.k ? T('ex.dev.' + t.k) : t.k }); }), cur, false)); }
+    };
+    tabs.forEach(function (l) {
+      var n = l === 'done' ? (d.done || []).length : items.filter(function (x) { return x.layer === l && x.status !== 'info'; }).length;
+      var bad = items.some(function (x) { return x.layer === l && x.status === 'bad'; });
+      var b = el('button', { type: 'button', role: 'tab', 'data-l': l }, [el('span', { text: T('op.l.' + l) }), n ? el('b', { class: 'op-n' + (bad ? ' bad' : ''), text: fmt(n) }) : null]);
+      b.addEventListener('click', function () { show(l); });
+      seg.appendChild(b);
+    });
+    view.appendChild(el('section', { class: 'panel-card op-layers' }, [el('h2', { text: T('op.layers') }), el('p', { class: 'muted', text: T('op.layers.sub') }), seg, box]));
+    var first = 'signal'; try { first = sessionStorage.getItem('lt_op_tab') || first; } catch (e) { /* افتراضي */ }
+    show(tabs.indexOf(first) >= 0 ? first : 'signal');
+    view._opShow = show;
+  }
+  // كارت البند: المشكلة · «الآن ← بعد» · الدليل · تفكير الخبير · الخطوات · التنفيذ
+  function opCard(x, n, d, view, cur, compact) {
+    var v = opVars(x, cur), kids = [];
+    kids.push(el('div', { class: 'dx-h' }, [el('span', { class: 'dx-n', text: String(n) }), el('span', { class: 'pill ' + (x.status === 'bad' ? 'bad' : x.status === 'warn' ? 'warn' : 'info'), text: T('op.st.' + x.status) }), el('small', { class: 'dim', text: T('op.l.' + x.layer) }),
+      x.impact > 0 ? el('span', { class: 'pill info ex-impact', text: T('cf.impact', { m: money2(x.impact, cur) }) }) : null]));
+    kids.push(el('b', { class: 'cf-t', text: T('op.t.' + x.code, v) }));
+    if (x.now != null && x.next != null) kids.push(el('div', { class: 'cf-diff' }, [el('span', { class: 'cf-now', text: T('cf.now') + ' ' + opVal(x, 'now', cur) }), el('span', { class: 'cf-arrow', 'aria-hidden': 'true', text: '←' }), el('span', { class: 'cf-next', text: T('cf.after') + ' ' + opVal(x, 'next', cur) })]));
+    if (T('op.e.' + x.code) !== 'op.e.' + x.code) kids.push(el('p', { class: 'cf-ev', text: T('op.e.' + x.code, v) }));
+    if (!compact && T('op.w.' + x.code) !== 'op.w.' + x.code) kids.push(el('p', { class: 'dx-why' }, [el('b', { text: T('op.why') + ' ' }), el('span', { text: T('op.w.' + x.code, v) })]));
+    if (!compact && T('op.how.' + x.code) !== 'op.how.' + x.code) kids.push(el('div', { class: 'dx-how' }, [el('b', { text: T('an.how') }), el('ol', {}, T('op.how.' + x.code, v).split('|').map(function (s) { return el('li', { text: s }); }))]));
+    if (x.data && x.data.list && !compact) kids.push(el('ul', { class: 'op-kwlist' }, x.data.list.map(function (k) { return el('li', {}, [el('b', { text: k.k }), el('small', { class: 'dim', text: ' · ' + T('op.qs_of', { q: k.qs == null ? '—' : k.qs }) + ' · ' + money2(k.cost, cur) })]); })));
+    var acts = el('div', { class: 'dx-acts' }), editor = el('div', { class: 'op-editor' }); editor.hidden = true;
+    if (d.manage) {
+      if (x.kind === 'apply') {
+        var b = el('button', { class: 'btn sm', type: 'button', text: T('cf.apply') }), sure = false;
+        b.addEventListener('click', function () { if (!sure) { sure = true; b.textContent = T('an.do.sure'); return; } opApply(view, [x.key], null, b, T('cf.apply')); });
+        acts.appendChild(b);
+      } else if (x.kind === 'write') {
+        var w = el('button', { class: 'btn sm', type: 'button', text: T('op.write') });
+        w.addEventListener('click', function () { w.disabled = true; w.textContent = T('op.writing'); DATA.optimizeDraft(state.site, x.key).then(function (r) { w.hidden = true; openEditor(editor, x, r.draft, r.limits, view); }, function () { w.disabled = false; w.textContent = T('op.write'); toast(T('err.save')); }); });
+        acts.appendChild(w);
+      } else if (x.kind === 'wait') acts.appendChild(el('p', { class: 'op-wait', text: T('op.wait.' + ((x.data && x.data.why) || 'week')) }));
+    }
+    if (x.go && OP_GO[x.go]) acts.appendChild(el('a', { class: 'btn ghost sm', href: '#/' + OP_GO[x.go] + (x.tab ? '' : ''), text: T('an.goin', { p: T('op.go.' + x.go) }) }));
+    if (x.kind === 'layer' && x.go) { var lb = el('button', { class: 'btn ghost sm', type: 'button', text: T('op.tolayer', { l: T('op.l.' + x.go) }) }); lb.addEventListener('click', function () { if (view._opShow) { view._opShow(x.go); var t = view.querySelector('.op-layers'); if (t) t.scrollIntoView({ behavior: 'smooth' }); } }); acts.appendChild(lb); }
+    if (d.manage && (x.kind === 'guided' || x.kind === 'go' || x.kind === 'layer')) {
+      var mine = el('button', { class: 'btn ghost sm', type: 'button', text: T('an.mine') });
+      mine.addEventListener('click', function () { mine.disabled = true; DATA.analysisDone(state.site, { code: x.code, key: x.key, note: '' }).then(function () { toast(T('an.mine.ok')); }, function () { mine.disabled = false; toast(T('err.save')); }); });
+      acts.appendChild(mine);
+    }
+    if (acts.childNodes.length) kids.push(acts);
+    kids.push(editor);
+    return el('article', { class: 'dx op ' + x.status + (compact ? ' compact' : '') }, kids);
+  }
+  function opApply(view, keys, drafts, btn, label) {
+    btn.disabled = true;
+    DATA.optimizeApply(state.site, keys, drafts).then(function (r) {
+      var ok = r.results.filter(function (y) { return y.ok; }).length, bad = r.results.filter(function (y) { return !y.ok; });
+      if (bad.length && bad[0].error === 'draft') { btn.disabled = false; btn.textContent = label; toast(T('op.e.draft')); return; }
+      toast(T('cf.applied', { n: fmt(ok) }) + (bad.length ? ' ' + T('cf.failed', { n: fmt(bad.length) }) : ''));
+      vAnalysis(view);
+    }, function () { btn.disabled = false; btn.textContent = label; toast(T('va.e.google')); });
+  }
+  // محرّر المسودة: كل حقل بعدّاد الحروف وحد جوجل · مفيش إنشاء غير بعد المراجعة
+  function openEditor(box, x, draft, limits, view) {
+    clear(box); box.hidden = false;
+    var field = function (val, max, label, multi) {
+      var inp = el(multi ? 'textarea' : 'input', multi ? { rows: '2', 'aria-label': label, maxlength: String(max + 20) } : { type: 'text', 'aria-label': label, maxlength: String(max + 20) });
+      inp.value = val || '';
+      var cnt = el('small', { class: 'op-cnt' });
+      var sync = function () { var l = inp.value.trim().length; cnt.textContent = l + ' / ' + max; cnt.classList.toggle('over', l > max); };
+      inp.addEventListener('input', sync); sync();
+      return { node: el('label', { class: 'op-f' }, [el('span', { class: 'dim', text: label }), inp, cnt]), get: function () { return inp.value.trim(); } };
+    };
+    var getters = [], collect;
+    if (x.code === 'rsa_new') {
+      box.appendChild(el('p', { class: 'hint', text: draft.ai ? T('op.ed.ai') : T('op.ed.template') }));
+      var hs = (draft.headlines || []).map(function (h, i) {
+        var f = field(h.text, limits.headline, T('op.ed.h', { n: i + 1 }) + (h.role ? ' · ' + T('op.role.' + h.role) : ''), false);
+        var pin = el('select', { 'aria-label': T('op.ed.pin') }, [['', T('op.pin.none')], ['HEADLINE_1', T('op.pin.1')], ['HEADLINE_2', T('op.pin.2')], ['HEADLINE_3', T('op.pin.3')]].map(function (o) { return el('option', { value: o[0], text: o[1] }); }));
+        pin.value = h.pin || '';
+        box.appendChild(el('div', { class: 'op-row' }, [f.node, pin]));
+        return { text: f.get, pin: function () { return pin.value || null; } };
+      });
+      var ds = (draft.descriptions || []).map(function (t, i) { var f = field(t, limits.description, T('op.ed.d', { n: i + 1 }), true); box.appendChild(f.node); return f.get; });
+      var p1 = field(draft.path1, limits.path, T('op.ed.path1')), p2 = field(draft.path2, limits.path, T('op.ed.path2')), url = field(draft.url, 300, T('op.ed.url'));
+      box.appendChild(el('div', { class: 'op-row' }, [p1.node, p2.node])); box.appendChild(url.node);
+      collect = function () { return { headlines: hs.map(function (h) { return { text: h.text(), pin: h.pin() }; }).filter(function (h) { return h.text; }), descriptions: ds.map(function (g) { return g(); }).filter(Boolean), path1: p1.get(), path2: p2.get(), url: url.get() }; };
+    } else if (x.code === 'asset_callout' || x.code === 'asset_snippet') {
+      var arr = x.code === 'asset_callout' ? draft.callouts : draft.values, max = x.code === 'asset_callout' ? limits.callout : limits.snippet;
+      if (x.code === 'asset_snippet') box.appendChild(el('p', { class: 'hint', text: T('op.ed.snippet_h') }));
+      var rows = (arr || []).concat(['', '']).slice(0, 10).map(function (t, i) { var f = field(t, max, T('op.ed.item', { n: i + 1 })); box.appendChild(f.node); return f.get; });
+      collect = function () { var v = rows.map(function (g) { return g(); }).filter(Boolean); return x.code === 'asset_callout' ? { callouts: v } : { header: 'الخدمات', values: v }; };
+    } else if (x.code === 'asset_call') {
+      var ph = field(draft.phone, 20, T('op.ed.phone')), cc = field(draft.country, 2, T('op.ed.country'));
+      box.appendChild(ph.node); box.appendChild(cc.node);
+      collect = function () { return { phone: ph.get(), country: cc.get() }; };
+    } else if (x.code === 'asset_sitelink') {
+      var sl = (draft.sitelinks || []).concat([{}, {}]).slice(0, 6).map(function (l, i) {
+        var t = field(l.text, limits.sitelink, T('op.ed.sl', { n: i + 1 })), d1 = field(l.d1, limits.sitelink_desc, T('op.ed.sld1')), d2 = field(l.d2, limits.sitelink_desc, T('op.ed.sld2')), u = field(l.url, 300, T('op.ed.url'));
+        box.appendChild(el('fieldset', { class: 'op-fs' }, [t.node, el('div', { class: 'op-row' }, [d1.node, d2.node]), u.node]));
+        return function () { return { text: t.get(), d1: d1.get(), d2: d2.get(), url: u.get() }; };
+      });
+      collect = function () { return { sitelinks: sl.map(function (g) { return g(); }).filter(function (l) { return l.text; }) }; };
+    }
+    var go = el('button', { class: 'btn', type: 'button', text: T('op.ed.apply') }), sure = false;
+    go.addEventListener('click', function () { if (!sure) { sure = true; go.textContent = T('an.do.sure'); return; } var dr = {}; dr[x.key] = collect(); opApply(view, [x.key], dr, go, T('op.ed.apply')); });
+    box.appendChild(el('div', { class: 'dx-acts' }, [go, el('small', { class: 'dim', text: T('op.ed.note') })]));
+  }
+  // قيم التحويلات
+  function valuesCard(d, cur) {
+    var v = d.values || { won: 100, convo: 30, contact: 10 }, ins = {};
+    var row = el('div', { class: 'op-values' }, ['won', 'convo', 'contact'].map(function (k) { var i = el('input', { type: 'number', min: '0', step: '1', value: String(v[k]), 'aria-label': T('op.val.' + k), class: 'ru-num' }); if (!d.manage) i.disabled = true; ins[k] = i; return el('label', { class: 'ru-day' }, [el('b', { text: T('op.val.' + k) }), el('span', { class: 'ru-dv' }, [i, el('span', { class: 'dim', text: cur })])]); }));
+    var save = d.manage ? el('button', { class: 'btn ghost sm', type: 'button', text: T('ru.save') }) : null;
+    if (save) save.addEventListener('click', function () { save.disabled = true; DATA.optimizeValues(state.site, { won: Number(ins.won.value), convo: Number(ins.convo.value), contact: Number(ins.contact.value) }).then(function () { save.disabled = false; toast(T('op.val.saved')); }, function (e) { save.disabled = false; toast(T(e.message === 'order' ? 'op.val.order' : 'err.save')); }); });
+    return el('div', { class: 'op-valbox' }, [el('b', { text: T('op.val.title') }), el('p', { class: 'hint', text: T('op.val.sub') }), row, save]);
+  }
+  // متابعة التعديلات: اللي اتطبّق وتراجع · ونتيجته بالتحويل · والفحص الأساسي القديم
+  function drawOpDone(box, d, view, cur) {
+    var list = (d.done || []).map(function (f) {
+      var undo = d.manage && !f.undone ? el('button', { class: 'linkish', type: 'button', text: T('cf.undo') }) : null, uSure = false;
+      if (undo) undo.addEventListener('click', function () { if (!uSure) { uSure = true; undo.textContent = T('cf.undo.sure'); return; } undo.disabled = true; DATA.optimizeUndo(state.site, f.id).then(function () { toast(T('cf.undone')); vAnalysis(view); }, function () { undo.disabled = false; toast(T('va.e.google')); }); });
+      var t = f.target || {};
+      return el('li', { class: f.undone ? 'undone' : '' }, [el('span', { text: (f.undone ? '↺ ' : '✓ ') + T('op.d.' + f.code, { name: t.name || '', k: t.keyword || t.k || '', n: fmt(t.n || 0), ag: t.ag || '' }) }), el('small', { class: 'dim', text: ' · ' + dateAr(f.at) + (f.undone ? ' · ' + T('cf.was_undone') : '') }), undo]);
+    });
+    box.appendChild(el('div', { class: 'cf-done' }, [list.length ? el('ul', {}, list) : el('p', { class: 'muted', text: T('op.done.none') }), el('p', { class: 'hint', text: T('op.done.hint') })]));
+    var more = el('div', {}, [el('p', {}, [el('span', { class: 'spinner' }), el('span', { text: T('an.running') })])]);
+    box.appendChild(more);
+    DATA.analysis(state.site).then(function (a) {
+      clear(more);
+      var fixes = a.fixes || [], fixedBy = {}; fixes.forEach(function (f) { if (!fixedBy[f.key]) fixedBy[f.key] = f; });
+      if (fixes.length) more.appendChild(fixesCard(fixes, cur));
+      var chk = el('div'); drawChecklist(chk, a, cur, fixedBy, fixes, view);
+      more.appendChild(el('details', { class: 'panel-card an-check' }, [el('summary', {}, [el('b', { text: T('ex.check') }), el('small', { class: 'dim', text: ' · ' + T('an.score') + ' ' + a.score + '/100' })]), el('p', { class: 'muted', text: T('ex.check.sub') }), chk]));
+    }, function () { clear(more); });
+  }
+  // ════════ حسّن حملتك بضغطة: تعديلات حقيقية في إعدادات جوجل أدز «الآن ← بعد»، بموافقتك، وتراجع لأي تعديل ════════
+  function campfixCard(box, view) {
+    clear(box);
+    box.appendChild(el('section', { class: 'panel-card cf' }, [el('h2', { text: T('cf.title') }), el('p', {}, [el('span', { class: 'spinner' }), el('span', { text: T('cf.loading') })])]));
+    DATA.campfix(state.site).then(function (d) {
+      clear(box);
+      var cur = d.currency === 'SAR' ? T('sar') : d.currency, items = d.items || [], picked = {};
+      var total = function () { return items.filter(function (x) { return picked[x.key]; }).reduce(function (a, x) { return a + (x.impact || 0); }, 0); };
+      var applyAll = el('button', { class: 'btn', type: 'button' }), sure = false;
+      var sync = function () { var n = items.filter(function (x) { return picked[x.key]; }).length; sure = false; applyAll.disabled = !n; applyAll.textContent = T('cf.apply_n', { n: fmt(n) }); };
+      var send = function (keys, btn, label) {
+        btn.disabled = true;
+        DATA.campfixApply(state.site, keys).then(function (r) {
+          var ok = r.results.filter(function (x) { return x.ok; }).length, bad = r.results.length - ok;
+          toast(T('cf.applied', { n: fmt(ok) }) + (bad ? ' ' + T('cf.failed', { n: fmt(bad) }) : ''));
+          campfixCard(box, view);
+        }, function () { btn.disabled = false; btn.textContent = label; toast(T('va.e.google')); });
+      };
+      var rows = items.map(function (x) {
+        picked[x.key] = true;
+        var v = cfVars(x, cur);
+        var cb = el('input', { type: 'checkbox', checked: '', 'aria-label': T('cf.t.' + x.code, v) }); if (!d.manage) cb.disabled = true;
+        cb.addEventListener('change', function () { picked[x.key] = cb.checked; sync(); });
+        var one = d.manage ? el('button', { class: 'btn ghost sm', type: 'button', text: T('cf.apply') }) : null, oneSure = false;
+        if (one) one.addEventListener('click', function () { if (!oneSure) { oneSure = true; one.textContent = T('an.do.sure'); return; } send([x.key], one, T('cf.apply')); });
+        return el('article', { class: 'cf-item' }, [
+          el('label', { class: 'cf-cb' }, [cb]),
+          el('div', { class: 'cf-main' }, [
+            el('b', { class: 'cf-t', text: T('cf.t.' + x.code, v) }),
+            x.now ? el('div', { class: 'cf-diff' }, [el('span', { class: 'cf-now', text: T('cf.now') + ' ' + T('cf.v.' + x.code + '.' + x.now) }), el('span', { class: 'cf-arrow', 'aria-hidden': 'true', text: '←' }), el('span', { class: 'cf-next', text: T('cf.after') + ' ' + T('cf.v.' + x.code + '.' + x.next) })]) : null,
+            el('p', { class: 'cf-ev', text: T('cf.e.' + x.code, v) }),
+            el('p', { class: 'cf-why dim', text: T('cf.w.' + x.code, v) })]),
+          el('div', { class: 'cf-side' }, [x.impact ? el('span', { class: 'pill info', text: T('cf.impact', { m: money2(x.impact, cur) }) }) : null, one])]);
+      });
+      sync();
+      if (d.manage && items.length) applyAll.addEventListener('click', function () {
+        if (!sure) { sure = true; applyAll.textContent = T('cf.sure', { m: money2(total(), cur) }); return; }
+        send(items.filter(function (x) { return picked[x.key]; }).map(function (x) { return x.key; }), applyAll, T('cf.apply_n', { n: '' }));
+      });
+      var done = (d.done || []).map(function (f) {
+        var undo = d.manage && !f.undone ? el('button', { class: 'linkish', type: 'button', text: T('cf.undo') }) : null, uSure = false;
+        if (undo) undo.addEventListener('click', function () {
+          if (!uSure) { uSure = true; undo.textContent = T('cf.undo.sure'); return; }
+          undo.disabled = true;
+          DATA.campfixUndo(state.site, f.id).then(function () { toast(T('cf.undone')); campfixCard(box, view); }, function () { undo.disabled = false; toast(T('va.e.google')); });
+        });
+        var tg = f.target || {};
+        return el('li', { class: f.undone ? 'undone' : '' }, [el('span', { text: (f.undone ? '↺ ' : '✓ ') + T('cf.d.' + f.code, { name: tg.name || '', k: tg.keyword || '', n: fmt(tg.n || 0) }) }), el('small', { class: 'dim', text: ' · ' + dateAr(f.at) + (f.undone ? ' · ' + T('cf.was_undone') : '') }), undo]);
+      });
+      box.appendChild(el('section', { class: 'panel-card cf' }, [
+        el('div', { class: 'cf-head' }, [el('div', {}, [el('h2', { text: T('cf.title') }), el('p', { class: 'muted', text: items.length ? T('cf.sub', { n: fmt(items.length), m: money2(items.reduce(function (a, x) { return a + (x.impact || 0); }, 0), cur) }) : T('cf.clean') })]),
+          d.manage && items.length ? applyAll : null]),
+        items.length ? el('div', { class: 'cf-list' }, rows) : null,
+        !d.manage && items.length ? el('p', { class: 'muted', text: T('conv.ask_owner') }) : null,
+        done.length ? el('div', { class: 'cf-done' }, [el('h3', { class: 'legend', text: T('cf.done') }), el('ul', {}, done), el('p', { class: 'hint', text: T('cf.done.hint') })]) : null]));
+    }, function () { clear(box); box.appendChild(el('section', { class: 'panel-card cf' }, [el('h2', { text: T('cf.title') }), el('p', { class: 'muted', text: T('cf.err') })])); });
+  }
+  function cfVars(x, cur) {
+    return { name: x.name || '', k: x.k || '', match: x.match ? (T('ex.match.' + x.match) !== 'ex.match.' + x.match ? T('ex.match.' + x.match) : x.match) : '', clicks: fmt(x.clicks || 0), cost: money2(x.cost || 0, cur), conv: fmt(x.conv || 0),
+      p: x.p || 0, outside: fmt(x.outside || 0), of: fmt(x.of || 0), n: fmt(x.n || 0), terms: (x.terms || []).join('، '), reached: fmt(x.reached || 0), expected: x.expected || 0, cr: x.conv_rate || 0, sr: x.search_rate || 0 };
   }
   function drawAnalysis(view, d) {
     clear(view);
     if (!d.linked) { view.appendChild(card(T('nav.analysis'), [el('p', {}, [el('span', { text: T('conv.not_linked') + ' ' }), el('a', { class: 'linkish', href: '#/sites', text: T('nav.sites') })])])); return; }
     var cur = d.currency === 'SAR' ? T('sar') : d.currency, fixes = d.fixes || [], fixedBy = {};
     fixes.forEach(function (f) { if (!fixedBy[f.key]) fixedBy[f.key] = f; });
+    if (d.expert) {
+      drawExpert(view, d, cur, fixedBy);
+      if (fixes.length) view.appendChild(fixesCard(fixes, cur));
+      // الفحص الأساسي (الإعدادات): تحت، مقفول
+      var chk = el('div');
+      drawChecklist(chk, d, cur, fixedBy, fixes, view);
+      view.appendChild(el('details', { class: 'panel-card an-check' }, [el('summary', {}, [el('b', { text: T('ex.check') }), el('small', { class: 'dim', text: ' · ' + T('an.score') + ' ' + d.score + '/100' })]), el('p', { class: 'muted', text: T('ex.check.sub') }), chk]));
+      return;
+    }
+    drawChecklist(view, d, cur, fixedBy, fixes, view);
+  }
+  function drawChecklist(view, d, cur, fixedBy, fixes, root) {
+    var inExpert = view !== root;
     // ١) الدرجة
     var ring = el('div', { class: 'an-ring' }); C.ring(ring, d.score, { label: T('an.score'), text: String(d.score) });
     var weak = d.sections.filter(function (x) { return x.key === d.weakest; })[0];
-    var again = el('button', { class: 'btn ghost sm', type: 'button', text: T('an.again') }); again.addEventListener('click', function () { vAnalysis(view); });
+    var again = el('button', { class: 'btn ghost sm', type: 'button', text: T('an.again') }); again.addEventListener('click', function () { vAnalysis(root); });
     view.appendChild(el('section', { class: 'panel-card an-hero' }, [ring, el('div', { class: 'an-hero-t' }, [
       el('h2', { text: T('an.title') }), el('p', { class: 'muted', text: T('an.sub2') }),
       weak ? el('p', { class: 'an-weak' }, [el('b', { text: T('an.weakest') + ' ' }), el('span', { text: T('an.s.' + weak.key) })]) : el('p', { class: 'an-weak ok', text: T('an.allgood') }),
       el('div', { class: 'an-meta' }, [el('small', { class: 'dim', text: T('an.at', { t: timeAr(d.at) }) }), again])])]));
     // ٢) القمع
-    if (d.funnel) view.appendChild(funnelCard(d.funnel, d.leak, cur));
+    if (d.funnel && !inExpert) view.appendChild(funnelCard(d.funnel, d.leak, cur));
     // ٣) التشخيصات (المشاكل بس، بترتيب المنهجية، وأضعف قسم الأول)
     var probs = [];
     d.sections.forEach(function (sx, si) { sx.items.forEach(function (it) { if (it.status !== 'ok') probs.push({ it: it, sx: sx, si: si }); }); });
     var rank = { bad: 0, warn: 1, info: 2 };
     probs.sort(function (a, b) { return (a.sx.key === d.weakest ? -1 : 0) - (b.sx.key === d.weakest ? -1 : 0) || rank[a.it.status] - rank[b.it.status] || a.si - b.si; });
-    var list = el('div', { class: 'an-dx-list' }, probs.map(function (p, i) { return dxCard(p.it, p.sx, i + 1, d, view, cur, fixedBy[p.it.key]); }));
+    var list = el('div', { class: 'an-dx-list' }, probs.map(function (p, i) { return dxCard(p.it, p.sx, i + 1, d, root, cur, fixedBy[p.it.key]); }));
     view.appendChild(el('section', { class: 'panel-card' }, [el('div', { class: 'sec-head' }, [el('h2', { text: T('an.dx.title', { n: probs.filter(function (p) { return p.it.status !== 'info'; }).length }) })]),
       el('p', { class: 'muted', text: T('an.dx.sub') }), probs.length ? list : el('p', { class: 'an-weak ok', text: T('an.allgood') })]));
     // ٤) متابعة الإصلاحات
-    if (fixes.length) view.appendChild(fixesCard(fixes, cur));
+    if (fixes.length && !inExpert) view.appendChild(fixesCard(fixes, cur));
     // ٥) الأقسام والسليم
     var oks = []; d.sections.forEach(function (sx) { sx.items.forEach(function (it) { if (it.status === 'ok') oks.push(it); }); });
     view.appendChild(el('section', { class: 'panel-card' }, [el('div', { class: 'sec-head' }, [el('h2', { text: T('an.secs') })]),
@@ -1725,6 +1997,97 @@
         return el('li', { class: sx.key === d.weakest ? 'weakest' : '' }, [el('span', { text: T('an.s.' + sx.key) }), bar, el('b', { text: T('an.pts', { a: sx.score, b: sx.weight }) })]);
       })),
       oks.length ? el('details', { class: 'an-ok' }, [el('summary', { text: T('an.oks', { n: oks.length }) }), el('ul', {}, oks.map(function (it) { return el('li', { text: '✓ ' + T('an.i.' + it.code, anVars(it, cur)) }); }))]) : null]));
+  }
+  // ════════ تقرير الخبير (16 نوفمبر · «ضعيف ومبهم ومنقول من تحسين جوجل») ════════
+  // ١) الخلاصة بالفلوس · ٢) خطة العمل بالاسم ومترتبة بالفلوس · ٣) فين راحت فلوسك · ٤) جوجل بيتعلم من إيه · ٥) الكلمات بالنتيجة · ٦) الأماكن والأوقات والأجهزة
+  function exVars(dd, cur) {
+    var o = {}; Object.keys(dd || {}).forEach(function (k) { var v = dd[k]; o[k] = Array.isArray(v) ? v.join('، ') : typeof v === 'number' ? (/^(cost|cpl|avg|save|cpc)$/.test(k) ? money2(v, cur) : fmt(v)) : (v == null ? '' : String(v)); });
+    if (/^(night|morning|afternoon|evening)$/.test(o.k || '')) o.k = T('ex.time.' + o.k);
+    if (dd && dd.match) o.match = T('ex.match.' + dd.match) !== 'ex.match.' + dd.match ? T('ex.match.' + dd.match) : dd.match;
+    return o;
+  }
+  function drawExpert(view, d, cur, fixedBy) {
+    var x = d.expert, S = x.summary, M = x.money;
+    // ١) الخلاصة
+    var again = el('button', { class: 'btn ghost sm', type: 'button', text: T('an.again') }); again.addEventListener('click', function () { vAnalysis(view); });
+    var top = x.plan[0];
+    view.appendChild(el('section', { class: 'panel-card ex-hero' }, [
+      el('h2', { text: T('ex.title') }),
+      el('p', { class: 'ex-lead', text: T('ex.lead', { cost: money2(S.cost, cur), n: fmt(S.contacts), won: fmt(S.won) }) }),
+      el('div', { class: 'ex-kpis' }, [
+        el('div', {}, [el('span', { text: T('ex.k.cost') }), el('b', { text: money2(S.cost, cur) })]),
+        el('div', {}, [el('span', { text: T('ex.k.cpl') }), el('b', { text: S.cpl == null ? '—' : money2(S.cpl, cur) })]),
+        el('div', {}, [el('span', { text: T('ex.k.cpw') }), el('b', { text: S.cpw == null ? '—' : money2(S.cpw, cur) })]),
+        el('div', { class: S.save ? 'save' : '' }, [el('span', { text: T('ex.k.save') }), el('b', { text: S.save ? money2(S.save, cur) : '—' })])]),
+      top ? el('p', { class: 'ex-top' }, [el('b', { text: T('ex.top') + ' ' }), el('span', { text: T('ex.t.' + top.code, exVars(top.data, cur)) })]) : el('p', { class: 'ex-top ok', text: T('ex.nothing') }),
+      S.no_outcome ? el('p', { class: 'hint', text: T('ex.need_out', { n: fmt(S.no_outcome) }) }) : null,
+      el('div', { class: 'an-meta' }, [el('small', { class: 'dim', text: T('an.at', { t: timeAr(d.at) }) + ' · ' + T('ex.window') }), again])]));
+    // ٢) خطة العمل
+    var plan = x.plan.map(function (p, i) { return exCard(p, i + 1, d, view, cur, fixedBy[p.key]); });
+    view.appendChild(el('section', { class: 'panel-card' }, [el('div', { class: 'sec-head' }, [el('h2', { text: T('ex.plan', { n: x.plan.length }) })]), el('p', { class: 'muted', text: T('ex.plan.sub') }),
+      plan.length ? el('div', { class: 'an-dx-list' }, plan) : el('p', { class: 'an-weak ok', text: T('ex.nothing') })]));
+    // ٣) فين راحت فلوسك
+    view.appendChild(moneyCard(M, cur));
+    // ٤) إشارة التعلّم
+    view.appendChild(signalCard(x.signal));
+    // ٥) الكلمات
+    view.appendChild(exTable(T('ex.kw'), T('ex.kw.sub'), x.keywords, cur, true));
+    // ٦) الأماكن والأوقات والأجهزة
+    var tabs = [['places', x.places], ['times', x.times.map(function (t) { return Object.assign({}, t, { k: T('ex.time.' + t.k) }); })], ['devices', x.devices.map(function (t) { return Object.assign({}, t, { k: T('ex.dev.' + t.k) !== 'ex.dev.' + t.k ? T('ex.dev.' + t.k) : t.k }); })]];
+    var seg = el('div', { class: 'seg', role: 'tablist' }), box = el('div');
+    var show = function (i) { clear(box); Array.prototype.forEach.call(seg.children, function (b, j) { b.setAttribute('aria-selected', String(i === j)); }); box.appendChild(exTable(null, null, tabs[i][1], cur, false, tabs[i][0] === 'times')); };
+    tabs.forEach(function (t, i) { var b = el('button', { type: 'button', role: 'tab', text: T('ex.dim.' + t[0]) }); b.addEventListener('click', function () { show(i); }); seg.appendChild(b); });
+    view.appendChild(el('section', { class: 'panel-card' }, [el('div', { class: 'sec-head' }, [el('h2', { text: T('ex.where') })]), el('p', { class: 'muted', text: T('ex.where.sub') }), seg, box]));
+    show(0);
+  }
+  function exCard(p, n, d, view, cur, done) {
+    var it = { status: p.status, code: p.code, data: p.data, fix: p.fix, key: p.key };
+    var c = dxCard(it, { key: 'plan' }, n, d, view, cur, done, exVars(p.data, cur));
+    if (p.impact > 0 && p.code !== 'x_signal') { var h = c.querySelector('.dx-h'); if (h) h.appendChild(el('span', { class: 'pill ' + (p.code === 'x_scale' ? 'ok' : 'info') + ' ex-impact', text: T(p.code === 'x_scale' ? 'ex.gain' : 'ex.impact', { m: money2(p.impact, cur) }) })); }
+    return c;
+  }
+  // فين راحت الفلوس: من النقرة المدفوعة للعميل، وكل خطوة بفلوسها التقريبية
+  function moneyCard(M, cur) {
+    var rows = [
+      ['billed', M.billed, M.cost, ''],
+      ['offsite', M.offsite, M.offsite * M.cpc, 'info'],
+      ['unreached', M.unreached, M.unreached * M.cpc, M.url && M.unreached / M.url >= 0.3 ? 'bad' : 'warn'],
+      ['bad', M.bad, M.bad * M.cpc, 'warn'],
+      ['real', M.real, null, ''],
+      ['contacts', M.contacts, null, 'ok'],
+      ['convos', M.convos, null, 'ok'],
+      ['won', M.won, null, 'ok']];
+    var max = Math.max(1, M.billed);
+    return el('section', { class: 'panel-card ex-money' }, [el('div', { class: 'sec-head' }, [el('h2', { text: T('ex.money') })]), el('p', { class: 'muted', text: T('ex.money.sub', { cpc: money2(M.cpc, cur) }) }),
+      el('ol', { class: 'fn' }, rows.map(function (r) {
+        var bar = el('i', { class: 'fn-bar ' + r[3] }, [el('i')]); bar.firstChild.style.width = Math.max(2, Math.round(Math.sqrt(r[1] / max) * 100)) + '%';
+        return el('li', { class: 'fn-step' + (r[3] === 'bad' ? ' leak' : '') }, [el('div', { class: 'fn-h' }, [el('span', { text: T('ex.m.' + r[0]) }), el('b', { text: fmt(r[1]) }), r[2] != null && r[0] !== 'billed' ? el('small', { class: 'dim', text: '≈ ' + money2(r[2], cur) }) : r[0] === 'billed' ? el('small', { class: 'dim', text: money2(r[2], cur) }) : null]), bar]);
+      })),
+      M.refunded ? el('p', { class: 'hint', text: T('ex.m.refunded', { n: fmt(M.refunded) }) }) : null]);
+  }
+  function signalCard(g) {
+    var max = Math.max(1, g.google, g.contacts);
+    var bar = function (label, v, cls) { var b = el('i', { class: 'fn-bar ' + cls }, [el('i')]); b.firstChild.style.width = Math.max(2, Math.round(v / max * 100)) + '%'; return el('li', { class: 'fn-step' }, [el('div', { class: 'fn-h' }, [el('span', { text: label }), el('b', { text: fmt(v) })]), b]); };
+    return el('section', { class: 'panel-card' }, [el('div', { class: 'sec-head' }, [el('h2', { text: T('ex.sig') })]), el('p', { class: 'muted', text: T('ex.sig.sub') }),
+      el('ol', { class: 'fn' }, [bar(T('ex.sig.google'), g.google, g.state === 'inflated' ? 'bad' : ''), bar(T('ex.sig.contacts'), g.contacts, 'ok'), bar(T('ex.sig.won'), g.won, 'ok')]),
+      el('p', { class: 'fn-note ' + (g.state === 'ok' ? 'ok' : 'bad'), text: T('ex.sig.' + g.state, { names: (g.primary || []).join('، ') || '—' }) })]);
+  }
+  // جدول بالنتيجة: الاسم · الصرف · وصلت · تواصل · تم · تكلفة التواصل · الحكم
+  function exTable(title, sub, list, cur, isKw, isTime) {
+    var tb = el('tbody');
+    (list || []).forEach(function (x) {
+      tb.appendChild(el('tr', {}, [
+        el('td', { class: 'first' }, [el('b', { text: x.k }), isKw && x.match ? el('small', { class: 'dim', text: ' · ' + (T('ex.match.' + x.match) !== 'ex.match.' + x.match ? T('ex.match.' + x.match) : x.match) }) : null]),
+        el('td', { 'data-l': T('ex.h.cost'), text: (isKw ? '' : '≈ ') + money2(x.cost, cur) }),
+        el('td', { 'data-l': T(isTime ? 'ex.h.visits' : 'ex.h.reached'), text: fmt(isTime ? x.clicks : x.reached) + (isTime ? '' : ' / ' + fmt(x.clicks)) }),
+        el('td', { 'data-l': T('ex.h.contacts'), text: fmt(x.contacts) }),
+        el('td', { 'data-l': T('ex.h.won'), text: fmt(x.won) }),
+        el('td', { 'data-l': T('ex.h.cpl'), text: x.cpl == null ? '—' : money2(x.cpl, cur) }),
+        el('td', { 'data-l': T('ex.h.verdict'), class: 'last' }, [el('span', { class: 'pill ' + ({ scale: 'ok', keep: 'info', reduce: 'warn', cut: 'bad', thin: '' })[x.verdict], text: T('ex.v.' + x.verdict) }), x.verdict === 'cut' || x.verdict === 'thin' ? el('small', { class: 'dim ex-exp', text: T('ex.expected', { n: x.expected }) }) : null])]));
+    });
+    var table = (list || []).length ? el('div', { class: 'tbl-wrap' }, [el('table', { class: 'tbl static ex-t' }, [el('thead', {}, [el('tr', {}, ['name', 'cost', isTime ? 'visits' : 'reached', 'contacts', 'won', 'cpl', 'verdict'].map(function (h) { return el('th', { text: T('ex.h.' + h) }); }))]), tb])]) : el('p', { class: 'muted', text: T('ex.none') });
+    if (!title) return table;
+    return el('section', { class: 'panel-card' }, [el('div', { class: 'sec-head' }, [el('h2', { text: title })]), el('p', { class: 'muted', text: sub }), table, el('p', { class: 'hint', text: T('ex.v.legend') })]);
   }
   function anVars(it, cur) {
     var dd = it.data || {};
@@ -1753,8 +2116,8 @@
       f.outcomes < f.contacts / 2 ? el('p', { class: 'hint', text: T('an.fn.need_out', { n: fmt(f.contacts - f.outcomes) }) }) : null]);
   }
   // بطاقة تشخيص: المشكلة · ليه مهمة · الحل خطوة خطوة · التنفيذ (صلّح الآن في جوجل · ادخل ونفّذ · نفّذته) + ملاحظات
-  function dxCard(it, sx, n, d, view, cur, done) {
-    var v = anVars(it, cur), how = T('an.how.' + it.code), f = it.fix || {};
+  function dxCard(it, sx, n, d, view, cur, done, vars) {
+    var v = vars || anVars(it, cur), how = T('an.how.' + it.code), f = it.fix || {};
     var kids = [el('div', { class: 'dx-h' }, [el('span', { class: 'dx-n', text: String(n) }), el('span', { class: 'pill ' + (it.status === 'bad' ? 'bad' : it.status === 'warn' ? 'warn' : 'info'), text: T('an.st.' + it.status) }), el('small', { class: 'dim', text: T('an.s.' + sx.key) })]),
       el('p', { class: 'dx-what', text: T('an.i.' + it.code, v) })];
     if (T('an.f.' + it.code) !== 'an.f.' + it.code) kids.push(el('p', { class: 'dx-why' }, [el('b', { text: T('an.why') + ' ' }), el('span', { text: T('an.f.' + it.code, v) })]));
@@ -1846,7 +2209,7 @@
         el('div', { class: 'set-acts' }, [installed() ? el('span', { class: 'pill ok', text: T('set.installed') }) : installBtn('btn ghost sm'), ls])]);
       // ملف نشاطك
       var fileBox = el('div');
-      var withAi = DATA.assistantState ? el('button', { class: 'btn sm', type: 'button', text: '✦ ' + T('ai.build') }) : null;
+      var withAi = DATA.assistantState ? el('button', { class: 'btn sm ai-btn', type: 'button' }, [icon('assistant'), el('span', { text: T('ai.build') })]) : null;
       if (withAi) withAi.addEventListener('click', function () { ai.chat = null; ai.msgs = []; openAssistant('brief'); });
       var file = card(T('set.file'), [el('p', { class: 'hint', text: T('set.file.i') }), withAi, fileBox,
         el('ul', { class: 'set-next' }, ['set.file.n1', 'set.file.n2', 'set.file.n3'].map(function (k) { return el('li', {}, [el('span', { text: T(k) }), el('span', { class: 'pill', text: T('set.soon') })]); }))]);
@@ -2182,7 +2545,7 @@
   try { ai.speak = sessionStorage.getItem('lt_ai_speak') === '1'; } catch (e) { /* عادي */ }
   function assistantFab() {
     if (!DATA.assistantState || $('ai-fab')) return;
-    var b = el('button', { class: 'ai-fab', id: 'ai-fab', type: 'button', 'aria-label': T('ai.open') }, [el('span', { 'aria-hidden': 'true', text: '✦' }), el('b', { text: T('ai.open') })]);
+    var b = el('button', { class: 'ai-fab', id: 'ai-fab', type: 'button', 'aria-label': T('ai.open') }, [icon('assistant'), el('b', { text: T('ai.open') })]);
     b.addEventListener('click', function () { openAssistant(); });
     document.body.appendChild(b);
   }

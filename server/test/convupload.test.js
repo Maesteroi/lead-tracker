@@ -76,7 +76,8 @@ test('conv: «send» uploads the approved customers to the Data Manager API (cli
   assert.deepEqual(body.destinations, [{ operatingAccount: { accountType: 'GOOGLE_ADS', accountId: CID }, loginAccount: { accountType: 'GOOGLE_ADS', accountId: CID }, productDestinationId: '222' }]);
   assert.equal(body.events.length, 1);
   const e = body.events[0];
-  assert.deepEqual(Object.keys(e).sort(), ['adIdentifiers', 'eventSource', 'eventTimestamp', 'transactionId']);
+  assert.deepEqual(Object.keys(e).sort(), ['adIdentifiers', 'conversionValue', 'currency', 'eventSource', 'eventTimestamp', 'transactionId'], 'no name or phone; the value teaches bidding a deal is worth more than a chat');
+  assert.deepEqual([e.conversionValue, e.currency], [100, 'SAR'], 'default value of a closed deal, in the account currency');
   assert.equal(e.adIdentifiers.gclid, GCLID); assert.equal(e.eventSource, 'WEB'); assert.equal(e.transactionId, 'mlt-' + s.site.id + '-AB12');
   assert.ok(!Number.isNaN(Date.parse(e.eventTimestamp)));
   const after = (await s.gc(s.owner, '/v1/dash/conv?site=' + s.site.id)).body;

@@ -100,6 +100,16 @@ function fakeApi(over) {
       if (p === '/v1/dash/statement.csv') { st.csvCalls = (st.csvCalls || 0) + 1; return route.fulfill({ status: 200, headers: Object.assign({ 'content-type': 'text/csv; charset=utf-8', 'content-disposition': 'attachment; filename="maestro-refund-x.csv"', 'access-control-expose-headers': 'content-disposition' }, cors), body: '\ufeffdate,gclid\r\n' }); }
       if (p === '/v1/dash/statement') return j(200, Object.assign({ ok: true }, st.statement || { linked: false }));
       // تحليل الحملة (analysis.js)
+      if (p === '/v1/dash/optimize/draft') { const b = JSON.parse(req.postData()); return j(200, { ok: true, key: b.key, code: b.key.split(':')[0], limits: { headline: 30, description: 90, path: 15, callout: 25, sitelink: 25, sitelink_desc: 35, snippet: 25 },
+        draft: b.key.startsWith('rsa_new') ? { ai: true, headlines: [{ text: 'الدفع بعد الإنجاز', role: 'promise', pin: 'HEADLINE_1' }, { text: 'تصميم داخلي في جدة', role: 'city' }, { text: 'مصمم داخلي معتمد', role: 'trust' }], descriptions: ['تصميم داخلي وتنفيذ بجودة عالية في جدة، والدفع بعد الإنجاز.', 'تواصل معنا على واتساب واحصل على تصور مبدئي مجاني.'], path1: 'تصميم', path2: 'جدة', url: 'https://shado.com/' } : { callouts: ['الدفع بعد الإنجاز', 'زيارة موقع مجانية'] } }); }
+      if (p === '/v1/dash/optimize/apply') { const b = JSON.parse(req.postData()); st.opApply = (st.opApply || []).concat([Object.assign({ csrf: req.headers()['x-csrf-token'] }, b)]); const bad = Object.values(b.drafts || {}).some((d) => (d.headlines || []).some((h) => h.text.length > 30)); if (bad) return j(200, { ok: false, results: b.keys.map((k) => ({ key: k, ok: false, error: 'draft', detail: ['h:1'] })) }); st.opDone = (st.opDone || []).concat(b.keys.map((k, i) => ({ id: 200 + (st.opDone || []).length + i, code: k.split(':')[0], key: k, target: { name: 'شادو', ag: 'تصميم داخلي' }, at: new Date().toISOString(), undone: false }))); if (st.optimize) st.optimize.items = st.optimize.items.filter((x) => !b.keys.includes(x.key)); if (st.optimize) st.optimize.plan = st.optimize.plan.filter((k) => !b.keys.includes(k)); return j(200, { ok: true, results: b.keys.map((k) => ({ key: k, ok: true })) }); }
+      if (p === '/v1/dash/optimize/undo') { const b = JSON.parse(req.postData()); st.opUndo = (st.opUndo || []).concat([b]); (st.opDone || []).forEach((d) => { if (d.id === b.id) d.undone = true; }); return j(200, { ok: true }); }
+      if (p === '/v1/dash/optimize/values') { const b = JSON.parse(req.postData()); st.opValues = b.values; return b.values.won < b.values.convo ? j(400, { ok: false, error: 'order' }) : j(200, { ok: true, values: b.values }); }
+      if (p === '/v1/dash/optimize') return st.optimize ? j(200, Object.assign({ ok: true, linked: true, manage: true, currency: 'SAR', done: st.opDone || [] }, st.optimize)) : j(404, { ok: false });
+      if (p === '/v1/dash/campfix/apply') { const b = JSON.parse(req.postData()); st.cfApply = (st.cfApply || []).concat([Object.assign({ csrf: req.headers()['x-csrf-token'] }, b)]); st.cfDone = (st.cfDone || []).concat(b.keys.map((k, i) => ({ id: 100 + (st.cfDone || []).length + i, code: k.split(':')[0], key: k, target: { name: 'شادو', n: 4 }, at: new Date().toISOString(), undone: false }))); st.campfix = (st.campfix || []).filter((x) => !b.keys.includes(x.key)); return j(200, { ok: true, results: b.keys.map((k) => ({ key: k, ok: true })) }); }
+      if (p === '/v1/dash/campfix/undo') { const b = JSON.parse(req.postData()); st.cfUndo = (st.cfUndo || []).concat([b]); (st.cfDone || []).forEach((d) => { if (d.id === b.id) d.undone = true; }); return j(200, { ok: true }); }
+      if (p === '/v1/dash/campfix') return j(200, { ok: true, linked: true, manage: true, currency: 'SAR', items: st.campfix || [], done: st.cfDone || [] });
+      if (p === '/v1/dash/analysis' && st.expert) return j(200, { ok: true, linked: true, manage: true, currency: 'SAR', score: 46, weakest: 'measure', at: new Date().toISOString(), funnel: { cost: 466, clicks: 710, visits: 133, real: 125, contacts: 28, outcomes: 19, convos: 7, won: 2 }, leak: null, fixes: [], sections: [{ key: 'measure', title: 'measure', weight: 20, score: 0, items: [{ status: 'bad', code: 'no_upload', data: { n: 1 }, fix: { go: 'leads' }, key: 'no_upload:' }] }], expert: st.expert });
       if (p === '/v1/dash/analysis') return j(200, { ok: true, linked: true, manage: true, currency: 'SAR', score: st.anFixed ? 58 : 46, weakest: 'measure', at: new Date().toISOString(), pagespeed: true, funnel: { cost: 1830, clicks: 277, visits: 124, real: 115, contacts: 29, outcomes: 20, convos: 6, won: 1 }, leak: { from: 'outcomes', to: 'convos', rate: 30, bench: 60, section: 'terms' }, fixes: (st.anFixed ? [{ id: 2, code: 'bad_keyword', key: 'bad_keyword:أبشر تصريح زواج', mode: 'auto', action: 'pause_keyword', target: { keyword: 'أبشر تصريح زواج', match: 'BROAD' }, note: st.anFix[0].note || '', at: new Date().toISOString(), days: 0, metric: 'convo_rate', verdict: 'wait', before: { contact_rate: 23.4, convo_rate: 4.8, won_rate: 0.8, cost_contact: 63.1, cost_won: 1830 }, after: { contact_rate: null, convo_rate: null, won_rate: null, cost_contact: null, cost_won: null } }] : []).concat(st.anDone ? [{ id: 1, code: 'speed', key: 'speed:', mode: 'manual', action: null, target: {}, note: st.anDone.note, at: new Date(Date.now() - 9 * 864e5).toISOString(), days: 9, metric: 'convo_rate', verdict: 'better', before: { contact_rate: 18, convo_rate: 4, won_rate: 0.5, cost_contact: 80, cost_won: 2000 }, after: { contact_rate: 26, convo_rate: 7.5, won_rate: 1.2, cost_contact: 55, cost_won: 1100 } }] : []), sections: [
         { key: 'measure', weight: 20, score: 0, items: [{ status: 'bad', code: 'no_upload', key: 'no_upload:', data: { n: 1 }, fix: { go: 'leads' } }, { status: 'bad', code: 'conv_inflated', key: 'conv_inflated:', data: { g: 20, won: 1 } }] },
         { key: 'protect', weight: 10, score: 10, items: [{ status: 'ok', code: 'suspicious', key: 'suspicious:', data: { n: 9, of: 124, p: 7, blocks: 2 } }] },
@@ -731,6 +741,8 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
   const pg = await page(api, { viewport: { width: 1280, height: 900 } });
   await pg.goto('https://app.maestrolt.com/#/overview');
   await pg.waitForSelector('#ai-fab');
+  t('assistant: the floating button uses our own icon (chat bubble with a growth line), not a sparkle', (await pg.locator('#ai-fab svg.ic').count()) === 1 && !/✦/.test(await pg.locator('#ai-fab').innerText()));
+  if (SHOTS) await pg.locator('#ai-fab').screenshot({ path: path.join(SHOTS, 'ai-fab.png') });
   await pg.locator('#ai-fab').click();
   await pg.waitForSelector('.ai-log');
   t('assistant: a floating «ask the assistant» opens a chat with 3 tasks and a voice button', (await pg.locator('.ai-tasks [role=tab]').count()) === 3 && (await pg.locator('.ai-bar textarea').count()) === 1);
@@ -752,6 +764,7 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
   await pg.waitForFunction(() => /حُفظ في ملف نشاطك/.test(document.getElementById('toast').textContent));
   t('assistant: the business file proposal is shown and saved only on the owner press (merged into the brief)', api.briefCalls && api.briefCalls.at(-1).offer.includes('تصريح زواج') && api.briefCalls.at(-1).fears[0].promise === 'الدفع بعد الإنجاز');
   await pg.setViewportSize({ width: 390, height: 844 });
+  if (SHOTS) { await pg.keyboard.press('Escape'); await pg.locator('#ai-fab').screenshot({ path: path.join(SHOTS, 'ai-fab-mobile.png') }).catch(() => {}); }
   t('assistant mobile: no sideways scrolling', await pg.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1));
   t('assistant: no console errors, no CSP violations', pg.errors.length === 0 && pg.csp.length === 0);
   if (pg.errors.length || pg.csp.length) console.log(pg.errors, pg.csp);
@@ -802,6 +815,118 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
   t('rules mobile: no sideways scrolling', await pg.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1));
   await shot(pg, 'rules-mobile');
   t('rules: no console errors, no CSP violations', pg.errors.length === 0 && pg.csp.length === 0);
+  if (pg.errors.length || pg.csp.length) console.log(pg.errors, pg.csp);
+  await pg.context().close(); }
+
+// 27-و) تحسين الحملة: خطة الأسبوع + الطبقات · «اكتبهولي» · طبّق · تراجع (16 نوفمبر · claude/briefs/2026-11-16-campaign-optimization-engine.md)
+{ const api = fakeApi({ signedIn: true, sites: [{ id: 'SiteId123456', name: 'شادو', domains: ['shado.com'], paired: true }] });
+  const it = (o) => Object.assign({ status: 'warn', kind: 'apply', impact: 0, sure: true, data: {} }, o, { key: o.code + ':' + (o.ref || '') });
+  api.optimize = { layers: ['signal', 'traffic', 'search', 'quality', 'ads', 'landing', 'where', 'budget'], values: { won: 100, convo: 30, contact: 10 }, qs: 4.6,
+    context: { cost: 1369.04, contacts: 15, won: 0, cpl: 91.27, cpw: null, smart: ['شادو'], campaigns: 1, signal_ok: false },
+    items: [
+      it({ layer: 'signal', code: 'conv_secondary', ref: '55', status: 'bad', data: { name: 'نقرة على واتساب', type: 'WEBPAGE', n: 7, contacts: 15, won: 0, sent: 1 }, now: 'primary', next: 'secondary', impact: 1369.04 }),
+      it({ layer: 'signal', code: 'outcomes', kind: 'go', go: 'leads', data: { n: 15, of: 15 } }),
+      it({ layer: 'traffic', code: 'partners_off', ref: '11', campaign: '11', status: 'bad', data: { name: 'شادو', clicks: 31, cost: 186.4, conv: 0 }, now: 'on', next: 'off', impact: 186.4 }),
+      it({ layer: 'quality', code: 'qs_ctr', kind: 'layer', go: 'ads', status: 'bad', data: { n: 3, cost: 160.3, p: 38, list: [{ k: 'تصميم داخلي', qs: 4, cost: 84.05 }, { k: 'ديكور داخلي', qs: 3, cost: 47.11 }] }, impact: 160.3 }),
+      it({ layer: 'ads', code: 'rsa_new', ref: '1', kind: 'write', status: 'bad', data: { ag: 'تصميم داخلي', strength: 'AVERAGE', cost: 420, promise: 'الدفع بعد الإنجاز', n: 1 }, impact: 63 }),
+      it({ layer: 'ads', code: 'asset_callout', ref: '11', campaign: '11', kind: 'write', data: { name: 'شادو' } }),
+      it({ layer: 'landing', code: 'lp_rate', kind: 'guided', go: 'visits', status: 'warn', data: { p: 14, visits: 106 } }),
+      it({ layer: 'where', code: 'smart_note', kind: 'none', status: 'info', data: { name: 'شادو', bidding: 'MAXIMIZE_CONVERSIONS' } }),
+      it({ layer: 'budget', code: 'smart_on_bad_signal', kind: 'layer', go: 'signal', status: 'bad', data: { names: ['شادو'] }, impact: 410.7 })],
+    plan: ['conv_secondary:55', 'partners_off:11', 'rsa_new:1'],
+    expert: { keywords: [], places: [], times: [], devices: [], money: null, signal: { google: 7, contacts: 15, won: 0, primary: ['نقرة على واتساب'], state: 'ok' }, summary: {} } };
+  const pg = await page(api, { viewport: { width: 1280, height: 900 } });
+  await pg.goto('https://app.maestrolt.com/#/analysis');
+  await pg.waitForSelector('.op-hero');
+  const hero = await pg.locator('.op-hero').innerText();
+  t('optimize: the page is «campaign optimization»: spend, real contacts, deals, cost per contact, what Google learns from, quality score', (await pg.locator('#page-title').innerText()) === 'تحسين الحملة' && /صرفت 1,369\.04/.test(hero) && /15 تواصل حقيقي/.test(hero) && /إشارة خاطئة/.test(hero) && /4\.6 \/ 10/.test(hero));
+  t('optimize: this week\'s plan, the learning signal first, each with now → after and its money', (await pg.locator('.op-hero .dx').count()) === 3 && /اجعل «نقرة على واتساب» تحويلًا ثانويًا/.test(await pg.locator('.op-hero .dx').first().innerText()) && /تحويل أساسي \(يتعلم منه جوجل\)/.test(hero) && /تحويل ثانوي/.test(hero));
+  t('optimize: eight layers from the source down plus change tracking, with problem counts', (await pg.locator('.op-tabs button').count()) === 9 && /الإشارة/.test(await pg.locator('.op-tabs').innerText()) && /متابعة التعديلات/.test(await pg.locator('.op-tabs').innerText()));
+  const sig = await pg.locator('.op-panel').innerText();
+  t('optimize signal layer: the expert reasoning, conversion values, and the steps', /يشتري جوجل بميزانيتك نقرات من يضغط ولا يشتري/.test(sig) && (await pg.locator('.op-values input').count()) === 3 && /الأهداف ← التحويلات/.test(sig));
+  await pg.locator('.op-values input').nth(0).fill('20');
+  await pg.locator('.op-valbox').getByRole('button', { name: 'احفظ القواعد' }).click();
+  await pg.waitForFunction(() => /قيمة «تم» يجب أن تكون أكبر/.test(document.getElementById('toast').textContent));
+  t('optimize values: a deal worth less than a chat is refused plainly', api.opValues.won === 20);
+  await pg.getByRole('tab', { name: /نقاط الجودة/ }).click();
+  const q = await pg.locator('.op-panel').innerText();
+  t('optimize quality layer: the weak component names the broken layer and the keywords behind it', /3 كلمة «نسبة النقر المتوقعة» فيها أقل من المتوسط/.test(q) && /تصميم داخلي/.test(q) && (await pg.locator('.op-panel').getByRole('button', { name: /افتح طبقة «الإعلان والإضافات»/ }).count()) === 1);
+  await pg.locator('.op-panel').getByRole('button', { name: /افتح طبقة «الإعلان والإضافات»/ }).click();
+  const card = pg.locator('.op-panel .dx', { hasText: 'إعلان جديد أقوى' });
+  await card.getByRole('button', { name: 'اكتبه لي' }).click();
+  await card.locator('.op-editor input').first().waitFor();
+  t('optimize ad writer: the draft opens for editing, each field with Google\'s limit and the promise pinned first', (await card.locator('.op-editor .op-cnt').count()) >= 7 && (await card.locator('.op-editor input').first().inputValue()) === 'الدفع بعد الإنجاز' && (await card.locator('.op-editor select').first().inputValue()) === 'HEADLINE_1');
+  await card.locator('.op-editor input').nth(1).fill('تصميم داخلي فاخر في جدة بأسعار مناسبة للجميع');
+  t('optimize ad writer: a headline over 30 characters turns its counter red', (await card.locator('.op-cnt.over').count()) === 1);
+  const go = card.getByRole('button', { name: 'أنشئه في جوجل أدز' });
+  await go.click(); await card.getByRole('button', { name: /اضغط مرة أخرى/ }).click();
+  await pg.waitForFunction(() => /تتجاوز حدود جوجل/.test(document.getElementById('toast').textContent));
+  t('optimize ad writer: the server refuses the over-limit draft and nothing is created', api.opApply.length === 1 && !(api.opDone || []).length);
+  await card.locator('.op-editor input').nth(1).fill('تصميم داخلي في جدة');
+  await go.click();
+  await pg.waitForFunction(() => /طُبّق 1 تعديل/.test(document.getElementById('toast').textContent));
+  const sent = api.opApply.at(-1);
+  t('optimize ad writer: the edited ad is sent with its pins and CSRF', sent.keys[0] === 'rsa_new:1' && sent.drafts['rsa_new:1'].headlines[1].text === 'تصميم داخلي في جدة' && sent.drafts['rsa_new:1'].headlines[0].pin === 'HEADLINE_1' && sent.csrf === 'csrf-token-123');
+  await pg.waitForSelector('.op-hero');
+  const p1 = pg.locator('.op-hero .dx').first();
+  await p1.getByRole('button', { name: 'طبّق' }).click(); await p1.getByRole('button', { name: /اضغط مرة أخرى/ }).click();
+  await pg.waitForFunction(() => /طُبّق 1 تعديل/.test(document.getElementById('toast').textContent) && document.querySelectorAll('.op-hero .dx').length === 1);
+  t('optimize: «apply» from the plan sends that change only after a confirmation', api.opApply.at(-1).keys.join() === 'conv_secondary:55');
+  await pg.getByRole('tab', { name: /متابعة التعديلات/ }).click();
+  await pg.waitForSelector('.cf-done li');
+  await pg.locator('.cf-done li').first().getByRole('button', { name: 'تراجع' }).click(); await pg.locator('.cf-done li').first().getByRole('button', { name: /اضغط مرة أخرى/ }).click();
+  await pg.waitForFunction(() => /رجعت الإعدادات/.test(document.getElementById('toast').textContent));
+  t('optimize tracking: applied changes are listed with undo, and the old settings check is folded below', api.opUndo && api.opUndo[0].id === 200);
+  await shot(pg, 'optimize');
+  await pg.setViewportSize({ width: 390, height: 844 });
+  await pg.getByRole('tab', { name: /الإعلان والإضافات/ }).click();
+  t('optimize mobile: no sideways scrolling', await pg.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1));
+  await shot(pg, 'optimize-mobile');
+  t('optimize: no console errors, no CSP violations', pg.errors.length === 0 && pg.csp.length === 0);
+  if (pg.errors.length || pg.csp.length) console.log(pg.errors, pg.csp);
+  await pg.context().close(); }
+
+// 27-هـ) تقرير الخبير لتحليل الحملة (16 نوفمبر · «ضعيف ومبهم ومنقول من تحسين جوجل»)
+{ const api = fakeApi({ signedIn: true, sites: [{ id: 'SiteId123456', name: 'الإنجاز', domains: ['enjaz.biz'], paired: true }] });
+  const kw = (k, match, cost, clicks, reached, contacts, won, verdict, expected) => ({ k, match, cost, clicks, reached, real: reached, contacts, convos: won, won, cpl: contacts ? Math.round(cost / contacts * 100) / 100 : null, cpw: null, expected, verdict, save: verdict === 'cut' ? cost : 0, gain: 0 });
+  api.expert = { days: 30, currency: 'SAR',
+    summary: { cost: 466, billed: 710, contacts: 28, convos: 7, won: 2, cpl: 16.64, cpw: 233, save: 61, top: 'x_signal', no_outcome: 9 },
+    money: { billed: 710, cost: 466, cpc: 0.66, offsite: 90, url: 520, reached: 133, unreached: 387, bad: 8, real: 125, visits: 133, contacts: 28, convos: 7, won: 2, refunded: 71 },
+    signal: { google: 180, contacts: 28, won: 2, primary: ['tasrihzawaj.com'], upload: false, state: 'inflated' },
+    keywords: [kw('طلب موافقة زواج', 'BROAD', 28, 33, 20, 6, 1, 'scale', 4.2), kw('تصريح زواج من وزارة الداخلية', 'BROAD', 23, 18, 16, 0, 0, 'cut', 3.4), kw('موافقة زواج', 'PHRASE', 14, 16, 2, 0, 0, 'thin', 0.4)],
+    places: [kw('الرياض', '', 135, 205, 60, 14, 1, 'keep', 12.6), kw('الدمام', '', 38, 58, 15, 0, 0, 'cut', 3.2)], times: [kw('night', '', 10, 6, 6, 0, 0, 'thin', 1.3), kw('evening', '', 150, 52, 52, 14, 1, 'scale', 11)], devices: [kw('MOBILE', '', 440, 129, 129, 26, 2, 'keep', 27)],
+    plan: [
+      { status: 'bad', code: 'x_signal', data: { g: 180, n: 28, won: 2, names: ['tasrihzawaj.com'], cost: 466 }, fix: { go: 'leads' }, impact: 466, key: 'x_signal:' },
+      { status: 'bad', code: 'x_reach', data: { n: 387, of: 520, p: 74, cost: 255 }, fix: { go: 'statement' }, impact: 255, key: 'x_reach:' },
+      { status: 'bad', code: 'x_cut_kw', data: { k: 'تصريح زواج من وزارة الداخلية', match: 'BROAD', cost: 23, clicks: 18, reached: 16, expected: 3.4, cpl: 16.64 }, fix: { action: 'pause_keyword', keyword: 'تصريح زواج من وزارة الداخلية', match: 'BROAD' }, impact: 23, key: 'x_cut_kw:تصريح زواج من وزارة الداخلية' },
+      { status: 'warn', code: 'x_cut_place', data: { k: 'الدمام', cost: 38, clicks: 58, expected: 3.2 }, fix: null, impact: 38, key: 'x_cut_place:الدمام' },
+      { status: 'info', code: 'x_scale', data: { k: 'طلب موافقة زواج', cpl: 4.67, avg: 16.64, save: 61, extra: 13 }, fix: { go: 'negatives' }, impact: 61, key: 'x_scale:طلب موافقة زواج' }] };
+  api.campfix = [
+    { code: 'partners_off', campaign: '11', name: 'شادو', now: 'on', next: 'off', clicks: 31, cost: 186.4, conv: 0, impact: 186.4, sure: true, key: 'partners_off:11' },
+    { code: 'geo_presence', campaign: '11', name: 'شادو', now: 'PRESENCE_OR_INTEREST', next: 'PRESENCE', outside: 9, of: 106, p: 8, impact: 112.2, sure: true, key: 'geo_presence:11' },
+    { code: 'display_off', campaign: '11', name: 'شادو', now: 'on', next: 'off', clicks: 12, cost: 48, conv: 0, impact: 48, sure: true, key: 'display_off:11' },
+    { code: 'negatives', k: 'all', n: 4, cost: 39.5, terms: ['ديكور مجاني', 'وظائف مصمم ديكور', 'كورس تصميم داخلي'], impact: 39.5, sure: true, key: 'negatives:all' }];
+  const pg = await page(api, { viewport: { width: 1280, height: 900 } });
+  await pg.goto('https://app.maestrolt.com/#/analysis');
+  await pg.waitForSelector('.ex-hero');
+  const v = await pg.locator('#view').innerText();
+  t('expert analysis: the summary in money (spent, real contacts, deals, cost per contact and per customer, expected saving) and the most important thing now', /صرفت 466\.00/.test(v) && /28 تواصل حقيقي/.test(v) && /233\.00/.test(v) && /61\.00/.test(await pg.locator('.ex-kpis').innerText()) && /جوجل يتعلم من تحويلات غير حقيقية/.test(await pg.locator('.ex-top').innerText()));
+  t('expert analysis: the plan names each keyword and place with its numbers and impact, first the wrong learning signal then the money', (await pg.locator('.an-dx-list').first().locator('.dx').count()) === 5 && /جوجل سجّل 180 تحويلًا/.test(await pg.locator('.dx').first().innerText()) && /«تصريح زواج من وزارة الداخلية» \(واسعة\) صرفت 23\.00/.test(v) && /المتوقع حوالي 3\.4 تواصل/.test(v) && (await pg.locator('.ex-impact').count()) >= 3);
+  t('expert analysis: where the money went (paid → unreached → suspicious → real → contacted → deal) and what Google learns from', (await pg.locator('.ex-money .fn-step').count()) === 8 && /لم تفتح الصفحة/.test(v) && /جوجل يحسب أكثر بكثير من الواقع/.test(v) && /tasrihzawaj\.com/.test(v));
+  t('expert analysis: keywords by outcome with a verdict (grow · pause · too little data)', /زِد/.test(await pg.locator('.ex-t').first().innerText()) && /أوقف/.test(await pg.locator('.ex-t').first().innerText()) && /بيانات قليلة/.test(await pg.locator('.ex-t').first().innerText()));
+  await pg.getByRole('tab', { name: 'الأوقات' }).click();
+  t('expert analysis: places, times and devices tabs', /المساء \(6 م – 12 ص\)/.test(await pg.locator('#view').innerText()));
+  t('expert analysis: the old settings checklist is folded at the bottom', (await pg.locator('details.an-check').count()) === 1 && !(await pg.locator('details.an-check').evaluate((e) => e.open)));
+  const card = pg.locator('.dx', { hasText: 'تصريح زواج من وزارة الداخلية' }).first();
+  await card.getByRole('button', { name: /أوقف الكلمة/ }).click();
+  await card.getByRole('button', { name: /اضغط مرة أخرى/ }).click();
+  await pg.waitForFunction(() => /أُوقفت|أوقفت/.test(document.getElementById('toast').textContent)).catch(() => {});
+  t('expert analysis: «pause now» pauses that exact keyword with approval and CSRF', api.anFix && api.anFix[0].keyword === 'تصريح زواج من وزارة الداخلية' && api.anFix[0].key === 'x_cut_kw:تصريح زواج من وزارة الداخلية' && api.anFix[0].csrf === 'csrf-token-123');
+  await shot(pg, 'analysis-expert');
+  await pg.setViewportSize({ width: 390, height: 844 });
+  t('expert analysis mobile: no sideways scrolling', await pg.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1));
+  await shot(pg, 'analysis-expert-mobile');
+  t('expert analysis: no console errors, no CSP violations', pg.errors.length === 0 && pg.csp.length === 0);
   if (pg.errors.length || pg.csp.length) console.log(pg.errors, pg.csp);
   await pg.context().close(); }
 
@@ -1193,7 +1318,16 @@ for (const [days, kind, re] of [[1.5, 'warn', /متبقٍ يومين من تجر
   await pg.waitForFunction(() => /حُفظ شكل تنبيهات/.test(document.getElementById('toast').textContent));
   t('admin «alert format»: turning «place» off updates the preview, and saving sends it for the site owner type', api.tplSaved[0].audience === 'owner' && api.tplSaved[0].fields.place === false);
   await shot(pg, 'admin-alerts');
+  // الموبايل: الأقسام في قايمة بزرار ☰ (16 نوفمبر)
+  await pg.setViewportSize({ width: 390, height: 844 });
+  t('admin mobile: the sections are behind one menu button showing the current section, not a wrapped row of buttons', await pg.locator('#tabs').isHidden() && /شكل التنبيهات/.test(await pg.locator('#tabs-toggle').innerText()));
+  await pg.locator('#tabs-toggle').click();
+  await shot(pg, 'admin-menu-mobile');
+  t('admin mobile: the menu opens as a list', await pg.locator('#tabs').isVisible() && (await pg.locator('#tabs-toggle').getAttribute('aria-expanded')) === 'true');
   await pg.locator('#tab-btn-lab').click();
+  t('admin mobile: choosing a section closes the menu and shows its name', await pg.locator('#tabs').isHidden() && /قياس التواصل/.test(await pg.locator('#tabs-toggle').innerText()));
+  t('admin mobile: no sideways scrolling', await pg.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1));
+  await pg.setViewportSize({ width: 1280, height: 900 });
   await pg.waitForSelector('#tab-lab table tbody tr');
   t('admin «contact measurement (trial)»: screen reading vs results, with the «no message» rate per reading', (await pg.locator('#tab-lab tbody tr').count()) === 5 && /قريب من شاشة مقفولة/.test(await pg.locator('#tab-lab').innerText()) && /67%/.test(await pg.locator('#tab-lab').innerText()));
   await shot(pg, 'admin-lab');

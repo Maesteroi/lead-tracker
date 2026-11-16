@@ -23,6 +23,8 @@ import { dashBrief, dashBriefSave } from './brief.js';
 import { dashBlockIp, dashUnblockIp, dashBlocks, dashOwnDevice } from './blocks.js';
 import { dashRules, dashRulesSave } from './rules.js';
 import { dashAnalysis, dashAnalysisFix, dashAnalysisDone } from './analysis.js';
+import { dashCampfix, dashCampfixApply, dashCampfixUndo } from './campfix.js';
+import { dashOptimize, dashOptimizeDraft, dashOptimizeApply, dashOptimizeUndo, dashOptimizeValues } from './optimize.js';
 import { dashStatement, dashStatementCsv } from './statement.js';
 import { dashSettings, dashSettingsSave, logoutOthers } from './settings.js';
 import { dashAssistant, dashAssistantState, dashAssistantFeedback, platformAi, platformAiSave, platformAiTest, platformAiLesson } from './assistant.js';
@@ -142,6 +144,14 @@ export async function handleApp(req, env, db, url, p, fetchImpl) {
     // «حلّل حملتك وأصلحها بضغطة» (analysis.js)
     else if (m === 'GET' && p === '/v1/dash/analysis') res = await dashAnalysis(req, env, db, sess, url, fetchImpl);
     else if (m === 'POST' && p === '/v1/dash/analysis/fix') res = await dashAnalysisFix(req, env, db, sess, fetchImpl);
+    else if (m === 'GET' && p === '/v1/dash/optimize') res = await dashOptimize(req, env, db, sess, url, fetchImpl);
+    else if (m === 'POST' && p === '/v1/dash/optimize/draft') res = await dashOptimizeDraft(req, env, db, sess, fetchImpl);
+    else if (m === 'POST' && p === '/v1/dash/optimize/apply') res = await dashOptimizeApply(req, env, db, sess, fetchImpl);
+    else if (m === 'POST' && p === '/v1/dash/optimize/undo') res = await dashOptimizeUndo(req, env, db, sess, fetchImpl);
+    else if (m === 'POST' && p === '/v1/dash/optimize/values') res = await dashOptimizeValues(req, env, db, sess);
+    else if (m === 'GET' && p === '/v1/dash/campfix') res = await dashCampfix(req, env, db, sess, url, fetchImpl);
+    else if (m === 'POST' && p === '/v1/dash/campfix/apply') res = await dashCampfixApply(req, env, db, sess, fetchImpl);
+    else if (m === 'POST' && p === '/v1/dash/campfix/undo') res = await dashCampfixUndo(req, env, db, sess, fetchImpl);
     else if (m === 'POST' && p === '/v1/dash/analysis/done') res = await dashAnalysisDone(req, env, db, sess);
     else if (m === 'GET' && p === '/v1/dash/replay') res = await dashReplay(req, env, db, sess, url);
     // ربط جوجل أدز من اللوحة (adslink.js)

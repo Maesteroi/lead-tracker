@@ -15,6 +15,7 @@ import { suggest } from './negatives.js';
 import { suggestPositive } from './keywords.js';
 import { loadBrief } from './brief.js';
 import { tok, hasWord } from './intent.js';
+import { expertOf } from './expert.js';
 
 const note = (b) => String(b.note || '').trim().slice(0, 1000) || null;
 const canManage = (sess, site) => ['owner', 'admin'].includes(roleFor(sess, site.org_id, site.id));
@@ -246,7 +247,9 @@ export async function analyze(env, db, site, cred, fetchImpl, now) {
   const leak = leakOf(funnel);
   // أضعف حلقة: أول قسم (بالترتيب) فيه «bad»
   const weakest = (sections.find((s) => s.items.some((i) => i.status === 'bad')) || sections.find((s) => s.items.some((i) => i.status === 'warn')) || {}).key || null;
-  return { score, weakest, funnel, leak, sections, at: new Date(now || Date.now()).toISOString(), currency: cred.currency || '', pagespeed: !!ps, calls: api.ops };
+  // تقرير الخبير (16 نوفمبر): الفلوس راحت فين وجابت كام عميل، وخطة بالاسم مترتبة بالفلوس
+  const expert = await expertOf(db, site, cred, t1, { sessions: sessionsAll || [], leads: leads || [], primary: cv.filter((c) => c.primaryForGoal).map((c) => c.name), upload: !!ours }).catch((e) => { console.error('expert: ' + String(e && e.message || e).slice(0, 120)); return null; });
+  return { score, weakest, funnel, leak, sections, expert, at: new Date(now || Date.now()).toISOString(), currency: cred.currency || '', pagespeed: !!ps, calls: api.ops };
 }
 
 export async function dashAnalysis(req, env, db, sess, url, fetchImpl) {
