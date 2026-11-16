@@ -5,6 +5,7 @@
 // • بنبعت رقم الضغطة (gclid) ووقت التحويل ورقم مميز للتحويل (transactionId) بس. مفيش اسم ولا تليفون ولا إيميل.
 // • قائمة إجراءات التحويل وإنشاء إجراء جديد عن طريق Google Ads API (صلاحية adwords)، والإنشاء برضه بزرار من العميل.
 import { eq } from './db.js';
+import { valuesOf } from './optimize.js';
 import { json } from './util.js';
 import { openToken } from './crypto.js';
 import { accessToken, adsClient, ADS_VERSION_DEFAULT } from './gads.js';
@@ -189,9 +190,11 @@ export async function dashConvSend(req, env, db, sess, fetchImpl) {
   if (!list.length) return json({ ok: false, error: 'nothing' }, 409);
   const rows = list.map((c) => ({ c, tx: 'mlt-' + (real ? 'r-' : '') + site.id + '-' + c.match_code, time: new Date(Date.parse(c.outcome_at || c.at) || Date.parse(c.at)).toISOString() }));
   const login = cred.login_customer_id || cred.customer_id;
+  const V = await valuesOf(db, site.id), val = real ? V.convo : V.won, cur = /^[A-Z]{3}$/.test(String(cred.currency || '')) ? cred.currency : null;
   const body = {
     destinations: [{ operatingAccount: { accountType: 'GOOGLE_ADS', accountId: cred.customer_id }, loginAccount: { accountType: 'GOOGLE_ADS', accountId: login }, productDestinationId: actionId }],
-    events: rows.map((r) => ({ adIdentifiers: { gclid: r.c.gclid }, eventTimestamp: r.time, transactionId: r.tx, eventSource: 'WEB' })),
+    // القيمة (16 نوفمبر): «تم» أغلى من «محادثة» علشان العروض تتعلم الفرق بين اللي بيسأل واللي بيدفع (Value-based bidding)
+    events: rows.map((r) => Object.assign({ adIdentifiers: { gclid: r.c.gclid }, eventTimestamp: r.time, transactionId: r.tx, eventSource: 'WEB' }, cur && val ? { conversionValue: val, currency: cur } : {})),
   };
   let status = 0, j = {}, err = null;
   try {

@@ -12,7 +12,7 @@ import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 
 const CV_SEGMENTS = new Set(['segments.date', 'segments.device', 'segments.ad_network_type', 'segments.ad_sub_network_type', 'segments.click_type', 'segments.slot', 'segments.month_of_year']);
-const RESOURCES = new Set(['keyword_view', 'campaign_asset', 'customer_asset', 'customer_negative_criterion', 'campaign_criterion', 'shared_criterion', 'conversion_action', 'customer', 'customer_client', 'campaign', 'search_term_view', 'click_view', 'ad_group_ad', 'geo_target_constant']);
+const RESOURCES = new Set(['keyword_view', 'campaign_asset', 'customer_asset', 'customer_negative_criterion', 'campaign_criterion', 'shared_criterion', 'conversion_action', 'customer', 'customer_client', 'campaign', 'search_term_view', 'click_view', 'ad_group_ad', 'geo_target_constant', 'ad_group']);
 
 export function fakeGoogle(opts) {
   opts = opts || {};
@@ -55,14 +55,28 @@ export function fakeGoogle(opts) {
     const d = (acct.days || {})[day] || {};
     const camp = (id) => (acct.campaigns || []).find((c) => String(c.id) === String(id)) || { id, name: '' };
     let results = [];
-    if (p.from === 'customer') results = [{ customer: acct.customer }];
+    if (p.from === 'customer' && !p.select.includes('segments.conversion_action')) results = [{ customer: acct.customer }];
     else if (p.from === 'customer_negative_criterion') results = (acct.ipBlocks || []).map((b, i) => ({ customerNegativeCriterion: { id: String(7000 + i), ipBlock: { ipAddress: b.ip } } }));
     else if (p.from === 'campaign_criterion') results = (acct.negatives || []).map((n) => ({ campaign: { id: n.campaignId, name: n.campaignName || '' }, campaignCriterion: { keyword: { text: n.text, matchType: n.matchType } } }));
     else if (p.from === 'shared_criterion') results = (acct.sharedNegatives || []).map((n) => ({ sharedSet: { name: n.list }, sharedCriterion: { keyword: { text: n.text, matchType: n.matchType } } }));
     else if (p.from === 'conversion_action') results = (acct.convActions || []).filter((c) => (!/type = 'UPLOAD_CLICKS'/.test(q) || c.type === 'UPLOAD_CLICKS') && c.status === 'ENABLED').map((c) => ({ conversionAction: c }));
     else if (p.from === 'campaign_asset') results = (acct.campaignAssets || []).map((t) => ({ campaign: { id: '11' }, campaignAsset: { fieldType: t } }));
     else if (p.from === 'customer_asset') results = (acct.customerAssets || []).map((t) => ({ customerAsset: { fieldType: t } }));
-    else if (p.from === 'keyword_view') results = (acct.keywords || []).filter((k) => k.status === 'ENABLED').map((k) => ({ adGroupCriterion: { resourceName: k.rn, keyword: { text: k.text, matchType: k.matchType }, status: k.status } }));
+    else if (p.from === 'keyword_view' && !p.select.includes('ad_group_criterion.quality_info.quality_score')) results = (acct.keywords || []).filter((k) => k.status === 'ENABLED').map((k) => ({ adGroupCriterion: { resourceName: k.rn, keyword: { text: k.text, matchType: k.matchType }, status: k.status } }));
+    else if (p.from === 'campaign' && p.select.includes('campaign_budget.amount_micros') && p.select.includes('metrics.search_budget_lost_impression_share')) {
+      results = (acct.campaigns || []).filter((c) => c.status !== 'REMOVED' && c.status !== 'PAUSED').map((c) => ({ campaign: { id: String(c.id), name: c.name, advertisingChannelType: c.channel || 'SEARCH', biddingStrategyType: c.bidding || 'MAXIMIZE_CONVERSIONS',
+        networkSettings: { targetGoogleSearch: true, targetSearchNetwork: c.partners !== false, targetContentNetwork: !!c.display }, geoTargetTypeSetting: { positiveGeoTargetType: c.geo || 'PRESENCE_OR_INTEREST' }, maximizeConversions: c.tcpaMicros ? { targetCpaMicros: String(c.tcpaMicros) } : undefined },
+        campaignBudget: { resourceName: 'customers/' + acct.customer.id + '/campaignBudgets/' + c.id, amountMicros: String(c.budgetMicros || 0), explicitlyShared: !!c.sharedBudget },
+        metrics: { clicks: String(c.m30 ? c.m30.clicks : 0), costMicros: String(c.m30 ? c.m30.costMicros : 0), conversions: c.m30 ? c.m30.conversions : 0, searchBudgetLostImpressionShare: c.m30 ? c.m30.lostBudget || 0 : 0, searchRankLostImpressionShare: c.m30 ? c.m30.lostRank || 0 : 0 } }));
+    } else if (p.from === 'customer') {
+      results = (acct.convStats || []).map((x) => ({ segments: { conversionAction: 'customers/' + acct.customer.id + '/conversionActions/' + x.id, conversionActionName: x.name }, metrics: { allConversions: x.n } }));
+    } else if (p.from === 'keyword_view' && p.select.includes('ad_group_criterion.quality_info.quality_score')) {
+      results = (acct.keywords || []).filter((k) => k.status === 'ENABLED').map((k) => ({ campaign: { id: String(k.campaignId || 11) }, adGroup: { id: String(k.adGroupId || 1), name: k.adGroup || 'م1' }, adGroupCriterion: { keyword: { text: k.text, matchType: k.matchType }, qualityInfo: k.qs ? { qualityScore: k.qs.score, searchPredictedCtr: k.qs.ctr, creativeQualityScore: k.qs.rel, postClickQualityScore: k.qs.lp } : {} }, metrics: { clicks: String(k.clicks || 0), costMicros: String(k.costMicros || 0) } }));
+    } else if (p.from === 'campaign_criterion' && p.select.includes('campaign_criterion.type')) {
+      results = (acct.criteria || []).map((c) => ({ campaign: { id: String(c.campaignId) }, campaignCriterion: { type: c.type, negative: !!c.negative, bidModifier: c.bidModifier, device: c.device ? { type: c.device } : undefined } }));
+    } else if (p.from === 'ad_group') {
+      results = (acct.adGroups || []).map((a) => ({ campaign: { id: String(a.campaignId) }, adGroup: { id: String(a.id), name: a.name }, metrics: { costMicros: String(a.costMicros || 0), clicks: String(a.clicks || 0) } }));
+    }
     else if (p.from === 'campaign' && p.select.includes('segments.ad_network_type')) {
       for (const c of (acct.campaigns || []).filter((x) => x.status !== 'REMOVED')) for (const [t, m] of Object.entries(c.byNetwork || {})) results.push({ campaign: { id: String(c.id) }, segments: { adNetworkType: t }, metrics: { clicks: String(m.clicks || 0), costMicros: String(m.costMicros || 0), conversions: m.conversions || 0 } });
     } else if (p.from === 'campaign' && p.select.includes('campaign.network_settings.target_search_network')) {
@@ -77,7 +91,7 @@ export function fakeGoogle(opts) {
     else if (p.from === 'geo_target_constant') {
       const want = /IN \((.+)\)/.exec(q)[1].split(',').map((x) => x.trim().replace(/'/g, ''));
       results = want.filter((n) => (acct.geo || {})[n.split('/')[1]]).map((n) => { const x = acct.geo[n.split('/')[1]]; return { geoTargetConstant: { resourceName: n, id: n.split('/')[1], name: x.name, targetType: x.type, countryCode: x.cc } }; });
-    } else if (p.from === 'ad_group_ad') results = (acct.ads || []).map((a) => ({ campaign: { id: String(a.campaignId) }, adGroupAd: { adStrength: a.strength, policySummary: { approvalStatus: a.approval }, ad: { finalUrls: a.finalUrls || [], responsiveSearchAd: { headlines: (a.headlines || []).map((t) => ({ text: t })) } } } }));
+    } else if (p.from === 'ad_group_ad') results = (acct.ads || []).map((a) => ({ campaign: { id: String(a.campaignId) }, adGroup: { id: String(a.adGroupId || 1), name: a.adGroup || 'م1' }, adGroupAd: { adStrength: a.strength, policySummary: { approvalStatus: a.approval }, ad: { finalUrls: a.finalUrls || [], responsiveSearchAd: { headlines: (a.headlines || []).map((t) => ({ text: t })) } } } }));
     else if (p.from === 'campaign' && !day) {
       results = (acct.campaigns || []).filter((c) => c.status !== 'REMOVED').map((c) => ({ campaign: { id: String(c.id), name: c.name, status: c.status, primaryStatus: c.primaryStatus || 'ELIGIBLE', primaryStatusReasons: c.reasons || [], finalUrlSuffix: c.finalUrlSuffix || undefined }, campaignBudget: { amountMicros: String(c.budgetMicros || 0) } }));
     } else if (p.from === 'campaign' && p.select.includes('segments.click_type')) {
@@ -153,6 +167,8 @@ export function fakeGoogle(opts) {
       if (!acct) return apiErr(403, 'PERMISSION_DENIED', 'USER_PERMISSION_DENIED');
       if (g.mutateFail) return apiErr(400, 'INVALID_ARGUMENT', 'Request contains an invalid argument.');
       const ops = JSON.parse(init.body || '{}').operations || [];
+      if (ops.some((o) => o.update || (o.create && (o.create.location || o.create.adSchedule)))) { g.critMutations = (g.critMutations || []).concat(ops); return resp(200, { results: ops.map((o, i) => ({ resourceName: o.update ? o.update.resourceName : 'customers/' + cid + '/campaignCriteria/' + o.create.campaign.split('/').pop() + '~' + (6000 + (g.critMutations || []).length + i) })) }); }
+      if (ops.some((o) => o.remove && !String(o.remove).includes('~1'))) { g.critMutations = (g.critMutations || []).concat(ops); return resp(200, { results: ops.map((o) => ({ resourceName: o.remove })) }); }
       if (ops.some((o) => o.remove)) { g.negRemoved = (g.negRemoved || []).concat(ops.map((o) => o.remove)); acct.negatives = (acct.negatives || []).filter((n) => !ops.some((o) => o.remove === n.rn)); return resp(200, { results: ops.map((o) => ({ resourceName: o.remove })) }); }
       g.negMutations = (g.negMutations || []).concat(ops.map((o) => Object.assign({ customer: cid }, o.create)));
       const base = (acct.negatives || []).length; acct.negatives = (acct.negatives || []).concat(ops.map((o, i) => ({ campaignId: o.create.campaign.split('/').pop(), text: o.create.keyword.text, matchType: o.create.keyword.matchType, rn: 'customers/' + cid + '/campaignCriteria/' + o.create.campaign.split('/').pop() + '~' + (1000 + base + i) })));
@@ -180,7 +196,7 @@ export function fakeGoogle(opts) {
       const ops = JSON.parse(init.body || '{}').operations || [];
       if (ops.some((o) => !o.update || !o.updateMask)) return apiErr(400, 'INVALID_ARGUMENT', 'FieldMaskError');
       g.campaignMutations = (g.campaignMutations || []).concat(ops);
-      for (const o of ops) { const c = (acct.campaigns || []).find((x) => o.update.resourceName.endsWith('/' + x.id)); if (c && o.update.geoTargetTypeSetting) c.geo = o.update.geoTargetTypeSetting.positiveGeoTargetType; const n = c && o.update.networkSettings; if (n && 'targetSearchNetwork' in n) c.partners = n.targetSearchNetwork; if (n && 'targetContentNetwork' in n) c.display = n.targetContentNetwork; }
+      for (const o of ops) { const c = (acct.campaigns || []).find((x) => o.update.resourceName.endsWith('/' + x.id)); if (c && o.update.geoTargetTypeSetting) c.geo = o.update.geoTargetTypeSetting.positiveGeoTargetType; if (c && o.update.maximizeConversions) { c.bidding = 'MAXIMIZE_CONVERSIONS'; if (o.update.maximizeConversions.targetCpaMicros) c.tcpaMicros = Number(o.update.maximizeConversions.targetCpaMicros); } if (c && o.update.manualCpc) c.bidding = 'MANUAL_CPC'; const n = c && o.update.networkSettings; if (n && 'targetSearchNetwork' in n) c.partners = n.targetSearchNetwork; if (n && 'targetContentNetwork' in n) c.display = n.targetContentNetwork; }
       return resp(200, { results: ops.map((o) => ({ resourceName: o.update.resourceName })) });
     }
     // PageSpeed Insights
@@ -211,6 +227,17 @@ export function fakeGoogle(opts) {
       g.customerMutations = (g.customerMutations || []).concat([{ customer: cid, mask: op.updateMask, update: op.update }]);
       if (op.updateMask === 'finalUrlSuffix') acct.customer = Object.assign({}, acct.customer, { finalUrlSuffix: op.update.finalUrlSuffix });
       return resp(200, { result: { resourceName: 'customers/' + cid } });
+    }
+    // أصول وإعلانات وميزانيات (محرّك التحسين): بنسجّل العملية ونرجّع أسماء موارد
+    const om = /\/customers\/(\d+)\/(assets|campaignAssets|adGroupAds|campaignBudgets):mutate$/.exec(u.pathname);
+    if (u.hostname === 'googleads.googleapis.com' && om) {
+      const acct = g.accounts[om[1]];
+      if (!acct) return apiErr(403, 'PERMISSION_DENIED', 'USER_PERMISSION_DENIED');
+      const ops = JSON.parse(init.body || '{}').operations || [];
+      if (ops.some((o) => o.update && !o.updateMask)) return apiErr(400, 'INVALID_ARGUMENT', 'FieldMaskError');
+      g.optMutations = (g.optMutations || []).concat(ops.map((o) => Object.assign({ service: om[2] }, o)));
+      const base = (g.optMutations || []).length;
+      return resp(200, { results: ops.map((o, i) => ({ resourceName: o.update ? o.update.resourceName : o.remove ? o.remove : 'customers/' + om[1] + '/' + om[2] + '/' + (7000 + base + i) })) });
     }
     if (u.hostname === 'googleads.googleapis.com' && /\/conversionActions:mutate$/.test(u.pathname)) {
       const tok = String(headers.Authorization || '').replace(/^Bearer /, '');

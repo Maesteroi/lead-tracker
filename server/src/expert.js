@@ -33,7 +33,7 @@ export async function expertOf(db, site, cred, now, ctx) {
   const range = (tb) => tb + '?client_id=' + eq(site.id) + '&customer_id=' + eq(cred.customer_id) + '&day=gte.' + fromDay;
   const [camp, clicks, terms] = await Promise.all([
     db.select(range('ads_campaign_daily') + '&select=day,clicks,invalid_clicks,cost_micros,conversions,click_types&limit=5000').catch(() => []),
-    db.select(range('ads_clicks') + '&select=day,gclid,click_type,keyword,match_type,presence_city,device,clicks&limit=50000').catch(() => []),
+    db.select(range('ads_clicks') + '&select=day,gclid,click_type,campaign_id,keyword,match_type,presence_city,device,clicks&limit=50000').catch(() => []),
     db.select(range('ads_search_terms') + '&select=keyword,match_type,clicks,cost_micros&limit=50000').catch(() => []),
   ]);
   if (!(camp || []).length) return null;
@@ -55,7 +55,7 @@ export async function expertOf(db, site, cred, now, ctx) {
   // تكلفة كل كلمة من عبارات البحث (الأدق)، والباقي بمتوسط النقرة
   const kwCost = new Map();
   for (const r of terms || []) { const k = (r.keyword || '') + '|' + (r.match_type || ''); kwCost.set(k, (kwCost.get(k) || 0) + n0(r.cost_micros) / 1e6); }
-  const byKw = new Map(), byPlace = new Map(), byDev = new Map();
+  const byKw = new Map(), byPlace = new Map(), byDev = new Map(), byCamp = new Map();
   let urlActive = 0, reached = 0, bad = 0;
   for (const c of clicks || []) {
     if (c.click_type && c.click_type !== 'URL_CLICKS') continue;
@@ -67,6 +67,7 @@ export async function expertOf(db, site, cred, now, ctx) {
     if (c.keyword) add(bump(byKw, c.keyword + '|' + (c.match_type || ''), { k: c.keyword, match: c.match_type || '' }));
     if (c.presence_city) add(bump(byPlace, String(c.presence_city), { id: String(c.presence_city) }));
     if (c.device) add(bump(byDev, c.device, { k: c.device }));
+    if (c.campaign_id) add(bump(byCamp, String(c.campaign_id), { id: String(c.campaign_id) }));
   }
   // الأرقام من زيارات الإعلان نفسها (حتى لو جوجل لسه ماسحبش نقراتها)
   const adS = sessions.filter((s) => s.ad && Date.parse(s.started_at) >= t1 - 30 * 864e5);
@@ -116,6 +117,6 @@ export async function expertOf(db, site, cred, now, ctx) {
     days: 30, currency: cred.currency || '',
     summary: { cost: r2(T.cost), billed: T.billed, contacts, convos, won, cpl: A.cpl == null ? null : r2(A.cpl), cpw: A.cpw == null ? null : r2(A.cpw), save: r2(saved), top: plan[0] ? plan[0].code : null, no_outcome: noOutcome },
     money: { billed: T.billed, cost: r2(T.cost), cpc: r2(cpc), offsite: T.offsite, url: urlActive, reached, unreached, bad, real: realN, visits: adS.length, contacts, convos, won, refunded: T.invalid },
-    signal, keywords: kws, places, times: timesV, devices, plan,
+    signal, keywords: kws, places, times: timesV, devices, plan, byCampaign: [...byCamp.values()],
   };
 }

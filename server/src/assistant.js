@@ -233,6 +233,41 @@ export async function dashAssistant(req, env, db, sess, fetchImpl) {
   else { const row = (await db.insert('ai_chats', [{ client_id: site.id, user_id: sess.user.id, task, messages: turns }])) || []; chat = row[0] || { id: null }; }
   return json({ ok: true, chat_id: chat.id, reply: out.reply, proposal: ctx.proposal, turn: turns.length - 1, model: used_item.model, provider: used_item.provider });
 }
+// نداء واحد من غير أدوات (كاتب الإعلانات وغيره): نفس سلسلة النماذج والميزانيات والإنذارات · بيرجّع النص أو null
+export async function aiComplete(env, db, siteId, task, system, prompt, fetchImpl) {
+  const s = await settingsOf(db);
+  if (!s.enabled) return null;
+  for (const item of s.chains.suggest || []) {
+    const key = await keyFor(env, s, item.provider);
+    if (!key) continue;
+    const budget = Number((s.budgets || {})[item.provider]) || 0;
+    if (budget && await spentThisMonth(db, item.provider) >= budget) continue;
+    try {
+      let text = '', u = { input: 0, output: 0, cache_read: 0, cache_write: 0 };
+      if (item.provider === 'anthropic') {
+        const client = new Anthropic({ apiKey: key, fetch: fetchImpl || undefined, maxRetries: 1 });
+        const res = await client.messages.create({ model: item.model, max_tokens: 3000, system, messages: [{ role: 'user', content: prompt }] });
+        if (res.stop_reason === 'refusal') continue;
+        text = res.content.filter((c) => c.type === 'text').map((c) => c.text).join('\n');
+        u = { input: (res.usage || {}).input_tokens || 0, output: (res.usage || {}).output_tokens || 0, cache_read: 0, cache_write: 0 };
+      } else {
+        const body = { model: item.model, messages: [{ role: 'system', content: system }, { role: 'user', content: prompt }] };
+        body[item.provider === 'openai' ? 'max_completion_tokens' : 'max_tokens'] = 3000;
+        const res = await (fetchImpl || fetch)(PROVIDERS[item.provider].base + '/chat/completions', { method: 'POST', headers: { Authorization: 'Bearer ' + key, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+        const j = await res.json().catch(() => ({}));
+        if (!res.ok) throw Object.assign(new Error('HTTP ' + res.status), { status: res.status });
+        text = String((((j.choices || [])[0] || {}).message || {}).content || '');
+        u = { input: (j.usage || {}).prompt_tokens || 0, output: (j.usage || {}).completion_tokens || 0, cache_read: 0, cache_write: 0 };
+      }
+      await logCall(db, siteId, task, item, u, true);
+      return text;
+    } catch (e) {
+      console.error('aiComplete ' + item.provider + ':' + item.model + ' ' + String(e && e.message || e).slice(0, 120));
+      await logCall(db, siteId, task, item, { input: 0, output: 0, cache_read: 0, cache_write: 0 }, false);
+    }
+  }
+  return null;
+}
 async function logCall(db, siteId, task, item, u, ok) {
   const [pi, po] = priceOf(item);
   const cost = ((u.input + u.cache_write * 1.25 + u.cache_read * 0.1) * pi + u.output * po) / 1e6;
