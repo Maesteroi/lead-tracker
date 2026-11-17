@@ -381,6 +381,11 @@ window.LT_LANG.ar = {
   'sites.daily': 'اكتمال البيانات يومًا بيوم',
   'sites.add': '+ أضف موقعًا',
   'sites.add.hint': 'افتح الإضافة على موقعك وانقر «اربط بـ Maestro LT»، وسيظهر الموقع هنا',
+  'sites.quick.title': 'خطوات التثبيت والربط السريع على ووردبريس',
+  'sites.quick.domain': 'نطاق موقعك (مثل example.com)',
+  'sites.quick.dl': '١. تحميل إضافة ووردبريس (ZIP)',
+  'sites.quick.upload': '٢. فتح صفحة رفع الإضافة في موقعك',
+  'sites.quick.connect': '٣. فتح صفحة الربط بضغطة واحدة',
   'units.device': ['جهاز واحد', 'جهازين', 'أجهزة', 'جهازًا'],
   'save': 'حفظ', 'saved': 'تم الحفظ ✓', 'cancel': 'إلغاء', 'list.sep': '، ',
   // ── الفريق ──
