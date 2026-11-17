@@ -112,6 +112,7 @@ export function build({ src = SRC, release = RELEASE, out = OUT, signingKey = pr
   if (!crypto.verify(null, Buffer.from(message(version, sha)), pub, sig)) return stop('signing key does not match the public key inside the plugin');
   const file = SLUG + '-' + version + '.zip';
   fs.writeFileSync(path.join(out, file), zip);
+  fs.writeFileSync(path.join(out, SLUG + '.zip'), zip);
   const info = {
     slug: SLUG, stop: false,
     stable_delay_days: Number.isFinite(rel.stable_delay_days) ? rel.stable_delay_days : 3,
