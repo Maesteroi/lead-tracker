@@ -239,10 +239,27 @@ class LTP_Pair {
     }
 
     // أي صفحة في لوحة التحكم: نعرف كلاود فلير من طلب المدير، والمحاولة نفسها في الخلفية (2.3.2: مابتأخّرش الصفحة)
+   // في ملف plugin/lead-tracker-pro/includes/class-ltp-pair.php
+    // استبدل دالة maybe_pair_now() الحالية بالتالي:
     public function maybe_pair_now() {
-        if (wp_doing_ajax() || wp_doing_cron() || self::is_paired()) return;
-        if (!current_user_can('activate_plugins')) return;
-        if (!empty($_SERVER['HTTP_CF_RAY']) && !empty($_SERVER['HTTP_CF_CONNECTING_IP'])) LTP_Core::set('behind_cloudflare', 1);
+        if (wp_doing_ajax() || wp_doing_cron()) return;
+        if (!current_user_can('manage_options')) return;
+        if (!empty($_SERVER['HTTP_CF_RAY']) && !empty($_SERVER['HTTP_CF_CONNECTING_IP'])) {
+            LTP_Core::set('behind_cloudflare', 1);
+        }
+        // ١) ربط فوري برمز قادم من لوحة Maestro LT (#/sites) بضغطة واحدة
+        if (!empty($_GET['ltp_auto_code']) && !self::is_paired()) {
+            $code = sanitize_text_field(wp_unslash($_GET['ltp_auto_code']));
+            $state = self::pair_with_code($code);
+            wp_safe_redirect(admin_url('admin.php?page=lead-tracker-settings&pairtry=' . rawurlencode($state)));
+            exit;
+        }
+        // ٢) فتح نافذة الربط السريع مباشرة عند طلبها من اللوحة
+        if (!empty($_GET['ltp_quick_connect']) && !self::is_paired()) {
+            wp_redirect(self::connect_url());
+            exit;
+        }
+        if (self::is_paired()) return;
         self::kick();
     }
 
