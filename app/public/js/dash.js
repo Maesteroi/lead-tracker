@@ -930,10 +930,38 @@
   }
 
   // ════════ 7) المواقع والتركيب ════════
+  function wpQuickBox(domain) {
+    var cleanHost = function (v) {
+      return String(v || '').trim().toLowerCase().replace(/^[a-z]+:\/\//, '').split(/[\/?#]/)[0].replace(/^www\./, '');
+    };
+    var domInput = domain ? null : el('input', { class: 'inp sm', type: 'text', dir: 'ltr', placeholder: T('sites.quick.domain'), value: '' });
+    var getBase = function () {
+      var h = cleanHost(domain || (domInput && domInput.value));
+      return h && h.indexOf('.') > 0 ? 'https:' + '//' + h : '';
+    };
+    var dlBtn = el('a', { class: 'btn sm', href: '/plugin/lead-tracker-pro-2.13.6.zip', download: 'lead-tracker-pro.zip', text: T('sites.quick.dl') });
+    var upBtn = el('button', { class: 'btn ghost sm', type: 'button', text: T('sites.quick.upload') });
+    upBtn.addEventListener('click', function () {
+      var base = getBase();
+      if (!base) { if (domInput) domInput.focus(); return; }
+      window.open(base + '/wp-admin/plugin-install.php?tab=upload', '_blank', 'noopener');
+    });
+    var cnBtn = el('button', { class: 'btn ghost sm', type: 'button', text: T('sites.quick.connect') });
+    cnBtn.addEventListener('click', function () {
+      var base = getBase();
+      if (!base) { if (domInput) domInput.focus(); return; }
+      window.open(base + '/wp-admin/admin.php?page=lead-tracker-settings', '_blank', 'noopener');
+    });
+    return el('div', { class: 'quick-connect' }, [
+      el('p', { class: 'hint', text: T('sites.quick.title') }),
+      domInput,
+      el('div', { class: 'set-acts' }, [dlBtn, upBtn, cnBtn]),
+    ]);
+  }
   function vSites(view) {
     return DATA.setup().then(function (list) {
       clear(view);
-      if (!list.length) view.appendChild(card(T('sites.none'), [el('p', { text: T('sites.none.text') })]));
+      if (!list.length) view.appendChild(card(T('sites.none'), [el('p', { text: T('sites.none.text') }), wpQuickBox('')]));
       list.forEach(function (s) {
         var avg = s.delivery.length ? Math.round(s.delivery.reduce(function (a, b) { return a + b; }, 0) / s.delivery.length * 10) / 10 : null;
         var spark = el('div'); C.hbars(spark, s.delivery.map(function (v, i) { return { label: i === s.delivery.length - 1 ? T('sites.yesterday') : T('sites.ago', { n: LT.n(s.delivery.length - 1 - i, 'day') }), value: v, text: v + '%', cls: v >= 99.5 ? 'c-ok' : 'c-sus' }; }).reverse(), { max: 100, compact: true });
@@ -946,6 +974,9 @@
         ];
         var extra = [];
         if (DATA.tg) extra.push(tgBlock(s));
+        if (!s.paired) {
+          extra.push(wpQuickBox(s.domain));
+        }
         if (DATA.pairCode && !s.paired) {
           var out = el('div', { class: 'hint' }), b = el('button', { class: 'btn ghost sm', type: 'button', text: T('sites.paircode') });
           b.addEventListener('click', function () { b.disabled = true; DATA.pairCode(s.id).then(function (r) { b.disabled = false; clear(out); out.appendChild(el('div', { class: 'code', text: r.code })); out.appendChild(document.createTextNode(T('sites.paircode.hint', { m: LT.n(r.valid_minutes, 'minute') }))); }, function (e) { b.disabled = false; clear(out); out.appendChild(document.createTextNode(T(e.message === 'role' ? 'sites.paircode.role' : 'sites.paircode.fail'))); }); });
@@ -954,8 +985,14 @@
         view.appendChild(card(s.name, [el('p', { class: 'acc-sub', text: s.domain }), el('ul', { class: 'checks' }, rows.map(function (r) { return el('li', { class: r[1] === null ? 'soon' : r[1] ? 'ok' : 'warn' }, [el('i', { class: 'ck', text: r[1] === null ? '…' : r[1] ? '✓' : '!' }), el('b', { text: r[0] }), el('span', { text: r[2] }), r[3] || null]); })),
           s.delivery.length ? el('details', { class: 'more-d pro-only' }, [el('summary', { text: T('sites.daily') }), spark]) : null].concat(extra)));
       });
-      var add = el('button', { class: 'btn', type: 'button', text: T('sites.add') }); add.addEventListener('click', function () { toast(T('sites.add.hint')); });
+      var addBox = el('div');
+      var add = el('button', { class: 'btn', type: 'button', text: T('sites.add') });
+      add.addEventListener('click', function () {
+        toast(T('sites.add.hint'));
+        if (!addBox.firstChild) addBox.appendChild(wpQuickBox(''));
+      });
       view.appendChild(add);
+      view.appendChild(addBox);
       // راجع من موافقة جوجل: اختيار حساب الإعلانات
       if (state.adsNonce && DATA.adsAccounts) { var n = state.adsNonce; state.adsNonce = null; openAdsPicker(state.site, n); }
     });
