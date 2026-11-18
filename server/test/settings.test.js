@@ -65,8 +65,18 @@ test('settings: the customer picks the country (the key and the currency follow 
   assert.equal((await save({ contact_phone: '+966501234567' })).body.reason, 'prefix', 'a Saudi key on an Egyptian account');
   assert.equal(org().contact_phone, '1014000041', 'a refused number never overwrites the saved one');
   assert.equal((await save({ country: 'XX' })).body.error, 'country');
-  const sa = await save({ country: 'SA', contact_phone: '0501234567' });
-  assert.deepEqual([sa.status, org().country, org().contact_phone, sa.body.org.dial, sa.body.org.currency], [200, 'SA', '501234567', '966', 'SAR']);
+  // دولة الواتساب مستقلة عن دولة النشاط: نشاط في السعودية ورقم الواتساب مصري
+  const mixed = await save({ country: 'SA', contact_phone_country: 'EG', contact_phone: '01014000041' });
+  assert.deepEqual([mixed.status, org().country, org().contact_phone_country, org().contact_phone, mixed.body.org.dial, mixed.body.org.currency, mixed.body.org.phone_country], [200, 'SA', 'EG', '1014000041', '966', 'SAR', 'EG']);
+  const g2 = (await s.gc(s.owner, '/v1/dash/settings?org=' + s.owner.org.id)).body.org;
+  assert.deepEqual([g2.country, g2.phone_country, g2.contact_phone], ['SA', 'EG', '1014000041']);
+  assert.equal((await save({ contact_phone: '0501234567' })).body.reason, 'length', 'no phone country sent: the saved one (Egypt) still applies, 9 digits are wrong for it');
+  assert.equal((await save({ contact_phone_country: 'XX' })).body.error, 'phone_country');
+  const sa = await save({ contact_phone_country: 'SA', contact_phone: '0501234567' });
+  assert.deepEqual([sa.status, org().country, org().contact_phone_country, org().contact_phone], [200, 'SA', 'SA', '501234567']);
+  // رقم قديم متسجّل قبل العمود الجديد: دولة الرقم = دولة النشاط
+  delete org().contact_phone_country;
+  assert.equal((await s.gc(s.owner, '/v1/dash/settings?org=' + s.owner.org.id)).body.org.phone_country, 'SA');
   assert.equal((await save({ contact_phone: '' })).status, 200); assert.equal(org().contact_phone, null, 'an empty box clears it');
   s.w.fs.t.organizations.find((o) => o.id === s.owner.org.id).country = null;
   assert.equal((await s.gc(s.owner, '/v1/dash/settings?org=' + s.owner.org.id)).body.org.dial, '');

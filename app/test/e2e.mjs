@@ -325,6 +325,8 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
   t('home page without a session goes to /login', true);
   api.signedIn = true; api.sites = []; await pg.goto('https://app.maestrolt.com/'); await pg.waitForSelector('text=لا توجد مواقع بعد');
   t('home page with no sites explains how to connect', /اربط بـ Maestro LT/.test(await pg.locator('#view').innerText())); await shot(pg, 'home-empty');
+  await pg.goto('https://app.maestrolt.com/#/sites'); await pg.waitForSelector('text=لا توجد مواقع بعد');
+  t('sites page with no sites: the WordPress install steps (domain box and the 3 buttons) are gone', (await pg.locator('.quick-connect').count()) === 0 && !/ZIP|خطوات التثبيت|رفع الإضافة/.test(await pg.locator('#view').innerText()));
   api.sites = [{ id: 'SiteId123456', name: 'روضة الصالحين', domains: ['rawda.site'] }]; await pg.goto('https://app.maestrolt.com/#/sites'); await pg.reload(); await pg.waitForSelector('.checks');
   t('home page lists the site with its status and a pair code for unpaired sites', /rawda\.site/.test(await pg.locator('#view').innerText()) && /لم يُربط بعد/.test(await pg.locator('#view').innerText()));
   await pg.getByRole('button', { name: 'رمز ربط (بديل للزر)' }).click();
@@ -777,11 +779,12 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
   await pg.waitForSelector('.set-row');
   const v = await pg.locator('#view').innerText();
   t('settings: account from Google (no password), business, sites with the linked Google Ads id, alerts and app, and the business file', /mahmoud@example\.com/.test(v) && /بلا كلمة مرور|فلا توجد كلمة مرور/.test(v) && /Google Ads 645-625-8009/.test(v) && /مربوط بـ 2 محادثة/.test(v) && /ملف نشاطك/.test(v) && /منافسوك في السوق/.test(v));
+  t('settings: the number hint is just «write the number without the country key», nothing after it', (await pg.locator('.set-msg').innerText()).trim() === 'اكتب الرقم دون مفتاح الدولة.');
   await pg.getByLabel('واتساب النشاط').fill('abc');
   await pg.locator('.set-grid').first().getByRole('button', { name: 'احفظ' }).click();
   await pg.waitForFunction(() => /رقم الواتساب غير صحيح/.test(document.getElementById('toast').textContent));
-  t('settings: a wrong number is said plainly and never sent to the server', !(api.setCalls || []).length && /\+20/.test(await pg.locator('.set-cc').innerText()) && (await pg.locator('.set-msg.bad').count()) === 1);
-  t('settings: Egypt is the default country and the key +20 sits next to the number box', (await pg.locator('select.set-country').inputValue()) === 'EG');
+  t('settings: a wrong number is said plainly and never sent to the server', !(api.setCalls || []).length && /\+20/.test(await pg.locator('.set-phone .pk-btn').innerText()) && (await pg.locator('.set-msg.bad').count()) === 1);
+  t('settings: Egypt (with its flag) is the default country, and the WhatsApp key +20 sits next to the number box', /🇪🇬 مصر/.test(await pg.locator('.set-f .pk-btn').first().innerText()) && /🇪🇬 \+20/.test(await pg.locator('.set-phone .pk-btn').innerText()));
   await pg.getByLabel('واتساب النشاط').fill('01207950010');
   await pg.getByLabel('واتساب النشاط').blur();
   t('settings: the number is corrected on its own (no zero, no country key) and the box shows the result', (await pg.getByLabel('واتساب النشاط').inputValue()) === '1207950010' && /\+20 1207950010/.test(await pg.locator('.set-msg').innerText()));
@@ -789,19 +792,37 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
   t('settings: a number typed with +20 is corrected the same way', (await pg.getByLabel('واتساب النشاط').inputValue()) === '1207950010');
   await pg.getByLabel('واتساب النشاط').fill('120795001'); await pg.getByLabel('واتساب النشاط').blur();
   t('settings: 9 digits for Egypt is refused with the reason (must be 10)', /10 أرقام/.test(await pg.locator('.set-msg').innerText()) && (await pg.locator('.set-msg.bad').count()) === 1);
-  await pg.locator('select.set-country').selectOption('SA');
-  t('settings: choosing Saudi Arabia changes the key to +966 on the spot', /\+966/.test(await pg.locator('.set-cc').innerText()));
-  await pg.locator('select.set-country').selectOption('EG');
+  // قايمة الدولة: بتفتح، فيها كل الدول، وبحث، والاختيار بيغيّر الزرار (مش select المتصفح اللي ماكانش بيفتح على بعض الموبايلات)
+  const biz = pg.locator('.set-f .pk').first(), cc = pg.locator('.set-phone .pk');
+  await biz.locator('.pk-btn').click();
+  t('settings: the country list opens, lists every country with a flag and a search box', await biz.locator('.pk-panel').isVisible() && (await biz.locator('li').count()) > 200 && (await biz.locator('.pk-q').count()) === 1);
+  await biz.locator('.pk-q').fill('السعودية');
+  t('settings: searching narrows the list to Saudi Arabia', (await biz.locator('li:visible').count()) === 1);
+  await biz.locator('li:visible').click();
+  t('settings: choosing Saudi Arabia closes the list and shows its flag and name', !(await biz.locator('.pk-panel').isVisible()) && /🇸🇦 المملكة العربية السعودية/.test(await biz.locator('.pk-btn').innerText()));
+  t('settings: the WhatsApp key is its own choice: business in Saudi Arabia, key still +20', /\+20/.test(await cc.locator('.pk-btn').innerText()));
+  await cc.locator('.pk-btn').click();
+  await cc.locator('.pk-q').fill('966');
+  await cc.locator('li:visible').first().click();
+  t('settings: the WhatsApp key list works on its own and the number is checked against it (9 digits fit +966)', /\+966/.test(await cc.locator('.pk-btn').innerText()) && !(await pg.locator('.set-msg.bad').count()));
+  await cc.locator('.pk-btn').click(); await cc.locator('.pk-q').fill('مصر'); await cc.locator('li:visible').first().click();
+  t('settings: back to +20 the 9-digit number is refused again', /\+20/.test(await cc.locator('.pk-btn').innerText()) && (await pg.locator('.set-msg.bad').count()) === 1);
   await pg.getByLabel('واتساب النشاط').fill('01207950010');
   await pg.locator('.set-grid').first().getByRole('button', { name: 'احفظ' }).click();
   await pg.waitForFunction(() => /تم الحفظ/.test(document.getElementById('toast').textContent));
-  t('settings: saving sends name, country and the corrected number with CSRF', api.setCalls.length === 1 && api.setCalls[0].contact_phone === '1207950010' && api.setCalls[0].country === 'EG' && api.setCalls[0].name === 'شادو ديزاين' && api.setCalls[0].csrf === 'csrf-token-123');
+  t('settings: saving sends name, the business country, the WhatsApp country and the corrected number with CSRF', api.setCalls.length === 1 && api.setCalls[0].contact_phone === '1207950010' && api.setCalls[0].country === 'SA' && api.setCalls[0].contact_phone_country === 'EG' && api.setCalls[0].name === 'شادو ديزاين' && api.setCalls[0].csrf === 'csrf-token-123');
   await pg.getByRole('button', { name: 'اخرج من كل الأجهزة الأخرى' }).click();
   await pg.waitForFunction(() => /خرجت من 2 جهاز آخر/.test(document.getElementById('toast').textContent));
   t('settings: sign out of all other devices', api.outOthers === 1);
   await shot(pg, 'settings');
   await pg.setViewportSize({ width: 390, height: 844 });
   t('settings mobile: no sideways scrolling', await pg.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1));
+  await pg.locator('.set-f .pk-btn').first().click();
+  const sheet = await pg.locator('.set-f .pk-panel').first().boundingBox();
+  t('settings mobile: the country list opens as a sheet from the bottom and fits the screen', !!sheet && sheet.width >= 380 && sheet.y + sheet.height <= 845 && sheet.y + sheet.height >= 800);
+  await shot(pg, 'settings-sheet');
+  await pg.keyboard.press('Escape');
+  t('settings mobile: Escape closes the list', !(await pg.locator('.set-f .pk-panel').first().isVisible()));
   t('settings: no console errors, no CSP violations', pg.errors.length === 0 && pg.csp.length === 0);
   if (pg.errors.length || pg.csp.length) console.log(pg.errors, pg.csp);
   await pg.context().close(); }
@@ -1010,10 +1031,10 @@ for (const [days, kind, re] of [[1.5, 'warn', /متبقٍ يومين من تجر
   await pg.goto('https://app.maestrolt.com/#/billing');
   await pg.waitForSelector('.bl-country');
   await shot(pg, 'billing-country');
-  t('billing: before the country is confirmed there is a country box (Egypt selected) and no plans or payment methods', (await pg.locator('.bl-country select').inputValue()) === 'EG' && (await pg.locator('.bl-plan').count()) === 0 && /اختر دولتك أولًا/.test(await pg.locator('#view').innerText()));
+  t('billing: before the country is confirmed there is a country box (Egypt selected) and no plans or payment methods', /🇪🇬 مصر/.test(await pg.locator('.bl-country .pk-btn').innerText()) && !/\+20/.test(await pg.locator('.bl-country .pk-btn').innerText()) && (await pg.locator('.bl-plan').count()) === 0 && /اختر دولتك أولًا/.test(await pg.locator('#view').innerText()));
   await pg.getByRole('button', { name: 'تأكيد الدولة' }).click();
   await pg.waitForSelector('.bl-plan');
-  t('billing: confirming the country saves it on the account and the plans appear', api.setCalls.length === 1 && api.setCalls[0].country === 'EG' && api.setCalls[0].csrf === 'csrf-token-123' && (await pg.locator('.bl-plan').count()) === 3 && (await pg.locator('.bl-country.line select').inputValue()) === 'EG');
+  t('billing: confirming the country saves it on the account and the plans appear', api.setCalls.length === 1 && api.setCalls[0].country === 'EG' && api.setCalls[0].csrf === 'csrf-token-123' && (await pg.locator('.bl-plan').count()) === 3 && /🇪🇬 مصر/.test(await pg.locator('.bl-country.line .pk-btn').innerText()));
   t('billing: no console errors, no CSP violations (country)', pg.errors.length === 0 && pg.csp.length === 0);
   await pg.context().close();
 }

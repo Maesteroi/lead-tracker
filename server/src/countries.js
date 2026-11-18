@@ -54,3 +54,9 @@ function normalize(iso, raw) {
 export { DIAL, ARAB, DEFAULT, normalize, lenText };
 export const dialOf = (iso) => DIAL[String(iso || '').toUpperCase()] || '';
 export const hasCountry = (iso) => Object.prototype.hasOwnProperty.call(DIAL, String(iso || '').toUpperCase());
+// دولة رقم الواتساب: مستقلة عن دولة النشاط (نشاط في السعودية وواتساب مصري). لو مش مسجّلة (أرقام قديمة) بنفترض دولة النشاط.
+export const phoneCountryOf = (org) => {
+  const o = org || {};
+  if (hasCountry(o.contact_phone_country)) return String(o.contact_phone_country).toUpperCase();
+  return hasCountry(o.country) ? String(o.country).toUpperCase() : null;
+};

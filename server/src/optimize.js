@@ -20,6 +20,7 @@ import { expertOf } from './expert.js';
 import { windowData, funnelOf } from './analysis.js';
 import { loadBrief } from './brief.js';
 import { aiComplete } from './assistant.js';
+import { phoneCountryOf } from './countries.js';
 
 const canManage = (sess, site) => ['owner', 'admin'].includes(roleFor(sess, site.org_id, site.id));
 const n0 = (v) => Number(v) || 0;
@@ -85,7 +86,7 @@ async function gather(env, db, site, cred, fetchImpl, t) {
     scoredSessions(db, site.id, since, 3000, 'ar').catch(() => []),
     db.req('POST', 'rpc/dash_leads', { p_site: site.id, p_since: since }).catch(() => []),
     loadBrief(db, site.id),
-    site.org_id ? db.one('organizations?id=' + eq(site.org_id) + '&select=name,country,contact_phone').catch(() => null) : null,
+    site.org_id ? orgLite(db, site.org_id) : null,
     valuesOf(db, site.id),
     db.select('analysis_fixes?client_id=' + eq(site.id) + '&status=eq.tracking&at=gte.' + new Date(t - 7 * DAY).toISOString() + '&select=action,target,at&limit=100').catch(() => []),
   ]);
@@ -309,12 +310,19 @@ async function sitePages(db, site) {
   for (const e of ev) { const p = e.payload || {}; const path = String(p.path || ''); if (!path || /\?|wp-|cart|checkout|account/.test(path)) continue; const x = m.get(path) || { path, title: String(p.title || '').split(/[|\-–]/)[0].trim(), n: 0 }; x.n++; m.set(path, x); }
   return [...m.values()].filter((x) => x.title && x.path !== '/').sort((a, b) => b.n - a.n).slice(0, 8).map((x) => ({ text: fit(x.title, LIMITS.sitelink), url: 'https://' + dom + x.path }));
 }
+// بيانات النشاط للتوصيات. contact_phone_country عمود جديد (0032): لو لسه مش موجود نقرا من غيره
+async function orgLite(db, orgId) {
+  for (const cols of ['name,country,contact_phone,contact_phone_country', 'name,country,contact_phone']) {
+    try { return await db.one('organizations?id=' + eq(orgId) + '&select=' + cols); } catch (e) { /* العمود مش موجود: نجرب من غيره */ }
+  }
+  return null;
+}
 export async function draftFor(env, db, site, it, P, fetchImpl) {
   const b = P._g.brief || { offer: [], fears: [], about: '' };
   const promises = (b.fears || []).map((f) => f.promise).filter(Boolean), offer = (b.offer || []).map(String);
   if (it.code === 'asset_callout') return { callouts: promises.concat(offer.map((o) => o)).map((x) => fit(x, LIMITS.callout)).filter(Boolean).slice(0, 6) };
   if (it.code === 'asset_snippet') return { header: 'الخدمات', values: offer.map((x) => fit(x, LIMITS.snippet)).filter(Boolean).slice(0, 10) };
-  if (it.code === 'asset_call') return { phone: (P._g.org && P._g.org.contact_phone) || '', country: (P._g.org && P._g.org.country) || 'SA' };
+  if (it.code === 'asset_call') return { phone: (P._g.org && P._g.org.contact_phone) || '', country: phoneCountryOf(P._g.org) || 'SA' };   // دولة الرقم (مش دولة النشاط): نشاط في السعودية وواتساب مصري
   if (it.code === 'asset_sitelink') return { sitelinks: (await sitePages(db, site)).slice(0, 4).map((x) => Object.assign(x, { d1: '', d2: '' })) };
   if (it.code === 'rsa_new') {
     const terms = ((P.expert && P.expert.keywords) || []).filter((x) => x.contacts || x.reached).slice(0, 8).map((x) => x.k);
