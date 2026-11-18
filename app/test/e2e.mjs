@@ -41,6 +41,9 @@ function fakeApi(over) {
     if (p.startsWith('/v1/platform/')) {
       if (!st.platformAdmin) return j(404, { ok: false, error: 'not_found' });
       if (p === '/v1/platform/overview') return j(200, Object.assign({}, st.overview, { me: st.member ? { owner: false, role: st.member.role, perms: st.member.perms, scoped: true } : { owner: true, perms: ['*'] } }));
+      if (p === '/v1/platform/accounts' && req.method() === 'POST') { const b = JSON.parse(req.postData()); st.accCalls = (st.accCalls || []).concat([b]); if ((b.sites || []).some((x) => /taken\.example/.test(x.domain))) return j(409, { ok: false, error: 'domain_exists', domain: 'taken.example' }); return j(201, { ok: true, org: { id: 'o-new', name: b.name, status: b.status, country: b.country }, sites: (b.sites || []).map((x, i) => ({ id: 'NEW' + i, name: x.name, domain: x.domain })), owner: { email: String(b.email).toLowerCase(), invited: true } }); }
+      if (p === '/v1/platform/accounts/site') { const b = JSON.parse(req.postData()); st.siteCalls = (st.siteCalls || []).concat([b]); return j(201, { ok: true, site: { id: 'NEW9', name: b.name, domain: b.domain } }); }
+      if (p === '/v1/platform/accounts/owner') { const b = JSON.parse(req.postData()); st.ownerCalls = (st.ownerCalls || []).concat([b]); return j(200, { ok: true, owner: { email: String(b.email).toLowerCase(), invited: true } }); }
       if (st.member && (p === '/v1/platform/telegram' || p === '/v1/platform/team' || p.startsWith('/v1/platform/roles') || p.startsWith('/v1/platform/invites') || p === '/v1/platform/members')) return j(404, { ok: false });
       if (p === '/v1/platform/tg-templates/preview') { const b = JSON.parse(req.postData()); return j(200, { ok: true, buttons: b.fields.actions !== false, text: '🌐 <b>الإنجاز السريع</b>\n💬 واتساب · رمز <b>#9B5W</b>' + (b.fields.place !== false ? '\n📍 الدمام، السعودية' : '') + (b.fields.gclid !== false ? '\n🎯 GCLID: <code>Cj0KCQ...</code>' : '') }); }
       if (p === '/v1/platform/tg-templates' && req.method() === 'POST') { const b = JSON.parse(req.postData()); st.tplSaved = (st.tplSaved || []).concat([b]); return j(200, { ok: true, audience: b.audience, fields: b.fields }); }
@@ -434,6 +437,57 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
   await pg.waitForSelector('#drawer:not([hidden])');
   await shot(pg, 'admin-5-mobile-drawer');
   t('admin mobile: no console errors or CSP violations', pg.errors.length === 0 && pg.csp.length === 0);
+  await pg.context().close(); }
+
+// 12ب) حساب عميل جديد من لوحة الإدارة: الأدمن بيجهّز الحساب والمواقع ويطلع رسالة جاهزة للعميل
+{ const api = fakeApi({ signedIn: true, platformAdmin: true, overview: overviewData(), tg: { ok: true, configured: true, mode: 'server', sheet_ready: true, pending: 0 }, tgCalls: [], orgCalls: [] });
+  const pg = await page(api, { viewport: { width: 1280, height: 900 } });
+  await pg.goto('https://app.maestrolt.com/admin');
+  await pg.waitForSelector('#rows tr');
+  t('admin: «+ new customer account» is there for the super admin', await pg.locator('#new-acc').isVisible());
+  await pg.locator('#new-acc').click();
+  await pg.waitForSelector('.adm-modal');
+  const m = pg.locator('.adm-modal');
+  await m.locator('input[type=text]').first().fill('مشتل الندى');
+  await m.locator('input[type=email]').fill('Client@Nada.example');
+  t('admin new account: Egypt (flag + name) is the default country, and the list opens', /🇪🇬 مصر/.test(await m.locator('.pk-btn').innerText()));
+  await m.locator('.pk-btn').click(); await m.locator('.pk-q').fill('السعودية'); await m.locator('.pk-list li:visible').first().click();
+  t('admin new account: the country can be changed', /🇸🇦/.test(await m.locator('.pk-btn').innerText()));
+  await m.locator('.acc-site input').nth(0).fill('الندى'); await m.locator('.acc-site input').nth(1).fill('https://www.nada.example/');
+  await m.getByText('＋ موقع آخر').click();
+  await m.locator('.acc-site').nth(1).locator('input').nth(1).fill('taken.example');
+  await m.getByRole('button', { name: 'إنشاء الحساب' }).click();
+  await pg.waitForSelector('.adm-modal .notice.bad');
+  t('admin new account: a domain used by another account is refused with a clear message and nothing is lost', /مضاف في حساب آخر/.test(await m.locator('.notice.bad').innerText()) && (await m.locator('input[type=email]').inputValue()) === 'Client@Nada.example');
+  await m.locator('.acc-site').nth(1).locator('input').nth(1).fill('jed.nada.example');
+  await m.getByRole('button', { name: 'إنشاء الحساب' }).click();
+  await pg.waitForSelector('.adm-modal .notice.ok');
+  const msg = await m.locator('textarea').inputValue();
+  t('admin new account: sent the right data (country, trial, both sites)', api.accCalls.length === 2 && api.accCalls[1].country === 'SA' && api.accCalls[1].status === 'trial' && api.accCalls[1].sites.length === 2 && api.accCalls[1].email === 'Client@Nada.example');
+  t('admin new account: a ready message for the customer with the email, the app address and the sites', /client@nada\.example/.test(msg) && /app\.maestrolt\.com/.test(msg) && /nada\.example/.test(msg) && /الدخول بجوجل/.test(msg));
+  await shot(pg, 'admin-new-account-done');
+  await m.getByRole('button', { name: 'تم' }).click();
+  t('admin new account: the window closes', (await pg.locator('.adm-modal').count()) === 0);
+  await pg.locator('#rows tr').first().click();
+  await pg.waitForSelector('#drawer:not([hidden])');
+  t('admin drawer: «add a site» and «change customer email» are there', (await pg.locator('#d-add-site').isVisible()) && /تغيير بريد العميل/.test(await pg.locator('#d-owner-btn').innerText()));
+  await pg.locator('#d-add-site').click();
+  await pg.locator('.adm-modal input').nth(0).fill('فرع جدة'); await pg.locator('.adm-modal input').nth(1).fill('jed.example');
+  await pg.locator('.adm-modal').getByRole('button', { name: 'إضافة الموقع' }).click();
+  await pg.waitForFunction(() => !document.querySelector('.adm-modal'));
+  t('admin drawer: adding a site sends the account and the domain', api.siteCalls.length === 1 && api.siteCalls[0].domain === 'jed.example' && !!api.siteCalls[0].org_id);
+  await pg.locator('#d-owner-btn').click();
+  await pg.locator('.adm-modal input[type=email]').fill('Right@Nada.example');
+  await pg.locator('.adm-modal').getByRole('button', { name: 'حفظ البريد' }).click();
+  await pg.waitForFunction(() => !document.querySelector('.adm-modal'));
+  t('admin drawer: changing the customer email sends the new email', api.ownerCalls.length === 1 && api.ownerCalls[0].email === 'Right@Nada.example');
+  t('admin accounts: no console errors or CSP violations', pg.errors.length === 0 && pg.csp.length === 0);
+  await pg.context().close(); }
+{ const api = fakeApi({ signedIn: true, platformAdmin: true, member: { role: 'دعم فني', perms: ['orgs_view', 'orgs_trial'] }, overview: overviewData(), tg: { ok: true }, tgCalls: [], orgCalls: [] });
+  const pg = await page(api, { viewport: { width: 1280, height: 900 } });
+  await pg.goto('https://app.maestrolt.com/admin'); await pg.waitForSelector('#rows tr');
+  await pg.locator('#rows tr').first().click(); await pg.waitForSelector('#drawer:not([hidden])');
+  t('admin: a team member without «create accounts» sees none of the new buttons', !(await pg.locator('#new-acc').isVisible()) && !(await pg.locator('#d-add-site').isVisible()));
   await pg.context().close(); }
 
 // 13) اللوحة التجريبية: الشاشات السبعة ببيانات وهمية (موافقة محمود 11 نوفمبر)

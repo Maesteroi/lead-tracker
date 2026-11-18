@@ -9,6 +9,7 @@
 <link rel="apple-touch-icon" href="/img/app-maskable-512.png">
 <link rel="stylesheet" href="/css/app.css">
 <link rel="stylesheet" href="/css/admin.css">
+<link rel="stylesheet" href="/css/picker.css">
 </head>
 <body class="adm">
 <header class="adm-bar">
@@ -76,6 +77,7 @@
       <div class="sec-head">
         <h2 id="acc-h" data-i18n="adm.accounts">الحسابات</h2>
         <div class="tools">
+          <button class="btn sm" id="new-acc" type="button" hidden data-i18n="adm.new_acc">＋ حساب عميل جديد</button>
           <label class="search"><span class="sr" data-i18n="adm.search">بحث</span><input id="q" type="search" placeholder="ابحث بالاسم أو البريد أو النطاق" data-i18n-ph="adm.search.ph" autocomplete="off"></label>
           <div class="seg" id="filter" role="tablist" aria-label="تصفية الحسابات" data-i18n-aria="adm.filter"></div>
         </div>
@@ -184,6 +186,14 @@
       <textarea id="d-notes" rows="3" maxlength="1000" placeholder="ملاحظة داخلية، لا يراها العميل" data-i18n-ph="adm.d.notes.ph"></textarea>
     </fieldset>
 
+    <section class="d-sec" data-perm="orgs_create" data-act="1" hidden>
+      <h3 class="legend" data-i18n="adm.d.manage">إدارة العميل</h3>
+      <div class="d-acts">
+        <button class="btn ghost sm" id="d-add-site" type="button" data-i18n="adm.d.add_site">أضف موقعًا</button>
+        <button class="btn ghost sm" id="d-owner-btn" type="button" data-i18n="adm.d.owner">تغيير بريد العميل</button>
+      </div>
+    </section>
+
     <section class="d-sec">
       <h3 class="legend" data-i18n="adm.h.sites">المواقع</h3>
       <ul class="d-sites" id="d-sites"></ul>
@@ -204,6 +214,9 @@
 <script src="/js/lang/ar.js"></script>
 <script src="/js/lang/en.js"></script>
 <script src="/js/i18n.js"></script>
+<script src="/js/phone.js"></script>
+<script src="/js/picker.js"></script>
+<script src="/js/admin-accounts.js"></script>
 <script src="/js/admin-team.js"></script>
 <script src="/js/admin-alerts.js"></script>
 <script src="/js/admin-billing.js"></script>

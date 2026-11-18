@@ -2315,25 +2315,8 @@
     return DATA.billing(site.org_id).then(function (d) { drawBilling(view, d, site.org_id); });
   }
   // قايمة الدول (مصر والدول العربية الأول) · نفس القايمة في صفحة الإعدادات وصفحة الاشتراك
-  function flagOf(iso) {
-    var a = String(iso || '').toUpperCase();
-    return /^[A-Z]{2}$/.test(a) ? String.fromCharCode(0xD83C, 0xDDE6 + a.charCodeAt(0) - 65, 0xD83C, 0xDDE6 + a.charCodeAt(1) - 65) : '';
-  }
-  var enNames = null;
-  function countryItems(withDial) {
-    if (!enNames) { enNames = {}; LTPhone.list('en').forEach(function (c) { enNames[c.iso] = c.name; }); }
-    return LTPhone.list(LT.locale || 'ar').map(function (c) {
-      return { v: c.iso, label: flagOf(c.iso) + ' ' + c.name, dial: c.dial, sub: withDial ? '+' + c.dial : '', hay: c.name + ' ' + (enNames[c.iso] || '') + ' ' + c.iso + ' ' + c.dial };
-    });
-  }
-  function countryLabel(iso) { var it = countryItems(false).filter(function (x) { return x.v === iso; })[0]; return it ? it.label : ''; }
-  // قايمة الدول: اسم الدولة وعلمها (مصر والدول العربية الأول) وفيها بحث. { dial: true } = قايمة مفتاح الاتصال (العلم والمفتاح)
-  // نفس القايمة في الإعدادات وصفحة الاشتراك. قايمة بنرسمها احنا بدل select المتصفح لأنه ما كانش بيفتح على بعض الموبايلات.
-  function countrySelect(v, o) {
-    var dial = !!(o && o.dial);
-    return LT.pick({ value: v, items: countryItems(dial), aria: T(dial ? 'set.wa.cc' : 'set.country.l'), search: T('pk.search'), empty: T('pk.none'),
-      btn: function (it) { return dial ? flagOf(it.v) + ' +' + it.dial : it.label; } });
-  }
+  // قوايم الدول (الاسم والعلم · مفتاح الاتصال) في picker.js: نفسها في اللوحة وصفحة الإدارة
+  var countrySelect = LT.countryPick, countryLabel = LT.countryLabel;
   function curName(c) { var x = T('cur.' + c); return x === 'cur.' + c ? c : x; }
   function price2(n, c) { return (Math.round(n * 100) / 100).toLocaleString('en-US', { maximumFractionDigits: 2 }) + ' ' + curName(c); }
   // أول مرة: «اختر دولتك» (من غيرها مفيش عملة ولا وسائل دفع). بعد الاختيار الصفحة بتتحمّل تاني بالعملة والوسائل الصح.

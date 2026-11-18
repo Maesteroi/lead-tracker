@@ -85,5 +85,25 @@
     return root;
   }
 
-  LT.pick = pick; LT.pickNorm = norm;
+  // ── قوايم الدول: اسم الدولة وعلمها (مصر والدول العربية الأول) · { dial: true } = العلم والمفتاح (لرقم الواتساب) ──
+  function flagOf(iso) {
+    var a = String(iso || '').toUpperCase();
+    return /^[A-Z]{2}$/.test(a) ? String.fromCharCode(0xD83C, 0xDDE6 + a.charCodeAt(0) - 65, 0xD83C, 0xDDE6 + a.charCodeAt(1) - 65) : '';
+  }
+  var enNames = null;
+  function countryItems(withDial) {
+    if (!enNames) { enNames = {}; window.LTPhone.list('en').forEach(function (c) { enNames[c.iso] = c.name; }); }
+    return window.LTPhone.list(LT.locale || 'ar').map(function (c) {
+      return { v: c.iso, label: flagOf(c.iso) + ' ' + c.name, dial: c.dial, sub: withDial ? '+' + c.dial : '', hay: c.name + ' ' + (enNames[c.iso] || '') + ' ' + c.iso + ' ' + c.dial };
+    });
+  }
+  function countryLabel(iso) { var it = countryItems(false).filter(function (x) { return x.v === iso; })[0]; return it ? it.label : ''; }
+  // نفس القايمة في الإعدادات وصفحة الاشتراك وصفحة الإدارة. قايمة بنرسمها احنا بدل select المتصفح لأنه ما كانش بيفتح على بعض الموبايلات.
+  function countryPick(v, o) {
+    var dial = !!(o && o.dial), T = LT.t;
+    return pick({ value: v, items: countryItems(dial), aria: T(dial ? 'set.wa.cc' : 'set.country.l'), search: T('pk.search'), empty: T('pk.none'), disabled: !!(o && o.disabled),
+      btn: function (it) { return dial ? flagOf(it.v) + ' +' + it.dial : it.label; } });
+  }
+
+  LT.pick = pick; LT.pickNorm = norm; LT.flagOf = flagOf; LT.countryPick = countryPick; LT.countryLabel = countryLabel;
 })();

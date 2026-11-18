@@ -293,3 +293,17 @@ button.switch[aria-checked="true"]::after { inset-inline-start: 21px; }
 .ai-link { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .ai-n { display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: var(--bg); font-weight: 800; font-size: 13px; }
 .ai-link .bl-in { min-width: 200px; }
+
+/* ── حساب عميل جديد (admin-accounts.js) ── */
+.adm-modal { position: fixed; z-index: 60; inset-block-start: 5vh; inset-inline: 0; margin-inline: auto; width: min(560px, calc(100vw - 24px)); max-height: 90vh; overflow: auto; background: var(--card); border: 1px solid var(--line); border-radius: 16px; box-shadow: 0 24px 70px rgba(9, 18, 36, .3); }
+.scrim:has(+ .adm-modal) { z-index: 59; }
+.adm-modal-h { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 18px; border-bottom: 1px solid var(--line); position: sticky; top: 0; background: var(--card); z-index: 1; }
+.adm-modal-h h2 { margin: 0; font-size: 18px; }
+.adm-modal-b { padding: 16px 18px 18px; }
+.adm-modal-b textarea { width: 100%; font: inherit; }
+.adm-modal-f { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 8px; }
+.acc-sites { display: grid; gap: 8px; margin-bottom: 8px; }
+.acc-site { display: grid; grid-template-columns: 1fr 1fr auto; gap: 8px; align-items: center; }
+.acc-site input { width: 100%; min-width: 0; }
+.d-acts { display: flex; gap: 8px; flex-wrap: wrap; }
+@media (max-width: 560px) { .acc-site { grid-template-columns: 1fr auto; } .acc-site input:nth-child(2) { grid-column: 1 / -1; grid-row: 2; } .adm-modal { inset-block-start: 2vh; max-height: 96vh; } }

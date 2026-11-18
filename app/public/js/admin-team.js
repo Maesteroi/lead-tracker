@@ -7,7 +7,7 @@
   var $ = function (id) { return document.getElementById(id); };
   var APP_URL = location.origin + '/login';
   var KIND = {};   // أنواع سجل التغييرات: الاسم من ملف اللغة (adm.kind.<النوع>)
-  ['platform_org_update', 'platform_tg_webhook', 'platform_role_create', 'platform_role_update', 'platform_role_delete', 'platform_invite', 'platform_invite_cancel', 'platform_member_add', 'platform_member_update', 'platform_member_remove', 'invite_accepted', 'team_invite', 'team_invite_cancel', 'team_member_update', 'team_member_remove', 'verdict_set', 'outcome_set', 'key_rotated', 'site_created', 'site_connected', 'plugin_paired', 'pair_code_created'].forEach(function (k) { KIND[k] = T('adm.kind.' + k); });
+  ['platform_org_update', 'platform_tg_webhook', 'platform_role_create', 'platform_role_update', 'platform_role_delete', 'platform_invite', 'platform_invite_cancel', 'platform_member_add', 'platform_member_update', 'platform_member_remove', 'invite_accepted', 'team_invite', 'team_invite_cancel', 'team_member_update', 'team_member_remove', 'verdict_set', 'outcome_set', 'key_rotated', 'site_created', 'site_connected', 'plugin_paired', 'pair_code_created', 'platform_account_create', 'platform_account_owner'].forEach(function (k) { KIND[k] = T('adm.kind.' + k); });
 
   var team = null, toast = function () {};
 
