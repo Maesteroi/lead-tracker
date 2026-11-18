@@ -12,7 +12,18 @@ import { orgPayments } from './payments.js';
 import { planDiscount, couponQuote } from './plans.js';
 
 const PLAN_IDS = ['basic', 'pro', 'agency'];
-export const ORG_BILL = 'id,name,status,plan,currency,market,country,trial_ends_at,plan_period_end,founder_no,founder_since,billing_owner';
+export const ORG_BILL = 'id,name,status,plan,currency,market,country,country_chosen,trial_ends_at,plan_period_end,founder_no,founder_since,billing_owner';
+// دولة الحساب «مؤكدة» لما العميل نفسه اختارها (organizations.country_chosen). الحسابات القديمة قبل 0031 (العمود مش موجود) بتعتبر مؤكدة لو ليها دولة.
+export const countryChosen = (org) => (org.country_chosen == null ? !!org.country : org.country_chosen === true);
+// بيانات الحساب للدفع. لو عمود لسه ما اتضافش في قاعدة البيانات (قبل 0021 أو 0031) بنجرّب من غيره بدل ما الصفحة تقع.
+export async function loadOrgBill(db, orgId) {
+  let sel = ORG_BILL;
+  for (const drop of [null, ',country_chosen', ',country']) {
+    if (drop) sel = sel.replace(drop, '');
+    try { return await db.one('organizations?id=' + eq(orgId) + '&select=' + sel); } catch (e) { /* العمود مش موجود لسه */ }
+  }
+  return null;
+}
 const CUR_RE = /^[A-Z]{3}$/;
 const KINDS = ['instapay', 'vodafone_cash', 'paymob'];
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -120,7 +131,7 @@ export async function dashBilling(req, env, db, sess, url) {
   if (!UUID_RE.test(orgId)) return notFound();
   const role = roleFor(sess, orgId);
   if (!role) return notFound();
-  const org = await db.one('organizations?id=' + eq(orgId) + '&select=' + ORG_BILL).catch(() => db.one('organizations?id=' + eq(orgId) + '&select=' + ORG_BILL.replace(',country', '')));   // قبل 0021
+  const org = await loadOrgBill(db, orgId);   // قبل 0021
   if (!org) return notFound();
   const b = await loadBilling(db);
   const ctx = ctxFor(b, await countryOf(db, org)), currency = ctx.currency;
@@ -128,7 +139,8 @@ export async function dashBilling(req, env, db, sess, url) {
   const methods = await methodsFor(db, org, currency);
   const usage = await usageOf(db, org, b).catch(() => null);
   return json({ ok: true, manage: role === 'owner', usage, org: { id: org.id, name: org.name, status: org.status, plan: org.plan, trial_ends_at: org.trial_ends_at, plan_period_end: org.plan_period_end, founder: !!org.founder_no },
-    currency, settings: { trial_days: b.settings.trial_days, annual_months: b.settings.annual_months, founders_months: b.settings.founders_months, founders_after_pct: b.settings.founders_after_pct },
+    currency, account: { country: org.country || null, chosen: countryChosen(org) },   // chosen=false: العميل لسه ما اختارش دولته (التخمين من الإنترنت مش كفاية للدفع)
+    settings: { trial_days: b.settings.trial_days, annual_months: b.settings.annual_months, founders_months: b.settings.founders_months, founders_after_pct: b.settings.founders_after_pct },
     founders: { left: Math.max(0, b.founders.limit - b.founders.used), limit: b.founders.limit, pct: b.settings.founders_pct },
     pricing: { country: ctx.country, mode: ctx.mode, rate: ctx.rate, source: ctx.mode === 'usd' ? FX_SOURCE : null },
     names: Object.fromEntries(b.plans.map((p) => [p.id, { ar: p.name_ar || null, en: p.name_en || null }])),   // للباقة الحالية/السجل حتى لو مخفية
@@ -262,7 +274,7 @@ export async function dashCoupon(req, env, db, sess) {
   const b = await req.json().catch(() => ({}));
   const orgId = String(b.org || '');
   if (!UUID_RE.test(orgId) || !roleFor(sess, orgId)) return notFound();
-  const org = await db.one('organizations?id=' + eq(orgId) + '&select=' + ORG_BILL).catch(() => db.one('organizations?id=' + eq(orgId) + '&select=' + ORG_BILL.replace(',country', '')));
+  const org = await loadOrgBill(db, orgId);
   if (!org) return notFound();
   const bill = await loadBilling(db);
   const plan = bill.plans.find((p) => p.id === b.plan && p.active);

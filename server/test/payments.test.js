@@ -108,3 +108,23 @@ test('agency by project: the price per project × the number of projects (at lea
   const org = s.w.fs.t.organizations.find((o) => o.id === s.cust.org.id);
   assert.deepEqual([org.plan, org.plan_units], ['agency', 6]);
 });
+
+test('pay: the customer must pick the country first; the currency and the methods follow his choice, and an unconfirmed (guessed) country cannot pay', async () => {
+  const s = await setup();
+  const org = s.w.fs.t.organizations.find((o) => o.id === s.cust.org.id);
+  s.w.fs.t.plan_prices.push({ plan_id: 'pro', currency: 'SAR', monthly: 349 }, { plan_id: 'basic', currency: 'SAR', monthly: 149 });
+  const sar = (await s.pc(s.boss, '/v1/platform/billing/method', { kind: 'instapay', enabled: true, label: 'SAR bank', details: { handle: 'maestro@sa', name: 'Maestro SA' }, currencies: ['SAR'] })).body.id;
+  org.country = 'EG'; org.country_chosen = false;   // تخمين من الإنترنت وقت التسجيل
+  const b0 = (await s.gc(s.cust, '/v1/dash/billing?org=' + s.cust.org.id)).body;
+  assert.deepEqual([b0.account.country, b0.account.chosen], ['EG', false]);
+  const refused = await s.pay({});
+  assert.deepEqual([refused.status, refused.body.error], [400, 'country'], 'guessed country = no payment');
+  assert.equal(s.w.fs.t.payments.length, 0);
+  assert.equal((await s.pc(s.cust, '/v1/dash/settings', { org: s.cust.org.id, country: 'SA' })).status, 200);
+  const b1 = (await s.gc(s.cust, '/v1/dash/billing?org=' + s.cust.org.id)).body;
+  assert.deepEqual([b1.account.country, b1.account.chosen, b1.currency], ['SA', true, 'SAR']);
+  assert.deepEqual(b1.methods.map((x) => x.id), [sar], 'only the methods of the Saudi currency');
+  assert.equal((await s.pay({ method_id: s.m })).body.error, 'method', 'the Egyptian method is not offered to a Saudi account');
+  const ok = await s.pay({ method_id: sar });
+  assert.deepEqual([ok.status, ok.body.currency], [200, 'SAR'], JSON.stringify(ok.body));
+});

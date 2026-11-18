@@ -19,8 +19,8 @@ test('settings: account (from Google, no password), business name and WhatsApp, 
   const r = (await s.gc(s.owner, '/v1/dash/settings?org=' + s.owner.org.id)).body;
   assert.deepEqual([r.user.email, r.manage, r.sites.length, r.sites[0].ads.customer_id], ['owner@set.example', true, 1, '6456258009']);
   assert.ok(r.user.sessions >= 1);
-  assert.equal((await s.pc(s.owner, '/v1/dash/settings', { org: s.owner.org.id, name: 'شادو ديزاين', contact_phone: '0120 795 0010' })).status, 200);
-  assert.deepEqual([s.w.fs.t.organizations.find((o) => o.id === s.owner.org.id).name, s.w.fs.t.organizations.find((o) => o.id === s.owner.org.id).contact_phone], ['شادو ديزاين', '01207950010']);
+  assert.equal((await s.pc(s.owner, '/v1/dash/settings', { org: s.owner.org.id, name: 'شادو ديزاين', country: 'EG', contact_phone: '0120 795 0010' })).status, 200);
+  assert.deepEqual([s.w.fs.t.organizations.find((o) => o.id === s.owner.org.id).name, s.w.fs.t.organizations.find((o) => o.id === s.owner.org.id).contact_phone], ['شادو ديزاين', '1207950010'], 'stored local: no country code, no leading zero');
   assert.equal((await s.pc(s.owner, '/v1/dash/settings', { org: s.owner.org.id, contact_phone: 'abc' })).body.error, 'phone');
   assert.equal((await s.pc(s.owner, '/v1/dash/settings', { org: s.owner.org.id, name: 'x' })).body.error, 'name');
   const other = await loggedIn(s.w, 'other@set.example');
@@ -46,4 +46,28 @@ test('billing usage: ad clicks this month across the account sites, against the 
   s.w.fs.t.ads_campaign_daily = [{ client_id: s.site.id, customer_id: '1', day: m + '-01', campaign_id: '1', clicks: 30 }, { client_id: s.site.id, customer_id: '1', day: m + '-02', campaign_id: '1', clicks: 15 }];
   const r = (await s.gc(s.owner, '/v1/dash/billing?org=' + s.owner.org.id)).body;
   assert.deepEqual([r.usage.clicks, r.usage.limit, r.usage.sites, r.usage.site_limit], [45, 15000, 1, 3]);
+});
+
+test('settings: the customer picks the country (the key and the currency follow it) and types the number without the key; the server corrects it per country', async () => {
+  const s = await setup();
+  const org = () => s.w.fs.t.organizations.find((o) => o.id === s.owner.org.id), save = (b) => s.pc(s.owner, '/v1/dash/settings', Object.assign({ org: s.owner.org.id }, b));
+  assert.equal((await save({ contact_phone: '01014000041' })).body.error, 'country', 'no country yet = no key to correct with');
+  for (const raw of ['01014000041', '1014000041', '+201014000041', '201014000041', '00201014000041', '٠١٠١٤٠٠٠٠٤١', '010 1400 0041']) {
+    const r = await save({ country: 'EG', contact_phone: raw });
+    assert.equal(r.status, 200, raw + ' ' + JSON.stringify(r.body));
+    assert.equal(org().contact_phone, '1014000041', raw);
+  }
+  assert.deepEqual([org().country, org().country_chosen], ['EG', true], 'chosen by the customer, not guessed');
+  const g = (await s.gc(s.owner, '/v1/dash/settings?org=' + s.owner.org.id)).body.org;
+  assert.deepEqual([g.country, g.country_chosen, g.dial, g.currency, g.contact_phone], ['EG', true, '20', 'EGP', '1014000041']);
+  const bad = await save({ contact_phone: '101400004' });   // 9 أرقام لمصر
+  assert.deepEqual([bad.status, bad.body.error, bad.body.reason, bad.body.need], [400, 'phone', 'length', '10']);
+  assert.equal((await save({ contact_phone: '+966501234567' })).body.reason, 'prefix', 'a Saudi key on an Egyptian account');
+  assert.equal(org().contact_phone, '1014000041', 'a refused number never overwrites the saved one');
+  assert.equal((await save({ country: 'XX' })).body.error, 'country');
+  const sa = await save({ country: 'SA', contact_phone: '0501234567' });
+  assert.deepEqual([sa.status, org().country, org().contact_phone, sa.body.org.dial, sa.body.org.currency], [200, 'SA', '501234567', '966', 'SAR']);
+  assert.equal((await save({ contact_phone: '' })).status, 200); assert.equal(org().contact_phone, null, 'an empty box clears it');
+  s.w.fs.t.organizations.find((o) => o.id === s.owner.org.id).country = null;
+  assert.equal((await s.gc(s.owner, '/v1/dash/settings?org=' + s.owner.org.id)).body.org.dial, '');
 });

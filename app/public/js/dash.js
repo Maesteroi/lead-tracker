@@ -2197,13 +2197,39 @@
       others.addEventListener('click', function () { others.disabled = true; DATA.logoutOthers().then(function (r) { toast(T('set.out.done', { n: fmt(r.ended) })); vSettings(view); }, function () { others.disabled = false; toast(T('err.save')); }); });
       var acct = card(T('set.acct'), [row(T('set.email'), d.user.email), d.user.name ? row(T('set.name'), d.user.name) : null, el('p', { class: 'hint', text: T('set.google') }),
         row(T('set.sessions'), fmt(d.user.sessions)), d.user.sessions > 1 ? others : null]);
-      // نشاطك
-      var nm = el('input', { type: 'text', class: 'bl-in', maxlength: '80', value: d.org.name, 'aria-label': T('set.biz') }), ph = el('input', { type: 'tel', class: 'bl-in', dir: 'ltr', maxlength: '20', value: d.org.contact_phone || '', placeholder: '01xxxxxxxxx', 'aria-label': T('set.wa') });
-      nm.disabled = ph.disabled = !d.manage;
+      // نشاطك: الاسم · الدولة (منها المفتاح والعملة ووسائل الدفع) · رقم الواتساب بدون مفتاح الدولة (بيتصحح لوحده)
+      var nm = el('input', { type: 'text', class: 'bl-in', maxlength: '80', value: d.org.name, 'aria-label': T('set.biz') });
+      var cur0 = d.org.country_chosen && LTPhone.has(d.org.country) ? d.org.country : LTPhone.DEFAULT;   // لسه ما اختارش: مصر هي الاختيار الأول
+      var sel = countrySelect(cur0), ccBox = el('span', { class: 'set-cc', dir: 'ltr', text: '+' + LTPhone.dial(cur0) });
+      var n0 = LTPhone.normalize(cur0, d.org.contact_phone || '');
+      var ph = el('input', { type: 'tel', class: 'bl-in', dir: 'ltr', maxlength: '24', inputmode: 'tel', autocomplete: 'tel-national', value: n0.ok ? n0.national : d.org.contact_phone || '', 'aria-label': T('set.wa') });
+      var phMsg = el('small', { class: 'hint set-msg' });
+      var curRow = row(T('set.cur'), d.org.country_chosen && d.org.currency ? curName(d.org.currency) : T('set.cur.after'));
+      nm.disabled = ph.disabled = sel.disabled = !d.manage;
+      // يصحّح الرقم قدام الدولة المختارة ويكتب النتيجة في الخانة. empty = الخانة فاضية (مسموح: بيمسح الرقم)
+      var checkPhone = function () {
+        var raw = ph.value.trim(), len = LTPhone.lenText(sel.value);
+        if (!raw) { phMsg.textContent = T('set.wa.hint', { n: len }); phMsg.classList.remove('bad'); return { ok: true, empty: true }; }
+        var r = LTPhone.normalize(sel.value, raw);
+        if (r.ok) { ph.value = r.national; phMsg.textContent = T('set.wa.ok', { cc: LTPhone.dial(sel.value), n: r.national }); phMsg.classList.remove('bad'); return r; }
+        phMsg.textContent = T('set.e.phone.' + r.error, { n: r.need, cc: r.need }); phMsg.classList.add('bad'); return r;
+      };
+      phMsg.textContent = T('set.wa.hint', { n: LTPhone.lenText(cur0) });
+      ph.addEventListener('blur', checkPhone);
+      sel.addEventListener('change', function () { ccBox.textContent = '+' + LTPhone.dial(sel.value); if (ph.value.trim()) checkPhone(); else phMsg.textContent = T('set.wa.hint', { n: LTPhone.lenText(sel.value) }); });
       var save = el('button', { class: 'btn sm', type: 'button', text: T('adm.al.save') });
-      save.addEventListener('click', function () { save.disabled = true; DATA.settingsSave({ org: d.org.id, name: nm.value, contact_phone: ph.value }).then(function () { save.disabled = false; toast(T('adm.bl.saved')); }, function (e) { save.disabled = false; toast(T(e.message === 'phone' ? 'set.e.phone' : e.message === 'name' ? 'set.e.name' : 'err.save')); }); });
-      var biz = card(T('set.biz.t'), [el('label', { class: 'set-f' }, [el('span', { text: T('set.biz') }), nm]), el('label', { class: 'set-f' }, [el('span', { text: T('set.wa') }), ph]),
-        row(T('set.country'), (d.org.country ? (function () { try { return new Intl.DisplayNames([LT.locale || 'ar'], { type: 'region' }).of(d.org.country); } catch (e) { return d.org.country; } })() : '—') + (d.org.currency ? ' · ' + curName(d.org.currency) : '')), el('p', { class: 'hint', text: T('set.country.i') }), d.manage ? save : null]);
+      save.addEventListener('click', function () {
+        var r = checkPhone(); if (!r.ok) { toast(T('set.e.phone')); return; }
+        save.disabled = true;
+        DATA.settingsSave({ org: d.org.id, name: nm.value, country: sel.value, contact_phone: r.empty ? '' : r.national }).then(function (res) {
+          save.disabled = false; d.org.country = sel.value; d.org.country_chosen = true;
+          var cur = res && res.org && res.org.currency; if (cur) { d.org.currency = cur; curRow.lastChild.textContent = curName(cur); }
+          toast(T('adm.bl.saved'));
+        }, function (e) { save.disabled = false; toast(T(e.message === 'phone' ? 'set.e.phone' : e.message === 'name' ? 'set.e.name' : e.message === 'country' ? 'set.e.country' : 'err.save')); });
+      });
+      var biz = card(T('set.biz.t'), [el('label', { class: 'set-f' }, [el('span', { text: T('set.biz') }), nm]),
+        el('label', { class: 'set-f' }, [el('span', { text: T('set.country.l') }), sel]), el('p', { class: 'hint', text: T('set.country.i') }),
+        el('label', { class: 'set-f' }, [el('span', { text: T('set.wa') }), el('div', { class: 'set-phone', dir: 'ltr' }, [ccBox, ph])]), phMsg, curRow, d.manage ? save : null]);
       // مواقعك وجوجل أدز
       var sites = card(T('set.sites'), [el('ul', { class: 'set-sites' }, d.sites.map(function (x) {
         return el('li', {}, [el('div', {}, [el('b', { text: x.name }), el('small', { class: 'dim', dir: 'ltr', text: x.domain })]),
@@ -2284,8 +2310,31 @@
     if (!site || !site.org_id) { view.appendChild(card(T('nav.billing'), [el('p', { class: 'muted', text: T('team.pick_site') })])); return Promise.resolve(); }
     return DATA.billing(site.org_id).then(function (d) { drawBilling(view, d, site.org_id); });
   }
+  // قايمة الدول (مصر والدول العربية الأول) · نفس القايمة في صفحة الإعدادات وصفحة الاشتراك
+  function countrySelect(v) {
+    var s = el('select', { class: 'bl-in set-country', 'aria-label': T('set.country.l') });
+    LTPhone.list(LT.locale || 'ar').forEach(function (c) { var o = el('option', { value: c.iso, text: c.name + ' (+' + c.dial + ')' }); if (c.iso === v) o.selected = true; s.appendChild(o); });
+    return s;
+  }
   function curName(c) { var x = T('cur.' + c); return x === 'cur.' + c ? c : x; }
   function price2(n, c) { return (Math.round(n * 100) / 100).toLocaleString('en-US', { maximumFractionDigits: 2 }) + ' ' + curName(c); }
+  // أول مرة: «اختر دولتك» (من غيرها مفيش عملة ولا وسائل دفع). بعد الاختيار الصفحة بتتحمّل تاني بالعملة والوسائل الصح.
+  function saveCountry(view, org, iso, done) {
+    DATA.settingsSave({ org: org, country: iso }).then(function () { toast(T('bl.country.saved')); vBilling(view); }, function () { if (done) done(); toast(T('err.save')); });
+  }
+  function countryCard(view, d, org) {
+    var sel = countrySelect(LTPhone.DEFAULT), ok = el('button', { class: 'btn', type: 'button', text: T('bl.country.ok') });
+    if (!d.manage) return card(T('bl.country.t'), [el('p', { class: 'muted', text: T('bl.owner_only') })]);
+    ok.addEventListener('click', function () { ok.disabled = true; saveCountry(view, org, sel.value, function () { ok.disabled = false; }); });
+    return card(T('bl.country.t'), [el('p', { class: 'hint', text: T('bl.country.s') }), el('div', { class: 'bl-country' }, [sel, ok])]);
+  }
+  // بعد الاختيار: دولة الحساب ظاهرة وتتغيّر (إلا لو فيه طلب دفع مستني: العملة بتاعته اتحددت)
+  function countryLine(view, d, org, locked) {
+    var iso = d.account && d.account.country, sel = countrySelect(iso);
+    if (!d.manage || locked || !iso) return el('p', { class: 'hint', text: T('bl.country.mine') + ': ' + (iso && LTPhone.has(iso) ? sel.options[sel.selectedIndex].textContent : '—') + (locked ? ' · ' + T('bl.country.locked') : '') });
+    sel.addEventListener('change', function () { sel.disabled = true; saveCountry(view, org, sel.value, function () { sel.disabled = false; }); });
+    return el('div', { class: 'bl-country line' }, [el('span', { class: 'dim', text: T('bl.country.mine') }), sel]);
+  }
   function drawBilling(view, d, org) {
     clear(view);
     var o = d.org, now = Date.now(), pend = (d.payments || []).filter(function (p) { return p.status === 'pending'; })[0];
@@ -2302,6 +2351,8 @@
         el('span', { class: 'dim', text: tl != null && tl <= 0 ? T('bl.trial.over.s') : T('bl.trial.s') })])]);
     }
     view.appendChild(st);
+    // ٠) الدولة: العملة ووسائل الدفع بتتحدد منها، فالعميل يختارها الأول (مصر هي الاختيار الأول) وتتسجل في بروفايله
+    if (d.account && !d.account.chosen) { view.appendChild(countryCard(view, d, org)); return; }
     // استهلاك الشهر: نقرات الإعلان والمواقع مقابل حد الباقة
     if (d.usage) {
       var u = d.usage, meter = function (label, v, lim) {
@@ -2353,7 +2404,7 @@
       ]));
     });
     var fxNote = d.pricing && d.pricing.mode === 'usd' && d.pricing.source ? el('p', { class: 'hint' }, [el('span', { text: T('bl.fx', { r: Number(d.pricing.rate).toLocaleString('en-US', { maximumFractionDigits: 2 }), c: curName(d.currency) }) + ' ' }), el('a', { href: d.pricing.source, target: '_blank', rel: 'noopener', text: 'Rates By Exchange Rate API' })]) : null;
-    view.appendChild(card(T('bl.plans'), [el('p', { class: 'hint', text: T('bl.cur', { c: curName(d.currency) }) }), seg, grid, compareTable(d), fxNote]));
+    view.appendChild(card(T('bl.plans'), [el('p', { class: 'hint', text: T('bl.cur', { c: curName(d.currency) }) }), countryLine(view, d, org, !!pend), seg, grid, compareTable(d), fxNote]));
     // ٥) الدفع
     if (bill.plan && !pend && d.manage) view.appendChild(checkout(view, d, org));
     if (!d.manage) view.appendChild(el('p', { class: 'muted', text: T('bl.owner_only') }));
