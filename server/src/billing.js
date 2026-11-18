@@ -10,6 +10,7 @@ import { isPlatform, hasPerm, notFound, roleFor } from './sites.js';
 import { audit } from './auth.js';
 import { orgPayments } from './payments.js';
 import { planDiscount, couponQuote } from './plans.js';
+import { orgStatement } from './subscription.js';
 
 const PLAN_IDS = ['basic', 'pro', 'agency'];
 export const ORG_BILL = 'id,name,status,plan,currency,market,country,country_chosen,trial_ends_at,plan_period_end,founder_no,founder_since,billing_owner';
@@ -148,7 +149,8 @@ export async function dashBilling(req, env, db, sess, url) {
     // أحسن خصم واحد (مابيتجمعش): عرض المؤسسين أو خصم الباقة
     plans: b.plans.filter((p) => p.active && p.visible !== false).map((p) => { const pd = planDiscount(p); const best = Math.max(disc, pd); const pr = priceFor(p, ctx, b.settings, best); if (pr) pr.source = !best ? null : pd > disc ? 'plan' : 'founder'; return { id: p.id, name_ar: p.name_ar, name_en: p.name_en, badge: p.badge, discount_label: pd > disc ? p.discount_label : null, discount_ends_at: pd > disc ? p.discount_ends_at : null, sites: p.sites, clicks: p.clicks, unit: p.unit, min_units: p.min_units, campaigns_per_unit: p.campaigns_per_unit, features: p.features.filter((f) => f.enabled || f.kind === 'bool'), price: pr }; }).filter((p) => p.price),
     methods: methods.map((m) => ({ id: m.id, kind: m.kind, label: m.label || '', details: m.details || {} })),
-    payments: role === 'owner' ? await orgPayments(db, org.id) : [] });
+    payments: role === 'owner' ? await orgPayments(db, org.id) : [],
+    statement: role === 'owner' ? await orgStatement(db, org, b, ctx).catch(() => null) : null });   // كشف حساب الاشتراك (subscription.js)
 }
 export async function methodsFor(db, org, currency) {
   let owner = null;
