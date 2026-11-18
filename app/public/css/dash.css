@@ -711,7 +711,6 @@ svg.geo { width: 100%; height: auto; aspect-ratio: 1.7; display: block; backgrou
 .set-row { display: flex; justify-content: space-between; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
 .set-f { display: grid; gap: 4px; margin: 0 0 12px; } .set-f span { font-size: 14px; color: var(--muted); } .set-f .bl-in { width: 100%; }
 .set-phone { display: flex; gap: 8px; direction: ltr; } .set-phone .bl-in { flex: 1; min-width: 0; }
-.set-cc { display: inline-flex; align-items: center; justify-content: center; min-width: 64px; padding: 0 12px; border-radius: 12px; background: var(--bg); border: 1px solid var(--line); font-weight: 700; color: var(--muted); }
 .set-msg { margin: -6px 0 12px; } .set-msg.bad { color: var(--bad); }
 .bl-country { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; } .bl-country .bl-in { flex: 1; min-width: 200px; } .bl-country.line { margin: 0 0 12px; }
 .set-sites { list-style: none; margin: 0 0 12px; padding: 0; display: grid; gap: 8px; }
@@ -905,3 +904,26 @@ svg.geo { width: 100%; height: auto; aspect-ratio: 1.7; display: block; backgrou
   .op-row select { width: 100%; }
 }
 .op-measure { margin: 2px 0 0; font-size: 13px; color: var(--muted); }
+/* قايمة الاختيار بالبحث (الدولة ومفتاح الاتصال) · app/public/js/picker.js */
+.pk { position: relative; min-width: 0; }
+.pk-btn { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; min-height: 44px; text-align: start; cursor: pointer; }
+.pk-btn:disabled { cursor: not-allowed; opacity: .6; }
+.pk-bt { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pk-chev { font-style: normal; color: var(--muted); flex: none; }
+.pk-pop[hidden], .pk-list li[hidden], .pk-none[hidden] { display: none; }
+.pk-back { position: fixed; inset: 0; z-index: 70; background: transparent; }
+.pk-panel { position: absolute; inset-inline-start: 0; top: calc(100% + 6px); z-index: 71; width: max(100%, 280px); max-width: min(360px, calc(100vw - 24px)); display: flex; flex-direction: column; gap: 8px; padding: 10px; border-radius: 14px; background: var(--card); border: 1px solid var(--line); box-shadow: 0 18px 50px rgba(11, 31, 77, .18); direction: rtl; }
+.pk-q { width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; font: inherit; background: var(--bg); color: inherit; }
+.pk-list { position: relative; list-style: none; margin: 0; padding: 0; max-height: 280px; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+.pk-list li { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 11px 10px; border-radius: 10px; cursor: pointer; }
+.pk-list li:hover, .pk-list li:focus { background: var(--bg); outline: 0; }
+.pk-list li[aria-selected="true"] { background: color-mix(in srgb, var(--brand, #1a6fe8) 12%, transparent); font-weight: 700; }
+.pk-s { color: var(--muted); font-weight: 700; flex: none; }
+.pk-none { margin: 6px 4px; color: var(--muted); }
+.set-phone .pk { flex: none; width: 128px; }
+@media (min-width: 641px) { .set-phone .pk-panel { inset-inline-start: auto; left: 0; } }
+@media (max-width: 640px) {
+  .pk-back { background: rgba(11, 31, 77, .35); }
+  .pk-panel { position: fixed; inset-inline: 0; bottom: 0; top: auto; width: auto; max-width: none; padding: 14px 14px calc(14px + env(safe-area-inset-bottom)); border-radius: 18px 18px 0 0; }
+  .pk-list { max-height: 55vh; }
+}

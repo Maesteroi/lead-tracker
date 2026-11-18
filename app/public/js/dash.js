@@ -930,38 +930,10 @@
   }
 
   // ════════ 7) المواقع والتركيب ════════
-  function wpQuickBox(domain) {
-    var cleanHost = function (v) {
-      return String(v || '').trim().toLowerCase().replace(/^[a-z]+:\/\//, '').split(/[\/?#]/)[0].replace(/^www\./, '');
-    };
-    var domInput = domain ? null : el('input', { class: 'inp sm', type: 'text', dir: 'ltr', placeholder: T('sites.quick.domain'), value: '' });
-    var getBase = function () {
-      var h = cleanHost(domain || (domInput && domInput.value));
-      return h && h.indexOf('.') > 0 ? 'https:' + '//' + h : '';
-    };
-    var dlBtn = el('a', { class: 'btn sm', href: '/plugin/lead-tracker-pro-2.13.6.zip', download: 'lead-tracker-pro.zip', text: T('sites.quick.dl') });
-    var upBtn = el('button', { class: 'btn ghost sm', type: 'button', text: T('sites.quick.upload') });
-    upBtn.addEventListener('click', function () {
-      var base = getBase();
-      if (!base) { if (domInput) domInput.focus(); return; }
-      window.open(base + '/wp-admin/plugin-install.php?tab=upload', '_blank', 'noopener');
-    });
-    var cnBtn = el('button', { class: 'btn ghost sm', type: 'button', text: T('sites.quick.connect') });
-    cnBtn.addEventListener('click', function () {
-      var base = getBase();
-      if (!base) { if (domInput) domInput.focus(); return; }
-      window.open(base + '/wp-admin/admin.php?page=lead-tracker-settings', '_blank', 'noopener');
-    });
-    return el('div', { class: 'quick-connect' }, [
-      el('p', { class: 'hint', text: T('sites.quick.title') }),
-      domInput,
-      el('div', { class: 'set-acts' }, [dlBtn, upBtn, cnBtn]),
-    ]);
-  }
   function vSites(view) {
     return DATA.setup().then(function (list) {
       clear(view);
-      if (!list.length) view.appendChild(card(T('sites.none'), [el('p', { text: T('sites.none.text') }), wpQuickBox('')]));
+      if (!list.length) view.appendChild(card(T('sites.none'), [el('p', { text: T('sites.none.text') })]));
       list.forEach(function (s) {
         var avg = s.delivery.length ? Math.round(s.delivery.reduce(function (a, b) { return a + b; }, 0) / s.delivery.length * 10) / 10 : null;
         var spark = el('div'); C.hbars(spark, s.delivery.map(function (v, i) { return { label: i === s.delivery.length - 1 ? T('sites.yesterday') : T('sites.ago', { n: LT.n(s.delivery.length - 1 - i, 'day') }), value: v, text: v + '%', cls: v >= 99.5 ? 'c-ok' : 'c-sus' }; }).reverse(), { max: 100, compact: true });
@@ -974,9 +946,6 @@
         ];
         var extra = [];
         if (DATA.tg) extra.push(tgBlock(s));
-        if (!s.paired) {
-          extra.push(wpQuickBox(s.domain));
-        }
         if (DATA.pairCode && !s.paired) {
           var out = el('div', { class: 'hint' }), b = el('button', { class: 'btn ghost sm', type: 'button', text: T('sites.paircode') });
           b.addEventListener('click', function () { b.disabled = true; DATA.pairCode(s.id).then(function (r) { b.disabled = false; clear(out); out.appendChild(el('div', { class: 'code', text: r.code })); out.appendChild(document.createTextNode(T('sites.paircode.hint', { m: LT.n(r.valid_minutes, 'minute') }))); }, function (e) { b.disabled = false; clear(out); out.appendChild(document.createTextNode(T(e.message === 'role' ? 'sites.paircode.role' : 'sites.paircode.fail'))); }); });
@@ -985,14 +954,9 @@
         view.appendChild(card(s.name, [el('p', { class: 'acc-sub', text: s.domain }), el('ul', { class: 'checks' }, rows.map(function (r) { return el('li', { class: r[1] === null ? 'soon' : r[1] ? 'ok' : 'warn' }, [el('i', { class: 'ck', text: r[1] === null ? '…' : r[1] ? '✓' : '!' }), el('b', { text: r[0] }), el('span', { text: r[2] }), r[3] || null]); })),
           s.delivery.length ? el('details', { class: 'more-d pro-only' }, [el('summary', { text: T('sites.daily') }), spark]) : null].concat(extra)));
       });
-      var addBox = el('div');
       var add = el('button', { class: 'btn', type: 'button', text: T('sites.add') });
-      add.addEventListener('click', function () {
-        toast(T('sites.add.hint'));
-        if (!addBox.firstChild) addBox.appendChild(wpQuickBox(''));
-      });
+      add.addEventListener('click', function () { toast(T('sites.add.hint')); });
       view.appendChild(add);
-      view.appendChild(addBox);
       // راجع من موافقة جوجل: اختيار حساب الإعلانات
       if (state.adsNonce && DATA.adsAccounts) { var n = state.adsNonce; state.adsNonce = null; openAdsPicker(state.site, n); }
     });
@@ -2237,36 +2201,39 @@
       // نشاطك: الاسم · الدولة (منها المفتاح والعملة ووسائل الدفع) · رقم الواتساب بدون مفتاح الدولة (بيتصحح لوحده)
       var nm = el('input', { type: 'text', class: 'bl-in', maxlength: '80', value: d.org.name, 'aria-label': T('set.biz') });
       var cur0 = d.org.country_chosen && LTPhone.has(d.org.country) ? d.org.country : LTPhone.DEFAULT;   // لسه ما اختارش: مصر هي الاختيار الأول
-      var sel = countrySelect(cur0), ccBox = el('span', { class: 'set-cc', dir: 'ltr', text: '+' + LTPhone.dial(cur0) });
-      var n0 = LTPhone.normalize(cur0, d.org.contact_phone || '');
+      var phIso0 = d.org.phone_country && LTPhone.has(d.org.phone_country) ? d.org.phone_country : cur0;   // دولة الواتساب مستقلة عن دولة النشاط (نشاط في السعودية وواتساب مصري)
+      var sel = countrySelect(cur0), ccSel = countrySelect(phIso0, { dial: true }), ccTouched = false;
+      var n0 = LTPhone.normalize(phIso0, d.org.contact_phone || '');
       var ph = el('input', { type: 'tel', class: 'bl-in', dir: 'ltr', maxlength: '24', inputmode: 'tel', autocomplete: 'tel-national', value: n0.ok ? n0.national : d.org.contact_phone || '', 'aria-label': T('set.wa') });
       var phMsg = el('small', { class: 'hint set-msg' });
       var curRow = row(T('set.cur'), d.org.country_chosen && d.org.currency ? curName(d.org.currency) : T('set.cur.after'));
-      nm.disabled = ph.disabled = sel.disabled = !d.manage;
-      // يصحّح الرقم قدام الدولة المختارة ويكتب النتيجة في الخانة. empty = الخانة فاضية (مسموح: بيمسح الرقم)
+      nm.disabled = ph.disabled = sel.disabled = ccSel.disabled = !d.manage;
+      // يصحّح الرقم قدام دولة الواتساب المختارة ويكتب النتيجة في الخانة. empty = الخانة فاضية (مسموح: بيمسح الرقم)
       var checkPhone = function () {
-        var raw = ph.value.trim(), len = LTPhone.lenText(sel.value);
-        if (!raw) { phMsg.textContent = T('set.wa.hint', { n: len }); phMsg.classList.remove('bad'); return { ok: true, empty: true }; }
-        var r = LTPhone.normalize(sel.value, raw);
-        if (r.ok) { ph.value = r.national; phMsg.textContent = T('set.wa.ok', { cc: LTPhone.dial(sel.value), n: r.national }); phMsg.classList.remove('bad'); return r; }
+        var raw = ph.value.trim();
+        if (!raw) { phMsg.textContent = T('set.wa.hint'); phMsg.classList.remove('bad'); return { ok: true, empty: true }; }
+        var r = LTPhone.normalize(ccSel.value, raw);
+        if (r.ok) { ph.value = r.national; phMsg.textContent = T('set.wa.ok', { cc: LTPhone.dial(ccSel.value), n: r.national }); phMsg.classList.remove('bad'); return r; }
         phMsg.textContent = T('set.e.phone.' + r.error, { n: r.need, cc: r.need }); phMsg.classList.add('bad'); return r;
       };
-      phMsg.textContent = T('set.wa.hint', { n: LTPhone.lenText(cur0) });
+      phMsg.textContent = T('set.wa.hint');
       ph.addEventListener('blur', checkPhone);
-      sel.addEventListener('change', function () { ccBox.textContent = '+' + LTPhone.dial(sel.value); if (ph.value.trim()) checkPhone(); else phMsg.textContent = T('set.wa.hint', { n: LTPhone.lenText(sel.value) }); });
+      ccSel.addEventListener('change', function () { ccTouched = true; if (ph.value.trim()) checkPhone(); });
+      // دولة النشاط بتغيّر دولة الواتساب بس لو لسه ما اخترتش مفتاح بإيدك وما كتبتش رقم
+      sel.addEventListener('change', function () { if (!ccTouched && !ph.value.trim()) ccSel.value = sel.value; });
       var save = el('button', { class: 'btn sm', type: 'button', text: T('adm.al.save') });
       save.addEventListener('click', function () {
         var r = checkPhone(); if (!r.ok) { toast(T('set.e.phone')); return; }
         save.disabled = true;
-        DATA.settingsSave({ org: d.org.id, name: nm.value, country: sel.value, contact_phone: r.empty ? '' : r.national }).then(function (res) {
-          save.disabled = false; d.org.country = sel.value; d.org.country_chosen = true;
+        DATA.settingsSave({ org: d.org.id, name: nm.value, country: sel.value, contact_phone_country: ccSel.value, contact_phone: r.empty ? '' : r.national }).then(function (res) {
+          save.disabled = false; d.org.country = sel.value; d.org.country_chosen = true; d.org.phone_country = ccSel.value;
           var cur = res && res.org && res.org.currency; if (cur) { d.org.currency = cur; curRow.lastChild.textContent = curName(cur); }
           toast(T('adm.bl.saved'));
         }, function (e) { save.disabled = false; toast(T(e.message === 'phone' ? 'set.e.phone' : e.message === 'name' ? 'set.e.name' : e.message === 'country' ? 'set.e.country' : 'err.save')); });
       });
       var biz = card(T('set.biz.t'), [el('label', { class: 'set-f' }, [el('span', { text: T('set.biz') }), nm]),
-        el('label', { class: 'set-f' }, [el('span', { text: T('set.country.l') }), sel]), el('p', { class: 'hint', text: T('set.country.i') }),
-        el('label', { class: 'set-f' }, [el('span', { text: T('set.wa') }), el('div', { class: 'set-phone', dir: 'ltr' }, [ccBox, ph])]), phMsg, curRow, d.manage ? save : null]);
+        el('div', { class: 'set-f' }, [el('span', { text: T('set.country.l') }), sel]), el('p', { class: 'hint', text: T('set.country.i') }),
+        el('div', { class: 'set-f' }, [el('span', { text: T('set.wa') }), el('div', { class: 'set-phone', dir: 'ltr' }, [ccSel, ph])]), phMsg, curRow, d.manage ? save : el('p', { class: 'hint', text: T('set.owner_only') })]);
       // مواقعك وجوجل أدز
       var sites = card(T('set.sites'), [el('ul', { class: 'set-sites' }, d.sites.map(function (x) {
         return el('li', {}, [el('div', {}, [el('b', { text: x.name }), el('small', { class: 'dim', dir: 'ltr', text: x.domain })]),
@@ -2348,10 +2315,24 @@
     return DATA.billing(site.org_id).then(function (d) { drawBilling(view, d, site.org_id); });
   }
   // قايمة الدول (مصر والدول العربية الأول) · نفس القايمة في صفحة الإعدادات وصفحة الاشتراك
-  function countrySelect(v) {
-    var s = el('select', { class: 'bl-in set-country', 'aria-label': T('set.country.l') });
-    LTPhone.list(LT.locale || 'ar').forEach(function (c) { var o = el('option', { value: c.iso, text: c.name + ' (+' + c.dial + ')' }); if (c.iso === v) o.selected = true; s.appendChild(o); });
-    return s;
+  function flagOf(iso) {
+    var a = String(iso || '').toUpperCase();
+    return /^[A-Z]{2}$/.test(a) ? String.fromCharCode(0xD83C, 0xDDE6 + a.charCodeAt(0) - 65, 0xD83C, 0xDDE6 + a.charCodeAt(1) - 65) : '';
+  }
+  var enNames = null;
+  function countryItems(withDial) {
+    if (!enNames) { enNames = {}; LTPhone.list('en').forEach(function (c) { enNames[c.iso] = c.name; }); }
+    return LTPhone.list(LT.locale || 'ar').map(function (c) {
+      return { v: c.iso, label: flagOf(c.iso) + ' ' + c.name, dial: c.dial, sub: withDial ? '+' + c.dial : '', hay: c.name + ' ' + (enNames[c.iso] || '') + ' ' + c.iso + ' ' + c.dial };
+    });
+  }
+  function countryLabel(iso) { var it = countryItems(false).filter(function (x) { return x.v === iso; })[0]; return it ? it.label : ''; }
+  // قايمة الدول: اسم الدولة وعلمها (مصر والدول العربية الأول) وفيها بحث. { dial: true } = قايمة مفتاح الاتصال (العلم والمفتاح)
+  // نفس القايمة في الإعدادات وصفحة الاشتراك. قايمة بنرسمها احنا بدل select المتصفح لأنه ما كانش بيفتح على بعض الموبايلات.
+  function countrySelect(v, o) {
+    var dial = !!(o && o.dial);
+    return LT.pick({ value: v, items: countryItems(dial), aria: T(dial ? 'set.wa.cc' : 'set.country.l'), search: T('pk.search'), empty: T('pk.none'),
+      btn: function (it) { return dial ? flagOf(it.v) + ' +' + it.dial : it.label; } });
   }
   function curName(c) { var x = T('cur.' + c); return x === 'cur.' + c ? c : x; }
   function price2(n, c) { return (Math.round(n * 100) / 100).toLocaleString('en-US', { maximumFractionDigits: 2 }) + ' ' + curName(c); }
@@ -2368,7 +2349,7 @@
   // بعد الاختيار: دولة الحساب ظاهرة وتتغيّر (إلا لو فيه طلب دفع مستني: العملة بتاعته اتحددت)
   function countryLine(view, d, org, locked) {
     var iso = d.account && d.account.country, sel = countrySelect(iso);
-    if (!d.manage || locked || !iso) return el('p', { class: 'hint', text: T('bl.country.mine') + ': ' + (iso && LTPhone.has(iso) ? sel.options[sel.selectedIndex].textContent : '—') + (locked ? ' · ' + T('bl.country.locked') : '') });
+    if (!d.manage || locked || !iso) return el('p', { class: 'hint', text: T('bl.country.mine') + ': ' + (iso && LTPhone.has(iso) ? countryLabel(iso) : '—') + (locked ? ' · ' + T('bl.country.locked') : '') });
     sel.addEventListener('change', function () { sel.disabled = true; saveCountry(view, org, sel.value, function () { sel.disabled = false; }); });
     return el('div', { class: 'bl-country line' }, [el('span', { class: 'dim', text: T('bl.country.mine') }), sel]);
   }
