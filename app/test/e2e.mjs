@@ -94,8 +94,8 @@ function fakeApi(over) {
       if (p === '/v1/dash/assistant/feedback') { const b = JSON.parse(req.postData()); st.aiFb = (st.aiFb || []).concat([b]); return j(200, { ok: true, learned: !!b.note }); }
       if (p === '/v1/dash/assistant') return j(200, { ok: true, ready: true, manage: true, chat: null });
       // حسابي والإعدادات (settings.js)
-      if (p === '/v1/dash/settings' && req.method() === 'POST') { const b = JSON.parse(req.postData()); st.setCalls = (st.setCalls || []).concat([Object.assign({ csrf: req.headers()['x-csrf-token'] }, b)]); return b.contact_phone === 'abc' ? j(400, { ok: false, error: 'phone' }) : j(200, { ok: true }); }
-      if (p === '/v1/dash/settings') return j(200, { ok: true, role: 'owner', manage: true, user: { email: 'mahmoud@example.com', name: 'محمود', sessions: 3 }, org: { id: 'org-1', name: 'شادو ديزاين', country: 'EG', currency: 'EGP', contact_phone: '', status: 'trial' }, sites: [{ id: 'SiteId123456', name: 'شادو', domain: 'shado.com', ads: { customer_id: '6456258009', currency: 'EGP' } }], telegram: 2 });
+      if (p === '/v1/dash/settings' && req.method() === 'POST') { const b = JSON.parse(req.postData()); st.setCalls = (st.setCalls || []).concat([Object.assign({ csrf: req.headers()['x-csrf-token'] }, b)]); if (b.country) st.account = { country: b.country, chosen: true }; return b.contact_phone === 'abc' ? j(400, { ok: false, error: 'phone' }) : j(200, { ok: true, org: { country: b.country, dial: '20', currency: b.country === 'SA' ? 'SAR' : 'EGP' } }); }
+      if (p === '/v1/dash/settings') return j(200, { ok: true, role: 'owner', manage: true, user: { email: 'mahmoud@example.com', name: 'محمود', sessions: 3 }, org: { id: 'org-1', name: 'شادو ديزاين', country: 'EG', country_chosen: true, dial: '20', currency: 'EGP', contact_phone: '', status: 'trial' }, sites: [{ id: 'SiteId123456', name: 'شادو', domain: 'shado.com', ads: { customer_id: '6456258009', currency: 'EGP' } }], telegram: 2 });
       // كشف الحساب (statement.js)
       if (p === '/v1/dash/statement.csv') { st.csvCalls = (st.csvCalls || 0) + 1; return route.fulfill({ status: 200, headers: Object.assign({ 'content-type': 'text/csv; charset=utf-8', 'content-disposition': 'attachment; filename="maestro-refund-x.csv"', 'access-control-expose-headers': 'content-disposition' }, cors), body: '\ufeffdate,gclid\r\n' }); }
       if (p === '/v1/dash/statement') return j(200, Object.assign({ ok: true }, st.statement || { linked: false }));
@@ -133,7 +133,7 @@ function fakeApi(over) {
       if (p === '/v1/dash/brief' && req.method() === 'POST') { const b = JSON.parse(req.postData()); st.briefCalls = (st.briefCalls || []).concat([Object.assign({ csrf: req.headers()['x-csrf-token'] }, b)]); st.brief = { offer: b.offer, exclude: b.exclude }; return j(200, { ok: true, offer: b.offer, exclude: b.exclude }); }
       if (p === '/v1/dash/brief') { const br = st.brief || { offer: [], exclude: [] }; const known = new Set([...br.offer, ...br.exclude.map((x) => x.word)]); return j(200, { ok: true, manage: true, empty: !st.brief, brief: br, words: [{ word: 'تصريح', terms: 30, clicks: 80, cost: 50, conv: 9, real: 3, won: 1, sample: ['تصريح زواج من اجنبية', 'معقب تصريح'] }, { word: 'خطابه', terms: 4, clicks: 9, cost: 6, conv: 1, real: 0, won: 0, sample: ['خطابه في الرياض'] }, { word: 'استعلام عن معاملة', terms: 3, clicks: 4, cost: 2, conv: 0, real: 0, won: 0, sample: [] }].filter((w) => !known.has(w.word)) }); }
       // الاشتراك والدفع بالإيصال (billing.js · payments.js)
-      if (p === '/v1/dash/billing') return j(200, { ok: true, manage: true, currency: 'EGP', org: { id: 'org-1', name: 'شادو', status: 'trial', plan: null, trial_ends_at: new Date(Date.now() + 2.5 * 864e5).toISOString(), plan_period_end: null, founder: false },
+      if (p === '/v1/dash/billing') return j(200, { ok: true, manage: true, currency: 'EGP', account: st.account || { country: 'EG', chosen: true }, org: { id: 'org-1', name: 'شادو', status: 'trial', plan: null, trial_ends_at: new Date(Date.now() + 2.5 * 864e5).toISOString(), plan_period_end: null, founder: false },
         settings: { trial_days: 7, annual_months: 10, founders_months: 12, founders_after_pct: 20 }, founders: { left: 87, limit: 100, pct: 50 },
         coupons: true, names: { basic: { ar: 'الأساسية' }, pro: { ar: 'النمو' }, agency: { ar: 'الوكالات' } },
         plans: [['basic', 1, 2000, 1499], ['pro', 3, 10000, 3499], ['agency', 10, 40000, 500]].map(([id, sites, clicks, m]) => Object.assign({ id, sites, clicks, unit: 'account', min_units: 1, features: [{ key: 'sites', name_ar: 'المواقع', kind: 'limit', unit_ar: 'موقع', enabled: true, value: sites }, { key: 'ad_clicks', name_ar: 'نقرات الإعلان في الشهر', kind: 'limit', unit_ar: 'نقرة', enabled: true, value: clicks }, { key: 'campaigns', name_ar: 'الحملات', kind: 'limit', unit_ar: 'حملة', enabled: true, value: null }, { key: 'protection', name_ar: 'كشف النقرات المشبوهة وتسجيل الزيارات', kind: 'bool', enabled: true }, { key: 'telegram', name_ar: 'تنبيهات تليجرام', kind: 'bool', enabled: true }, { key: 'real_customers', name_ar: 'العملاء الحقيقيون واحتمالية التواصل', kind: 'bool', enabled: true }, { key: 'keywords_engine', name_ar: 'الكلمات السلبية والإيجابية بموافقتك', kind: 'bool', enabled: id !== 'basic' }, { key: 'conv_upload', name_ar: 'إرسال العملاء المؤكدين لجوجل أدز', kind: 'bool', enabled: id !== 'basic' }, { key: 'analysis', name_ar: 'تحليل الحملة وإصلاحها', kind: 'bool', enabled: id !== 'basic', value: null }, { key: 'team', name_ar: 'فريق وصلاحيات', kind: 'bool', enabled: id === 'agency' }, { key: 'brand_reports', name_ar: 'تقارير باسمك ولوجوك', kind: 'bool', enabled: id === 'agency' }], price: { currency: 'EGP', monthly: m, yearly: m * 10, discount: 50, monthly_now: m / 2, yearly_now: m * 5 } }, id === 'agency' ? { unit: 'project', min_units: 4, campaigns_per_unit: 2 } : {})),
@@ -780,10 +780,22 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
   await pg.getByLabel('واتساب النشاط').fill('abc');
   await pg.locator('.set-grid').first().getByRole('button', { name: 'احفظ' }).click();
   await pg.waitForFunction(() => /رقم الواتساب غير صحيح/.test(document.getElementById('toast').textContent));
+  t('settings: a wrong number is said plainly and never sent to the server', !(api.setCalls || []).length && /\+20/.test(await pg.locator('.set-cc').innerText()) && (await pg.locator('.set-msg.bad').count()) === 1);
+  t('settings: Egypt is the default country and the key +20 sits next to the number box', (await pg.locator('select.set-country').inputValue()) === 'EG');
+  await pg.getByLabel('واتساب النشاط').fill('01207950010');
+  await pg.getByLabel('واتساب النشاط').blur();
+  t('settings: the number is corrected on its own (no zero, no country key) and the box shows the result', (await pg.getByLabel('واتساب النشاط').inputValue()) === '1207950010' && /\+20 1207950010/.test(await pg.locator('.set-msg').innerText()));
+  await pg.getByLabel('واتساب النشاط').fill('+201207950010'); await pg.getByLabel('واتساب النشاط').blur();
+  t('settings: a number typed with +20 is corrected the same way', (await pg.getByLabel('واتساب النشاط').inputValue()) === '1207950010');
+  await pg.getByLabel('واتساب النشاط').fill('120795001'); await pg.getByLabel('واتساب النشاط').blur();
+  t('settings: 9 digits for Egypt is refused with the reason (must be 10)', /10 أرقام/.test(await pg.locator('.set-msg').innerText()) && (await pg.locator('.set-msg.bad').count()) === 1);
+  await pg.locator('select.set-country').selectOption('SA');
+  t('settings: choosing Saudi Arabia changes the key to +966 on the spot', /\+966/.test(await pg.locator('.set-cc').innerText()));
+  await pg.locator('select.set-country').selectOption('EG');
   await pg.getByLabel('واتساب النشاط').fill('01207950010');
   await pg.locator('.set-grid').first().getByRole('button', { name: 'احفظ' }).click();
   await pg.waitForFunction(() => /تم الحفظ/.test(document.getElementById('toast').textContent));
-  t('settings: saving the business sends name and WhatsApp with CSRF; a wrong number is said plainly', api.setCalls.length === 2 && api.setCalls[1].contact_phone === '01207950010' && api.setCalls[1].name === 'شادو ديزاين' && api.setCalls[1].csrf === 'csrf-token-123');
+  t('settings: saving sends name, country and the corrected number with CSRF', api.setCalls.length === 1 && api.setCalls[0].contact_phone === '1207950010' && api.setCalls[0].country === 'EG' && api.setCalls[0].name === 'شادو ديزاين' && api.setCalls[0].csrf === 'csrf-token-123');
   await pg.getByRole('button', { name: 'اخرج من كل الأجهزة الأخرى' }).click();
   await pg.waitForFunction(() => /خرجت من 2 جهاز آخر/.test(document.getElementById('toast').textContent));
   t('settings: sign out of all other devices', api.outOthers === 1);
@@ -989,6 +1001,20 @@ for (const [days, kind, re] of [[1.5, 'warn', /متبقٍ يومين من تجر
     t('subscription bar: ' + (kind === 'warn' ? '2 days left in the trial (warning)' : 'trial over, protection off (red)') + ', with a button to the subscription page', (await pg.locator('.trial-bar.' + kind).count()) === 1 && re.test(await pg.locator('.trial-bar').innerText()) && (await pg.locator('.trial-bar a[href="#/billing"]').count()) === 1);
     if (kind === 'warn') { await shot(pg, 'trial-bar'); await pg.locator('.trial-bar a').click(); await pg.waitForSelector('.bl-plan'); t('subscription bar: hidden on the subscription page itself', (await pg.locator('.trial-bar').count()) === 0); }
   } else t('subscription bar: 5 trial days left = no bar yet', (await pg.locator('.trial-bar').count()) === 0);
+  await pg.context().close();
+}
+
+// 24ب) الاشتراك: الدولة لسه ما اتأكدتش ← «اختر دولتك أولًا» (مصر محددة) ولا باقات ولا وسائل دفع قبلها، وبعد التأكيد تظهر الباقات
+{ const api = fakeApi({ signedIn: true, account: { country: 'EG', chosen: false }, sites: [{ id: 'SiteId123456', name: 'شادو', domains: ['shado.design'], paired: true, org_id: 'org-1' }] });
+  const pg = await page(api, { viewport: { width: 1200, height: 900 } });
+  await pg.goto('https://app.maestrolt.com/#/billing');
+  await pg.waitForSelector('.bl-country');
+  await shot(pg, 'billing-country');
+  t('billing: before the country is confirmed there is a country box (Egypt selected) and no plans or payment methods', (await pg.locator('.bl-country select').inputValue()) === 'EG' && (await pg.locator('.bl-plan').count()) === 0 && /اختر دولتك أولًا/.test(await pg.locator('#view').innerText()));
+  await pg.getByRole('button', { name: 'تأكيد الدولة' }).click();
+  await pg.waitForSelector('.bl-plan');
+  t('billing: confirming the country saves it on the account and the plans appear', api.setCalls.length === 1 && api.setCalls[0].country === 'EG' && api.setCalls[0].csrf === 'csrf-token-123' && (await pg.locator('.bl-plan').count()) === 3 && (await pg.locator('.bl-country.line select').inputValue()) === 'EG');
+  t('billing: no console errors, no CSP violations (country)', pg.errors.length === 0 && pg.csp.length === 0);
   await pg.context().close();
 }
 

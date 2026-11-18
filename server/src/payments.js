@@ -8,7 +8,7 @@ import { eq } from './db.js';
 import { json } from './util.js';
 import { isPlatform, hasPerm, notFound, roleFor } from './sites.js';
 import { audit } from './auth.js';
-import { loadBilling, methodsFor, ctxFor, countryOf, ORG_BILL, quoteFor } from './billing.js';
+import { loadBilling, methodsFor, ctxFor, countryOf, countryChosen, loadOrgBill, quoteFor } from './billing.js';
 import { sendTelegram, escHtml } from './telegram.js';
 import { tg } from './notify.js';
 
@@ -44,8 +44,9 @@ export async function dashPay(req, env, db, sess, fetchImpl) {
   const role = roleFor(sess, orgId);
   if (!role) return notFound();
   if (role !== 'owner') return json({ ok: false, error: 'role' }, 403);
-  const org = await db.one('organizations?id=' + eq(orgId) + '&select=' + ORG_BILL).catch(() => db.one('organizations?id=' + eq(orgId) + '&select=' + ORG_BILL.replace(',country', '')));   // قبل 0021
+  const org = await loadOrgBill(db, orgId);   // قبل 0021
   if (!org) return notFound();
+  if (!countryChosen(org)) return json({ ok: false, error: 'country' }, 400);   // العملة ووسائل الدفع بتتحدد من الدولة: لازم العميل يختارها الأول
   if (!['month', 'year'].includes(b.period)) return json({ ok: false, error: 'period' }, 400);
   const ref = String(b.ref || '').trim();
   if (!REF_RE.test(ref)) return json({ ok: false, error: 'ref' }, 400);
