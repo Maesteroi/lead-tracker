@@ -12,6 +12,7 @@ import { renewalReminders } from './subscription.js';
 import { fxRefresh } from './billing.js';
 import { expireBlocks } from './blocks.js';
 import { autoBlocks } from './rules.js';
+import { returnAlerts } from './returns.js';
 import { cleanPending, adsLinkReady } from './adslink.js';
 
 const H = 3600 * 1000;
@@ -112,6 +113,7 @@ export async function runScheduled(env, db, opts) {
   // منع الـIP اللي مدته خلصت بيتشال من جوجل (blocks.js): مستقل
   try { out.blocks = await expireBlocks(env, db, opts && opts.fetchImpl); } catch (e) { out.blocks = { error: String(e && e.message || e).slice(0, 80) }; }
   // المنع التلقائي حسب «قواعد الحماية» (rules.js): المؤكد بس، والمشكوك فيه بموافقة صاحب الموقع
+  try { out.return_alerts = await returnAlerts(env, db, opts && opts.fetchImpl); } catch (e) { out.return_alerts = { error: String(e && e.message || e).slice(0, 80) }; }
   try { out.auto_blocks = await autoBlocks(env, db, opts && opts.fetchImpl); } catch (e) { out.auto_blocks = { error: String(e && e.message || e).slice(0, 80) }; }
   // سعر الصرف للأسعار «حسب الدولار» (مرة كل 12 ساعة): مستقل
   try { out.fx = await fxRefresh(env, db, opts && opts.fetchImpl); } catch (e) { out.fx = { error: String(e && e.message || e).slice(0, 80) }; }

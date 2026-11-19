@@ -196,7 +196,7 @@ export async function platformMember(req, env, db, sess) {
 }
 
 // سجل التغييرات (السوبر أدمن أو صلاحية audit)
-const AUDIT_KINDS = ['platform_org_update', 'platform_tg_webhook', 'site_connected', 'plugin_paired', 'pair_code_created', 'platform_role_create', 'platform_role_update', 'platform_role_delete', 'platform_invite', 'platform_invite_cancel', 'platform_member_add', 'platform_member_update', 'platform_member_remove', 'invite_accepted', 'team_invite', 'team_invite_cancel', 'team_member_update', 'team_member_remove', 'verdict_set', 'outcome_set', 'key_rotated', 'site_created', 'platform_account_create', 'platform_account_owner'];
+const AUDIT_KINDS = ['platform_org_update', 'platform_tg_webhook', 'site_connected', 'plugin_paired', 'pair_code_created', 'platform_role_create', 'platform_role_update', 'platform_role_delete', 'platform_invite', 'platform_invite_cancel', 'platform_member_add', 'platform_member_update', 'platform_member_remove', 'invite_accepted', 'team_invite', 'team_invite_cancel', 'team_member_update', 'team_member_remove', 'verdict_set', 'outcome_set', 'key_rotated', 'site_created', 'platform_account_create', 'platform_connect_help', 'site_interest', 'platform_account_owner'];
 export async function platformAudit(req, env, db, sess) {
   const can = isPlatform(sess) || (sess.platform && sess.platform.perms.includes('audit'));
   if (!can) return notFound();

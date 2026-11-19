@@ -955,7 +955,10 @@
           s.delivery.length ? el('details', { class: 'more-d pro-only' }, [el('summary', { text: T('sites.daily') }), spark]) : null].concat(extra)));
       });
       var add = el('button', { class: 'btn', type: 'button', text: T('sites.add') });
-      add.addEventListener('click', function () { toast(T('sites.add.hint')); });
+      add.addEventListener('click', function () {
+        if (DATA.connectInfo && LT.addSite) LT.addSite.open({ data: DATA, toast: toast, done: function () { render(); } });
+        else toast(T('sites.add.hint'));
+      });
       view.appendChild(add);
       // راجع من موافقة جوجل: اختيار حساب الإعلانات
       if (state.adsNonce && DATA.adsAccounts) { var n = state.adsNonce; state.adsNonce = null; openAdsPicker(state.site, n); }

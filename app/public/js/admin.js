@@ -66,7 +66,7 @@
       $('new-acc').hidden = !can('orgs_create');
       renderKpis(); renderFilter(); renderRows(); renderCfg(data.config); $('tg').hidden = r[1].status === 404; if (r[1].status !== 404) renderTg(r[1].ok ? r[1].body : null);
       $('role-eyebrow').textContent = ME.owner ? T('adm.role') : T('adm.role.team') + ' · ' + (ME.role || '') + (ME.scoped ? ' ' + T('adm.role.scoped') : '');
-      $('tab-btn-team').hidden = !ME.owner; $('tab-btn-audit').hidden = !(ME.owner || can('audit')); $('tab-btn-alerts').hidden = !(ME.owner || can('telegram')); $('tab-btn-lab').hidden = !ME.owner; $('tab-btn-billing').hidden = !(ME.owner || can('billing'));
+      $('tab-btn-team').hidden = !ME.owner; $('tab-btn-audit').hidden = !(ME.owner || can('audit')); $('tab-btn-alerts').hidden = !(ME.owner || can('telegram')); $('tab-btn-lab').hidden = !ME.owner; $('tab-btn-connect').hidden = !ME.owner; $('tab-btn-billing').hidden = !(ME.owner || can('billing'));
       if (current) { var o = find(current.id); if (o) { current = o; renderDrawerInfo(); } }
     });
   }
@@ -279,13 +279,14 @@
 
   // ── الأقسام: الحسابات · الفريق · السجل ──
   function showTab(t) {
-    ['accounts', 'team', 'audit', 'alerts', 'lab', 'billing'].forEach(function (k) { $('tab-' + k).hidden = k !== t; $('tab-btn-' + k).setAttribute('aria-selected', String(k === t)); });
+    ['accounts', 'team', 'audit', 'alerts', 'lab', 'connect', 'billing'].forEach(function (k) { $('tab-' + k).hidden = k !== t; $('tab-btn-' + k).setAttribute('aria-selected', String(k === t)); });
     // الموبايل: قايمة بزرار (☰) بدل الأزرار الملخبطة (16 نوفمبر)
     $('tabs-current').textContent = $('tab-btn-' + t).textContent; menuOpen(false);
     if (t === 'team') window.LTAdminTeam.team($('tab-team'), toast);
     if (t === 'audit') window.LTAdminTeam.audit($('tab-audit'), toast);
     if (t === 'alerts') window.LTAdminAlerts.open($('tab-alerts'), toast);
     if (t === 'lab') window.LTAdminAlerts.lab($('tab-lab'));
+    if (t === 'connect') window.LTAdminConnect.open($('tab-connect'), toast);
     if (t === 'billing') window.LTAdminBilling.open($('tab-billing'), toast);
   }
   function menuOpen(on) { $('tabs').classList.toggle('open', on); $('tabs-toggle').setAttribute('aria-expanded', String(on)); }
