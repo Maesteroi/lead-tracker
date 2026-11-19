@@ -129,4 +129,15 @@ test('auto block: visits the owner confirmed as «suspicious» (not only the las
   assert.ok(d('51.36.12.2') > 29.9 && d('51.36.12.2') < 30.1, 'other address follows the 30-day setting');
   assert.ok(s.w.fs.t.ip_blocks.every((r) => r.reason === 'owner' && r.auto));
   assert.equal((await autoBlocks(s.env, s.db, s.w.f)).blocked, 0, 'not twice');
+  // المنافس يرجع بعد ما المنع خلص: الحكم القديم ما بيمنعش تاني، لكن زيارته الجديدة اللي تحكم عليها بتتمنع المدة الكاملة (مش حد الـ 7 أيام)
+  const old = new Date(Date.now() - 10 * 864e5).toISOString();
+  s.w.fs.t.protection_verdicts.filter((v) => v.session_id !== 'SOW0006').forEach((v) => { v.at = old; });
+  const row = s.w.fs.t.ip_blocks.find((r) => r.ip === '51.36.11.1'); row.status = 'removed'; row.expires_at = new Date(Date.now() - 3 * 864e5).toISOString();
+  assert.equal((await autoBlocks(s.env, s.db, s.w.f)).blocked, 0, 'old verdicts do not block again after the block ended');
+  await s.ev({ session_id: 'SOW0007', visitor_id: 'VO7', ip: '51.36.11.1', gclid: 'G-7' }); geo('SOW0007', 'Saudi Telecom Company', 'AS25019');
+  await s.pc(s.owner, '/v1/dash/verdict', { site: s.site.id, sid: 'SOW0007', verdict: 'fraud' });
+  assert.equal((await autoBlocks(s.env, s.db, s.w.f)).blocked, 1, 'he came back and the owner marked the new visit');
+  const again = s.w.fs.t.ip_blocks.find((r) => r.ip === '51.36.11.1');
+  assert.equal(again.status, 'active');
+  assert.ok((Date.parse(again.expires_at) - Date.now()) / 864e5 > 364, 'second time on a mobile network = the full repeat period, no 7-day cap');
 });

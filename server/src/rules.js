@@ -73,13 +73,15 @@ export async function autoBlocks(env, db, fetchImpl, nowMs) {
     out.sites++;
     const since = new Date(now - 2 * 3600e3).toISOString();
     const sess = ((await scoredSessions(db, site.id, since, 500, 'ar').catch(() => [])) || []).filter((s) => s.ad && !s.contacts && s.verdict !== 'real');
-    const prev = (await db.select('ip_blocks?client_id=' + eq(site.id) + '&select=fingerprint,visitor_id,session_id,ip&limit=5000').catch(() => [])) || [];
-    const fps = new Set(prev.map((x) => x.fingerprint).filter(Boolean)), vids = new Set(prev.map((x) => x.visitor_id).filter(Boolean)), done = new Set(prev.map((x) => x.session_id)), ips = new Set(prev.map((x) => x.ip).filter(Boolean));
+    const prev = (await db.select('ip_blocks?client_id=' + eq(site.id) + '&select=fingerprint,visitor_id,session_id,ip,status,expires_at&limit=5000').catch(() => [])) || [];
+    const fps = new Set(prev.map((x) => x.fingerprint).filter(Boolean)), vids = new Set(prev.map((x) => x.visitor_id).filter(Boolean)), done = new Set(prev.map((x) => x.session_id)), ipRow = new Map(prev.filter((x) => x.ip).map((x) => [x.ip, x]));
     const blockedNow = [];
     let full = false;
     // ١) زيارات أنت حكمت عليها «مشبوهة أكيدة» (آخر 30 يوم): بتتمنع هي كمان، مش بس زيارات آخر ساعتين (19 نوفمبر: «علّمت 36 زيارة ومفيش أي حظر»).
-    //    عنوان اتمنع قبل كده (بأي حالة) مابنرجعش نمنعه، وجهازك «هذه زيارتي» ما بيتمنعش.
-    const fraud = ((await db.select('protection_verdicts?client_id=' + eq(site.id) + '&verdict=eq.fraud&at=gte.' + encodeURIComponent(new Date(now - 30 * 864e5).toISOString()) + '&select=session_id&order=at.desc&limit=100').catch(() => [])) || []).map((x) => x.session_id).filter((id) => id && !done.has(id));
+    //    عنوان ممنوع دلوقتي ما بيتمنعش تاني. وعنوان خلص منعه ورجع (منافس) وحكمت على زيارته الجديدة بيتمنع تاني، والمرة دي المدة الكاملة (المتكرر).
+    //    جهازك «هذه زيارتي» ما بيتمنعش.
+    const fraudRows = ((await db.select('protection_verdicts?client_id=' + eq(site.id) + '&verdict=eq.fraud&at=gte.' + encodeURIComponent(new Date(now - 30 * 864e5).toISOString()) + '&select=session_id,at&order=at.desc&limit=100').catch(() => [])) || []).filter((x) => x.session_id && !done.has(x.session_id));
+    const fraud = fraudRows.map((x) => x.session_id), verdictAt = new Map(fraudRows.map((x) => [x.session_id, Date.parse(x.at) || 0]));
     if (fraud.length) {
       const evs = (await db.select('raw_events?client_id=' + eq(site.id) + '&session_id=in.(' + fraud.map(encodeURIComponent).join(',') + ')&select=session_id,payload,visitor_id&order=received_at.asc&limit=2000').catch(() => [])) || [];
       const first = new Map();
@@ -88,9 +90,10 @@ export async function autoBlocks(env, db, fetchImpl, nowMs) {
       for (const sid of fraud) {
         if (blockedNow.length >= MAX_PER_RUN || full) break;
         const e = first.get(sid), p = (e && e.payload) || {}, ip = publicIp(p.ip);
-        if (!ip || ips.has(ip) || isOwn(own, { visitor_id: (e && e.visitor_id) || p.visitor_id || null, fingerprint: p.fingerprint || null })) continue;
+        const pr0 = ipRow.get(ip);
+        if (!ip || (pr0 && (pr0.status === 'active' || (verdictAt.get(sid) || 0) <= (Date.parse(pr0.expires_at) || 0))) || isOwn(own, { visitor_id: (e && e.visitor_id) || p.visitor_id || null, fingerprint: p.fingerprint || null })) continue;
         const res = await blockSession(env, db, site, cred, sid, { reason: 'owner', auto: true }, fetchImpl).catch((er) => ({ ok: false, error: String(er && er.message || er).slice(0, 80) }));
-        done.add(sid); ips.add(ip);
+        done.add(sid); ipRow.set(ip, { status: 'active', expires_at: new Date(now + 864e5).toISOString() });
         if (res.ok && !res.already) { blockedNow.push({ reason: 'owner', ip: res.ip, days: res.days }); out.blocked++; }
         else if (!res.ok) { out.failed++; if (res.error === 'full') full = true; }
       }
