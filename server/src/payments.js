@@ -173,14 +173,17 @@ export async function platformPaymentReview(req, env, db, sess, fetchImpl) {
 }
 
 // رسالة لشاتات «صاحب الموقع والمديرين» المربوطة بأي موقع في الحساب
-async function tellOwners(env, db, orgId, html, fetchImpl) {
+// بيرجّع عدد الشاتات اللي اتبعتلها (0 = مفيش تيليجرام مربوط أو التنبيهات مقفولة)
+export async function tellOwners(env, db, orgId, html, fetchImpl) {
+  let sent = 0;
   try {
-    if (!env.TG_TOKEN || String(env.TG_ALERTS || '').toLowerCase() === 'off') return;
+    if (!env.TG_TOKEN || String(env.TG_ALERTS || '').toLowerCase() === 'off') return 0;
     const sites = ((await db.select('clients?org_id=' + eq(orgId) + '&select=id')) || []).map((s) => s.id);
-    if (!sites.length) return;
+    if (!sites.length) return 0;
     const chats = [...new Set(((await db.select('tg_links?client_id=in.(' + sites.map(encodeURIComponent).join(',') + ')&audience=eq.owner&select=chat_id').catch(() => [])) || []).map((x) => String(x.chat_id)))];
-    for (const chat of chats.slice(0, 10)) await tg(env, 'sendMessage', { chat_id: chat, text: html, parse_mode: 'HTML', disable_web_page_preview: true }, fetchImpl).catch(() => {});
+    for (const chat of chats.slice(0, 10)) { await tg(env, 'sendMessage', { chat_id: chat, text: html, parse_mode: 'HTML', disable_web_page_preview: true }, fetchImpl).then(() => { sent++; }).catch(() => {}); }
   } catch (e) { console.error('payments notify: ' + String(e && e.message || e).slice(0, 100)); }
+  return sent;
 }
 
 // الكرون: إيصال مستني أكتر من 20 ساعة ← تذكير مرة واحدة (الوعد للعميل 24 ساعة بحد أقصى)

@@ -6,6 +6,7 @@ import { me, listSites, createSite, rotateKey, installStatus, loadSite, notFound
 import { createPairCode } from './pairing.js';
 import { connectSite } from './connect.js';
 import { isPlatformAdmin, overview, updateOrg, telegramStatus, telegramSwitch } from './platform.js';
+import { createAccount, addAccountSite, setAccountOwner } from './accounts.js';
 import { platformTeam, platformRoleSave, platformRoleDelete, platformInvite, platformInviteCancel, platformMember, platformAudit, teamList, teamInvite, teamInviteCancel, teamMember } from './team.js';
 import { dashOverview, dashVisits, dashSession, dashLeads, dashSetup, dashOutcome, dashProtection, dashVerdict, dashReplay } from './dash.js';
 import { dashAdsLink, dashAdsAccounts, dashAdsChoose, dashAdsUnlink } from './adslink.js';
@@ -78,6 +79,9 @@ export async function handleApp(req, env, db, url, p, fetchImpl) {
     else if (m === 'POST' && p === '/v1/platform/invites') res = await platformInvite(req, env, db, sess);
     else if (m === 'POST' && p === '/v1/platform/invites/cancel') res = await platformInviteCancel(req, env, db, sess);
     else if (m === 'POST' && p === '/v1/platform/members') res = await platformMember(req, env, db, sess);
+    else if (m === 'POST' && p === '/v1/platform/accounts') res = await createAccount(req, env, db, sess);
+    else if (m === 'POST' && p === '/v1/platform/accounts/site') res = await addAccountSite(req, env, db, sess);
+    else if (m === 'POST' && p === '/v1/platform/accounts/owner') res = await setAccountOwner(req, env, db, sess);
     else if (m === 'GET' && p === '/v1/platform/audit') res = await platformAudit(req, env, db, sess);
     // شكل تنبيهات تليجرام لكل نوع مستلم (tgtemplates.js) + معاينة
     else if (m === 'GET' && p === '/v1/platform/tg-templates') res = await tgTemplatesGet(req, env, db, sess);

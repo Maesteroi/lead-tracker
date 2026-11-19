@@ -202,7 +202,7 @@
     var now = Date.now(), kind = null, n = 0;
     if (org.status === 'trial' && org.trial_ends_at) { n = Math.ceil((Date.parse(org.trial_ends_at) - now) / 864e5); kind = n <= 0 ? 'over' : n <= 3 ? 'soon' : null; }
     else if (org.status === 'off' || org.status === 'past_due') kind = 'over';
-    else if (org.status === 'active' && org.plan_period_end) { n = Math.ceil((Date.parse(org.plan_period_end) - now) / 864e5); kind = n <= 0 ? 'over' : n <= 5 ? 'renew' : null; }
+    else if (org.status === 'active' && org.plan_period_end) { n = Math.ceil((Date.parse(org.plan_period_end) - now) / 864e5); kind = n <= 0 ? 'over' : n <= 7 ? 'renew' : null; }
     if (!kind) return;
     var bar = el('div', { id: 'trial-bar', class: 'trial-bar ' + (kind === 'over' ? 'bad' : 'warn'), role: 'status' }, [
       el('span', { text: kind === 'over' ? T('tb.over') : kind === 'soon' ? T('tb.soon', { n: LT.n(n, 'day') }) : T('tb.renew', { n: LT.n(n, 'day') }) }),
@@ -2315,25 +2315,8 @@
     return DATA.billing(site.org_id).then(function (d) { drawBilling(view, d, site.org_id); });
   }
   // قايمة الدول (مصر والدول العربية الأول) · نفس القايمة في صفحة الإعدادات وصفحة الاشتراك
-  function flagOf(iso) {
-    var a = String(iso || '').toUpperCase();
-    return /^[A-Z]{2}$/.test(a) ? String.fromCharCode(0xD83C, 0xDDE6 + a.charCodeAt(0) - 65, 0xD83C, 0xDDE6 + a.charCodeAt(1) - 65) : '';
-  }
-  var enNames = null;
-  function countryItems(withDial) {
-    if (!enNames) { enNames = {}; LTPhone.list('en').forEach(function (c) { enNames[c.iso] = c.name; }); }
-    return LTPhone.list(LT.locale || 'ar').map(function (c) {
-      return { v: c.iso, label: flagOf(c.iso) + ' ' + c.name, dial: c.dial, sub: withDial ? '+' + c.dial : '', hay: c.name + ' ' + (enNames[c.iso] || '') + ' ' + c.iso + ' ' + c.dial };
-    });
-  }
-  function countryLabel(iso) { var it = countryItems(false).filter(function (x) { return x.v === iso; })[0]; return it ? it.label : ''; }
-  // قايمة الدول: اسم الدولة وعلمها (مصر والدول العربية الأول) وفيها بحث. { dial: true } = قايمة مفتاح الاتصال (العلم والمفتاح)
-  // نفس القايمة في الإعدادات وصفحة الاشتراك. قايمة بنرسمها احنا بدل select المتصفح لأنه ما كانش بيفتح على بعض الموبايلات.
-  function countrySelect(v, o) {
-    var dial = !!(o && o.dial);
-    return LT.pick({ value: v, items: countryItems(dial), aria: T(dial ? 'set.wa.cc' : 'set.country.l'), search: T('pk.search'), empty: T('pk.none'),
-      btn: function (it) { return dial ? flagOf(it.v) + ' +' + it.dial : it.label; } });
-  }
+  // قوايم الدول (الاسم والعلم · مفتاح الاتصال) في picker.js: نفسها في اللوحة وصفحة الإدارة
+  var countrySelect = LT.countryPick, countryLabel = LT.countryLabel;
   function curName(c) { var x = T('cur.' + c); return x === 'cur.' + c ? c : x; }
   function price2(n, c) { return (Math.round(n * 100) / 100).toLocaleString('en-US', { maximumFractionDigits: 2 }) + ' ' + curName(c); }
   // أول مرة: «اختر دولتك» (من غيرها مفيش عملة ولا وسائل دفع). بعد الاختيار الصفحة بتتحمّل تاني بالعملة والوسائل الصح.
@@ -2371,6 +2354,8 @@
     view.appendChild(st);
     // ٠) الدولة: العملة ووسائل الدفع بتتحدد منها، فالعميل يختارها الأول (مصر هي الاختيار الأول) وتتسجل في بروفايله
     if (d.account && !d.account.chosen) { view.appendChild(countryCard(view, d, org)); return; }
+    // كشف الحساب: نظام الاشتراك + الدفعة القادمة + المدفوعات السابقة (للمالك)
+    var stc = statementCard(view, d); if (stc) view.appendChild(stc);
     // استهلاك الشهر: نقرات الإعلان والمواقع مقابل حد الباقة
     if (d.usage) {
       var u = d.usage, meter = function (label, v, lim) {
@@ -2427,11 +2412,52 @@
     if (bill.plan && !pend && d.manage) view.appendChild(checkout(view, d, org));
     if (!d.manage) view.appendChild(el('p', { class: 'muted', text: T('bl.owner_only') }));
     // ٦) السجل
-    if ((d.payments || []).length) view.appendChild(card(T('bl.history'), [el('ul', { class: 'feed' }, d.payments.map(function (p) {
+    if (!d.statement && (d.payments || []).length) view.appendChild(card(T('bl.history'), [el('ul', { class: 'feed' }, d.payments.map(function (p) {
       return el('li', {}, [el('span', { class: 'pill ' + (p.status === 'approved' ? 'ok' : p.status === 'rejected' ? 'bad' : 'warn'), text: T('bl.s.' + p.status) }),
         el('div', {}, [el('span', { text: planName(d, p.plan) + (p.units > 1 ? ' · ' + LT.n(p.units, 'project') : '') + ' · ' + T(p.period === 'year' ? 'bl.p.year.short' : 'bl.p.month') + ' · ' + price2(p.amount, p.currency) }), p.reason ? el('small', { class: 'bad-text', text: T('bl.reason', { r: p.reason }) }) : null, p.period_end ? el('small', { class: 'dim', text: T('bl.until.short', { d: dateAr(p.period_end) }) }) : null]),
         el('time', { text: dateAr(p.at) })]);
     }))]));
+  }
+  // ── كشف الحساب (18 نوفمبر): الباقة والمدة · الدفعة القادمة وقيمتها المتوقعة · كل المدفوعات بالمدة اللي غطّتها · إجمالي المدفوع ──
+  function dateY(iso) { try { return new Date(iso).toLocaleDateString(LT.locale, { day: 'numeric', month: 'short', year: 'numeric' }); } catch (e) { return iso; } }
+  function statementCard(view, d) {
+    var st = d.statement;
+    if (!st) return null;
+    var sub = st.subscription, nx = st.next, kv = function (k, v) { return el('div', { class: 'st-kv' }, [el('span', { class: 'dim', text: k }), el('b', { text: v })]); };
+    var info = [];
+    if (sub.status === 'active' && sub.plan_name) {
+      info.push(kv(T('bl.st.plan'), sub.plan_name + (sub.units > 1 ? ' · ' + LT.n(sub.units, 'project') : '')));
+      if (sub.period) info.push(kv(T('bl.st.period'), T(sub.period === 'year' ? 'bl.p.year.short' : 'bl.p.month')));
+      if (sub.started_at) info.push(kv(T('bl.st.since'), dateY(sub.started_at)));
+    } else info.push(kv(T('bl.st.plan'), sub.status === 'trial' ? T('bl.st.trial') : T('bl.st.none')));
+    info.push(kv(T('bl.st.total'), st.totals.length ? st.totals.map(function (t) { return price2(t.amount, t.currency) + ' (' + LT.n(t.count, 'payment') + ')'; }).join(' + ') : T('bl.st.nopay')));
+    var box = [el('div', { class: 'st-grid' }, info)];
+    if (nx) {
+      var cls = nx.days <= 0 ? 'bad' : nx.days <= 7 ? 'warn' : 'ok', trial = nx.kind === 'trial_end';
+      var head = nx.days <= 0 ? T(trial ? 'bl.st.n.trial.over' : 'bl.st.n.over', { d: dateY(nx.at) }) : T(trial ? 'bl.st.n.trial' : 'bl.st.n.renew', { d: dateY(nx.at), n: LT.n(nx.days, 'day') });
+      var kids = [el('b', { text: head })];
+      if (nx.est) kids.push(el('span', { text: T('bl.st.n.est', { a: price2(nx.est.amount, nx.est.currency) }) }), el('small', { class: 'dim', text: T('bl.st.n.est.s') }));
+      if (nx.days <= 7 && d.manage) {
+        var go = el('button', { class: 'btn sm', type: 'button', text: T(trial ? 'bl.choose' : 'bl.st.n.go') });
+        go.addEventListener('click', function () { var g = view.querySelector('.bl-plans'); if (g) g.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
+        kids.push(go);
+      }
+      box.push(el('div', { class: 'st-next ' + cls, role: 'status' }, kids));
+    }
+    if (st.pending) box.push(el('p', { class: 'hint', text: T('bl.st.pending', { n: LT.n(st.pending, 'request') }) }));
+    if (st.rows.length) {
+      var rows = st.rows.map(function (p) {
+        var what = planName(d, p.plan) + (p.units > 1 ? ' · ' + LT.n(p.units, 'project') : '') + ' · ' + T(p.period === 'year' ? 'bl.p.year.short' : 'bl.p.month');
+        var how = p.method ? (p.method.label || T('bl.k.' + p.method.kind)) : '—', cov = p.from && p.to ? dateY(p.from) + ' → ' + dateY(p.to) : '—';
+        return el('tr', {}, [el('td', { 'data-l': T('bl.st.c.date'), text: dateY(p.at) }), el('td', { 'data-l': T('bl.st.c.what'), text: what }), el('td', { 'data-l': T('bl.st.c.how'), text: how + (p.ref ? ' · ' + p.ref : '') }),
+          el('td', { 'data-l': T('bl.st.c.amount'), class: 'num', text: price2(p.amount, p.currency) + (p.discount ? ' (−' + p.discount + '%)' : '') }), el('td', { 'data-l': T('bl.st.c.cover'), text: cov }),
+          el('td', { 'data-l': T('bl.st.c.status') }, [el('span', { class: 'pill ' + (p.status === 'approved' ? 'ok' : p.status === 'rejected' ? 'bad' : 'warn'), text: T('bl.s.' + p.status) }), p.reason ? el('small', { class: 'dim st-why', text: p.reason }) : null])]);
+      });
+      box.push(el('div', { class: 'tbl-wrap' }, [el('table', { class: 'tbl st-tbl' }, [el('thead', {}, [el('tr', {}, ['date', 'what', 'how', 'amount', 'cover', 'status'].map(function (k) { return el('th', { text: T('bl.st.c.' + k) }); }))]), el('tbody', {}, rows)])]));
+      var pr = el('button', { class: 'btn ghost sm', type: 'button', text: T('bl.st.print') }); pr.addEventListener('click', function () { window.print(); });
+      box.push(el('div', { class: 'st-acts' }, [pr]));
+    } else box.push(el('p', { class: 'muted', text: T('bl.st.empty') }));
+    return card(T('bl.st.title'), box);
   }
   function checkout(view, d, org) {
     var p = d.plans.filter(function (x) { return x.id === bill.plan; })[0], yr = bill.period === 'year';

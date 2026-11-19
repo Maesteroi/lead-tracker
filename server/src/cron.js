@@ -8,6 +8,7 @@ import { cleanupReplays } from './replay.js';
 import { dailyDeliveryReport } from './health.js';
 import { dailyClicksReports } from './clicksreport.js';
 import { remindPending } from './payments.js';
+import { renewalReminders } from './subscription.js';
 import { fxRefresh } from './billing.js';
 import { expireBlocks } from './blocks.js';
 import { autoBlocks } from './rules.js';
@@ -116,6 +117,8 @@ export async function runScheduled(env, db, opts) {
   try { out.fx = await fxRefresh(env, db, opts && opts.fetchImpl); } catch (e) { out.fx = { error: String(e && e.message || e).slice(0, 80) }; }
   // إيصالات مستنية أكتر من 20 ساعة ← تذكير للإدارة مرة واحدة (payments.js)
   try { out.payments = await remindPending(env, db, opts && opts.fetchImpl); } catch (e) { out.payments = { error: String(e && e.message || e).slice(0, 80) }; }
+  // تنبيه الدفعة القادمة لمالك الحساب (7 · 3 · 1 أيام ومرة بعد الانتهاء): مستقل (subscription.js)
+  try { out.renewals = await renewalReminders(env, db, opts && opts.fetchImpl); } catch (e) { out.renewals = { error: String(e && e.message || e).slice(0, 80) }; }
   // طلبات ربط جوجل أدز اللي ماكملتش (مرة في الساعة، ولو الربط متظبّط بس): مستقل
   if (new Date().getUTCMinutes() < 5 && adsLinkReady(env)) { try { await cleanPending(db); } catch (e) { /* مايوقفش حاجة */ } }
   // سحب جوجل أدز مستقل: عطل في اللي فوق مايوقفوش، وعطله مايوقفش اللي فوق. مقفول لحد ما ADS_PULL_ENABLED = "1"

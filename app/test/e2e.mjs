@@ -41,6 +41,9 @@ function fakeApi(over) {
     if (p.startsWith('/v1/platform/')) {
       if (!st.platformAdmin) return j(404, { ok: false, error: 'not_found' });
       if (p === '/v1/platform/overview') return j(200, Object.assign({}, st.overview, { me: st.member ? { owner: false, role: st.member.role, perms: st.member.perms, scoped: true } : { owner: true, perms: ['*'] } }));
+      if (p === '/v1/platform/accounts' && req.method() === 'POST') { const b = JSON.parse(req.postData()); st.accCalls = (st.accCalls || []).concat([b]); if ((b.sites || []).some((x) => /taken\.example/.test(x.domain))) return j(409, { ok: false, error: 'domain_exists', domain: 'taken.example' }); return j(201, { ok: true, org: { id: 'o-new', name: b.name, status: b.status, country: b.country }, sites: (b.sites || []).map((x, i) => ({ id: 'NEW' + i, name: x.name, domain: x.domain })), owner: { email: String(b.email).toLowerCase(), invited: true } }); }
+      if (p === '/v1/platform/accounts/site') { const b = JSON.parse(req.postData()); st.siteCalls = (st.siteCalls || []).concat([b]); return j(201, { ok: true, site: { id: 'NEW9', name: b.name, domain: b.domain } }); }
+      if (p === '/v1/platform/accounts/owner') { const b = JSON.parse(req.postData()); st.ownerCalls = (st.ownerCalls || []).concat([b]); return j(200, { ok: true, owner: { email: String(b.email).toLowerCase(), invited: true } }); }
       if (st.member && (p === '/v1/platform/telegram' || p === '/v1/platform/team' || p.startsWith('/v1/platform/roles') || p.startsWith('/v1/platform/invites') || p === '/v1/platform/members')) return j(404, { ok: false });
       if (p === '/v1/platform/tg-templates/preview') { const b = JSON.parse(req.postData()); return j(200, { ok: true, buttons: b.fields.actions !== false, text: '🌐 <b>الإنجاز السريع</b>\n💬 واتساب · رمز <b>#9B5W</b>' + (b.fields.place !== false ? '\n📍 الدمام، السعودية' : '') + (b.fields.gclid !== false ? '\n🎯 GCLID: <code>Cj0KCQ...</code>' : '') }); }
       if (p === '/v1/platform/tg-templates' && req.method() === 'POST') { const b = JSON.parse(req.postData()); st.tplSaved = (st.tplSaved || []).concat([b]); return j(200, { ok: true, audience: b.audience, fields: b.fields }); }
@@ -133,7 +136,14 @@ function fakeApi(over) {
       if (p === '/v1/dash/brief' && req.method() === 'POST') { const b = JSON.parse(req.postData()); st.briefCalls = (st.briefCalls || []).concat([Object.assign({ csrf: req.headers()['x-csrf-token'] }, b)]); st.brief = { offer: b.offer, exclude: b.exclude }; return j(200, { ok: true, offer: b.offer, exclude: b.exclude }); }
       if (p === '/v1/dash/brief') { const br = st.brief || { offer: [], exclude: [] }; const known = new Set([...br.offer, ...br.exclude.map((x) => x.word)]); return j(200, { ok: true, manage: true, empty: !st.brief, brief: br, words: [{ word: 'تصريح', terms: 30, clicks: 80, cost: 50, conv: 9, real: 3, won: 1, sample: ['تصريح زواج من اجنبية', 'معقب تصريح'] }, { word: 'خطابه', terms: 4, clicks: 9, cost: 6, conv: 1, real: 0, won: 0, sample: ['خطابه في الرياض'] }, { word: 'استعلام عن معاملة', terms: 3, clicks: 4, cost: 2, conv: 0, real: 0, won: 0, sample: [] }].filter((w) => !known.has(w.word)) }); }
       // الاشتراك والدفع بالإيصال (billing.js · payments.js)
-      if (p === '/v1/dash/billing') return j(200, { ok: true, manage: true, currency: 'EGP', account: st.account || { country: 'EG', chosen: true }, org: { id: 'org-1', name: 'شادو', status: 'trial', plan: null, trial_ends_at: new Date(Date.now() + 2.5 * 864e5).toISOString(), plan_period_end: null, founder: false },
+      if (p === '/v1/dash/billing') return j(200, { ok: true, manage: true, currency: 'EGP', account: st.account || { country: 'EG', chosen: true }, org: st.activeOrg ? { id: 'org-1', name: 'شادو', status: 'active', plan: 'pro', trial_ends_at: null, plan_period_end: new Date(Date.now() + 4 * 864e5).toISOString(), founder: false } : { id: 'org-1', name: 'شادو', status: 'trial', plan: null, trial_ends_at: new Date(Date.now() + 2.5 * 864e5).toISOString(), plan_period_end: null, founder: false },
+        statement: st.activeOrg ? { subscription: { status: 'active', plan: 'pro', plan_name: 'النمو', units: 1, period: 'month', started_at: '2026-10-05T10:00:00Z', period_end: new Date(Date.now() + 4 * 864e5).toISOString(), trial_ends_at: null, founder: false },
+          next: { kind: 'renew', at: new Date(Date.now() + 4 * 864e5).toISOString(), days: 4, est: { amount: 3499, currency: 'EGP', period: 'month', units: 1 } }, totals: [{ currency: 'EGP', amount: 6998, count: 2 }], pending: 1,
+          rows: [{ id: 'q3', at: '2026-11-15T09:00:00Z', status: 'pending', plan: 'pro', period: 'month', units: 1, amount: 3499, currency: 'EGP', discount: 0, ref: 'R-3', method: { kind: 'instapay', label: '' }, reason: '', from: null, to: null },
+            { id: 'q2', at: '2026-11-05T09:00:00Z', status: 'approved', plan: 'pro', period: 'month', units: 1, amount: 3499, currency: 'EGP', discount: 0, ref: 'R-2', method: { kind: 'vodafone_cash', label: '' }, reason: '', from: '2026-11-05T10:00:00Z', to: '2026-12-05T10:00:00Z' },
+            { id: 'q1', at: '2026-10-05T09:00:00Z', status: 'approved', plan: 'pro', period: 'month', units: 1, amount: 3499, currency: 'EGP', discount: 0, ref: 'R-1', method: { kind: 'instapay', label: '' }, reason: '', from: '2026-10-05T10:00:00Z', to: '2026-11-05T10:00:00Z' }] }
+          : { subscription: { status: 'trial', plan: null, plan_name: null, units: null, period: null, started_at: null, period_end: null, trial_ends_at: new Date(Date.now() + 2.5 * 864e5).toISOString(), founder: false }, next: { kind: 'trial_end', at: new Date(Date.now() + 2.5 * 864e5).toISOString(), days: 3 }, totals: [], pending: st.paid ? 1 : 0,
+            rows: st.paid ? [{ id: 'p1', at: new Date().toISOString(), status: 'pending', plan: 'pro', period: 'year', units: 1, amount: 17495, currency: 'EGP', discount: 50, ref: '', method: null, reason: '', from: null, to: null }] : [{ id: 'p0', at: new Date(Date.now() - 864e5).toISOString(), status: 'rejected', plan: 'basic', period: 'month', units: 1, amount: 749.5, currency: 'EGP', discount: 50, ref: '', method: null, reason: 'المبلغ غير مطابق', from: null, to: null }] },
         settings: { trial_days: 7, annual_months: 10, founders_months: 12, founders_after_pct: 20 }, founders: { left: 87, limit: 100, pct: 50 },
         coupons: true, names: { basic: { ar: 'الأساسية' }, pro: { ar: 'النمو' }, agency: { ar: 'الوكالات' } },
         plans: [['basic', 1, 2000, 1499], ['pro', 3, 10000, 3499], ['agency', 10, 40000, 500]].map(([id, sites, clicks, m]) => Object.assign({ id, sites, clicks, unit: 'account', min_units: 1, features: [{ key: 'sites', name_ar: 'المواقع', kind: 'limit', unit_ar: 'موقع', enabled: true, value: sites }, { key: 'ad_clicks', name_ar: 'نقرات الإعلان في الشهر', kind: 'limit', unit_ar: 'نقرة', enabled: true, value: clicks }, { key: 'campaigns', name_ar: 'الحملات', kind: 'limit', unit_ar: 'حملة', enabled: true, value: null }, { key: 'protection', name_ar: 'كشف النقرات المشبوهة وتسجيل الزيارات', kind: 'bool', enabled: true }, { key: 'telegram', name_ar: 'تنبيهات تليجرام', kind: 'bool', enabled: true }, { key: 'real_customers', name_ar: 'العملاء الحقيقيون واحتمالية التواصل', kind: 'bool', enabled: true }, { key: 'keywords_engine', name_ar: 'الكلمات السلبية والإيجابية بموافقتك', kind: 'bool', enabled: id !== 'basic' }, { key: 'conv_upload', name_ar: 'إرسال العملاء المؤكدين لجوجل أدز', kind: 'bool', enabled: id !== 'basic' }, { key: 'analysis', name_ar: 'تحليل الحملة وإصلاحها', kind: 'bool', enabled: id !== 'basic', value: null }, { key: 'team', name_ar: 'فريق وصلاحيات', kind: 'bool', enabled: id === 'agency' }, { key: 'brand_reports', name_ar: 'تقارير باسمك ولوجوك', kind: 'bool', enabled: id === 'agency' }], price: { currency: 'EGP', monthly: m, yearly: m * 10, discount: 50, monthly_now: m / 2, yearly_now: m * 5 } }, id === 'agency' ? { unit: 'project', min_units: 4, campaigns_per_unit: 2 } : {})),
@@ -434,6 +444,57 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
   await pg.waitForSelector('#drawer:not([hidden])');
   await shot(pg, 'admin-5-mobile-drawer');
   t('admin mobile: no console errors or CSP violations', pg.errors.length === 0 && pg.csp.length === 0);
+  await pg.context().close(); }
+
+// 12ب) حساب عميل جديد من لوحة الإدارة: الأدمن بيجهّز الحساب والمواقع ويطلع رسالة جاهزة للعميل
+{ const api = fakeApi({ signedIn: true, platformAdmin: true, overview: overviewData(), tg: { ok: true, configured: true, mode: 'server', sheet_ready: true, pending: 0 }, tgCalls: [], orgCalls: [] });
+  const pg = await page(api, { viewport: { width: 1280, height: 900 } });
+  await pg.goto('https://app.maestrolt.com/admin');
+  await pg.waitForSelector('#rows tr');
+  t('admin: «+ new customer account» is there for the super admin', await pg.locator('#new-acc').isVisible());
+  await pg.locator('#new-acc').click();
+  await pg.waitForSelector('.adm-modal');
+  const m = pg.locator('.adm-modal');
+  await m.locator('input[type=text]').first().fill('مشتل الندى');
+  await m.locator('input[type=email]').fill('Client@Nada.example');
+  t('admin new account: Egypt (flag + name) is the default country, and the list opens', /🇪🇬 مصر/.test(await m.locator('.pk-btn').innerText()));
+  await m.locator('.pk-btn').click(); await m.locator('.pk-q').fill('السعودية'); await m.locator('.pk-list li:visible').first().click();
+  t('admin new account: the country can be changed', /🇸🇦/.test(await m.locator('.pk-btn').innerText()));
+  await m.locator('.acc-site input').nth(0).fill('الندى'); await m.locator('.acc-site input').nth(1).fill('https://www.nada.example/');
+  await m.getByText('＋ موقع آخر').click();
+  await m.locator('.acc-site').nth(1).locator('input').nth(1).fill('taken.example');
+  await m.getByRole('button', { name: 'إنشاء الحساب' }).click();
+  await pg.waitForSelector('.adm-modal .notice.bad');
+  t('admin new account: a domain used by another account is refused with a clear message and nothing is lost', /مضاف في حساب آخر/.test(await m.locator('.notice.bad').innerText()) && (await m.locator('input[type=email]').inputValue()) === 'Client@Nada.example');
+  await m.locator('.acc-site').nth(1).locator('input').nth(1).fill('jed.nada.example');
+  await m.getByRole('button', { name: 'إنشاء الحساب' }).click();
+  await pg.waitForSelector('.adm-modal .notice.ok');
+  const msg = await m.locator('textarea').inputValue();
+  t('admin new account: sent the right data (country, trial, both sites)', api.accCalls.length === 2 && api.accCalls[1].country === 'SA' && api.accCalls[1].status === 'trial' && api.accCalls[1].sites.length === 2 && api.accCalls[1].email === 'Client@Nada.example');
+  t('admin new account: a ready message for the customer with the email, the app address and the sites', /client@nada\.example/.test(msg) && /app\.maestrolt\.com/.test(msg) && /nada\.example/.test(msg) && /الدخول بجوجل/.test(msg));
+  await shot(pg, 'admin-new-account-done');
+  await m.getByRole('button', { name: 'تم' }).click();
+  t('admin new account: the window closes', (await pg.locator('.adm-modal').count()) === 0);
+  await pg.locator('#rows tr').first().click();
+  await pg.waitForSelector('#drawer:not([hidden])');
+  t('admin drawer: «add a site» and «change customer email» are there', (await pg.locator('#d-add-site').isVisible()) && /تغيير بريد العميل/.test(await pg.locator('#d-owner-btn').innerText()));
+  await pg.locator('#d-add-site').click();
+  await pg.locator('.adm-modal input').nth(0).fill('فرع جدة'); await pg.locator('.adm-modal input').nth(1).fill('jed.example');
+  await pg.locator('.adm-modal').getByRole('button', { name: 'إضافة الموقع' }).click();
+  await pg.waitForFunction(() => !document.querySelector('.adm-modal'));
+  t('admin drawer: adding a site sends the account and the domain', api.siteCalls.length === 1 && api.siteCalls[0].domain === 'jed.example' && !!api.siteCalls[0].org_id);
+  await pg.locator('#d-owner-btn').click();
+  await pg.locator('.adm-modal input[type=email]').fill('Right@Nada.example');
+  await pg.locator('.adm-modal').getByRole('button', { name: 'حفظ البريد' }).click();
+  await pg.waitForFunction(() => !document.querySelector('.adm-modal'));
+  t('admin drawer: changing the customer email sends the new email', api.ownerCalls.length === 1 && api.ownerCalls[0].email === 'Right@Nada.example');
+  t('admin accounts: no console errors or CSP violations', pg.errors.length === 0 && pg.csp.length === 0);
+  await pg.context().close(); }
+{ const api = fakeApi({ signedIn: true, platformAdmin: true, member: { role: 'دعم فني', perms: ['orgs_view', 'orgs_trial'] }, overview: overviewData(), tg: { ok: true }, tgCalls: [], orgCalls: [] });
+  const pg = await page(api, { viewport: { width: 1280, height: 900 } });
+  await pg.goto('https://app.maestrolt.com/admin'); await pg.waitForSelector('#rows tr');
+  await pg.locator('#rows tr').first().click(); await pg.waitForSelector('#drawer:not([hidden])');
+  t('admin: a team member without «create accounts» sees none of the new buttons', !(await pg.locator('#new-acc').isVisible()) && !(await pg.locator('#d-add-site').isVisible()));
   await pg.context().close(); }
 
 // 13) اللوحة التجريبية: الشاشات السبعة ببيانات وهمية (موافقة محمود 11 نوفمبر)
@@ -1047,6 +1108,7 @@ for (const [days, kind, re] of [[1.5, 'warn', /متبقٍ يومين من تجر
   const v0 = await pg.locator('#view').innerText();
   t('billing: the trial with days left, the launch offer with seats left, three plans in EGP with the old price struck through', /متبقٍ 3 أيام|متبقٍ يومين/.test(v0) && /عرض الإطلاق: خصم 50%/.test(v0) && /متبقٍ 87 مقعدًا من 100/.test(v0) && (await pg.locator('.bl-plan').count()) === 3 && /749.5 ج.م/.test(await pg.locator('.bl-plan').first().innerText()) && (await pg.locator('.bl-plan s').count()) === 3);
   t('billing: past payments show the rejection reason', /مرفوض/.test(v0) && /المبلغ غير مطابق/.test(v0));
+  t('billing: the statement shows the free trial, the trial end date with days left, and the rejected payment with its reason (no total yet)', (await pg.locator('.st-next').count()) === 1 && /تنتهي تجربتك في/.test(await pg.locator('.st-next').innerText()) && /تجربة مجانية/.test(await pg.locator('.st-grid').innerText()) && /لا مدفوعات بعد/.test(await pg.locator('.st-grid').innerText()) && (await pg.locator('.st-tbl tbody tr').count()) === 1);
   const ag = pg.locator('.bl-plan').nth(2);
   t('billing: the agency plan is per project — 250 per project, at least 4, total for 4 = 1,000; «+» makes it 5', /250 ج.م/.test(await ag.innerText()) && /للمشروع/.test(await ag.innerText()) && /الحد الأدنى 4 مشاريع/.test(await ag.innerText()) && /رابط واحد/.test(await ag.innerText()) && /الإجمالي: 1,000 ج.م/.test(await ag.innerText()) && await ag.getByRole('button', { name: 'أقل' }).isDisabled());
   await ag.getByRole('button', { name: 'أكثر' }).click();
@@ -1098,6 +1160,22 @@ for (const [days, kind, re] of [[1.5, 'warn', /متبقٍ يومين من تجر
   t('billing mobile: no sideways scrolling', await pg.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1));
   if (SHOTS) { await pg.locator('.bl-plans').scrollIntoViewIfNeeded(); await pg.screenshot({ path: path.join(SHOTS, 'billing-mobile.png'), fullPage: true }); }
   t('billing: no console errors, no CSP violations', pg.errors.length === 0 && pg.csp.length === 0);
+  if (pg.errors.length || pg.csp.length) console.log(pg.errors, pg.csp);
+  await pg.context().close(); }
+
+// 23ب) كشف الحساب (18 نوفمبر): اشتراك فعّال ← الباقة والمدة · الدفعة القادمة بعد 4 أيام بقيمتها المتوقعة · إجمالي المدفوع · جدول بالمدة اللي غطّتها كل دفعة · زر «جدّد الآن»
+{ const api = fakeApi({ signedIn: true, activeOrg: true, sites: [{ id: 'SiteId123456', name: 'شادو', domains: ['shado.design'], paired: true, org_id: 'org-1' }] });
+  const pg = await page(api, { viewport: { width: 1200, height: 900 } });
+  await pg.goto('https://app.maestrolt.com/#/billing');
+  await pg.waitForSelector('.st-tbl');
+  const g = await pg.locator('.st-grid').innerText(), nx = await pg.locator('.st-next').innerText();
+  t('statement: plan, period, start date and the total paid (2 payments) appear', /النمو/.test(g) && /شهري/.test(g) && /6,998/.test(g) && /دفعتين/.test(g));
+  t('statement: the next payment is flagged (4 days left, amber) with the estimate and a renew button', (await pg.locator('.st-next.warn').count()) === 1 && /بعد 4 أيام/.test(nx) && /3,499/.test(nx) && /تقدير/.test(nx) && (await pg.locator('.st-next button').count()) === 1);
+  t('statement: three payments listed, the approved ones with their covered period, the pending one marked and counted as under review', (await pg.locator('.st-tbl tbody tr').count()) === 3 && /قيد المراجعة/.test(await pg.locator('.st-tbl tbody tr').first().innerText()) && /→/.test(await pg.locator('.st-tbl tbody tr').nth(1).innerText()) && /فودافون كاش/.test(await pg.locator('.st-tbl').innerText()) && /لديك طلب واحد قيد المراجعة/.test(await pg.locator('.panel-card, .card').filter({ has: pg.locator('.st-tbl') }).first().innerText()));
+  await shot(pg, 'statement');
+  await pg.locator('.st-next button').click();
+  t('statement: «renew now» scrolls to the plans', (await pg.locator('.bl-plans').count()) === 1);
+  t('statement: no console errors, no CSP violations', pg.errors.length === 0 && pg.csp.length === 0);
   if (pg.errors.length || pg.csp.length) console.log(pg.errors, pg.csp);
   await pg.context().close(); }
 
