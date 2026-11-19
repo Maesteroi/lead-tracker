@@ -307,3 +307,10 @@ button.switch[aria-checked="true"]::after { inset-inline-start: 21px; }
 .acc-site input { width: 100%; min-width: 0; }
 .d-acts { display: flex; gap: 8px; flex-wrap: wrap; }
 @media (max-width: 560px) { .acc-site { grid-template-columns: 1fr auto; } .acc-site input:nth-child(2) { grid-column: 1 / -1; grid-row: 2; } .adm-modal { inset-block-start: 2vh; max-height: 96vh; } }
+
+/* ربط المواقع (19 نوفمبر): أرقام الواتساب */
+.cn-nums { display: grid; gap: 10px; margin-block: 8px; }
+.cn-row { display: grid; grid-template-columns: minmax(110px, 1fr) minmax(160px, 1.4fr) auto auto; gap: 10px; align-items: center; }
+.cn-act { display: inline-flex; gap: 6px; align-items: center; font-size: 14px; white-space: nowrap; }
+.cn-f { display: grid; gap: 4px; margin-top: 12px; }
+@media (max-width: 640px) { .cn-row { grid-template-columns: 1fr 1fr; } }

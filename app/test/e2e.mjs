@@ -44,6 +44,7 @@ function fakeApi(over) {
       if (p === '/v1/platform/accounts' && req.method() === 'POST') { const b = JSON.parse(req.postData()); st.accCalls = (st.accCalls || []).concat([b]); if ((b.sites || []).some((x) => /taken\.example/.test(x.domain))) return j(409, { ok: false, error: 'domain_exists', domain: 'taken.example' }); return j(201, { ok: true, org: { id: 'o-new', name: b.name, status: b.status, country: b.country }, sites: (b.sites || []).map((x, i) => ({ id: 'NEW' + i, name: x.name, domain: x.domain })), owner: { email: String(b.email).toLowerCase(), invited: true } }); }
       if (p === '/v1/platform/accounts/site') { const b = JSON.parse(req.postData()); st.siteCalls = (st.siteCalls || []).concat([b]); return j(201, { ok: true, site: { id: 'NEW9', name: b.name, domain: b.domain } }); }
       if (p === '/v1/platform/accounts/owner') { const b = JSON.parse(req.postData()); st.ownerCalls = (st.ownerCalls || []).concat([b]); return j(200, { ok: true, owner: { email: String(b.email).toLowerCase(), invited: true } }); }
+      if (p === '/v1/platform/connect-help') { if (st.member) return j(404, { ok: false, error: 'not_found' }); if (req.method() === 'POST') { const b = JSON.parse(req.postData()); st.helpSaved = (st.helpSaved || []).concat([b]); if ((b.numbers || []).some((x) => !/^\+?\d{8,15}$/.test(String(x.number).replace(/\s/g, '')))) return j(400, { ok: false, error: 'number' }); st.help = { ok: true, enabled: b.enabled, message: b.message, numbers: b.numbers.map((x) => ({ label: x.label, number: String(x.number).replace(/\D/g, ''), on: x.on })) }; } return j(200, st.help || { ok: true, enabled: true, message: 'أرغب بربط موقعي على مايسترو', numbers: [{ label: 'الدعم', number: '201000000099', on: true }] }); }
       if (st.member && (p === '/v1/platform/telegram' || p === '/v1/platform/team' || p.startsWith('/v1/platform/roles') || p.startsWith('/v1/platform/invites') || p === '/v1/platform/members')) return j(404, { ok: false });
       if (p === '/v1/platform/tg-templates/preview') { const b = JSON.parse(req.postData()); return j(200, { ok: true, buttons: b.fields.actions !== false, text: '🌐 <b>الإنجاز السريع</b>\n💬 واتساب · رمز <b>#9B5W</b>' + (b.fields.place !== false ? '\n📍 الدمام، السعودية' : '') + (b.fields.gclid !== false ? '\n🎯 GCLID: <code>Cj0KCQ...</code>' : '') }); }
       if (p === '/v1/platform/tg-templates' && req.method() === 'POST') { const b = JSON.parse(req.postData()); st.tplSaved = (st.tplSaved || []).concat([b]); return j(200, { ok: true, audience: b.audience, fields: b.fields }); }
@@ -89,6 +90,9 @@ function fakeApi(over) {
       st.dashCalls = (st.dashCalls || []).concat([p + u.search]);
       const today = new Date(Date.now() + 3 * 3600e3).toISOString().slice(0, 10);
       const range = Number(u.searchParams.get('range')) || 7;
+      if (p === '/v1/dash/connect-info') return st.connectRole ? j(403, { ok: false, error: 'forbidden' }) : j(200, { ok: true, quota: st.quota || { total: 3, used: 1, left: 2 }, wa_url: st.noWa ? null : 'https://wa.me/201000000099?text=' + encodeURIComponent('أرغب بربط موقعي على مايسترو'), snippet: '// maestro-snippet-test\nadd_action("admin_init", function () {});' });
+      if (p === '/v1/dash/site-interest') { st.interest = (st.interest || []).concat([JSON.parse(req.postData())]); return j(200, { ok: true }); }
+      if (p === '/v1/dash/detect-site') { const b = JSON.parse(req.postData()); const h = String(b.url).replace(/^https?:\/\//, '').replace(/\/.*$/, ''); st.detectCalls = (st.detectCalls || []).concat([h]); return j(200, { ok: true, host: h, type: /^wp\./.test(h) ? 'wordpress' : /^salla\./.test(h) ? 'salla' : /^down\./.test(h) ? 'unreachable' : 'unknown' }); }
       // الكلمات السلبية (negatives.js)
       if (p === '/v1/dash/negatives') return j(200, Object.assign({ ok: true, linked: true, manage: true, currency: 'USD', days: 30, cpc: 1.3, total_cost: 19.5, terms: 6, waste: 11, need_brief: false, level: 'conv', target: 4.5, totals: { cost: 19.5, conv: 4, real: 0, won: 0 }, watch: [{ term: 'جمعية الزواج في جدة', cost: 3.2, left: 3.55, clicks: 4 }], keywords: [{ keyword: 'تصريح زواج', match: 'BROAD', clicks: 40, visits: 33, contacts: 9, convos: 3, won: 1, cost: 52, cost_won: 52, verdict: 'good' }, { keyword: 'أبشر تصريح زواج', match: 'BROAD', clicks: 12, visits: 10, contacts: 6, convos: 0, won: 0, cost: 15, cost_won: null, verdict: 'no_close' }], audit: { broad_pct: 82, off_pct: 41, off_cost: 74.33, adj_clicks: 27, adj_cost: 23.44, adj_conv: 5, info_clicks: 31, info_cost: 11.79, bad_keywords: [{ keyword: 'أبشر تصريح زواج', match: 'BROAD', word: 'أبشر', why: 'يريد التقديم بنفسه', clicks: 2 }], unsafe: [] }, decided: st.negDecided || [] }, { suggestions: (st.negSug || [{ id: 'aaaa1111', text: 'وظائف', match: 'PHRASE', reason: 'intent_jobs', variants: ['وظائف', 'الوظائف'], narrowed: null, clicks: 2, cost: 2, conv: 0, terms: ['وظائف تصريح زواج', 'وظائف مكتب تعقيب'], campaigns: [{ id: '11', name: 'تصاريح' }, { id: '12', name: 'تعقيب' }], protect: false }, { id: 'bbbb2222', text: 'زواج', match: 'EXACT', reason: 'generic', variants: ['زواج'], narrowed: null, clicks: 4, cost: 9, conv: 0, terms: ['زواج'], campaigns: [{ id: '11', name: 'تصاريح' }], protect: true }, { id: 'cccc3333', text: 'إنشاء عقد زواج', match: 'PHRASE', reason: 'not_offer', why: 'لا ننشئ عقود الزواج', variants: ['إنشاء عقد زواج', 'انشاء عقد زواج'], narrowed: { from: 'عقد زواج', blocked: ['توثيق عقد زواج سعودي من أجنبية'] }, clicks: 1, cost: 1, conv: 1, terms: ['إنشاء عقد زواج إلكتروني'], campaigns: [{ id: '11', name: 'تصاريح' }], protect: false }]).filter((x) => !(st.negDone || []).includes(x.id)) }));
       if (p === '/v1/dash/negatives/decide') { const b = JSON.parse(req.postData()); st.negCalls = (st.negCalls || []).concat([Object.assign({ csrf: req.headers()['x-csrf-token'] }, b)]); st.negDone = (st.negDone || []).concat([b.id]); st.negDecided = (st.negDecided || []).concat([{ text: b.id === 'aaaa1111' ? 'وظائف' : 'شروط', match_type: 'PHRASE', decision: b.decision, at: new Date().toISOString(), applied_at: b.decision === 'add' ? new Date().toISOString() : null }]); return j(200, { ok: true, decision: b.decision, campaigns: 2 }); }
@@ -1639,6 +1643,104 @@ for (const [days, kind, re] of [[1.5, 'warn', /متبقٍ يومين من تجر
   await pg.waitForFunction(() => document.documentElement.dir === 'ltr');
   t('english: the login page has the switch and turns English', (await pg.locator('h1').innerText()) === 'Sign in' && /Sign in with Google/.test(await pg.locator('#go').innerText()));
   await shot(pg, 'en-login');
+  await pg.context().close(); }
+
+// 23) «أضف موقعًا»: هل موقعك ووردبريس؟ ← نافذة الربط السريع / نوع الموقع / رابط الموقع / وصلت للحد (19 نوفمبر)
+{ const api = fakeApi({ signedIn: true, sites: [{ id: 'SiteId123456', name: 'روضة الصالحين', domains: ['rawda.site'], paired: true }] }); const pg = await page(api, { viewport: { width: 1200, height: 900 } });
+  await pg.context().grantPermissions(['clipboard-read', 'clipboard-write'], { origin: 'https://app.maestrolt.com' }).catch(() => {});
+  await pg.goto('https://app.maestrolt.com/#/sites'); await pg.waitForSelector('.checks');
+  await pg.getByRole('button', { name: '+ أضف موقعًا' }).click();
+  await pg.waitForSelector('.cf-card .cf-opts');
+  t('add site: asks first «is your site WordPress?» with three answers (yes / another type / I do not know)', /هل موقعك ووردبريس/.test(await pg.locator('.cf-card').innerText()) && (await pg.locator('.cf-opt').count()) === 3);
+  await shot(pg, 'cf-ask');
+  await pg.locator('.cf-opt').first().click();
+  await pg.waitForSelector('.cf-steps');
+  const wc = await pg.locator('.cf-card').innerText();
+  t('add site (WordPress): the numbers — allowed 3, registered 1, left 2 — and the steps', (await pg.locator('.cf-qn b').allInnerTexts()).join(',') === '3,1,2' && (await pg.locator('.cf-steps li').count()) === 4 && /المسموح/.test(wc) && /المتبقي/.test(wc));
+  t('add site (WordPress): the quick-connect code is shown and the WhatsApp help button opens a ready message', /maestro-snippet-test/.test(await pg.locator('.cf-code').innerText()) && (await pg.locator('.cf-wa').getAttribute('href')).startsWith('https://wa.me/201000000099?text=') && /%D8%A3%D8%B1%D8%BA%D8%A8/.test(await pg.locator('.cf-wa').getAttribute('href')));
+  await pg.getByRole('button', { name: 'نسخ الكود' }).click();
+  await pg.waitForSelector('.cf-toast');
+  t('add site (WordPress): copying the code gives a confirmation', /تم نسخ الكود|تعذّر النسخ/.test(await pg.locator('.cf-toast').innerText()));
+  await pg.getByRole('tab', { name: /من متجر ووردبريس/ }).click();
+  t('add site (WordPress): the store method says it waits for approval', /بانتظار موافقة/.test(await pg.locator('.cf-mbody').innerText()));
+  await shot(pg, 'cf-wp');
+  await pg.keyboard.press('Escape');
+  t('add site: Escape closes the window', (await pg.locator('.cf-scrim').count()) === 0);
+  // لا: نوع آخر ← قيد التجهيز + تسجيل اهتمام
+  await pg.getByRole('button', { name: '+ أضف موقعًا' }).click(); await pg.waitForSelector('.cf-opts');
+  await pg.locator('.cf-opt').nth(1).click();
+  await pg.locator('.cf-card .pk-btn').click(); await pg.locator('.pk-list li', { hasText: 'سلة' }).click();
+  await pg.waitForSelector('.cf-result');
+  t('add site (another type): «Salla» is coming soon, with an interest button and the WhatsApp help', /قيد التجهيز/.test(await pg.locator('.cf-res').innerText()) && (await pg.locator('.cf-res .cf-wa').count()) === 1);
+  await pg.getByRole('button', { name: 'سجّل اهتمامي' }).click();
+  await pg.waitForFunction(() => /سجّلنا نوع موقعك/.test((document.querySelector('.cf-toast') || {}).innerText || ''));
+  t('add site (another type): the interest is sent with the kind', (api.interest || []).length === 1 && api.interest[0].kind === 'salla');
+  await shot(pg, 'cf-soon');
+  // لا أعرف: رابط ← نكتشف
+  await pg.getByRole('button', { name: '← رجوع' }).click(); await pg.waitForSelector('.cf-opts');
+  await pg.locator('.cf-opt').nth(2).click();
+  await pg.locator('#cf-url').fill('not a url'); await pg.getByRole('button', { name: 'افحص موقعي' }).click();
+  t('add site (I do not know): a wrong link is refused before asking the server', /اكتب رابطًا صحيحًا/.test(await pg.locator('.cf-res').innerText()) && !(api.detectCalls || []).length);
+  await pg.locator('#cf-url').fill('https://x.example/page'); await pg.getByRole('button', { name: 'افحص موقعي' }).click();
+  await pg.waitForFunction(() => /لم نتعرف/.test(document.querySelector('.cf-res').innerText));
+  t('add site (I do not know): an unknown site offers the list and WhatsApp', /لم نتعرف/.test(await pg.locator('.cf-res').innerText()) && (await pg.locator('.cf-res .cf-wa').count()) === 1 && api.detectCalls[0] === 'x.example');
+  await pg.locator('#cf-url').fill('down.example'); await pg.getByRole('button', { name: 'افحص موقعي' }).click();
+  await pg.waitForFunction(() => /لم نستطع الوصول/.test(document.querySelector('.cf-res').innerText));
+  t('add site (I do not know): an unreachable site says so', true);
+  await pg.locator('#cf-url').fill('wp.example'); await pg.getByRole('button', { name: 'افحص موقعي' }).click();
+  await pg.waitForSelector('.cf-steps', { timeout: 5000 });
+  t('add site (I do not know): a WordPress site opens the steps window with its host', /wp\.example/.test(await pg.locator('.cf-card').innerText()));
+  await pg.getByRole('button', { name: 'تم' }).click();
+  t('add site: «done» closes the window', (await pg.locator('.cf-scrim').count()) === 0);
+  t('add site: no console errors, no CSP violations', pg.errors.length === 0 && pg.csp.length === 0);
+  if (pg.errors.length || pg.csp.length) console.log(pg.errors, pg.csp);
+  await pg.context().close(); }
+// وصلت للحد + من غير واتساب + مش مالك
+{ const api = fakeApi({ signedIn: true, quota: { total: 3, used: 3, left: 0 }, sites: [{ id: 'SiteId123456', name: 'روضة الصالحين', domains: ['rawda.site'], paired: true }] }); const pg = await page(api, { viewport: { width: 390, height: 780 } });
+  await pg.goto('https://app.maestrolt.com/#/sites'); await pg.waitForSelector('.checks');
+  await pg.getByRole('button', { name: '+ أضف موقعًا' }).click();
+  await pg.waitForSelector('.cf-lim');
+  const lt = await pg.locator('.cf-lim').innerText();
+  t('limit reached: a clear title, the plan number, a ring showing 3/3 and the upgrade button', /اكتملت مواقع باقتك/.test(lt) && /3/.test(await pg.locator('.cf-ring').innerText()) && (await pg.getByRole('button', { name: 'عرض الباقات' }).count()) === 1 && (await pg.locator('.cf-wa').count()) === 1);
+  t('limit reached: fits the phone without sideways scroll', await pg.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1 && document.querySelector('.cf-card').getBoundingClientRect().right <= window.innerWidth));
+  t('limit reached: the ring is really filled (the percentage reaches the page, no CSP violation)', (await pg.evaluate(() => getComputedStyle(document.querySelector('.cf-ring')).getPropertyValue('--p').trim())) === '100' && pg.csp.length === 0);
+  await shot(pg, 'cf-limit-mobile');
+  await pg.getByRole('button', { name: 'عرض الباقات' }).click();
+  t('limit reached: «view plans» closes the window and goes to billing', (await pg.locator('.cf-scrim').count()) === 0 && /#\/billing/.test(pg.url()));
+  api.noWa = true; api.quota = { total: null, used: 1, left: null };
+  await pg.goto('https://app.maestrolt.com/#/sites'); await pg.reload(); await pg.waitForSelector('.checks');
+  await pg.getByRole('button', { name: '+ أضف موقعًا' }).click(); await pg.waitForSelector('.cf-opts');
+  await pg.locator('.cf-opt').first().click(); await pg.waitForSelector('.cf-steps');
+  t('unlimited plan: shows ∞ and no WhatsApp box when the button is switched off', (await pg.locator('.cf-qn b').allInnerTexts()).join(',') === '∞,1,∞' && (await pg.locator('.cf-wa').count()) === 0);
+  await pg.keyboard.press('Escape');
+  api.connectRole = true;
+  await pg.getByRole('button', { name: '+ أضف موقعًا' }).click();
+  await pg.waitForFunction(() => /للمالك أو المدير/.test(document.body.innerText));
+  t('not an owner or admin: a short message, no window left open', (await pg.locator('.cf-scrim').count()) === 0);
+  await pg.context().close(); }
+// الأدمن: تبويب «ربط المواقع» للسوبر أدمن بس
+{ const api = fakeApi({ signedIn: true, platformAdmin: true, overview: overviewData(), tg: { ok: true }, tgCalls: [], orgCalls: [] }); const pg = await page(api, { viewport: { width: 1280, height: 900 } });
+  await pg.goto('https://app.maestrolt.com/admin'); await pg.waitForSelector('#tab-btn-connect:not([hidden])');
+  await pg.locator('#tab-btn-connect').click(); await pg.waitForSelector('#tab-connect .cn-row');
+  t('admin «site connection»: shows the saved number and the message', (await pg.locator('#tab-connect .cn-row input[type=tel]').inputValue()) === '+201000000099' && /مايسترو/.test(await pg.locator('#tab-connect #cn-msg').inputValue()));
+  await pg.getByRole('button', { name: '+ أضف رقمًا' }).click();
+  t('admin «site connection»: a second number can be added', (await pg.locator('#tab-connect .cn-row').count()) === 2);
+  await pg.locator('#tab-connect .cn-row').nth(1).locator('input[type=tel]').fill('+966500000011');
+  await pg.locator('#tab-connect .cn-row').nth(1).locator('input[type=text]').fill('السعودية');
+  await pg.locator('#cn-on').uncheck();
+  await pg.getByRole('button', { name: 'حفظ' }).click();
+  await pg.waitForFunction(() => /تم الحفظ/.test(document.body.innerText));
+  t('admin «site connection»: saving sends the switch, the message and both numbers', api.helpSaved.length === 1 && api.helpSaved[0].enabled === false && api.helpSaved[0].numbers.length === 2 && api.helpSaved[0].numbers[1].number === '+966500000011');
+  await pg.locator('#tab-connect .cn-row').nth(1).locator('input[type=tel]').fill('12'); await pg.getByRole('button', { name: 'حفظ' }).click();
+  await pg.waitForFunction(() => /رقم غير صحيح/.test(document.body.innerText));
+  t('admin «site connection»: a wrong number is refused with a clear message', true);
+  await shot(pg, 'admin-connect');
+  t('admin «site connection»: no console errors, no CSP violations', pg.errors.length === 0 && pg.csp.length === 0);
+  if (pg.errors.length || pg.csp.length) console.log(pg.errors, pg.csp);
+  await pg.context().close(); }
+{ const api = fakeApi({ signedIn: true, platformAdmin: true, member: { role: 'دعم فني', perms: ['orgs_view', 'orgs_trial'] }, overview: overviewData(), tg: { ok: true }, tgCalls: [], orgCalls: [] }); const pg = await page(api, { viewport: { width: 1280, height: 900 } });
+  await pg.goto('https://app.maestrolt.com/admin'); await pg.waitForSelector('#tab-btn-billing', { state: 'attached' });
+  t('admin «site connection»: a team member does not see the tab', await pg.locator('#tab-btn-connect').isHidden());
   await pg.context().close(); }
 
 await browser.close();

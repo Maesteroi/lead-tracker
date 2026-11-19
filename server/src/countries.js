@@ -44,7 +44,7 @@ function normalize(iso, raw) {
     if (d.indexOf(cc) !== 0) return { ok: false, error: 'prefix', need: cc };
     d = d.slice(cc.length);
   } else if (d.indexOf(cc) === 0 && okLen(iso, d.length - cc.length) && !okLen(iso, d.length)) {
-    d = d.slice(cc.length);   // كتب المفتاح من غير + (201014000041) ← بنشيله بس لو الباقي طوله صح والكل مش طول صح
+    d = d.slice(cc.length);   // كتب المفتاح من غير + (201000000041) ← بنشيله بس لو الباقي طوله صح والكل مش طول صح
   }
   if (!KEEP_ZERO[iso]) d = d.replace(/^0+/, '');
   if (!okLen(iso, d.length)) return { ok: false, error: 'length', need: lenText(iso) };

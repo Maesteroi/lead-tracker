@@ -10,9 +10,9 @@ vm.runInContext(fs.readFileSync(new URL('../../app/public/js/phone.js', import.m
 const client = ctx.LTPhone;
 
 const CASES = [
-  ['EG', '01014000041', '1014000041'], ['EG', '1014000041', '1014000041'], ['EG', '+201014000041', '1014000041'], ['EG', '201014000041', '1014000041'],
-  ['EG', '00201014000041', '1014000041'], ['EG', '٠١٠١٤٠٠٠٠٤١', '1014000041'], ['EG', '010-1400-0041', '1014000041'], ['EG', ' +20 101 400 0041 ', '1014000041'],
-  ['EG', '101400004', null], ['EG', '010140000411', null], ['EG', '+966501234567', null], ['EG', '', null], ['EG', 'abc', null],
+  ['EG', '01000000041', '1000000041'], ['EG', '1000000041', '1000000041'], ['EG', '+201000000041', '1000000041'], ['EG', '201000000041', '1000000041'],
+  ['EG', '00201000000041', '1000000041'], ['EG', '٠١٠٠٠٠٠٠٠٤١', '1000000041'], ['EG', '010-0000-0041', '1000000041'], ['EG', ' +20 100 000 0041 ', '1000000041'],
+  ['EG', '100000004', null], ['EG', '010000000411', null], ['EG', '+966501234567', null], ['EG', '', null], ['EG', 'abc', null],
   ['SA', '0501234567', '501234567'], ['SA', '966501234567', '501234567'], ['SA', '+966 50 123 4567', '501234567'], ['SA', '50123456', null],
   ['KW', '96550012345', '50012345'], ['KW', '50012345', '50012345'], ['AE', '0501234567', '501234567'], ['AE', '+971501234567', '501234567'],
   ['QA', '+97433123456', '33123456'], ['BH', '36001234', '36001234'], ['OM', '91234567', '91234567'], ['JO', '0791234567', '791234567'],
@@ -31,9 +31,9 @@ test('phone: the same corrected number (or the same refusal) on the server and i
 });
 
 test('phone: Egypt needs exactly 10 digits; the refusal says why (length · wrong country key · country)', () => {
-  assert.deepEqual(normalize('EG', '101400004'), { ok: false, error: 'length', need: '10' });
+  assert.deepEqual(normalize('EG', '100000004'), { ok: false, error: 'length', need: '10' });
   assert.deepEqual(normalize('EG', '+966501234567'), { ok: false, error: 'prefix', need: '20' });
-  assert.deepEqual(normalize('XX', '1014000041'), { ok: false, error: 'country' });
+  assert.deepEqual(normalize('XX', '1000000041'), { ok: false, error: 'country' });
   assert.deepEqual(normalize('EG', ''), { ok: false, error: 'empty' });
 });
 

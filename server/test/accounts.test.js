@@ -46,8 +46,8 @@ test('accounts: the customer signs in with the email the admin added and finds t
   assert.deepEqual(sites.map((x) => x.domains[0]).sort(), ['jed.nada.example', 'nada.example']);
   assert.equal(s.w.fs.t.org_invites.find((i) => i.email === 'client@nada.example').used_at != null, true);
   // العميل يقدر يغيّر دولته ورقمه بعد كده
-  const set = await s.P(c, '/v1/dash/settings', { org: org.id, name: 'مشتل الندى', country: 'EG', contact_phone_country: 'EG', contact_phone: '01014000041' });
-  assert.equal(set.status, 200); assert.equal(s.w.fs.t.organizations.find((o) => o.id === org.id).contact_phone, '1014000041');
+  const set = await s.P(c, '/v1/dash/settings', { org: org.id, name: 'مشتل الندى', country: 'EG', contact_phone_country: 'EG', contact_phone: '01000000041' });
+  assert.equal(set.status, 200); assert.equal(s.w.fs.t.organizations.find((o) => o.id === org.id).contact_phone, '1000000041');
 });
 
 test('accounts: an email that already signed in is added as owner on the spot, and nothing is left waiting', async () => {

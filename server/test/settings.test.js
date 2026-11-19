@@ -51,25 +51,25 @@ test('billing usage: ad clicks this month across the account sites, against the 
 test('settings: the customer picks the country (the key and the currency follow it) and types the number without the key; the server corrects it per country', async () => {
   const s = await setup();
   const org = () => s.w.fs.t.organizations.find((o) => o.id === s.owner.org.id), save = (b) => s.pc(s.owner, '/v1/dash/settings', Object.assign({ org: s.owner.org.id }, b));
-  assert.equal((await save({ contact_phone: '01014000041' })).body.error, 'country', 'no country yet = no key to correct with');
-  for (const raw of ['01014000041', '1014000041', '+201014000041', '201014000041', '00201014000041', '٠١٠١٤٠٠٠٠٤١', '010 1400 0041']) {
+  assert.equal((await save({ contact_phone: '01000000041' })).body.error, 'country', 'no country yet = no key to correct with');
+  for (const raw of ['01000000041', '1000000041', '+201000000041', '201000000041', '00201000000041', '٠١٠٠٠٠٠٠٠٤١', '010 0000 0041']) {
     const r = await save({ country: 'EG', contact_phone: raw });
     assert.equal(r.status, 200, raw + ' ' + JSON.stringify(r.body));
-    assert.equal(org().contact_phone, '1014000041', raw);
+    assert.equal(org().contact_phone, '1000000041', raw);
   }
   assert.deepEqual([org().country, org().country_chosen], ['EG', true], 'chosen by the customer, not guessed');
   const g = (await s.gc(s.owner, '/v1/dash/settings?org=' + s.owner.org.id)).body.org;
-  assert.deepEqual([g.country, g.country_chosen, g.dial, g.currency, g.contact_phone], ['EG', true, '20', 'EGP', '1014000041']);
-  const bad = await save({ contact_phone: '101400004' });   // 9 أرقام لمصر
+  assert.deepEqual([g.country, g.country_chosen, g.dial, g.currency, g.contact_phone], ['EG', true, '20', 'EGP', '1000000041']);
+  const bad = await save({ contact_phone: '100000004' });   // 9 أرقام لمصر
   assert.deepEqual([bad.status, bad.body.error, bad.body.reason, bad.body.need], [400, 'phone', 'length', '10']);
   assert.equal((await save({ contact_phone: '+966501234567' })).body.reason, 'prefix', 'a Saudi key on an Egyptian account');
-  assert.equal(org().contact_phone, '1014000041', 'a refused number never overwrites the saved one');
+  assert.equal(org().contact_phone, '1000000041', 'a refused number never overwrites the saved one');
   assert.equal((await save({ country: 'XX' })).body.error, 'country');
   // دولة الواتساب مستقلة عن دولة النشاط: نشاط في السعودية ورقم الواتساب مصري
-  const mixed = await save({ country: 'SA', contact_phone_country: 'EG', contact_phone: '01014000041' });
-  assert.deepEqual([mixed.status, org().country, org().contact_phone_country, org().contact_phone, mixed.body.org.dial, mixed.body.org.currency, mixed.body.org.phone_country], [200, 'SA', 'EG', '1014000041', '966', 'SAR', 'EG']);
+  const mixed = await save({ country: 'SA', contact_phone_country: 'EG', contact_phone: '01000000041' });
+  assert.deepEqual([mixed.status, org().country, org().contact_phone_country, org().contact_phone, mixed.body.org.dial, mixed.body.org.currency, mixed.body.org.phone_country], [200, 'SA', 'EG', '1000000041', '966', 'SAR', 'EG']);
   const g2 = (await s.gc(s.owner, '/v1/dash/settings?org=' + s.owner.org.id)).body.org;
-  assert.deepEqual([g2.country, g2.phone_country, g2.contact_phone], ['SA', 'EG', '1014000041']);
+  assert.deepEqual([g2.country, g2.phone_country, g2.contact_phone], ['SA', 'EG', '1000000041']);
   assert.equal((await save({ contact_phone: '0501234567' })).body.reason, 'length', 'no phone country sent: the saved one (Egypt) still applies, 9 digits are wrong for it');
   assert.equal((await save({ contact_phone_country: 'XX' })).body.error, 'phone_country');
   const sa = await save({ contact_phone_country: 'SA', contact_phone: '0501234567' });
