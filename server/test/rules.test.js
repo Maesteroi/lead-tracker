@@ -103,3 +103,30 @@ test('overview: a visit that started yesterday and ended after midnight counts o
   assert.equal(k.sessions, 1);
   assert.equal(k.real + k.suspicious + k.high, 1, JSON.stringify(k));
 });
+
+test('auto block: visits the owner confirmed as «suspicious» (not only the last 2 hours) are blocked once per address; mobile networks 7 days at most; real, own and off never (19 Nov)', async () => {
+  const s = await setup();
+  const geo = (sid, isp, asn) => s.w.fs.t.raw_events.filter((e) => e.session_id === sid).forEach((e) => { e.geo = { isp, asn }; });
+  await s.ev({ session_id: 'SOW0001', visitor_id: 'VO1', ip: '51.36.11.1', gclid: 'G-1' }); geo('SOW0001', 'Saudi Telecom Company', 'AS25019');
+  await s.ev({ session_id: 'SOW0002', visitor_id: 'VO2', ip: '51.36.12.2', gclid: 'G-2' }); geo('SOW0002', 'Some Home ISP', 'AS99999');
+  await s.ev({ session_id: 'SOW0003', visitor_id: 'VO3', ip: '51.36.11.1', gclid: 'G-3' }); geo('SOW0003', 'Saudi Telecom Company', 'AS25019');   // نفس عنوان الأولى (ونفس الشبكة)
+  await s.ev({ session_id: 'SOW0004', visitor_id: 'VO4', ip: '51.36.14.4', gclid: 'G-4' });   // زبون حقيقي
+  await s.ev({ session_id: 'SOW0005', visitor_id: 'VO5', ip: '51.36.15.5', gclid: 'G-5' });   // جهازك
+  await s.ev({ session_id: 'SOW0006', visitor_id: 'VO6', ip: '51.36.16.6', gclid: 'G-6' });   // علّمتها من أكتر من 30 يوم
+  for (const sid of ['SOW0001', 'SOW0002', 'SOW0003', 'SOW0006']) await s.pc(s.owner, '/v1/dash/verdict', { site: s.site.id, sid, verdict: 'fraud' });
+  await s.pc(s.owner, '/v1/dash/verdict', { site: s.site.id, sid: 'SOW0004', verdict: 'real' });
+  await s.pc(s.owner, '/v1/dash/verdict', { site: s.site.id, sid: 'SOW0005', verdict: 'fraud' });
+  await s.pc(s.owner, '/v1/dash/own', { site: s.site.id, sid: 'SOW0005' });
+  s.w.fs.t.protection_verdicts.find((v) => v.session_id === 'SOW0006').at = new Date(Date.now() - 40 * 864e5).toISOString();
+  s.w.fs.t.protection_rules = [{ client_id: s.site.id, auto: 'off', rules: {}, days: { normal: 30, repeat: 365, dc: 90 } }];
+  assert.equal((await autoBlocks(s.env, s.db, s.w.f)).blocked, 0, 'off = nothing');
+  s.w.fs.t.protection_rules[0].auto = 'confirmed';
+  const out = await autoBlocks(s.env, s.db, s.w.f);
+  assert.equal(out.blocked, 2, JSON.stringify(out));
+  assert.deepEqual(s.w.fs.t.ip_blocks.map((r) => r.ip).sort(), ['51.36.11.1', '51.36.12.2']);
+  const d = (ip) => (Date.parse(s.w.fs.t.ip_blocks.find((r) => r.ip === ip).expires_at) - Date.now()) / 864e5;
+  assert.ok(d('51.36.11.1') > 6.9 && d('51.36.11.1') < 7.1, 'mobile network capped at 7 days');
+  assert.ok(d('51.36.12.2') > 29.9 && d('51.36.12.2') < 30.1, 'other address follows the 30-day setting');
+  assert.ok(s.w.fs.t.ip_blocks.every((r) => r.reason === 'owner' && r.auto));
+  assert.equal((await autoBlocks(s.env, s.db, s.w.f)).blocked, 0, 'not twice');
+});

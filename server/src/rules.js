@@ -12,7 +12,8 @@ import { escHtml } from './telegram.js';
 import { loadSite, notFound, roleFor } from './sites.js';
 import { audit } from './auth.js';
 import { DEFAULT_RULES, rulesOf, isDatacenter } from './score.js';
-import { blockSession, DAYS_DC, DAYS_OTHER, DAYS_REPEAT } from './blocks.js';
+import { blockSession, ownSet, isOwn, DAYS_DC, DAYS_OTHER, DAYS_REPEAT } from './blocks.js';
+import { publicIp } from './geo.js';
 import { scoredSessions } from './dash.js';
 import { chatsFor } from './tglinks.js';
 import { tg } from './notify.js';
@@ -58,7 +59,7 @@ export async function dashRulesSave(req, env, db, sess) {
 }
 
 // ── المنع التلقائي (cron) ──
-const why = { same_device: 'نفس جهاز ممنوع رجع من عنوان جديد', bot: 'برنامج آلي', dc: 'شبكة خوادم من غير أي تفاعل', high: 'خطر عالي' };
+const why = { owner: 'زيارة أكّدت أنت أنها مشبوهة', same_device: 'نفس جهاز ممنوع رجع من عنوان جديد', bot: 'برنامج آلي', dc: 'شبكة خوادم من غير أي تفاعل', high: 'خطر عالي' };
 export async function autoBlocks(env, db, fetchImpl, nowMs) {
   if (!adsEnabled(env)) return { skipped: 'off' };   // نفس مفتاح جوجل أدز العام
   try { await db.select('protection_rules?select=client_id&limit=1'); } catch (e) { return { skipped: 'no_table' }; }   // قبل 0029: مفيش منع تلقائي خالص
@@ -72,12 +73,31 @@ export async function autoBlocks(env, db, fetchImpl, nowMs) {
     out.sites++;
     const since = new Date(now - 2 * 3600e3).toISOString();
     const sess = ((await scoredSessions(db, site.id, since, 500, 'ar').catch(() => [])) || []).filter((s) => s.ad && !s.contacts && s.verdict !== 'real');
-    if (!sess.length) continue;
-    const prev = (await db.select('ip_blocks?client_id=' + eq(site.id) + '&select=fingerprint,visitor_id,session_id&limit=5000').catch(() => [])) || [];
-    const fps = new Set(prev.map((x) => x.fingerprint).filter(Boolean)), vids = new Set(prev.map((x) => x.visitor_id).filter(Boolean)), done = new Set(prev.map((x) => x.session_id));
+    const prev = (await db.select('ip_blocks?client_id=' + eq(site.id) + '&select=fingerprint,visitor_id,session_id,ip&limit=5000').catch(() => [])) || [];
+    const fps = new Set(prev.map((x) => x.fingerprint).filter(Boolean)), vids = new Set(prev.map((x) => x.visitor_id).filter(Boolean)), done = new Set(prev.map((x) => x.session_id)), ips = new Set(prev.map((x) => x.ip).filter(Boolean));
     const blockedNow = [];
+    let full = false;
+    // ١) زيارات أنت حكمت عليها «مشبوهة أكيدة» (آخر 30 يوم): بتتمنع هي كمان، مش بس زيارات آخر ساعتين (19 نوفمبر: «علّمت 36 زيارة ومفيش أي حظر»).
+    //    عنوان اتمنع قبل كده (بأي حالة) مابنرجعش نمنعه، وجهازك «هذه زيارتي» ما بيتمنعش.
+    const fraud = ((await db.select('protection_verdicts?client_id=' + eq(site.id) + '&verdict=eq.fraud&at=gte.' + encodeURIComponent(new Date(now - 30 * 864e5).toISOString()) + '&select=session_id&order=at.desc&limit=100').catch(() => [])) || []).map((x) => x.session_id).filter((id) => id && !done.has(id));
+    if (fraud.length) {
+      const evs = (await db.select('raw_events?client_id=' + eq(site.id) + '&session_id=in.(' + fraud.map(encodeURIComponent).join(',') + ')&select=session_id,payload,visitor_id&order=received_at.asc&limit=2000').catch(() => [])) || [];
+      const first = new Map();
+      for (const e of evs) if (!first.has(e.session_id)) first.set(e.session_id, e);
+      const own = await ownSet(db, site.id).catch(() => ({ visitors: new Set(), fps: new Set() }));
+      for (const sid of fraud) {
+        if (blockedNow.length >= MAX_PER_RUN || full) break;
+        const e = first.get(sid), p = (e && e.payload) || {}, ip = publicIp(p.ip);
+        if (!ip || ips.has(ip) || isOwn(own, { visitor_id: (e && e.visitor_id) || p.visitor_id || null, fingerprint: p.fingerprint || null })) continue;
+        const res = await blockSession(env, db, site, cred, sid, { reason: 'owner', auto: true }, fetchImpl).catch((er) => ({ ok: false, error: String(er && er.message || er).slice(0, 80) }));
+        done.add(sid); ips.add(ip);
+        if (res.ok && !res.already) { blockedNow.push({ reason: 'owner', ip: res.ip, days: res.days }); out.blocked++; }
+        else if (!res.ok) { out.failed++; if (res.error === 'full') full = true; }
+      }
+    }
+    // ٢) زيارات الإعلان في آخر ساعتين حسب القواعد
     for (const s of sess) {
-      if (blockedNow.length >= MAX_PER_RUN) break;
+      if (blockedNow.length >= MAX_PER_RUN || full) break;
       if (done.has(s.session_id) || s.verdict === 'real') continue;
       let reason = null;
       if ((s.fingerprint && fps.has(s.fingerprint)) || (s.visitor_id && vids.has(s.visitor_id))) reason = 'same_device';
