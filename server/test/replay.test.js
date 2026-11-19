@@ -67,7 +67,7 @@ test('replay: chunks are stored gzipped per session in the private bucket, and t
   assert.equal((await s.gc(s.other, '/v1/dash/replay?site=' + s.site.id + '&sid=SES12345')).status, 404);
   assert.equal((await s.gc(s.owner, '/v1/dash/replay?site=' + s.site.id + '&sid=NOPE1234')).status, 404);
   // الزيارات بتقول إن الجلسة ليها تسجيل
-  await route(new Request('https://api.maestrolt.com/v1/events', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ site_id: s.site.id, secret: s.key, event: 'page_view', time: '2026-11-12 10:00:00', session_id: 'SES12345', visitor_id: 'V1', gclid: 'Cj0x', source_fine: 'google_ads' }) }), Object.assign({}, s.w.env, { TG_ALERTS: 'off', GEO_LOOKUP: 'off' }), s.w.f);
+  await route(new Request('https://api.maestrolt.com/v1/events', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ site_id: s.site.id, secret: s.key, event: 'page_view', time: new Date(Date.now() - 36e5).toISOString().slice(0, 19).replace('T', ' '), session_id: 'SES12345', visitor_id: 'V1', gclid: 'Cj0x', source_fine: 'google_ads' }) }), Object.assign({}, s.w.env, { TG_ALERTS: 'off', GEO_LOOKUP: 'off' }), s.w.f);
   const v = (await s.gc(s.owner, '/v1/dash/visits?range=7&site=' + s.site.id)).body.sessions.find((x) => x.id === 'SES12345');
   assert.equal(v.replay, true);
 });
