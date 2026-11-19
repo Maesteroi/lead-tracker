@@ -26,6 +26,9 @@ export function outsideTarget(cc, targetGeo) {
   const c = String(cc || '').toUpperCase(), t = targetCountries(targetGeo);
   return /^[A-Z]{2}$/.test(c) && t.length > 0 && !t.includes(c);
 }
+// شبكات الموبايل: عنوانها مشترك بين آلاف الناس (CGNAT)، فمنعها بيوصل لزباين حقيقيين على نفس الشبكة (19 نوفمبر)
+const MOBILE_NET = /\b(stc|saudi telecom|mobily|etihad etisalat|mobile telecommunications|zain|etisalat|emirates telecom|emirates integrated|du|vodafone|orange|ooredoo|batelco|omantel|viva|asiacell|korek)\b/i;
+export const isMobileCarrier = (isp) => !!isp && MOBILE_NET.test(String(isp));
 export const isDatacenter = (isp, asn) => DC_ASN.has(String(asn || '').toUpperCase()) || (!!isp && DC.test(String(isp)));
 
 // قواعد الحماية الافتراضية (بتتغير لكل موقع من صفحة «قواعد الحماية» · protection_rules)

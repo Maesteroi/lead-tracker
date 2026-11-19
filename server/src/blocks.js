@@ -14,11 +14,11 @@ import { accessToken, adsClient } from './gads.js';
 import { loadSite, notFound, roleFor } from './sites.js';
 import { audit } from './auth.js';
 import { publicIp } from './geo.js';
-import { isDatacenter } from './score.js';
+import { isDatacenter, isMobileCarrier } from './score.js';
 
 export const MAX_ACCOUNT_IPS = 500, KEEP_FREE = 10;
-export { DAYS_DC, DAYS_OTHER, DAYS_REPEAT };
-const DAYS_DC = 90, DAYS_OTHER = 7, DAYS_REPEAT = 30;
+export { DAYS_DC, DAYS_OTHER, DAYS_REPEAT, DAYS_MOBILE };
+const DAYS_DC = 90, DAYS_OTHER = 7, DAYS_REPEAT = 30, DAYS_MOBILE = 7;   // شبكات الموبايل: أول منع 7 أيام بحد أقصى (العنوان مشترك)، والمرة التانية المدة الكاملة
 const SID_RE = /^[A-Za-z0-9_-]{6,64}$/;
 const canManage = (sess, site) => ['owner', 'admin'].includes(roleFor(sess, site.org_id, site.id));
 const canAct = (sess, site) => { const r = roleFor(sess, site.org_id, site.id); return !!r && r !== 'viewer'; };
@@ -52,7 +52,8 @@ export async function blockSession(env, db, site, cred, sid, opts, fetchImpl) {
   const prev = await db.one('ip_blocks?client_id=' + eq(site.id) + '&customer_id=' + eq(cred.customer_id) + '&ip=' + eq(info.ip) + '&select=id,status,resource_name');
   // رجع تاني بعد ما المنع خلص (زي منافس) أو نفس جهاز اتمنع قبل كده = متكرر: 30 يوم بدل 7 (16 نوفمبر)
   const repeat = !!prev || o.reason === 'same_device';
-  const days = Math.max(1, Math.min(365, Number(dc ? D.dc : repeat ? D.repeat : D.normal) || DAYS_OTHER));
+  const mobile = !dc && !repeat && isMobileCarrier(info.isp);   // الحد الأقصى 7 أيام للمرة الأولى بس: لو رجع بعد ما المنع خلص (منافس) بيتمنع المدة الكاملة (المتكرر)
+  const days = Math.max(1, Math.min(mobile ? DAYS_MOBILE : 365, Number(dc ? D.dc : repeat ? D.repeat : D.normal) || DAYS_OTHER));
   const now = new Date(), expires = new Date(now.getTime() + days * 864e5).toISOString();
   if (prev && prev.status === 'active') {
     await db.update('ip_blocks?id=' + eq(prev.id), { expires_at: expires, fingerprint: info.fingerprint || null, visitor_id: info.visitor_id || null });   // ممنوع أصلًا: بنمدّ المدة بس
