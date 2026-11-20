@@ -8,6 +8,7 @@ import { json } from './util.js';
 import { audit } from './auth.js';
 import { isPlatform, notFound, normalizeDomain } from './sites.js';
 import { WP_SNIPPET } from './wpsnippet.js';
+import { gatewayKey } from './collect.js';
 
 const KEY = 'connect_help';
 export const DEFAULT_MESSAGE = 'أرغب بربط موقعي على مايسترو';
@@ -26,6 +27,21 @@ export async function loadHelp(db) {
 export async function helpGet(req, env, db, sess) {
   if (!isPlatform(sess)) return notFound();
   return json(Object.assign({ ok: true }, await loadHelp(db)));
+}
+
+// مفتاح بوابة التتبع لموقع (السوبر أدمن بس). من غير site: قايمة المواقع. مع site: المفتاح (مشتق، مابيتخزنش) وكل طلب بيتسجل.
+export async function gatewayGet(req, env, db, sess, url) {
+  if (!isPlatform(sess)) return notFound();
+  const id = String(url.searchParams.get('site') || '');
+  if (!id) {
+    const rows = (await db.select('clients?select=id,name,domains,status&order=created_at.desc&limit=300')) || [];
+    return json({ ok: true, sites: rows.map((c) => ({ id: c.id, name: c.name, domain: (c.domains || [])[0] || '', status: c.status })) });
+  }
+  const c = await db.one('clients?id=' + eq(id) + '&select=id,name,domains');
+  if (!c) return json({ ok: false, error: 'not_found' }, 404);
+  if (!env.SESSION_SECRET) return json({ ok: false, error: 'config' }, 503);
+  await audit(db, sess.user.id, 'platform_gateway_key', true, c.id);
+  return json({ ok: true, site_id: c.id, domain: (c.domains || [])[0] || '', key: await gatewayKey(env, c.id), endpoint: 'https://api.maestrolt.com/v1/collect' });
 }
 
 export async function helpSave(req, env, db, sess) {

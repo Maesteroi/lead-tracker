@@ -1,6 +1,9 @@
-# Maestro LT — لوحة العميل (app.maestrolt.com): صفحات ثابتة على Cloudflare Workers (Static Assets). مفيش سكريبت Worker.
+# Maestro LT — لوحة العميل (app.maestrolt.com): صفحات ثابتة على Cloudflare Workers (Static Assets) + «بوابة التتبع» /_lt/e فقط (src/worker.js). باقي المسارات ملفات ثابتة من غير سكريبت.
 # الدومين بيتربط من هنا (custom_domain)، زي api.maestrolt.com. التفاصيل وخطوات الربط: app/README.md
 name = "maestro-app"
+main = "src/worker.js"
+# المتغيرات اللي محمود بيحطها من لوحة Cloudflare (LT_SITE_ID · LT_GW_KEY) تفضل بعد كل نشر
+keep_vars = true
 compatibility_date = "2026-11-01"
 workers_dev = true
 
@@ -10,6 +13,9 @@ routes = [
 
 [assets]
 directory = "./public"
+binding = "ASSETS"
+# البوابة بس بتعدّي على السكريبت. أي مسار تاني بيتقدّم ملف ثابت مباشرة
+run_worker_first = ["/_lt/*"]
 # /login بيفتح login.html و /connect بيفتح connect.html. أي مسار مش موجود = 404 (مش SPA)
 html_handling = "auto-trailing-slash"
 not_found_handling = "404-page"

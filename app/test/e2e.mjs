@@ -44,6 +44,7 @@ function fakeApi(over) {
       if (p === '/v1/platform/accounts' && req.method() === 'POST') { const b = JSON.parse(req.postData()); st.accCalls = (st.accCalls || []).concat([b]); if ((b.sites || []).some((x) => /taken\.example/.test(x.domain))) return j(409, { ok: false, error: 'domain_exists', domain: 'taken.example' }); return j(201, { ok: true, org: { id: 'o-new', name: b.name, status: b.status, country: b.country }, sites: (b.sites || []).map((x, i) => ({ id: 'NEW' + i, name: x.name, domain: x.domain })), owner: { email: String(b.email).toLowerCase(), invited: true } }); }
       if (p === '/v1/platform/accounts/site') { const b = JSON.parse(req.postData()); st.siteCalls = (st.siteCalls || []).concat([b]); return j(201, { ok: true, site: { id: 'NEW9', name: b.name, domain: b.domain } }); }
       if (p === '/v1/platform/accounts/owner') { const b = JSON.parse(req.postData()); st.ownerCalls = (st.ownerCalls || []).concat([b]); return j(200, { ok: true, owner: { email: String(b.email).toLowerCase(), invited: true } }); }
+      if (p === '/v1/platform/gateway') { if (st.member) return j(404, { ok: false, error: 'not_found' }); const id = u.searchParams.get('site'); st.gwReads = (st.gwReads || []).concat([id || 'list']); return id ? j(200, { ok: true, site_id: id, domain: 'app.maestrolt.com', key: 'ltg' + 'a1'.repeat(20), endpoint: 'https://api.maestrolt.com/v1/collect' }) : j(200, { ok: true, sites: [{ id: 'GwSite0001', name: 'موقعنا', domain: 'app.maestrolt.com', status: 'on' }, { id: 'GwSite0002', name: 'الموقع التعريفي', domain: 'maestrolt.com', status: 'on' }] }); }
       if (p === '/v1/platform/connect-help') { if (st.member) return j(404, { ok: false, error: 'not_found' }); if (req.method() === 'POST') { const b = JSON.parse(req.postData()); st.helpSaved = (st.helpSaved || []).concat([b]); if ((b.numbers || []).some((x) => !/^\+?\d{8,15}$/.test(String(x.number).replace(/\s/g, '')))) return j(400, { ok: false, error: 'number' }); st.help = { ok: true, enabled: b.enabled, message: b.message, numbers: b.numbers.map((x) => ({ label: x.label, number: String(x.number).replace(/\D/g, ''), on: x.on })) }; } return j(200, st.help || { ok: true, enabled: true, message: 'أرغب بربط موقعي على مايسترو', numbers: [{ label: 'الدعم', number: '201000000099', on: true }] }); }
       if (st.member && (p === '/v1/platform/telegram' || p === '/v1/platform/team' || p.startsWith('/v1/platform/roles') || p.startsWith('/v1/platform/invites') || p === '/v1/platform/members')) return j(404, { ok: false });
       if (p === '/v1/platform/tg-templates/preview') { const b = JSON.parse(req.postData()); return j(200, { ok: true, buttons: b.fields.actions !== false, text: '🌐 <b>الإنجاز السريع</b>\n💬 واتساب · رمز <b>#9B5W</b>' + (b.fields.place !== false ? '\n📍 الدمام، السعودية' : '') + (b.fields.gclid !== false ? '\n🎯 GCLID: <code>Cj0KCQ...</code>' : '') }); }
@@ -230,6 +231,7 @@ async function page(api, opts) {
   await ctx.route('https://api.maestrolt.com/**', api.handler);
   await ctx.route('https://rawda.site/**', (r) => r.fulfill({ status: 200, contentType: 'text/html', body: '<title>WP</title><h1 id="wp">WordPress admin</h1>' }));
   await ctx.route('https://app.maestrolt.com/**', (route) => {
+    if (new URL(route.request().url()).pathname === '/_lt/e') { (api.gwCalls = api.gwCalls || []).push({ method: route.request().method(), body: route.request().postData() }); return route.fulfill({ status: 204 }); }   // بوابة التتبع (src/worker.js)
     let p = new URL(route.request().url()).pathname; if (p === '/') p = '/index.html'; else if (!path.extname(p)) p += '.html';
     const f = path.join(PUB, p);
     const h = headersFor(new URL(route.request().url()).pathname);
@@ -1734,6 +1736,10 @@ for (const [days, kind, re] of [[1.5, 'warn', /متبقٍ يومين من تجر
   await pg.locator('#tab-connect .cn-row').nth(1).locator('input[type=tel]').fill('12'); await pg.getByRole('button', { name: 'حفظ' }).click();
   await pg.waitForFunction(() => /رقم غير صحيح/.test(document.body.innerText));
   t('admin «site connection»: a wrong number is refused with a clear message', true);
+  await pg.locator('#tab-connect .gw-pick .pk-btn').click(); await pg.locator('.pk-list li', { hasText: 'موقعنا' }).click();
+  t('admin «gateway»: nothing is shown before pressing «show» (the key is not fetched with the list)', (await pg.locator('#tab-connect .gw-row').count()) === 0 && api.gwReads.join() === 'list');
+  await pg.getByRole('button', { name: 'اعرض البيانات' }).click(); await pg.waitForSelector('#tab-connect .gw-row');
+  t('admin «gateway»: shows LT_SITE_ID and LT_GW_KEY with copy buttons and the Cloudflare steps', /GwSite0001/.test(await pg.locator('#tab-connect .gw-vals').innerText()) && /ltga1a1/.test(await pg.locator('#tab-connect .gw-vals').innerText()) && (await pg.locator('#tab-connect .gw-row button').count()) === 2 && /Variables and Secrets/.test(await pg.locator('#tab-connect .gw-out').innerText()) && api.gwReads.join() === 'list,GwSite0001');
   await shot(pg, 'admin-connect');
   t('admin «site connection»: no console errors, no CSP violations', pg.errors.length === 0 && pg.csp.length === 0);
   if (pg.errors.length || pg.csp.length) console.log(pg.errors, pg.csp);
@@ -1741,6 +1747,22 @@ for (const [days, kind, re] of [[1.5, 'warn', /متبقٍ يومين من تجر
 { const api = fakeApi({ signedIn: true, platformAdmin: true, member: { role: 'دعم فني', perms: ['orgs_view', 'orgs_trial'] }, overview: overviewData(), tg: { ok: true }, tgCalls: [], orgCalls: [] }); const pg = await page(api, { viewport: { width: 1280, height: 900 } });
   await pg.goto('https://app.maestrolt.com/admin'); await pg.waitForSelector('#tab-btn-billing', { state: 'attached' });
   t('admin «site connection»: a team member does not see the tab', await pg.locator('#tab-btn-connect').isHidden());
+  await pg.context().close(); }
+
+// 24) التتبع على الصفحات العامة: الدخول والتجربة بتبعت لبوابة الموقع نفسه (/_lt/e)، واللوحة من غير تتبع (20 نوفمبر)
+{ const api = fakeApi(); const pg = await page(api, { viewport: { width: 390, height: 780 } });
+  await pg.goto('https://app.maestrolt.com/login?gclid=TESTCLICK1&utm_source=google');
+  await pg.waitForFunction(() => document.querySelector('#go') !== null);
+  await pg.waitForTimeout(1500);
+  const evs = (api.gwCalls || []).map((c) => JSON.parse(c.body));
+  t('tracking: the login page sends its visit to the same-origin gateway (/_lt/e) with a session id and the ad click id', evs.length >= 1 && evs.every((e) => /^[A-Za-z0-9]{6,20}$/.test(e.sid)) && evs.some((e) => e.event === 'page_view' && e.gclid === 'TESTCLICK1') && (api.gwCalls || []).every((c) => c.method === 'POST'));
+  t('tracking: no key and no site id travel from the page (the gateway adds them)', !evs.some((e) => 'secret' in e || 'site_id' in e || 'gw' in e));
+  t('tracking: the login page still works (the button is there) and there are no console errors or CSP violations', (await pg.locator('#go').count()) === 1 && pg.errors.length === 0 && pg.csp.length === 0);
+  if (pg.errors.length || pg.csp.length) console.log(pg.errors, pg.csp);
+  await pg.context().close(); }
+{ const api = fakeApi({ signedIn: true, sites: [{ id: 'SiteId123456', name: 'روضة الصالحين', domains: ['rawda.site'], paired: true }] }); const pg = await page(api, { viewport: { width: 1200, height: 900 } });
+  await pg.goto('https://app.maestrolt.com/#/sites'); await pg.waitForSelector('.checks'); await pg.waitForTimeout(800);
+  t('tracking: the dashboard itself (customer data) sends nothing to the gateway', (api.gwCalls || []).length === 0);
   await pg.context().close(); }
 
 await browser.close();

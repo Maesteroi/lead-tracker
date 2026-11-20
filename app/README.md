@@ -1,6 +1,6 @@
 # لوحة العميل — app.maestrolt.com
 
-صفحات ثابتة (HTML + CSS + JS) على **Cloudflare Workers Static Assets**، من غير سكريبت Worker. بتكلّم `api.maestrolt.com` بكوكي الجلسة (Domain=.maestrolt.com)، فالاتنين تحت نفس الدومين.
+صفحات ثابتة (HTML + CSS + JS) على **Cloudflare Workers Static Assets**. سكريبت الـWorker (`src/worker.js`) بيخدم **مسار `/_lt/e` بس** (بوابة التتبع)، وباقي المسارات ملفات ثابتة. التفاصيل: `tools/site-gateway/README.md`. بتكلّم `api.maestrolt.com` بكوكي الجلسة (Domain=.maestrolt.com)، فالاتنين تحت نفس الدومين.
 
 | الصفحة | الوظيفة |
 |---|---|

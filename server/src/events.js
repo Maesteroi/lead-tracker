@@ -50,6 +50,11 @@ export async function handleEvent(req, env, db, ctx, fetchImpl) {
   if (!body || typeof body !== 'object') return json({ ok: false, error: 'bad json' }, 400);
   const client = await authSite(db, String(body.site_id || ''), body.secret);
   if (!client) return json({ ok: false, error: 'forbidden' }, 403);
+  return processEvent(env, db, ctx, fetchImpl, client, body);
+}
+
+// معالجة حدث بعد التحقق من الموقع (مشتركة بين /v1/events بمفتاح البلجن و/v1/collect ببوابة الموقع)
+export async function processEvent(env, db, ctx, fetchImpl, client, body) {
   if (client.org_id && !eventsAllowed(await orgFor(db, client.org_id))) return json({ ok: false, error: 'plan_inactive' }, 402);
 
   const payload = Object.assign({}, body);

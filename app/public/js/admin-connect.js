@@ -3,10 +3,39 @@
 (function () {
   'use strict';
   var LT = window.LT, el = LT.el, clear = LT.clear, T = LT.t;
-  var box = null, toast = function () {}, data = null, rows = [];
+  var box = null, toast = function () {}, data = null, rows = [], gwSites = null;
 
   function api(path, body) { return LT.api(path, body === undefined ? undefined : { method: 'POST', body: body }); }
   function field(label, input, hint) { return el('label', { class: 'cn-f' }, [el('span', { text: label }), input, hint ? el('small', { class: 'muted', text: hint }) : null]); }
+
+  // بوابة التتبع: بيانات الموقع اللي هتتحط في إعدادات Cloudflare (المفتاح بيظهر لك بس، وكل عرض بيتسجل في سجل التغييرات)
+  function copyRow(label, value) {
+    var b = el('button', { class: 'btn ghost sm', type: 'button', text: T('adm.gw.copy') });
+    b.addEventListener('click', function () { try { navigator.clipboard.writeText(value).then(function () { toast(T('adm.gw.copied')); }, function () { toast(T('adm.gw.copy.fail'), true); }); } catch (e) { toast(T('adm.gw.copy.fail'), true); } });
+    return el('div', { class: 'gw-row' }, [el('b', { text: label }), el('code', { dir: 'ltr', text: value }), b]);
+  }
+  function gatewayCard() {
+    var out = el('div', { class: 'gw-out', 'aria-live': 'polite' });
+    var holder = el('div', { class: 'gw-pick' }, [el('span', { class: 'muted', text: T('adm.loading') })]);
+    (gwSites ? Promise.resolve({ ok: true, body: { sites: gwSites } }) : api('/v1/platform/gateway')).then(function (r) {
+      clear(holder); if (r.ok) gwSites = r.body.sites;
+      if (!r.ok) { holder.appendChild(el('span', { class: 'muted', text: T('err.save') })); return; }
+      var pk = LT.pick({ value: '', aria: T('adm.gw.site'), items: [{ v: '', label: T('adm.gw.ph') }].concat((r.body.sites || []).map(function (s) { return { v: s.id, label: s.name, sub: s.domain }; })), search: T('adm.gw.search'), empty: T('pk.none') });
+      var go = el('button', { class: 'btn sm', type: 'button', text: T('adm.gw.show') });
+      go.addEventListener('click', function () {
+        if (!pk.value) return;
+        go.disabled = true;
+        api('/v1/platform/gateway?site=' + encodeURIComponent(pk.value)).then(function (k) {
+          go.disabled = false; clear(out);
+          if (!k.ok) { out.appendChild(el('p', { class: 'muted', text: T('err.save') })); return; }
+          out.appendChild(el('div', { class: 'gw-vals' }, [copyRow('LT_SITE_ID', k.body.site_id), copyRow('LT_GW_KEY', k.body.key)]));
+          out.appendChild(el('p', { class: 'hint', text: T('adm.gw.steps', { d: k.body.domain || '' }) }));
+        });
+      });
+      holder.appendChild(pk); holder.appendChild(go);
+    });
+    return el('section', { class: 'panel-card' }, [el('div', { class: 'sec-head' }, [el('h2', { text: T('adm.gw.title') })]), el('p', { class: 'muted', text: T('adm.gw.sub') }), holder, out]);
+  }
 
   function draw() {
     clear(box);
@@ -38,6 +67,7 @@
         else toast(r.body && r.body.error === 'number' ? T('adm.cn.bad') : T('err.save'), true);
       });
     });
+    box.appendChild(gatewayCard());
     box.appendChild(el('section', { class: 'panel-card' }, [
       el('div', { class: 'sec-head' }, [el('h2', { text: T('adm.cn.title') })]),
       el('p', { class: 'muted', text: T('adm.cn.sub') }),
@@ -48,7 +78,7 @@
   }
 
   function open(container, t) {
-    box = container; toast = t || toast;
+    box = container; toast = t || toast; gwSites = null;
     clear(box); box.appendChild(el('p', { class: 'muted', text: T('adm.loading') }));
     api('/v1/platform/connect-help').then(function (r) {
       if (!r.ok) { clear(box); box.appendChild(el('p', { class: 'muted', text: T('err.save') })); return; }

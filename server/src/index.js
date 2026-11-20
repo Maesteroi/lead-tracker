@@ -3,6 +3,7 @@
 import { Db } from './db.js';
 import { json } from './util.js';
 import { handleEvent } from './events.js';
+import { handleCollect } from './collect.js';
 import { isAdmin, syncSites, newPairCode, setConsents, compareDay } from './admin.js';
 import { pairDevice, authDevice, heartbeat, postCalls, postMessages, putRecording } from './device.js';
 import { runScheduled } from './cron.js';
@@ -24,6 +25,7 @@ export async function route(req, env, fetchImpl, ctx) {
   const db = new Db(env, fetchImpl);
   try {
     if (m === 'POST' && p === '/v1/events') return await handleEvent(req, env, db, ctx, fetchImpl);
+    if (m === 'POST' && p === '/v1/collect') return await handleCollect(req, env, db, ctx, fetchImpl);   // بوابة الموقع (collect.js)
     if (p === '/v1/replay') return m === 'OPTIONS' ? replayPreflight() : m === 'POST' ? await handleReplay(req, env, db) : json({ ok: false }, 405);   // تسجيل الزيارة (replay.js)
     if (m === 'POST' && p === '/v1/device/pair') return await pairDevice(req, env, db);
     if (m === 'POST' && p === '/v1/plugin/pair') return await pluginPair(req, env, db, fetchImpl);

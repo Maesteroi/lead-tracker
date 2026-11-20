@@ -14,3 +14,17 @@
 /replay.html
   ! Content-Security-Policy
   Content-Security-Policy: default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' https: data: blob:; font-src 'self' https: data:; media-src https: blob:; frame-src 'self'; child-src 'self'; connect-src https://api.maestrolt.com; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
+
+# الصفحات العامة اللي عليها التتبع (الدخول والتجربة): الاتصال ببوابة التتبع على نفس الدومين (/_lt/e) كمان. اللوحة نفسها (جواها بيانات العملاء) من غير تتبع.
+/login
+  ! Content-Security-Policy
+  Content-Security-Policy: default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; manifest-src 'self'; connect-src 'self' https://api.maestrolt.com; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
+/login.html
+  ! Content-Security-Policy
+  Content-Security-Policy: default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; manifest-src 'self'; connect-src 'self' https://api.maestrolt.com; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
+/demo
+  ! Content-Security-Policy
+  Content-Security-Policy: default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; manifest-src 'self'; connect-src 'self' https://api.maestrolt.com; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
+/demo.html
+  ! Content-Security-Policy
+  Content-Security-Policy: default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; manifest-src 'self'; connect-src 'self' https://api.maestrolt.com; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
