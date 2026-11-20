@@ -113,6 +113,7 @@
     var ls = LT.i18n.switcher();
     if (ls) { ls.className = 'more-link'; body.appendChild(ls); }
     if (DATA.live) { var lo = el('button', { class: 'more-link', type: 'button' }, [el('span', { text: T('frame.logout') })]); lo.addEventListener('click', function () { LT.logout().then(function () { location.replace('/login'); }); }); body.appendChild(lo); }
+    ['about', 'pricing', 'contact', 'privacy', 'terms', 'shipping', 'refund'].forEach(function (p) { body.appendChild(el('a', { class: 'more-link', href: '/' + p }, [el('span', { text: T('legal.' + p) })])); });
     openDrawer();
   }
   function buildTop() {

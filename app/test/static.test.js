@@ -7,6 +7,7 @@ import vm from 'node:vm';
 const PUB = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../public');
 const read = (f) => fs.readFileSync(path.join(PUB, f), 'utf8');
 const htmls = fs.readdirSync(PUB).filter((f) => f.endsWith('.html'));
+const LEGAL = ['about', 'pricing', 'contact', 'privacy', 'terms', 'shipping', 'refund'];   // صفحات عامة مفتوحة للزوار ومحركات البحث (مطلوبة لمراجعة بوابة الدفع)
 const jsFiles = fs.readdirSync(path.join(PUB, 'js')).filter((f) => f.endsWith('.js')).map((f) => 'js/' + f).concat(fs.readdirSync(path.join(PUB, 'js/lang')).filter((f) => f.endsWith('.js')).map((f) => 'js/lang/' + f));
 
 test('security headers are set for every page', () => {
@@ -23,7 +24,7 @@ test('pages have no inline scripts, inline styles or event handlers (the CSP wou
     assert.ok(!/<script(?![^>]*\ssrc=)[^>]*>/i.test(s), f + ' inline script');
     assert.ok(!/<style/i.test(s) && !/\sstyle=/i.test(s), f + ' inline style');
     assert.ok(!/\son[a-z]+\s*=/i.test(s), f + ' event handler');
-    assert.ok(/<meta name="robots" content="noindex">/.test(s), f + ' noindex');
+    assert.equal(/<meta name="robots" content="noindex">/.test(s), !LEGAL.includes(f.replace(/\.html$/, '')), f + ' noindex (all pages except the public legal pages)');
     assert.ok(/<html lang="ar" dir="rtl">/.test(s), f + ' rtl');
   }
 });
@@ -108,4 +109,20 @@ test('i18n: the English file has exactly the same keys as the Arabic one, with t
     assert.equal(ph(EN[k]), ph(AR[k]), 'placeholders differ: ' + k);
     assert.ok(!/[\u0600-\u06FF]/.test(EN[k]) || k === 'app.name', 'Arabic text in en.js: ' + k);
   }
+});
+
+// الصفحات العامة (بوابة الدفع): ست صفحات بلغتين، بيانات التواصل ظاهرة، والأسعار الحقيقية، وروابطها في الدخول واللوحة
+test('public pages: bilingual, contact details, linked from login and the dashboard sidebar', () => {
+  for (const p of LEGAL) {
+    const s = read(p + '.html');
+    assert.ok(s.includes('class="l-ar"') && s.includes('class="l-en"'), p + ' both languages');
+    for (const x of ['info@maestrolt.com', '+201014000041']) assert.ok(s.includes(x), p + ' ' + x);
+    assert.ok(s.includes('شارع الجيش، ميت غمر، الدقهلية، مصر') && s.includes('El Gaish Street, Mit Ghamr, Dakahlia, Egypt'), p + ' address');
+    for (const q of LEGAL) assert.ok(s.includes('href="/' + q + '"'), p + ' links to ' + q);
+    assert.ok(s.includes('<link rel="canonical" href="https://app.maestrolt.com/' + p + '">'), p + ' canonical');
+  }
+  const pr = read('pricing.html');
+  for (const x of ['1,076.5', '2,556', '2,153', '5,112']) assert.ok(pr.includes(x), 'price ' + x);
+  for (const f of ['login.html', 'index.html', 'demo.html']) for (const p of LEGAL) assert.ok(read(f).includes('href="/' + p + '"'), f + ' → /' + p);
+  assert.match(read('js/dash.js'), /'about', 'pricing', 'contact', 'privacy', 'terms', 'shipping', 'refund'/);   // وفي قايمة «المزيد» على الموبايل
 });
