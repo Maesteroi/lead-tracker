@@ -1,6 +1,6 @@
 // واجهة اللوحة (S03): الدخول · الجلسة · المواقع. اللوحة على app.maestrolt.com بتكلّم api.maestrolt.com بكوكي الجلسة،
 // فهنا CORS لعنوان اللوحة بس (مش لأي عنوان)، وكل ردود الجلسة no-store.
-import { helpGet, helpSave, connectInfo, detectSite, siteInterest } from './connecthelp.js';
+import { gatewayGet, helpGet, helpSave, connectInfo, detectSite, siteInterest } from './connecthelp.js';
 import { json } from './util.js';
 import { appOrigin, authStart, authCallback, authLogout, authStatus, getSession, checkCsrf } from './auth.js';
 import { me, listSites, createSite, rotateKey, installStatus, loadSite, notFound } from './sites.js';
@@ -90,6 +90,7 @@ export async function handleApp(req, env, db, url, p, fetchImpl) {
     else if (m === 'POST' && p === '/v1/platform/tg-templates/preview') res = await tgPreview(req, sess);
     else if (m === 'GET' && p === '/v1/platform/contact-lab') res = await contactLab(req, env, db, sess);
     // الباقات والأسعار ووسائل الدفع (billing.js)
+    else if (m === 'GET' && p === '/v1/platform/gateway') res = await gatewayGet(req, env, db, sess, url);
     else if (m === 'GET' && p === '/v1/platform/connect-help') res = await helpGet(req, env, db, sess);
     else if (m === 'POST' && p === '/v1/platform/connect-help') res = await helpSave(req, env, db, sess);
     else if (m === 'GET' && p === '/v1/platform/billing') res = await platformBilling(req, env, db, sess);

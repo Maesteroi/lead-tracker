@@ -52,10 +52,28 @@ test('every file the pages refer to exists, and the API is only ever api.maestro
   for (const f of jsFiles) for (const m of read(f).matchAll(/https?:\/\/[a-z0-9.-]+/gi)) assert.ok(/^https:\/\/(api\.maestrolt\.com|www\.w3\.org)/.test(m[0]) || m[0] === 'http://www.w3.org' || f === 'js/connect.js', f + ' → ' + m[0]);
 });
 
-test('the worker config serves only the static folder on app.maestrolt.com, with no script', () => {
+test('the worker config serves the static folder, and only the tracking gateway (/_lt/*) runs the script', () => {
   const w = fs.readFileSync(path.resolve(PUB, '../wrangler.toml'), 'utf8');
   assert.ok(/name = "maestro-app"/.test(w) && /pattern = "app\.maestrolt\.com", custom_domain = true/.test(w) && /directory = "\.\/public"/.test(w));
-  assert.ok(!/^main\s*=/m.test(w));                                          // مفيش سكريبت Worker
+  assert.ok(/^main = "src\/worker\.js"/m.test(w) && /binding = "ASSETS"/.test(w));
+  assert.ok(/run_worker_first = \["\/_lt\/\*"\]/.test(w), 'the script runs for the gateway path only');
+  assert.ok(/^keep_vars = true/m.test(w), 'dashboard variables survive every deploy');
+  assert.ok(!/LT_GW_KEY\s*=/.test(w), 'no key in the config file');
+});
+
+test('tracking: only the public pages (login, demo) load the tracker, through the same-origin gateway, and only they may connect to self', () => {
+  const trackers = htmls.filter((f) => /\/lt\/tracker\.js/.test(read(f)));
+  assert.deepEqual(trackers.sort(), ['demo.html', 'login.html'], 'the dashboard pages hold customer data and are never tracked');
+  for (const f of trackers) assert.ok(/data-ltp-cfg='\{"endpoint":"\/_lt\/e"/.test(read(f)), f + ' endpoint');
+  const h = read('_headers');
+  for (const p of ['/login', '/login.html', '/demo', '/demo.html']) assert.ok(new RegExp('^' + p.replace('.', '\\.') + '\\n  ! Content-Security-Policy\\n  Content-Security-Policy: [^\\n]*connect-src \'self\' https://api\\.maestrolt\\.com', 'm').test(h), p + ' CSP');
+  const first = /Content-Security-Policy:\s*(.+)/.exec(h)[1];
+  assert.ok(!/connect-src 'self'/.test(first), 'the default policy stays closed');
+});
+
+test('tracking: the tracker file is the plugin tracker, byte for byte (one source, no drift)', () => {
+  const ours = fs.readFileSync(path.join(PUB, 'lt/tracker.js'), 'utf8');
+  assert.equal(ours, fs.readFileSync(path.resolve(PUB, '../../plugin/lead-tracker-pro/assets/tracker.js'), 'utf8'), 'copy the plugin tracker again (cp plugin/lead-tracker-pro/assets/tracker.js app/public/lt/tracker.js)');
 });
 
 // اللغات (قرار 12 نوفمبر): كل مفتاح مستخدم موجود في ملف العربي، وملف العربي فصحى مبسّطة من غير عامية مصرية
