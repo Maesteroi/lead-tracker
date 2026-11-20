@@ -2642,4 +2642,15 @@ window.LT_LANG.en = {
   'op.t.conv_adcall': 'Calls from the ad: «{name}»', 'op.e.conv_adcall': 'It recorded {n} calls in 30 days.', 'op.w.conv_adcall': 'These calls happen from the ad directly and never pass through your site, so we do not see them yet. We do not touch this conversion.',
   'ex.v.watch': 'Watch',
   'op.locked': 'In live trial: we test this type of change on our own accounts first, and it opens for you once confirmed.',
+  // ── Public pages (about · pricing · contact · privacy · delivery · refund) ──
+  'legal.about': 'About us',
+  'legal.pricing': 'Services & pricing',
+  'legal.contact': 'Contact us',
+  'legal.privacy': 'Privacy policy',
+  'legal.terms': 'Terms & conditions',
+  'legal.shipping': 'Delivery & shipping',
+  'legal.refund': 'Refund & cancellation',
+  'legal.login': 'Sign in',
+  'legal.menu': 'Information pages',
+  'legal.rights': '© 2026 Maestro LT. All rights reserved.',
 };

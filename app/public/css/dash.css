@@ -919,3 +919,8 @@ svg.geo { width: 100%; height: auto; aspect-ratio: 1.7; display: block; backgrou
   .st-tbl td::before { content: attr(data-l); color: var(--muted); font-size: 13px; }
 }
 @media print { .bl-plans { display: none !important; } .st-tbl thead { display: table-header-group; } }
+
+/* روابط الصفحات العامة تحت «تسجيل الخروج» */
+.side-legal { display: grid; gap: 2px; padding-top: 8px; border-top: 1px solid var(--line); font-size: 13px; }
+.side-legal a { color: var(--muted); text-decoration: none; padding: 3px 4px; border-radius: 6px; }
+.side-legal a:hover { color: var(--ink); text-decoration: underline; }
