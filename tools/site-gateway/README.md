@@ -6,7 +6,7 @@
 1. **لوحة التحكم** ← «مواقعي» ← «+ أضف موقعًا» (أو من لوحة الإدارة: «＋ أضف موقعًا» ثم اختر الحساب) ← اكتب رابط الموقع ← «افحص موقعي». لو الموقع على سيرفرك ودومينه على Cloudflare تظهر نافذة فيها القيمتان `LT_SITE_ID` و`LT_GW_KEY` مع زر نسخ وزر «نسخ كود البوابة» وكل الخطوات التالية. الموقع يُسجَّل في الحساب تلقائيًا، ولو فتحت النافذة مرة ثانية بنفس الرابط تظهر القيم نفسها.
 2. **Cloudflare** ← **Workers & Pages** ← **Create** ← **Create Worker** ← الاسم `maestro-gateway` ← **Deploy** ← **Edit code** ← الصق محتوى `worker.js` من هذا المجلد ← **Deploy**.
 3. داخل الـWorker ← **Settings** ← **Variables and Secrets** ← أضف `LT_SITE_ID` (نوع Text) و`LT_GW_KEY` (نوع **Secret**) ← **Deploy**.
-4. **Settings** ← **Domains & Routes** ← **Add** ← **Route** ← المنطقة (Zone) `maestrolt.com` ← المسار `maestrolt.com/*` (بالنجمة في الآخر) ← احفظ.
+4. تبويب **Domains** (فوق في صفحة الـWorker، مش جوه Settings) ← **Add** ← **Route** ← **Zone** `maestrolt.com` ← **Route** `maestrolt.com/*` (بالنجمة في الآخر) ← **Add route**. الدومين لازم يكون على نفس حساب Cloudflare وجنبه السحابة البرتقالي (Proxied).
 
 **مفيش خطوة خامسة لصق كود:** البوابة نفسها بتحط سطر التتبع قبل `</body>` في كل صفحة HTML عامة، ومابتلمسش الصور وملفات CSS وJS. مابتحطوش في صفحات الدخول والإدارة والدفع (`/login` `/admin` `/wp-admin` `/checkout` `/cart` `/account` `/dashboard` `/api`)، ولا في صفحة فيها سكربت التتبع أصلًا. ولو حصل أي خطأ، الموقع يفتح عادي من غير تتبع.
 

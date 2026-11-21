@@ -107,3 +107,37 @@ test('accounts: add a site to an existing account (bypasses the site limit) and 
   const right = await loggedIn(s.w, 'right@nada.example');
   assert.deepEqual((await me(s.w, right.sess)).orgs.map((o) => o.id), [orgId]);
 });
+
+test('sites_add: a team member adds sites only to accounts inside his scope; the plan limit applies unless he also holds orgs_plan', async () => {
+  const s = await setup();
+  const cust = await loggedIn(s.w, 'client@rawda.example');
+  const other = await loggedIn(s.w, 'other@elsewhere.example');
+  const mk = async (name, perms) => (await s.P(s.boss, '/v1/platform/roles', { name, perms })).body.role;
+  const adderRole = await mk('مسؤول مواقع', ['orgs_view', 'sites_add']), plannerRole = await mk('مسؤول مواقع وخطط', ['orgs_view', 'sites_add', 'orgs_plan']), plainRole = await mk('دعم', ['orgs_view']);
+  assert.ok(adderRole.perms.includes('sites_add'), 'the new permission is a known one');
+  await s.P(s.boss, '/v1/platform/invites', { email: 'adder@maestro.example', role_id: adderRole.id, scope_org_ids: [cust.org.id] });
+  await s.P(s.boss, '/v1/platform/invites', { email: 'planner@maestro.example', role_id: plannerRole.id, scope_org_ids: [cust.org.id] });
+  await s.P(s.boss, '/v1/platform/invites', { email: 'plain@maestro.example', role_id: plainRole.id, scope_org_ids: [cust.org.id] });
+  const adder = await loggedIn(s.w, 'adder@maestro.example'), planner = await loggedIn(s.w, 'planner@maestro.example'), plain = await loggedIn(s.w, 'plain@maestro.example');
+  const org = s.w.fs.t.organizations.find((o) => o.id === cust.org.id); org.max_sites = 99;
+  const add = (u, id, domain) => s.P(u, '/v1/platform/accounts/site', { org_id: id, domain });
+
+  assert.equal((await add(adder, cust.org.id, 'a1.example')).status, 201, 'adds to an account in his scope');
+  assert.equal((await add(adder, other.org.id, 'a2.example')).status, 404, 'not to an account outside his scope');
+  assert.equal((await add(plain, cust.org.id, 'a3.example')).status, 404, 'without the permission');
+  assert.equal(s.w.fs.t.clients.filter((c) => (c.domains || []).includes('a2.example') || (c.domains || []).includes('a3.example')).length, 0);
+
+  // نفس الصلاحية في نافذة «أضف موقعًا» (البوابة)
+  const gw = await s.P(adder, '/v1/dash/connect-site', { org: cust.org.id, domain: 'gw1.example' });
+  assert.equal(gw.status, 201); assert.ok(gw.body.key && gw.body.site_id);
+  assert.equal((await s.P(adder, '/v1/dash/connect-site', { org: other.org.id, domain: 'gw2.example' })).status, 404);
+  assert.equal((await s.P(plain, '/v1/dash/connect-site', { org: cust.org.id, domain: 'gw3.example' })).status, 404);
+  assert.equal((await get(s.w, adder, '/v1/dash/connect-info?org=' + cust.org.id)).body.admin, true);
+
+  // الحد: sites_add لوحدها بتلتزم بحد الحساب، ومعاها orgs_plan بتتخطاه
+  org.max_sites = s.w.fs.t.clients.filter((c) => c.org_id === cust.org.id).length;
+  assert.equal((await add(adder, cust.org.id, 'lim1.example')).status, 409);
+  assert.equal((await s.P(adder, '/v1/dash/connect-site', { org: cust.org.id, domain: 'lim2.example' })).status, 409);
+  assert.equal((await add(planner, cust.org.id, 'lim3.example')).status, 201);
+  assert.equal((await s.P(planner, '/v1/dash/connect-site', { org: cust.org.id, domain: 'lim4.example' })).status, 201);
+});

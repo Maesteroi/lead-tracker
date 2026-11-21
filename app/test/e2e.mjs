@@ -518,6 +518,13 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
   await pg.locator('#rows tr').first().click(); await pg.waitForSelector('#drawer:not([hidden])');
   t('admin: a team member without «create accounts» sees none of the new buttons', !(await pg.locator('#new-acc').isVisible()) && !(await pg.locator('#add-site').isVisible()) && !(await pg.locator('#d-add-site').isVisible()));
   await pg.context().close(); }
+{ const api = fakeApi({ signedIn: true, platformAdmin: true, member: { role: 'مسؤول مواقع', perms: ['orgs_view', 'sites_add'] }, overview: overviewData(), tg: { ok: true }, tgCalls: [], orgCalls: [] });
+  const pg = await page(api, { viewport: { width: 1280, height: 900 } });
+  await pg.goto('https://app.maestrolt.com/admin'); await pg.waitForSelector('#rows tr');
+  t('admin: a member with «add sites» sees «add a site» above the list but not «new customer account»', (await pg.locator('#add-site').isVisible()) && !(await pg.locator('#new-acc').isVisible()));
+  await pg.locator('#rows tr').first().click(); await pg.waitForSelector('#drawer:not([hidden])');
+  t('admin: that member sees «add a site» in the account drawer but not «change customer email»', (await pg.locator('#d-add-site').isVisible()) && !(await pg.locator('#d-owner-btn').isVisible()));
+  await pg.context().close(); }
 
 // 13) اللوحة التجريبية: الشاشات السبعة ببيانات وهمية (موافقة محمود 11 نوفمبر)
 { const api = fakeApi(); const pg = await page(api, { viewport: { width: 1440, height: 900 } });

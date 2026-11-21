@@ -8,7 +8,7 @@ import { eq } from './db.js';
 import { json } from './util.js';
 import { audit } from './auth.js';
 import { isPlatform, notFound, normalizeDomain, orgInScope, planGate, insertSite, ORG_GATE_SELECT } from './sites.js';
-import { canCreate } from './accounts.js';
+import { canAddSites, bypassSiteLimit } from './accounts.js';
 import { WP_SNIPPET } from './wpsnippet.js';
 import { gatewayKey } from './collect.js';
 
@@ -63,7 +63,7 @@ export async function quotaOf(env, db, org) {
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 // مين يدير ربط مواقع حساب: مالك/مدير الحساب نفسه (من غير تقييد بمواقع)، أو الإدارة (حساب في نطاقها) وفي الحالة دي مفيش حد مواقع.
 async function connectScope(sess, want) {
-  if (want && canCreate(sess) && UUID_RE.test(want) && orgInScope(sess, want)) return { orgId: want, admin: true };
+  if (want && canAddSites(sess) && UUID_RE.test(want) && orgInScope(sess, want)) return { orgId: want, admin: true, bypass: bypassSiteLimit(sess) };
   const mine = sess.memberships || [];
   const m = want ? mine.find((x) => x.org_id === want) : mine.find((x) => MANAGE.has(x.role) && !x.site_ids);
   if (!m) return { err: want || !mine.length ? notFound() : json({ ok: false, error: 'forbidden' }, 403) };
@@ -98,7 +98,7 @@ export async function gatewaySite(req, env, db, sess) {
   let site = taken.find((c) => c.org_id === sc.orgId), existing = !!site;
   if (!site && taken.length) return json({ ok: false, error: 'domain_exists' }, 409);
   if (!site) {
-    if (!sc.admin) {
+    if (!sc.bypass) {
       const count = ((await db.select('clients?org_id=' + eq(sc.orgId) + '&select=id')) || []).length;
       const gate = planGate(env, org, count);
       if (gate) return json(gate.body, gate.status);
