@@ -172,10 +172,7 @@
     ctx.data.connectSite(info.org_id || ctx.org || '', host).then(function (r) {
       if (!layer) return;
       var code = window.LT_GW_CODE || '';
-      var tag = '<script src="' + location.origin + '/lt/tracker.js" data-ltp-cfg=\'{"endpoint":"/_lt/e","consentRequired":0,"trackAll":0,"version":"gw-1"}\'></script>';
       var codeBtn = el('button', { class: 'btn primary sm', type: 'button', text: T('cf.gw.copy.code') }); codeBtn.addEventListener('click', function () { copyText(code, T('cf.copied')); });
-      var tagBox = el('pre', { class: 'cf-code', tabindex: '0', dir: 'ltr', 'aria-label': T('cf.code') }, [el('code', { text: tag })]);
-      var tagBtn = el('button', { class: 'btn primary sm', type: 'button', text: T('cf.copy') }); tagBtn.addEventListener('click', function () { copyText(tag, T('cf.copied')); });
       var done = el('button', { class: 'btn ghost', type: 'button', 'data-first': '', text: T('cf.w.done') }); done.addEventListener('click', function () { close(true); });
       show(el('div', { class: 'cf-card cf-wp cf-gw', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'cf-h' }, [closeBtn(),
         el('div', { class: 'cf-mh' }, [el('h3', { id: 'cf-h', text: T(r.existing ? 'cf.gw.title.ex' : 'cf.gw.title', { h: r.site.domain }) }), el('p', { text: T('cf.gw.sub') })]),
@@ -187,8 +184,7 @@
             step(T('cf.gw.s2'), T('cf.gw.s2.d'), el('div', { class: 'cf-row' }, [codeBtn])),
             step(T('cf.gw.s3'), T('cf.gw.s3.d')),
             step(T('cf.gw.s4'), T('cf.gw.s4.d', { h: r.site.domain })),
-            step(T('cf.gw.s5'), T('cf.gw.s5.d'), el('div', {}, [tagBox, el('div', { class: 'cf-row' }, [tagBtn])])),
-            step(T('cf.gw.s6'), T('cf.gw.s6.d'))]),
+            step(T('cf.gw.s5'), T('cf.gw.s5.d'))]),
           waBox(), el('div', { class: 'cf-row end' }, [done])])]));
     }, function (e) {
       if (!layer) return;

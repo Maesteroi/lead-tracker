@@ -1717,7 +1717,7 @@ for (const [days, kind, re] of [[1.5, 'warn', /متبقٍ يومين من تجر
   await pg.waitForSelector('.cf-val', { timeout: 5000 });
   const gt = await pg.locator('.cf-card').innerText();
   t('add site (Cloudflare): the site is registered once in his account, and he sees LT_SITE_ID and LT_GW_KEY with copy buttons', api.connectCalls.length === 1 && api.connectCalls[0].domain === 'cf.example' && /GwSite0009/.test(gt) && /ltgb2b2/.test(gt) && (await pg.locator('.cf-val button').count()) === 2);
-  t('add site (Cloudflare): the steps and the tracking line are there, built from the page address', (await pg.locator('.cf-steps li').count()) === 6 && /Variables and Secrets/.test(gt) && /https:\/\/app\.maestrolt\.com\/lt\/tracker\.js/.test(await pg.locator('.cf-code').innerText()));
+  t('add site (Cloudflare): only 5 easy steps and NOTHING to paste in his pages (the gateway adds the tracking line itself)', (await pg.locator('.cf-steps li').count()) === 5 && /Variables and Secrets/.test(gt) && (await pg.locator('.cf-code').count()) === 0 && /cf\.example\/\*/.test(gt));
   await pg.locator('.cf-val button').nth(1).click(); await pg.waitForSelector('.cf-toast');
   await pg.getByRole('button', { name: 'نسخ كود البوابة' }).click();
   await pg.waitForFunction(() => /تم نسخ الكود|تعذّر النسخ/.test((document.querySelector('.cf-toast') || {}).innerText || ''));
