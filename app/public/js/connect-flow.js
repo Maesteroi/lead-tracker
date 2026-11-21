@@ -1,7 +1,10 @@
 // «أضف موقعًا» (19 نوفمبر · محمود): يسأل هل موقعك ووردبريس؟ ← نعم: نافذة الخطوات (الربط السريع بكود WPCode) مع عدّاد المواقع وزر الواتساب
-// لا: نوع الموقع من قايمة (باقي الأنواع قيد التجهيز) · لا أعرف: رابط الموقع ونكتشف نوعه. لو مواقع الباقة خلصت: شاشة الحد.
+// لا: نوع الموقع من قايمة · لا أعرف: رابط الموقع ونكتشف نوعه (أي نوع) ونوجّهه حسب النوع:
+//   ووردبريس/ووكومرس ← خطوات الربط السريع · موقع على سيرفره الخاص ودومينه على Cloudflare ← تسجيل الموقع وعرض بيانات البوابة (LT_SITE_ID وLT_GW_KEY)
+//   باقي الأنواع ← «قيد التجهيز» مع تسجيل اهتمام وواتساب. لو مواقع الباقة خلصت: شاشة الحد.
+// الإدارة (info.admin): تبدأ من رابط موقع العميل مباشرة، ومعاها زر «سجّل الموقع في الحساب» لأي نوع، ومن غير حد مواقع.
 // الاستخدام: LT.addSite.open({ data: DATA, org: orgId, done: function () {} })
-// DATA.connectInfo(org, domain) · DATA.detectSite(url) · DATA.siteInterest(kind)  (live-data.js)
+// DATA.connectInfo(org, domain) · DATA.detectSite(url) · DATA.siteInterest(kind) · DATA.connectSite(org, domain)  (connect-data.js)
 (function () {
   'use strict';
   var LT = window.LT, el = LT.el, T = LT.t;
@@ -11,7 +14,7 @@
     if (layer) { layer.remove(); layer = null; document.removeEventListener('keydown', onKey, true); }
     if (finished && ctx && ctx.done) ctx.done();
   }
-  function onKey(e) { if (e.key === 'Escape') { e.preventDefault(); close(false); } }
+  function onKey(e) { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(false); } }
   function show(card) {
     var first = !layer;
     if (first) {
@@ -31,7 +34,8 @@
     clearTimeout(toastT); toastT = setTimeout(function () { t.remove(); }, 2400);
   }
   function closeBtn() { var b = el('button', { class: 'cf-x', type: 'button', 'aria-label': T('cf.close'), text: '×' }); b.addEventListener('click', function () { close(false); }); return b; }
-  function back(to) { var b = el('button', { class: 'cf-back', type: 'button', text: T('cf.back') }); b.addEventListener('click', to); return b; }
+  function back(to) { if (info && info.admin) return null; var b = el('button', { class: 'cf-back', type: 'button', text: T('cf.back') }); b.addEventListener('click', to); return b; }
+  var SELF = { custom: 1, joomla: 1, drupal: 1, magento: 1, ghost: 1 };   // مواقع على سيرفر العميل (نفس القايمة في السيرفر)
   function waButton(extra) {
     if (!info || !info.wa_url) return null;
     return el('a', { class: 'btn cf-wa' + (extra ? ' ' + extra : ''), href: info.wa_url, target: '_blank', rel: 'noopener noreferrer' }, [el('span', { 'aria-hidden': 'true', text: '💬' }), el('span', { text: T('cf.wa.btn') })]);
@@ -84,7 +88,7 @@
   }
 
   // ── لا: نوع الموقع ──
-  var KINDS = ['salla', 'zid', 'shopify', 'wix', 'woocommerce', 'custom', 'other'];
+  var KINDS = ['salla', 'zid', 'shopify', 'wix', 'webflow', 'squarespace', 'woocommerce', 'custom', 'other'];
   function kinds(preset) {
     var res = el('div', { class: 'cf-res' });
     var pk = LT.pick({ value: typeof preset === 'string' && preset ? preset : '', aria: T('cf.kind.l'),
@@ -99,6 +103,7 @@
     LT.clear(res);
     if (!k) return;
     if (k === 'woocommerce') { wp(''); return; }
+    if (k === 'custom' || k === 'other') { unknown(); return; }   // نحتاج رابط الموقع لنعرف هل دومينه على Cloudflare
     soon(res, k, null);
   }
   // نوع غير ووردبريس: الطريقة قيد التجهيز ← تسجيل اهتمام + مساعدة واتساب
@@ -107,8 +112,18 @@
     var kids = [el('div', { class: 'cf-result no' }, [el('b', { text: T('cf.soon.t', { k: name }) }), el('p', { text: T('cf.soon.d') })])];
     var reg = el('button', { class: 'btn primary', type: 'button', text: T('cf.soon.btn') });
     reg.addEventListener('click', function () { reg.disabled = true; (ctx.data.siteInterest ? ctx.data.siteInterest(k) : Promise.resolve()).then(function () { toast(T('cf.soon.done')); }, function () { reg.disabled = false; toast(T('cf.w.err')); }); });
-    kids.push(el('div', { class: 'cf-row' }, [reg, waButton()]));
+    kids.push(el('div', { class: 'cf-row' }, [reg, waButton(), registerBtn(host)]));
     kids.forEach(function (n) { if (n) res.appendChild(n); });
+  }
+  // الإدارة: تسجيل الموقع في حساب العميل من غير ربط (أي نوع)
+  function registerBtn(host) {
+    if (!info || !info.admin || !host) return null;
+    var b = el('button', { class: 'btn', type: 'button', text: T('cf.adm.reg') });
+    b.addEventListener('click', function () {
+      b.disabled = true;
+      ctx.data.connectSite(info.org_id, host).then(function () { toast(T('cf.adm.reg.done', { h: host })); if (ctx.done) ctx.done(); }, function (e) { b.disabled = false; toast(T(gwErr(e))); });
+    });
+    return b;
   }
 
   // ── لا أعرف: رابط الموقع ──
@@ -122,18 +137,18 @@
       go.disabled = true; LT.clear(res); res.appendChild(el('div', { class: 'cf-result', text: T('cf.url.checking') }));
       ctx.data.detectSite(v).then(function (r) {
         go.disabled = false; LT.clear(res);
-        if (r.type === 'wordpress' || r.type === 'woocommerce') {
+        var k = r.type === 'unreachable' ? '' : T('cf.k.' + r.type);
+        if (r.route === 'wordpress') {
           res.appendChild(el('div', { class: 'cf-result' }, [el('b', { text: T('cf.url.wp') }), el('p', { text: T('cf.url.wp.d') })]));
           setTimeout(function () { if (layer) wp(r.host); }, 900);
+        } else if (r.route === 'gateway') {
+          res.appendChild(el('div', { class: 'cf-result' }, [el('b', { text: T('cf.url.cf', { k: k }) }), el('p', { text: T('cf.url.cf.d') })]));
+          setTimeout(function () { if (layer) gateway(r.host); }, 900);
         } else if (r.type === 'unreachable') {
           res.appendChild(el('div', { class: 'cf-result no' }, [el('b', { text: T('cf.url.fail') })]));
           var w = waButton(); if (w) res.appendChild(el('div', { class: 'cf-row' }, [w]));
-        } else if (r.type === 'unknown') {
-          res.appendChild(el('div', { class: 'cf-result no' }, [el('b', { text: T('cf.url.unk') }), el('p', { text: T('cf.url.unk.d') })]));
-          var pb = el('button', { class: 'btn', type: 'button', text: T('cf.url.pickkind') }); pb.addEventListener('click', function () { kinds(''); });
-          res.appendChild(el('div', { class: 'cf-row' }, [pb, waButton()]));
         } else {
-          res.appendChild(el('div', { class: 'cf-result no' }, [el('b', { text: T('cf.url.found', { k: T('cf.k.' + r.type) }) })]));
+          res.appendChild(el('div', { class: 'cf-result no' }, [el('b', { text: T('cf.url.found', { k: k }) }), SELF[r.type] ? el('p', { text: T('cf.url.nocf') }) : null]));
           soon(res, r.type, r.host);
         }
       }, function (e) { go.disabled = false; LT.clear(res); res.appendChild(el('div', { class: 'cf-result no', text: T(e && e.message === 'too_many' ? 'cf.url.toomany' : 'cf.url.bad') })); });
@@ -143,6 +158,44 @@
     show(el('div', { class: 'cf-card cf-ask', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'cf-h' }, [closeBtn(),
       el('div', { class: 'cf-body' }, [back(ask), el('h3', { id: 'cf-h', text: T('cf.url.title') }), el('p', { class: 'cf-sub', text: T('cf.url.sub') }),
         el('label', { class: 'cf-l', for: 'cf-url', text: T('cf.url.l') }), inp, el('div', { class: 'cf-row' }, [go]), res])]));
+  }
+
+  // ── موقع على Cloudflare: نسجّله في الحساب ونعرض بيانات البوابة ──
+  function gwErr(e) { var c = e && e.message; return c === 'domain_exists' ? 'cf.gw.e.exists' : c === 'domain' ? 'cf.url.bad' : c === 'plan_inactive' ? 'cf.gw.e.plan' : 'cf.gw.e.generic'; }
+  function valRow(label, kind, value) {
+    var b = el('button', { class: 'btn ghost sm', type: 'button', text: T('cf.gw.copy') });
+    b.addEventListener('click', function () { copyText(value, T('cf.gw.copied')); });
+    return el('div', { class: 'cf-val' }, [el('div', {}, [el('b', { text: label }), el('small', { text: kind })]), el('code', { dir: 'ltr', text: value }), b]);
+  }
+  function gateway(host) {
+    show(el('div', { class: 'cf-card cf-ask', role: 'dialog', 'aria-modal': 'true', 'aria-busy': 'true' }, [el('div', { class: 'cf-body cf-load' }, [el('span', { class: 'spinner' }), el('span', { text: T('cf.gw.loading') })])]));
+    ctx.data.connectSite(info.org_id || ctx.org || '', host).then(function (r) {
+      if (!layer) return;
+      var code = window.LT_GW_CODE || '';
+      var tag = '<script src="' + location.origin + '/lt/tracker.js" data-ltp-cfg=\'{"endpoint":"/_lt/e","consentRequired":0,"trackAll":0,"version":"gw-1"}\'></script>';
+      var codeBtn = el('button', { class: 'btn primary sm', type: 'button', text: T('cf.gw.copy.code') }); codeBtn.addEventListener('click', function () { copyText(code, T('cf.copied')); });
+      var tagBox = el('pre', { class: 'cf-code', tabindex: '0', dir: 'ltr', 'aria-label': T('cf.code') }, [el('code', { text: tag })]);
+      var tagBtn = el('button', { class: 'btn primary sm', type: 'button', text: T('cf.copy') }); tagBtn.addEventListener('click', function () { copyText(tag, T('cf.copied')); });
+      var done = el('button', { class: 'btn ghost', type: 'button', 'data-first': '', text: T('cf.w.done') }); done.addEventListener('click', function () { close(true); });
+      show(el('div', { class: 'cf-card cf-wp cf-gw', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'cf-h' }, [closeBtn(),
+        el('div', { class: 'cf-mh' }, [el('h3', { id: 'cf-h', text: T(r.existing ? 'cf.gw.title.ex' : 'cf.gw.title', { h: r.site.domain }) }), el('p', { text: T('cf.gw.sub') })]),
+        el('div', { class: 'cf-body' }, [
+          el('div', { class: 'cf-vals' }, [valRow('LT_SITE_ID', T('cf.gw.k.text'), r.site_id), valRow('LT_GW_KEY', T('cf.gw.k.secret'), r.key)]),
+          el('p', { class: 'cf-note', text: T('cf.gw.warn') }),
+          el('ol', { class: 'cf-steps' }, [
+            step(T('cf.gw.s1'), T('cf.gw.s1.d')),
+            step(T('cf.gw.s2'), T('cf.gw.s2.d'), el('div', { class: 'cf-row' }, [codeBtn])),
+            step(T('cf.gw.s3'), T('cf.gw.s3.d')),
+            step(T('cf.gw.s4'), T('cf.gw.s4.d', { h: r.site.domain })),
+            step(T('cf.gw.s5'), T('cf.gw.s5.d'), el('div', {}, [tagBox, el('div', { class: 'cf-row' }, [tagBtn])])),
+            step(T('cf.gw.s6'), T('cf.gw.s6.d'))]),
+          waBox(), el('div', { class: 'cf-row end' }, [done])])]));
+    }, function (e) {
+      if (!layer) return;
+      if (e && e.message === 'site_limit') { limit(); return; }
+      var back2 = el('button', { class: 'btn', type: 'button', text: T('cf.back') }); back2.addEventListener('click', unknown);
+      show(el('div', { class: 'cf-card cf-ask', role: 'dialog', 'aria-modal': 'true' }, [closeBtn(), el('div', { class: 'cf-body' }, [el('div', { class: 'cf-result no', text: T(gwErr(e)) }), el('div', { class: 'cf-row' }, [back2, waButton()])])]));
+    });
   }
 
   // ── نعم: النافذة الكاملة للووردبريس ──
@@ -170,7 +223,7 @@
     show(el('div', { class: 'cf-card cf-wp', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'cf-h' }, [closeBtn(),
       el('div', { class: 'cf-mh' }, [el('h3', { id: 'cf-h', text: T('cf.wp.title') }), el('p', { text: host ? T('cf.wp.sub.h', { h: host }) : T('cf.wp.sub') })]),
       quotaBlock(true),
-      el('div', { class: 'cf-body' }, [el('div', { class: 'cf-method', role: 'tablist', 'aria-label': T('cf.m.l') }, [fast, plug]), body, waBox(), el('div', { class: 'cf-row end' }, [done])])]));
+      el('div', { class: 'cf-body' }, [el('div', { class: 'cf-method', role: 'tablist', 'aria-label': T('cf.m.l') }, [fast, plug]), body, waBox(), el('div', { class: 'cf-row end' }, [registerBtn(host), done])])]));
     draw('fast');
   }
 
@@ -179,7 +232,7 @@
     show(el('div', { class: 'cf-card cf-ask', role: 'dialog', 'aria-modal': 'true', 'aria-busy': 'true' }, [el('div', { class: 'cf-body cf-load' }, [el('span', { class: 'spinner' }), el('span', { text: T('cf.w.loading') })])]));
     ctx.data.connectInfo(o.org || '', '').then(function (i) {
       info = i;
-      if (i.quota.total !== null && i.quota.left <= 0) limit(); else ask();
+      if (i.admin) unknown(); else if (i.quota.total !== null && i.quota.left <= 0) limit(); else ask();
     }, function (e) {
       close(false);
       if (o.toast) o.toast(T(e && e.message === 'role' ? 'cf.err.role' : 'cf.w.err'));

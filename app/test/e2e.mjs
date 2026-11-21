@@ -44,7 +44,6 @@ function fakeApi(over) {
       if (p === '/v1/platform/accounts' && req.method() === 'POST') { const b = JSON.parse(req.postData()); st.accCalls = (st.accCalls || []).concat([b]); if ((b.sites || []).some((x) => /taken\.example/.test(x.domain))) return j(409, { ok: false, error: 'domain_exists', domain: 'taken.example' }); return j(201, { ok: true, org: { id: 'o-new', name: b.name, status: b.status, country: b.country }, sites: (b.sites || []).map((x, i) => ({ id: 'NEW' + i, name: x.name, domain: x.domain })), owner: { email: String(b.email).toLowerCase(), invited: true } }); }
       if (p === '/v1/platform/accounts/site') { const b = JSON.parse(req.postData()); st.siteCalls = (st.siteCalls || []).concat([b]); return j(201, { ok: true, site: { id: 'NEW9', name: b.name, domain: b.domain } }); }
       if (p === '/v1/platform/accounts/owner') { const b = JSON.parse(req.postData()); st.ownerCalls = (st.ownerCalls || []).concat([b]); return j(200, { ok: true, owner: { email: String(b.email).toLowerCase(), invited: true } }); }
-      if (p === '/v1/platform/gateway') { if (st.member) return j(404, { ok: false, error: 'not_found' }); const id = u.searchParams.get('site'); st.gwReads = (st.gwReads || []).concat([id || 'list']); return id ? j(200, { ok: true, site_id: id, domain: 'app.maestrolt.com', key: 'ltg' + 'a1'.repeat(20), endpoint: 'https://api.maestrolt.com/v1/collect' }) : j(200, { ok: true, sites: [{ id: 'GwSite0001', name: 'موقعنا', domain: 'app.maestrolt.com', status: 'on' }, { id: 'GwSite0002', name: 'الموقع التعريفي', domain: 'maestrolt.com', status: 'on' }] }); }
       if (p === '/v1/platform/connect-help') { if (st.member) return j(404, { ok: false, error: 'not_found' }); if (req.method() === 'POST') { const b = JSON.parse(req.postData()); st.helpSaved = (st.helpSaved || []).concat([b]); if ((b.numbers || []).some((x) => !/^\+?\d{8,15}$/.test(String(x.number).replace(/\s/g, '')))) return j(400, { ok: false, error: 'number' }); st.help = { ok: true, enabled: b.enabled, message: b.message, numbers: b.numbers.map((x) => ({ label: x.label, number: String(x.number).replace(/\D/g, ''), on: x.on })) }; } return j(200, st.help || { ok: true, enabled: true, message: 'أرغب بربط موقعي على مايسترو', numbers: [{ label: 'الدعم', number: '201000000099', on: true }] }); }
       if (st.member && (p === '/v1/platform/telegram' || p === '/v1/platform/team' || p.startsWith('/v1/platform/roles') || p.startsWith('/v1/platform/invites') || p === '/v1/platform/members')) return j(404, { ok: false });
       if (p === '/v1/platform/tg-templates/preview') { const b = JSON.parse(req.postData()); return j(200, { ok: true, buttons: b.fields.actions !== false, text: '🌐 <b>الإنجاز السريع</b>\n💬 واتساب · رمز <b>#9B5W</b>' + (b.fields.place !== false ? '\n📍 الدمام، السعودية' : '') + (b.fields.gclid !== false ? '\n🎯 GCLID: <code>Cj0KCQ...</code>' : '') }); }
@@ -91,9 +90,10 @@ function fakeApi(over) {
       st.dashCalls = (st.dashCalls || []).concat([p + u.search]);
       const today = new Date(Date.now() + 3 * 3600e3).toISOString().slice(0, 10);
       const range = Number(u.searchParams.get('range')) || 7;
-      if (p === '/v1/dash/connect-info') return st.connectRole ? j(403, { ok: false, error: 'forbidden' }) : j(200, { ok: true, quota: st.quota || { total: 3, used: 1, left: 2 }, wa_url: st.noWa ? null : 'https://wa.me/201000000099?text=' + encodeURIComponent('أرغب بربط موقعي على مايسترو'), snippet: '// maestro-snippet-test\nadd_action("admin_init", function () {});' });
+      if (p === '/v1/dash/connect-info') return st.connectRole ? j(403, { ok: false, error: 'forbidden' }) : j(200, { ok: true, org_id: u.searchParams.get('org') || 'ORG-OWN', admin: !!(st.platformAdmin && u.searchParams.get('org')), quota: st.quota || { total: 3, used: 1, left: 2 }, wa_url: st.noWa ? null : 'https://wa.me/201000000099?text=' + encodeURIComponent('أرغب بربط موقعي على مايسترو'), snippet: '// maestro-snippet-test\nadd_action("admin_init", function () {});' });
       if (p === '/v1/dash/site-interest') { st.interest = (st.interest || []).concat([JSON.parse(req.postData())]); return j(200, { ok: true }); }
-      if (p === '/v1/dash/detect-site') { const b = JSON.parse(req.postData()); const h = String(b.url).replace(/^https?:\/\//, '').replace(/\/.*$/, ''); st.detectCalls = (st.detectCalls || []).concat([h]); return j(200, { ok: true, host: h, type: /^wp\./.test(h) ? 'wordpress' : /^salla\./.test(h) ? 'salla' : /^down\./.test(h) ? 'unreachable' : 'unknown' }); }
+      if (p === '/v1/dash/detect-site') { const b = JSON.parse(req.postData()); const h = String(b.url).replace(/^https?:\/\//, '').replace(/\/.*$/, ''); st.detectCalls = (st.detectCalls || []).concat([h]); const type = /^wp\./.test(h) ? 'wordpress' : /^salla\./.test(h) ? 'salla' : /^down\./.test(h) ? 'unreachable' : 'custom'; const cloudflare = /^cf\./.test(h); return j(200, { ok: true, host: h, type, cloudflare, route: type === 'wordpress' ? 'wordpress' : (type === 'custom' && cloudflare) ? 'gateway' : 'soon' }); }
+      if (p === '/v1/dash/connect-site') { const b = JSON.parse(req.postData()); st.connectCalls = (st.connectCalls || []).concat([b]); if (/(^|\.)taken\./.test(b.domain)) return j(409, { ok: false, error: 'domain_exists' }); return j(201, { ok: true, existing: false, site: { id: 'GwSite0009', name: b.domain, domain: b.domain }, site_id: 'GwSite0009', key: 'ltg' + 'b2'.repeat(20), endpoint: 'https://api.maestrolt.com/v1/collect' }); }
       // الكلمات السلبية (negatives.js)
       if (p === '/v1/dash/negatives') return j(200, Object.assign({ ok: true, linked: true, manage: true, currency: 'USD', days: 30, cpc: 1.3, total_cost: 19.5, terms: 6, waste: 11, need_brief: false, level: 'conv', target: 4.5, totals: { cost: 19.5, conv: 4, real: 0, won: 0 }, watch: [{ term: 'جمعية الزواج في جدة', cost: 3.2, left: 3.55, clicks: 4 }], keywords: [{ keyword: 'تصريح زواج', match: 'BROAD', clicks: 40, visits: 33, contacts: 9, convos: 3, won: 1, cost: 52, cost_won: 52, verdict: 'good' }, { keyword: 'أبشر تصريح زواج', match: 'BROAD', clicks: 12, visits: 10, contacts: 6, convos: 0, won: 0, cost: 15, cost_won: null, verdict: 'no_close' }], audit: { broad_pct: 82, off_pct: 41, off_cost: 74.33, adj_clicks: 27, adj_cost: 23.44, adj_conv: 5, info_clicks: 31, info_cost: 11.79, bad_keywords: [{ keyword: 'أبشر تصريح زواج', match: 'BROAD', word: 'أبشر', why: 'يريد التقديم بنفسه', clicks: 2 }], unsafe: [] }, decided: st.negDecided || [] }, { suggestions: (st.negSug || [{ id: 'aaaa1111', text: 'وظائف', match: 'PHRASE', reason: 'intent_jobs', variants: ['وظائف', 'الوظائف'], narrowed: null, clicks: 2, cost: 2, conv: 0, terms: ['وظائف تصريح زواج', 'وظائف مكتب تعقيب'], campaigns: [{ id: '11', name: 'تصاريح' }, { id: '12', name: 'تعقيب' }], protect: false }, { id: 'bbbb2222', text: 'زواج', match: 'EXACT', reason: 'generic', variants: ['زواج'], narrowed: null, clicks: 4, cost: 9, conv: 0, terms: ['زواج'], campaigns: [{ id: '11', name: 'تصاريح' }], protect: true }, { id: 'cccc3333', text: 'إنشاء عقد زواج', match: 'PHRASE', reason: 'not_offer', why: 'لا ننشئ عقود الزواج', variants: ['إنشاء عقد زواج', 'انشاء عقد زواج'], narrowed: { from: 'عقد زواج', blocked: ['توثيق عقد زواج سعودي من أجنبية'] }, clicks: 1, cost: 1, conv: 1, terms: ['إنشاء عقد زواج إلكتروني'], campaigns: [{ id: '11', name: 'تصاريح' }], protect: false }]).filter((x) => !(st.negDone || []).includes(x.id)) }));
       if (p === '/v1/dash/negatives/decide') { const b = JSON.parse(req.postData()); st.negCalls = (st.negCalls || []).concat([Object.assign({ csrf: req.headers()['x-csrf-token'] }, b)]); st.negDone = (st.negDone || []).concat([b.id]); st.negDecided = (st.negDecided || []).concat([{ text: b.id === 'aaaa1111' ? 'وظائف' : 'شروط', match_type: 'PHRASE', decision: b.decision, at: new Date().toISOString(), applied_at: b.decision === 'add' ? new Date().toISOString() : null }]); return j(200, { ok: true, decision: b.decision, campaigns: 2 }); }
@@ -483,24 +483,40 @@ for (const [name, h] of [['http confirm address', '#' + new URLSearchParams({ c:
   t('admin new account: the window closes', (await pg.locator('.adm-modal').count()) === 0);
   await pg.locator('#rows tr').first().click();
   await pg.waitForSelector('#drawer:not([hidden])');
-  t('admin drawer: «add a site» and «change customer email» are there', (await pg.locator('#d-add-site').isVisible()) && /تغيير بريد العميل/.test(await pg.locator('#d-owner-btn').innerText()));
-  await pg.locator('#d-add-site').click();
-  await pg.locator('.adm-modal input').nth(0).fill('فرع جدة'); await pg.locator('.adm-modal input').nth(1).fill('jed.example');
-  await pg.locator('.adm-modal').getByRole('button', { name: 'إضافة الموقع' }).click();
-  await pg.waitForFunction(() => !document.querySelector('.adm-modal'));
-  t('admin drawer: adding a site sends the account and the domain', api.siteCalls.length === 1 && api.siteCalls[0].domain === 'jed.example' && !!api.siteCalls[0].org_id);
+  t('admin drawer: «add a site» and «change customer email» are at the TOP of the drawer, visible without scrolling', (await pg.locator('#d-add-site').isVisible()) && /تغيير بريد العميل/.test(await pg.locator('#d-owner-btn').innerText()) && (await pg.locator('#d-add-site').boundingBox()).y < 420);
+  await shot(pg, 'admin-drawer-top');
+  await pg.locator('#d-add-site').click(); await pg.waitForSelector('#cf-url');
+  t('admin drawer: «add a site» opens the detection window straight on the site link (no «is it WordPress?» question, no back button)', /اكتب رابط موقعك/.test(await pg.locator('.cf-card').innerText()) && (await pg.locator('.cf-back').count()) === 0 && (await pg.locator('.cf-opts').count()) === 0);
+  await pg.locator('#cf-url').fill('salla.jed.example'); await pg.getByRole('button', { name: 'افحص موقعي' }).click();
+  await pg.waitForSelector('.cf-res .btn.primary');
+  t('admin drawer: a Salla site is named and offers «register the site in the account»', /سلة/.test(await pg.locator('.cf-res').innerText()) && (await pg.getByRole('button', { name: 'سجّل الموقع في الحساب' }).count()) === 1);
+  await pg.getByRole('button', { name: 'سجّل الموقع في الحساب' }).click();
+  await pg.waitForFunction(() => /سُجّل الموقع/.test((document.querySelector('.cf-toast') || {}).innerText || ''));
+  t('admin drawer: registering sends the account and the domain', api.connectCalls.length === 1 && api.connectCalls[0].domain === 'salla.jed.example' && !!api.connectCalls[0].org);
+  await pg.keyboard.press('Escape');
   await pg.locator('#d-owner-btn').click();
   await pg.locator('.adm-modal input[type=email]').fill('Right@Nada.example');
   await pg.locator('.adm-modal').getByRole('button', { name: 'حفظ البريد' }).click();
   await pg.waitForFunction(() => !document.querySelector('.adm-modal'));
   t('admin drawer: changing the customer email sends the new email', api.ownerCalls.length === 1 && api.ownerCalls[0].email === 'Right@Nada.example');
+  // زر «＋ أضف موقعًا» فوق قايمة الحسابات: نختار الحساب ثم نفس نافذة الاكتشاف
+  await pg.locator('#d-close').click(); await pg.waitForSelector('#drawer', { state: 'hidden' });
+  t('admin accounts: «＋ أضف موقعًا» is visible above the accounts list, next to «new customer account»', (await pg.locator('#add-site').isVisible()) && (await pg.locator('#new-acc').isVisible()));
+  await shot(pg, 'admin-accounts-toolbar');
+  await pg.locator('#add-site').click(); await pg.waitForSelector('.adm-modal .pk-btn');
+  await pg.locator('.adm-modal .pk-btn').click(); await pg.locator('.pk-list li').nth(1).click();
+  await pg.locator('.adm-modal').getByRole('button', { name: 'متابعة' }).click(); await pg.waitForSelector('#cf-url');
+  await pg.locator('#cf-url').fill('cf.new.example'); await pg.getByRole('button', { name: 'افحص موقعي' }).click();
+  await pg.waitForSelector('.cf-val', { timeout: 5000 });
+  t('admin accounts: after choosing the account, a Cloudflare site is registered in THAT account and its LT_SITE_ID / LT_GW_KEY are shown', api.connectCalls.length === 2 && api.connectCalls[1].domain === 'cf.new.example' && /GwSite0009/.test(await pg.locator('.cf-card').innerText()));
+  await pg.getByRole('button', { name: 'تم' }).click();
   t('admin accounts: no console errors or CSP violations', pg.errors.length === 0 && pg.csp.length === 0);
   await pg.context().close(); }
 { const api = fakeApi({ signedIn: true, platformAdmin: true, member: { role: 'دعم فني', perms: ['orgs_view', 'orgs_trial'] }, overview: overviewData(), tg: { ok: true }, tgCalls: [], orgCalls: [] });
   const pg = await page(api, { viewport: { width: 1280, height: 900 } });
   await pg.goto('https://app.maestrolt.com/admin'); await pg.waitForSelector('#rows tr');
   await pg.locator('#rows tr').first().click(); await pg.waitForSelector('#drawer:not([hidden])');
-  t('admin: a team member without «create accounts» sees none of the new buttons', !(await pg.locator('#new-acc').isVisible()) && !(await pg.locator('#d-add-site').isVisible()));
+  t('admin: a team member without «create accounts» sees none of the new buttons', !(await pg.locator('#new-acc').isVisible()) && !(await pg.locator('#add-site').isVisible()) && !(await pg.locator('#d-add-site').isVisible()));
   await pg.context().close(); }
 
 // 13) اللوحة التجريبية: الشاشات السبعة ببيانات وهمية (موافقة محمود 11 نوفمبر)
@@ -1684,8 +1700,8 @@ for (const [days, kind, re] of [[1.5, 'warn', /متبقٍ يومين من تجر
   await pg.locator('#cf-url').fill('not a url'); await pg.getByRole('button', { name: 'افحص موقعي' }).click();
   t('add site (I do not know): a wrong link is refused before asking the server', /اكتب رابطًا صحيحًا/.test(await pg.locator('.cf-res').innerText()) && !(api.detectCalls || []).length);
   await pg.locator('#cf-url').fill('https://x.example/page'); await pg.getByRole('button', { name: 'افحص موقعي' }).click();
-  await pg.waitForFunction(() => /لم نتعرف/.test(document.querySelector('.cf-res').innerText));
-  t('add site (I do not know): an unknown site offers the list and WhatsApp', /لم نتعرف/.test(await pg.locator('.cf-res').innerText()) && (await pg.locator('.cf-res .cf-wa').count()) === 1 && api.detectCalls[0] === 'x.example');
+  await pg.waitForFunction(() => /اكتشفنا أن موقعك/.test(document.querySelector('.cf-res').innerText));
+  t('add site (I do not know): a coded site NOT on Cloudflare is still named (never «unknown»), says why the gateway does not fit, and offers WhatsApp', /موقع مبرمج خصيصًا/.test(await pg.locator('.cf-res').innerText()) && /لا يعمل على Cloudflare/.test(await pg.locator('.cf-res').innerText()) && !/لم نتعرف/.test(await pg.locator('.cf-res').innerText()) && (await pg.locator('.cf-res .cf-wa').count()) === 1 && api.detectCalls[0] === 'x.example');
   await pg.locator('#cf-url').fill('down.example'); await pg.getByRole('button', { name: 'افحص موقعي' }).click();
   await pg.waitForFunction(() => /لم نستطع الوصول/.test(document.querySelector('.cf-res').innerText));
   t('add site (I do not know): an unreachable site says so', true);
@@ -1694,6 +1710,26 @@ for (const [days, kind, re] of [[1.5, 'warn', /متبقٍ يومين من تجر
   t('add site (I do not know): a WordPress site opens the steps window with its host', /wp\.example/.test(await pg.locator('.cf-card').innerText()));
   await pg.getByRole('button', { name: 'تم' }).click();
   t('add site: «done» closes the window', (await pg.locator('.cf-scrim').count()) === 0);
+  // موقع على سيرفره الخاص ودومينه على Cloudflare ← نسجّله ونعرض LT_SITE_ID وLT_GW_KEY
+  await pg.getByRole('button', { name: '+ أضف موقعًا' }).click(); await pg.waitForSelector('.cf-opts');
+  await pg.locator('.cf-opt').nth(2).click();
+  await pg.locator('#cf-url').fill('cf.example'); await pg.getByRole('button', { name: 'افحص موقعي' }).click();
+  await pg.waitForSelector('.cf-val', { timeout: 5000 });
+  const gt = await pg.locator('.cf-card').innerText();
+  t('add site (Cloudflare): the site is registered once in his account, and he sees LT_SITE_ID and LT_GW_KEY with copy buttons', api.connectCalls.length === 1 && api.connectCalls[0].domain === 'cf.example' && /GwSite0009/.test(gt) && /ltgb2b2/.test(gt) && (await pg.locator('.cf-val button').count()) === 2);
+  t('add site (Cloudflare): the steps and the tracking line are there, built from the page address', (await pg.locator('.cf-steps li').count()) === 6 && /Variables and Secrets/.test(gt) && /https:\/\/app\.maestrolt\.com\/lt\/tracker\.js/.test(await pg.locator('.cf-code').innerText()));
+  await pg.locator('.cf-val button').nth(1).click(); await pg.waitForSelector('.cf-toast');
+  await pg.getByRole('button', { name: 'نسخ كود البوابة' }).click();
+  await pg.waitForFunction(() => /تم نسخ الكود|تعذّر النسخ/.test((document.querySelector('.cf-toast') || {}).innerText || ''));
+  await shot(pg, 'cf-gateway');
+  await pg.getByRole('button', { name: 'تم' }).click();
+  // الدومين مضاف في حساب آخر
+  await pg.getByRole('button', { name: '+ أضف موقعًا' }).click(); await pg.waitForSelector('.cf-opts');
+  await pg.locator('.cf-opt').nth(2).click();
+  await pg.locator('#cf-url').fill('cf.taken.example'); await pg.getByRole('button', { name: 'افحص موقعي' }).click();
+  await pg.waitForFunction(() => /مضاف في حساب آخر/.test(document.body.innerText), null, { timeout: 5000 });
+  t('add site (Cloudflare): a domain that belongs to another account says so', /مضاف في حساب آخر/.test(await pg.locator('.cf-card').innerText()));
+  await pg.keyboard.press('Escape');
   t('add site: no console errors, no CSP violations', pg.errors.length === 0 && pg.csp.length === 0);
   if (pg.errors.length || pg.csp.length) console.log(pg.errors, pg.csp);
   await pg.context().close(); }
@@ -1736,10 +1772,7 @@ for (const [days, kind, re] of [[1.5, 'warn', /متبقٍ يومين من تجر
   await pg.locator('#tab-connect .cn-row').nth(1).locator('input[type=tel]').fill('12'); await pg.getByRole('button', { name: 'حفظ' }).click();
   await pg.waitForFunction(() => /رقم غير صحيح/.test(document.body.innerText));
   t('admin «site connection»: a wrong number is refused with a clear message', true);
-  await pg.locator('#tab-connect .gw-pick .pk-btn').click(); await pg.locator('.pk-list li', { hasText: 'موقعنا' }).click();
-  t('admin «gateway»: nothing is shown before pressing «show» (the key is not fetched with the list)', (await pg.locator('#tab-connect .gw-row').count()) === 0 && api.gwReads.join() === 'list');
-  await pg.getByRole('button', { name: 'اعرض البيانات' }).click(); await pg.waitForSelector('#tab-connect .gw-row');
-  t('admin «gateway»: shows LT_SITE_ID and LT_GW_KEY with copy buttons and the Cloudflare steps', /GwSite0001/.test(await pg.locator('#tab-connect .gw-vals').innerText()) && /ltga1a1/.test(await pg.locator('#tab-connect .gw-vals').innerText()) && (await pg.locator('#tab-connect .gw-row button').count()) === 2 && /Variables and Secrets/.test(await pg.locator('#tab-connect .gw-out').innerText()) && api.gwReads.join() === 'list,GwSite0001');
+  t('admin «site connection»: no gateway card here any more (only the WhatsApp settings)', (await pg.locator('#tab-connect .gw-pick').count()) === 0 && (await pg.locator('#tab-connect .panel-card').count()) === 1);
   await shot(pg, 'admin-connect');
   t('admin «site connection»: no console errors, no CSP violations', pg.errors.length === 0 && pg.csp.length === 0);
   if (pg.errors.length || pg.csp.length) console.log(pg.errors, pg.csp);

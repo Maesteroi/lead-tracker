@@ -1,4 +1,4 @@
-// لوحة الإدارة ← حساب عميل جديد · أضف موقعًا · تغيير بريد العميل (18 نوفمبر · محمود: «أعمل أكونت للعميل وأضيف موقعه وهو يدخل بإيميله جاهز»).
+// لوحة الإدارة ← حساب عميل جديد · أضف موقعًا (نافذة اكتشاف النوع) · تغيير بريد العميل (18 نوفمبر · محمود: «أعمل أكونت للعميل وأضيف موقعه وهو يدخل بإيميله جاهز»).
 // العميل بيدخل بجوجل بالبريد اللي بتكتبه هنا: لو أول مرة، الحساب بتاعه بيكون جاهز بمواقعه. مفيش إيميل بيتبعت من عندنا:
 // بنطلّع رسالة جاهزة تنسخها وتبعتها بنفسك (واتساب مثلًا).
 (function () {
@@ -97,18 +97,21 @@
   }
 
   // ── أضف موقعًا لحساب موجود ──
+  // نفس نافذة العميل (connect-flow.js): نكتب رابط موقع العميل، نكتشف نوعه، ونوجّهه حسب النوع. من غير حساب محدد: نختاره الأول.
+  function startFlow(org, o) {
+    if (!window.LT.addSite) { o.toast(T('adm.acc.e.generic'), true); return; }
+    window.LT.addSite.open({ data: LT.connectData, org: org.id, toast: o.toast, done: function () { o.reload(); } });
+  }
   function addSite(org, o) {
-    var name = el('input', { type: 'text', maxlength: '120' }), domain = el('input', { type: 'text', maxlength: '200', dir: 'ltr', autocomplete: 'off', placeholder: T('adm.acc.site.domain') });
-    var msg = el('p', { class: 'notice bad', role: 'alert' }); msg.hidden = true;
-    var go = el('button', { class: 'btn', type: 'button', text: T('adm.site.add') });
-    var m = modal(T('adm.site.title', { n: org.name }), el('div', { class: 'adm-modal-b' }, [fld(T('adm.acc.site.name'), name), fld(T('adm.acc.site.domain'), domain), msg, el('div', { class: 'adm-modal-f' }, [go])]));
+    if (org) { startFlow(org, o); return; }
+    var orgs = (o.orgs && o.orgs()) || [];
+    var pk = LT.pick({ value: '', aria: T('adm.site.pick.l'), items: [{ v: '', label: T('adm.site.pick.ph') }].concat(orgs.map(function (x) { return { v: x.id, label: x.name, sub: (x.owner && x.owner.email) || '' }; })), search: T('adm.site.pick.search'), empty: T('pk.none') });
+    var go = el('button', { class: 'btn', type: 'button', text: T('adm.site.pick.go') });
+    var m = modal(T('adm.site.pick.title'), el('div', { class: 'adm-modal-b' }, [el('div', { class: 'fld' }, [el('span', { text: T('adm.site.pick.l') }), pk]), el('div', { class: 'adm-modal-f' }, [go])]));
     go.addEventListener('click', function () {
-      msg.hidden = true; go.disabled = true;
-      api('/v1/platform/accounts/site', { org_id: org.id, name: name.value, domain: domain.value }).then(function (r) {
-        go.disabled = false;
-        if (!r.ok) { msg.textContent = err(r.body && r.body.error, r.body); msg.hidden = false; return; }
-        o.toast(T('adm.site.done', { d: r.body.site.domain })); m.close(); o.reload();
-      }).catch(function () { go.disabled = false; msg.textContent = err('generic'); msg.hidden = false; });
+      var x = orgs.filter(function (y) { return y.id === pk.value; })[0];
+      if (!x) return;
+      m.close(); startFlow(x, o);
     });
   }
 

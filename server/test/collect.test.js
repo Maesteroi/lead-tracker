@@ -1,7 +1,7 @@
 // بوابة التتبع (collect.js): مواقع مش ووردبريس على دومينها. مفتاح البوابة مشتق، والحدث بيتخزن بنفس شكل البلجن.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { world, loggedIn } from './helpers.js';
+import { world } from './helpers.js';
 import { gatewayKey, resetCollectLimits, localTime, uaInfo } from '../src/collect.js';
 
 const UA = 'Mozilla/5.0 (Linux; Android 14; SM-S918B) AppleWebKit/537.36 Chrome/120 Mobile Safari/537.36';
@@ -81,19 +81,4 @@ test('collect: limits per session and click limits', async () => {
 test('time and device helpers', () => {
   assert.match(localTime('Africa/Cairo', new Date('2026-11-20T10:00:00Z')), /^2026-11-20 1[12]:00:00$/);
   assert.deepEqual(uaInfo('Mozilla/5.0 (iPhone; CPU iPhone OS 17) Instagram 300'), ['موبايل', 'iOS', 'Instagram (داخل التطبيق)']);
-});
-
-test('gateway key screen: only a super admin lists sites and reads a key; every read is logged', async () => {
-  const s = await setup();
-  const owner = await loggedIn(s.w, 'owner@gw.example');
-  const admin = await loggedIn(s.w, 'admin@gw.example');
-  s.w.fs.t.users.find((u) => u.email === 'admin@gw.example').platform_admin = true;
-  assert.equal((await s.w.call('GET', '/v1/platform/gateway', { cookie: owner.sess })).status, 404);
-  const list = await s.w.call('GET', '/v1/platform/gateway', { cookie: admin.sess });
-  assert.equal(list.status, 200); assert.ok(list.body.sites.some((x) => x.id === 'GwSite0001' && x.domain === 'app.maestrolt.com'));
-  assert.ok(!JSON.stringify(list.body).includes('ltg'), 'the list carries no keys');
-  const k = await s.w.call('GET', '/v1/platform/gateway?site=GwSite0001', { cookie: admin.sess });
-  assert.equal(k.body.key, s.key); assert.equal(k.body.endpoint, 'https://api.maestrolt.com/v1/collect');
-  assert.ok((s.w.fs.t.auth_events || []).some((x) => x.kind === 'platform_gateway_key'));
-  assert.equal((await s.w.call('GET', '/v1/platform/gateway?site=Nope', { cookie: admin.sess })).status, 404);
 });

@@ -1,6 +1,6 @@
 // واجهة اللوحة (S03): الدخول · الجلسة · المواقع. اللوحة على app.maestrolt.com بتكلّم api.maestrolt.com بكوكي الجلسة،
 // فهنا CORS لعنوان اللوحة بس (مش لأي عنوان)، وكل ردود الجلسة no-store.
-import { gatewayGet, helpGet, helpSave, connectInfo, detectSite, siteInterest } from './connecthelp.js';
+import { helpGet, helpSave, connectInfo, gatewaySite, detectSite, siteInterest } from './connecthelp.js';
 import { json } from './util.js';
 import { appOrigin, authStart, authCallback, authLogout, authStatus, getSession, checkCsrf } from './auth.js';
 import { me, listSites, createSite, rotateKey, installStatus, loadSite, notFound } from './sites.js';
@@ -90,7 +90,6 @@ export async function handleApp(req, env, db, url, p, fetchImpl) {
     else if (m === 'POST' && p === '/v1/platform/tg-templates/preview') res = await tgPreview(req, sess);
     else if (m === 'GET' && p === '/v1/platform/contact-lab') res = await contactLab(req, env, db, sess);
     // الباقات والأسعار ووسائل الدفع (billing.js)
-    else if (m === 'GET' && p === '/v1/platform/gateway') res = await gatewayGet(req, env, db, sess, url);
     else if (m === 'GET' && p === '/v1/platform/connect-help') res = await helpGet(req, env, db, sess);
     else if (m === 'POST' && p === '/v1/platform/connect-help') res = await helpSave(req, env, db, sess);
     else if (m === 'GET' && p === '/v1/platform/billing') res = await platformBilling(req, env, db, sess);
@@ -137,6 +136,7 @@ export async function handleApp(req, env, db, url, p, fetchImpl) {
     else if (m === 'POST' && p === '/v1/dash/unblock') res = await dashUnblockIp(req, env, db, sess, fetchImpl);
     else if (m === 'GET' && p === '/v1/dash/blocks') res = await dashBlocks(req, env, db, sess, url);
     else if (m === 'GET' && p === '/v1/dash/connect-info') res = await connectInfo(req, env, db, sess, url);
+    else if (m === 'POST' && p === '/v1/dash/connect-site') res = await gatewaySite(req, env, db, sess);
     else if (m === 'POST' && p === '/v1/dash/site-interest') res = await siteInterest(req, env, db, sess);
     else if (m === 'POST' && p === '/v1/dash/detect-site') res = await detectSite(req, env, db, sess, fetchImpl);
     else if (m === 'GET' && p === '/v1/dash/rules') res = await dashRules(req, env, db, sess, url);

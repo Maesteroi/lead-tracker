@@ -314,7 +314,3 @@ button.switch[aria-checked="true"]::after { inset-inline-start: 21px; }
 .cn-act { display: inline-flex; gap: 6px; align-items: center; font-size: 14px; white-space: nowrap; }
 .cn-f { display: grid; gap: 4px; margin-top: 12px; }
 @media (max-width: 640px) { .cn-row { grid-template-columns: 1fr 1fr; } }
-.gw-pick { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-block: 8px; } .gw-pick .pk { min-width: 240px; flex: 1; max-width: 420px; }
-.gw-vals { display: grid; gap: 8px; margin-top: 10px; }
-.gw-row { display: grid; grid-template-columns: 110px 1fr auto; gap: 10px; align-items: center; } .gw-row code { overflow-wrap: anywhere; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; font-size: 13px; }
-@media (max-width: 640px) { .gw-row { grid-template-columns: 1fr; } }
