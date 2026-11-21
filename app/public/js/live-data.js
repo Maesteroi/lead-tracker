@@ -151,9 +151,7 @@
     convSendReal: function (site) { return LT.api('/v1/dash/conv/send', { method: 'POST', body: { site: site, kind: 'real' } }).then(function (r) { if (!r.ok) throw new Error(r.body && r.body.error || 'http'); return r.body; }); },
     convSend: function (site, codes) { return LT.api('/v1/dash/conv/send', { method: 'POST', body: { site: site, codes: codes } }).then(function (r) { if (!r.ok) throw new Error(r.body && r.body.error || 'http'); return r.body; }); },
     // «أضف موقعًا» (connect-flow.js): الحصة + رابط واتساب + كود الربط السريع · كشف نوع الموقع · تسجيل الاهتمام بنوع غير ووردبريس
-    connectInfo: function (org, domain) { return LT.api('/v1/dash/connect-info?org=' + encodeURIComponent(org || '') + '&d=' + encodeURIComponent(domain || '')).then(function (r) { if (!r.ok) throw new Error(r.status === 403 ? 'role' : 'http'); return r.body; }); },
-    detectSite: function (url) { return LT.api('/v1/dash/detect-site', { method: 'POST', body: { url: url } }).then(function (r) { if (!r.ok) throw new Error(r.status === 429 ? 'too_many' : 'bad'); return r.body; }); },
-    siteInterest: function (kind) { return LT.api('/v1/dash/site-interest', { method: 'POST', body: { kind: kind } }).then(function (r) { if (!r.ok) throw new Error('http'); return r.body; }); },
+    connectInfo: LT.connectData.connectInfo, detectSite: LT.connectData.detectSite, siteInterest: LT.connectData.siteInterest, connectSite: LT.connectData.connectSite,
     pairCode: function (site) { return LT.api('/v1/sites/' + encodeURIComponent(site) + '/pair-code', { method: 'POST' }).then(function (r) { if (r.status !== 201) throw new Error(r.status === 403 ? 'role' : 'http'); return r.body; }); },
     clients: function (range) {
       return window.LTData.sites().then(function (sites) {

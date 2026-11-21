@@ -4,7 +4,8 @@ import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { world, loggedIn } from './helpers.js';
 import { route } from '../src/index.js';
-import { detectType } from '../src/connecthelp.js';
+import { detectType, onCloudflare, routeFor } from '../src/connecthelp.js';
+import { gatewayKey } from '../src/collect.js';
 import { WP_SNIPPET } from '../src/wpsnippet.js';
 import { returnAlerts } from '../src/returns.js';
 import { Db } from '../src/db.js';
@@ -59,6 +60,7 @@ test('connect info: quota (allowed / registered / left), the WhatsApp link with 
   assert.equal((await s.gc(s.owner, '/v1/dash/connect-info')).body.quota.used, 1, 'no org given = the first account he manages');
   assert.equal((await s.pc(s.owner, '/v1/dash/site-interest', { kind: 'salla' })).status, 200);
   assert.equal((await s.pc(s.owner, '/v1/dash/site-interest', { kind: 'hack' })).status, 400);
+  assert.equal((await s.pc(s.owner, '/v1/dash/site-interest', { kind: 'webflow' })).status, 200);
   assert.ok(s.w.fs.t.auth_events.some((e) => e.kind === 'site_interest' && e.reason === 'salla'));
 });
 
@@ -70,7 +72,7 @@ test('the quick-connect code is valid PHP and carries no secret or phone number'
   assert.equal(out.status, 0, String(out.stdout) + String(out.stderr));
 });
 
-test('site type detection: WordPress, WooCommerce, Salla, Zid, Shopify, Wix; unknown stays unknown', () => {
+test('site type detection names every kind of site, a plain coded site is «custom» (never «unknown»)', () => {
   assert.equal(detectType('<meta name="generator" content="WordPress 6.8">', {}), 'wordpress');
   assert.equal(detectType('<link href="/wp-content/themes/x/style.css">', {}), 'wordpress');
   assert.equal(detectType('<link rel="stylesheet" href="/wp-content/plugins/woocommerce/a.css">', {}), 'woocommerce');
@@ -78,19 +80,73 @@ test('site type detection: WordPress, WooCommerce, Salla, Zid, Shopify, Wix; unk
   assert.equal(detectType('<img src="https://media.zid.store/x.png">', {}), 'zid');
   assert.equal(detectType('<script src="https://cdn.shopify.com/s/a.js">', {}), 'shopify');
   assert.equal(detectType('<img src="https://static.wixstatic.com/a.jpg">', {}), 'wix');
-  assert.equal(detectType('<html><body>hello</body></html>', {}), 'unknown');
+  assert.equal(detectType('<html data-wf-page="1" data-wf-site="2">', {}), 'webflow');
+  assert.equal(detectType('<script src="https://static1.squarespace.com/a.js">', {}), 'squarespace');
+  assert.equal(detectType('<meta name="generator" content="Joomla! - Open Source">', {}), 'joomla');
+  assert.equal(detectType('<meta name="Generator" content="Drupal 10">', {}), 'drupal');
+  assert.equal(detectType('<script src="/static/version1/frontend/a.js">', {}), 'magento');
+  assert.equal(detectType('<meta name="generator" content="Ghost 5.1">', {}), 'ghost');
+  assert.equal(detectType('<html><body>hello</body></html>', {}), 'custom');
+  assert.equal(detectType('', {}), 'custom');
 });
 
-test('detect-site: asks the real site, refuses IPs/localhost/odd ports, an unreachable site is reported', async () => {
+test('routing: WordPress → plugin steps · a self-hosted site behind Cloudflare → gateway · hosted platforms or no Cloudflare → «soon»', () => {
+  assert.ok(onCloudflare({ 'cf-ray': 'abc-CAI' }) && onCloudflare({ server: 'cloudflare' }) && !onCloudflare({ server: 'nginx' }) && !onCloudflare({}));
+  assert.equal(routeFor('wordpress', true), 'wordpress'); assert.equal(routeFor('woocommerce', false), 'wordpress');
+  assert.equal(routeFor('custom', true), 'gateway'); assert.equal(routeFor('drupal', true), 'gateway');
+  assert.equal(routeFor('custom', false), 'soon');
+  for (const t of ['salla', 'zid', 'shopify', 'wix', 'webflow', 'squarespace']) assert.equal(routeFor(t, true), 'soon', t + ' is hosted by the platform');
+});
+
+test('detect-site: asks the real site, reports its type and Cloudflare, refuses IPs/localhost/odd ports, an unreachable site is reported', async () => {
   const s = await setup();
-  const site = (html) => async (u) => ({ ok: true, status: 200, headers: { forEach() {} }, text: async () => html, url: u });
+  const site = (html, hdr) => async (u) => ({ ok: true, status: 200, headers: { forEach(fn) { Object.keys(hdr || {}).forEach((k) => fn(hdr[k], k)); } }, text: async () => html, url: u });
   const call = (url, handler) => route(new Request('https://api.maestrolt.com/v1/dash/detect-site', { method: 'POST', headers: { 'content-type': 'application/json', cookie: s.owner.sess, 'x-csrf-token': s.owner.csrf, origin: 'https://app.maestrolt.com' }, body: JSON.stringify({ url }) }), s.w.env,
-    (u, o) => (/^https:\/\/(example\.com|down\.example)\//.test(String(u)) ? handler(u, o) : s.w.f(u, o)));
+    (u, o) => (/^https:\/\/(example\.com|down\.example|coded\.example)\//.test(String(u)) ? handler(u, o) : s.w.f(u, o)));
   const r = await call('Example.com/shop', site('<meta name="generator" content="WordPress 6.8">'));
-  assert.deepEqual(await r.json(), { ok: true, type: 'wordpress', host: 'example.com' });
+  assert.deepEqual(await r.json(), { ok: true, type: 'wordpress', host: 'example.com', cloudflare: false, route: 'wordpress' });
+  const c = await call('coded.example', site('<html><body>مرحبا</body></html>', { server: 'cloudflare', 'cf-ray': 'x' }));
+  assert.deepEqual(await c.json(), { ok: true, type: 'custom', host: 'coded.example', cloudflare: true, route: 'gateway' });
   for (const bad of ['http://127.0.0.1', 'localhost', 'http://10.0.0.5/', 'https://example.com:8443', 'نص عادي', 'http://u:p@example.com']) assert.equal((await call(bad, site(''))).status, 400, bad);
   const down = await call('down.example', async () => { throw new Error('boom'); });
   assert.equal((await down.json()).type, 'unreachable');
+});
+
+test('connect-site: registers the site in the account and returns LT_SITE_ID + LT_GW_KEY; again = same values, no duplicate; plan limit, other account, staff and strangers are refused', async () => {
+  const s = await setup();
+  const org = s.owner.org;
+  const r = await s.pc(s.owner, '/v1/dash/connect-site', { org: org.id, domain: 'https://Coded.Example/x' });
+  assert.equal(r.status, 201, JSON.stringify(r.body));
+  assert.equal(r.body.site.domain, 'coded.example'); assert.equal(r.body.existing, false);
+  assert.equal(r.body.key, await gatewayKey(s.w.env, r.body.site_id));
+  assert.ok(!JSON.stringify(s.w.fs.t).includes(r.body.key), 'the key is never stored');
+  assert.equal(s.w.fs.t.clients.filter((c) => (c.domains || []).includes('coded.example')).length, 1);
+  const again = await s.pc(s.owner, '/v1/dash/connect-site', { org: org.id, domain: 'coded.example' });
+  assert.equal(again.status, 200); assert.equal(again.body.existing, true); assert.equal(again.body.site_id, r.body.site_id); assert.equal(again.body.key, r.body.key);
+  assert.equal(s.w.fs.t.clients.filter((c) => (c.domains || []).includes('coded.example')).length, 1);
+  assert.ok(s.w.fs.t.auth_events.some((e) => e.kind === 'gateway_key' && e.reason === r.body.site_id));
+  for (const bad of ['', '127.0.0.1', 'localhost', 'nodot']) assert.equal((await s.pc(s.owner, '/v1/dash/connect-site', { org: org.id, domain: bad })).status, 400, bad);
+  // الحد: تجربة بـ3 مواقع
+  s.w.fs.t.organizations.find((o) => o.id === org.id).max_sites = 1;
+  const over = await s.pc(s.owner, '/v1/dash/connect-site', { org: org.id, domain: 'second.example' });
+  assert.equal(over.status, 409); assert.equal(over.body.error, 'site_limit');
+  // الإدارة بتتخطى الحد، ودومين حساب تاني مرفوض
+  const adm = await s.pc(s.admin, '/v1/dash/connect-site', { org: org.id, domain: 'second.example' });
+  assert.equal(adm.status, 201, JSON.stringify(adm.body)); assert.equal(adm.body.key, await gatewayKey(s.w.env, adm.body.site_id));
+  const other = await loggedIn(s.w, 'other@connect.example');
+  assert.equal((await s.pc(other, '/v1/dash/connect-site', { org: other.org.id, domain: 'second.example' })).status, 409, 'domain belongs to another account');
+  assert.equal((await s.pc(other, '/v1/dash/connect-site', { org: org.id, domain: 'x.example' })).status, 404, 'not his account');
+  // مدير بنطاق مواقع محدد ما يقدرش
+  assert.equal((await s.pc(s.owner, '/v1/dash/connect-site', { org: '00000000-0000-4000-8000-000000000000', domain: 'x.example' })).status, 404);
+});
+
+test('connect info for the platform admin: any account in his scope, no site limit, flagged as admin', async () => {
+  const s = await setup();
+  const info = (await s.gc(s.admin, '/v1/dash/connect-info?org=' + s.owner.org.id)).body;
+  assert.equal(info.admin, true); assert.equal(info.org_id, s.owner.org.id);
+  const mine = (await s.gc(s.owner, '/v1/dash/connect-info?org=' + s.owner.org.id)).body;
+  assert.equal(mine.admin, false);
+  assert.equal((await s.gc(s.admin, '/v1/dash/connect-info?org=00000000-0000-4000-8000-000000000000')).status, 404);
 });
 
 test('return alert: an address whose block ended and who comes back through an ad gets its own Telegram alert, once; other addresses and real visits never', async () => {

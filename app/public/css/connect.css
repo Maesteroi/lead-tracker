@@ -57,3 +57,9 @@
 .cf-lim .cf-wabox { justify-items: center; text-align: center; }
 .cf-toast { position: fixed; inset-inline: 0; bottom: max(18px, env(safe-area-inset-bottom, 0px)); margin: 0 auto; width: fit-content; max-width: calc(100% - 32px); background: var(--ink); color: var(--bg); padding: 8px 16px; border-radius: 99px; font-weight: 700; font-size: 14px; z-index: 70; }
 @media (max-width: 520px) { .cf-body { padding: 18px; } .cf-quota { margin-inline: 18px; } .cf-mh { padding: 18px 18px 0; padding-inline-end: 56px; } }
+.cf-vals { display: grid; gap: 8px; }
+.cf-val { display: grid; grid-template-columns: 150px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--bg); }
+.cf-val > div { display: grid; } .cf-val small { color: var(--muted); font-size: 12.5px; }
+.cf-val code { overflow-wrap: anywhere; font-size: 13px; text-align: left; }
+.cf-gw .cf-steps { margin-top: 14px; }
+@media (max-width: 640px) { .cf-val { grid-template-columns: 1fr; } }
