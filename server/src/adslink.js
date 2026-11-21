@@ -169,15 +169,36 @@ export async function dashAdsUnlink(req, env, db, sess) {
 }
 
 // حالة الربط لشاشة المواقع (من غير أي سر)
+function stateOf(r) {
+  // لاحقة الرابط: null = لسه مااتفحصتش · true = بتاعتنا موجودة · false = مش موجودة
+  return r ? { linked: r.status === 'on', reauth: r.status === 'reauth', account: r.customer_id, currency: r.currency, last_ok_day: r.last_ok_day, last_error: r.last_error ? String(r.last_error).slice(0, 120) : null,
+    suffix: r.suffix_checked_at ? String(r.final_url_suffix || '').includes('lt_kw={keyword}') : null } : null;
+}
 export async function adsState(db, siteId) {
   try {
     let r;
     try { r = await db.one('ads_credentials?client_id=' + eq(siteId) + '&status=in.(on,reauth)&select=customer_id,status,currency,last_ok_day,last_pull_at,last_error,final_url_suffix,suffix_checked_at&order=updated_at.desc'); }
     catch (e) { r = await db.one('ads_credentials?client_id=' + eq(siteId) + '&status=in.(on,reauth)&select=customer_id,status,currency,last_ok_day,last_pull_at,last_error&order=updated_at.desc'); }   // قبل 0019
-    // لاحقة الرابط: null = لسه مااتفحصتش · true = بتاعتنا موجودة · false = مش موجودة
-    return r ? { linked: r.status === 'on', reauth: r.status === 'reauth', account: r.customer_id, currency: r.currency, last_ok_day: r.last_ok_day, last_error: r.last_error ? String(r.last_error).slice(0, 120) : null,
-      suffix: r.suffix_checked_at ? String(r.final_url_suffix || '').includes('lt_kw={keyword}') : null } : null;
+    return stateOf(r);
   } catch (e) { return null; }   // 0002 لسه مااتطبّقتش
+}
+// نفس الحالة لعدد مواقع في استعلام واحد (Map: موقع ← { linked: هل فيه ربط شغال، state })
+export async function adsStates(db, siteIds) {
+  const out = new Map();
+  if (!siteIds.length) return out;
+  const list = 'in.(' + siteIds.join(',') + ')';
+  let rows;
+  try {
+    try { rows = await db.select('ads_credentials?client_id=' + list + '&status=in.(on,reauth)&select=client_id,customer_id,status,currency,last_ok_day,last_pull_at,last_error,final_url_suffix,suffix_checked_at&order=updated_at.desc'); }
+    catch (e) { rows = await db.select('ads_credentials?client_id=' + list + '&status=in.(on,reauth)&select=client_id,customer_id,status,currency,last_ok_day,last_pull_at,last_error&order=updated_at.desc'); }   // قبل 0019
+  } catch (e) { return out; }   // 0002 لسه مااتطبّقتش
+  for (const r of rows || []) {
+    const cur = out.get(r.client_id) || { linked: false, state: null };
+    if (!cur.state) cur.state = stateOf(r);              // الأحدث أولًا
+    if (r.status === 'on') cur.linked = true;
+    out.set(r.client_id, cur);
+  }
+  return out;
 }
 
 // تنضيف الطلبات اللي ماكملتش (من الكرون)

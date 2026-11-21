@@ -16,7 +16,7 @@ import { audit } from './auth.js';
 import { scoreSession, reasonGroup, outsideTarget, contactStrength, targetCountries, screenAwake, rulesOf } from './score.js';
 import { tr, countryName, langOf, duration } from './i18n.js';
 import { replaySet, loadReplay } from './replay.js';
-import { adsState } from './adslink.js';
+import { adsState, adsStates } from './adslink.js';
 import { adsSummary } from './adsdash.js';
 import { sourceTree } from './sources.js';
 import { ownSet, isOwn } from './blocks.js';
@@ -240,17 +240,24 @@ export async function dashLeads(req, env, db, sess, url) {
   return json({ ok: true, leads: list.map((l) => ({ strength: l.match_code && strength.has(l.match_code) ? showStrength(strength.get(l.match_code), l.session_id) : null, outside: l.outside, outside_note: l.outside_note || '', at: l.at, time: l.event_time, type: l.click_type, code: l.match_code || null, btn: l.btn_text || '', source: l.source_fine || l.source || 'direct', detail: l.source_detail || '', city: l.city || '', region: l.region || '', session: l.session_id || null, outcome: l.outcome || '', outcome_at: l.outcome_at || null })) });
 }
 
+// حالة كل مواقع المستخدم. عدد الاستعلامات ثابت (مش بيزيد بعدد المواقع): Cloudflare بيحدّ الطلب الواحد بـ 50 اتصال،
+// ولما كان لكل موقع 4 استعلامات وقفت الصفحة عند 11 موقعًا.
 export async function dashSetup(req, env, db, sess) {
   const sites = await visibleSites(db, sess, 'id,name,status,org_id,domains,paired_at,created_at');
-  const now = Date.now();
-  const deliv = await deliveryRows(db, riyadhDay(now - 7 * 864e5)).catch(() => []);
-  const out = [];
-  for (const c of sites) {
-    const last = await db.one('raw_events?client_id=' + eq(c.id) + '&select=received_at&order=received_at.desc');
-    const d = deliv.filter((r) => r.client_id === c.id);
-    out.push({ id: c.id, name: c.name, domains: c.domains || [], status: c.status, paired: !!c.paired_at, installed: !!last, last_event: last ? last.received_at : null,
-      plugin: d[0] ? d[0].plugin_version : null, delivery: d.map((r) => ({ day: r.day, pct: r.pv_pct, ok: r.ok })), ads: await adsLinked(db, c.id), ads_state: await adsState(db, c.id), own: ((await db.select('own_devices?client_id=' + eq(c.id) + '&select=id').catch(() => [])) || []).length, role: roleFor(sess, c.org_id, c.id) });
-  }
+  const now = Date.now(), ids = sites.map((c) => c.id);
+  const [deliv, lastRows, ads, ownRows] = await Promise.all([
+    deliveryRows(db, riyadhDay(now - 7 * 864e5)).catch(() => []),
+    ids.length ? db.req('POST', 'rpc/site_last_events', { p_sites: ids }).catch(() => null) : [],
+    adsStates(db, ids),
+    ids.length ? db.select('own_devices?client_id=in.(' + ids.join(',') + ')&select=client_id').catch(() => []) : [],
+  ]);
+  const last = new Map((lastRows || []).map((r) => [r.client_id, r.last_event]));
+  const own = new Map(); for (const r of ownRows || []) own.set(r.client_id, (own.get(r.client_id) || 0) + 1);
+  const out = sites.map((c) => {
+    const d = deliv.filter((r) => r.client_id === c.id), a = ads.get(c.id), ev = last.get(c.id) || null;
+    return { id: c.id, name: c.name, domains: c.domains || [], status: c.status, paired: !!c.paired_at, installed: !!ev, last_event: ev,
+      plugin: d[0] ? d[0].plugin_version : null, delivery: d.map((r) => ({ day: r.day, pct: r.pv_pct, ok: r.ok })), ads: !!(a && a.linked), ads_state: a ? a.state : null, own: own.get(c.id) || 0, role: roleFor(sess, c.org_id, c.id) };
+  });
   return json({ ok: true, sites: out });
 }
 
