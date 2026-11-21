@@ -612,7 +612,7 @@ window.LT_LANG.en = {
   'cf.gw.self': "This is the Maestro LT dashboard's own domain",
   'cf.gw.self.d': "Do not create a new Worker or add a Route. Open the “maestro-app” Worker → Settings → Variables and secrets, add the two values above (LT_SITE_ID as Text, LT_GW_KEY as Secret), then click Deploy.",
   'cf.gw.s5': "Test it",
-  'cf.gw.s5.d': "Open any page of your site with ?ltp_test=1 at the end of the link, then click any button. The test event appears in your dashboard. Do not edit anything in your pages: the gateway adds the tracking line itself.",
+  'cf.gw.s5.d': "Open any page of your site and add ?gclid=test123&ltp_test=1 to the end of the link (for example yoursite.com/?gclid=test123&ltp_test=1), then wait 10 seconds. The test visit appears in your dashboard and the status changes to “first visit received”. You can also click a WhatsApp or call button on the page. Do not edit your site's pages: the gateway adds the tracking line itself.",
   'cf.gw.e.exists': "This site is already added to another account.",
   'cf.gw.e.plan': "The account subscription is not active right now.",
   'cf.gw.e.generic': "Could not register the site. Try again.",
