@@ -205,3 +205,19 @@ test('dash overview: the map data (countries and cities with how many are outsid
   assert.equal(all, b.kpi.real + b.kpi.suspicious + b.kpi.high, 'every visit counted once');
   assert.ok(Array.isArray(b.targets));
 });
+
+test('dash setup: the number of database calls does NOT grow with the number of sites (Cloudflare stops a request at 50 calls; 11 sites used to break the sites page)', async () => {
+  const s = await setup();
+  s.w.fs.t.organizations.find((o) => o.id === s.owner.org.id).max_sites = 99;
+  for (let i = 0; i < 14; i++) {
+    const r = await s.pc(s.owner, '/v1/sites', { org_id: s.owner.org.id, name: 'موقع ' + i, domain: 'site' + i + '.example' });
+    assert.equal(r.status, 201);
+  }
+  let calls = 0;
+  const res = await route(new Request('https://api.maestrolt.com/v1/dash/setup', { headers: { cookie: s.owner.sess } }), s.env, (u, o) => { calls++; return s.w.f(u, o); });
+  const body = await res.json();
+  assert.equal(body.sites.length, 15);
+  assert.ok(calls <= 20, 'database calls: ' + calls);
+  assert.equal(body.sites.filter((x) => x.installed).length, 1);
+  assert.ok(body.sites.find((x) => x.id === s.site.id).last_event);
+});

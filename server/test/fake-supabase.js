@@ -129,6 +129,11 @@ export function fakeSupabase() {
       }
       return resp(200, [...out.values()]);
     }
+    if (u.pathname === '/rest/v1/rpc/site_last_events' && method === 'POST') {
+      const a = JSON.parse(opts.body || '{}'), out = new Map();
+      for (const e of table('raw_events')) if ((a.p_sites || []).includes(e.client_id) && (!out.has(e.client_id) || e.received_at > out.get(e.client_id))) out.set(e.client_id, e.received_at);
+      return resp(200, [...out.entries()].map(([client_id, last_event]) => ({ client_id, last_event })));
+    }
     if (u.pathname === '/rest/v1/rpc/site_delivery' && method === 'POST') {
       const a = JSON.parse(opts.body || '{}'); const out = new Map();
       for (const e of table('raw_events')) {
