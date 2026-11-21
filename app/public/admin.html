@@ -131,11 +131,11 @@
   <div class="d-body" id="d-body">
     <div class="d-state" id="d-state"></div>
 
-    <section class="d-sec" data-perm="orgs_create" data-act="1" hidden>
+    <section class="d-sec" data-perm="sites_add|orgs_create" data-act="1" hidden>
       <h3 class="legend" data-i18n="adm.d.manage">إدارة العميل</h3>
       <div class="d-acts">
         <button class="btn sm" id="d-add-site" type="button" data-i18n="adm.add_site">＋ أضف موقعًا</button>
-        <button class="btn ghost sm" id="d-owner-btn" type="button" data-i18n="adm.d.owner">تغيير بريد العميل</button>
+        <button class="btn ghost sm" id="d-owner-btn" type="button" data-perm="orgs_create" data-act="1" data-i18n="adm.d.owner">تغيير بريد العميل</button>
       </div>
     </section>
 

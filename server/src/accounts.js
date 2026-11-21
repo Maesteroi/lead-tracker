@@ -8,7 +8,7 @@
 import { eq } from './db.js';
 import { json } from './util.js';
 import { audit } from './auth.js';
-import { notFound, hasPerm, isPlatform, normalizeDomain, insertSite, orgInScope } from './sites.js';
+import { notFound, hasPerm, isPlatform, normalizeDomain, insertSite, orgInScope, planGate, ORG_GATE_SELECT } from './sites.js';
 import { hasCountry } from './countries.js';
 
 const INVITE_DAYS = 30;
@@ -25,6 +25,14 @@ export function canCreate(sess) {
   const pl = sess && sess.platform;
   return !!(pl && hasPerm(sess, 'orgs_create') && pl.orgs == null && pl.sites == null);
 }
+
+// مين يقدر يضيف مواقع لحساب: اللي يقدر يعمل حسابات، أو عضو فريق بصلاحية sites_add (والحساب لازم يكون في نطاقه، والمسار بيتأكد منه).
+export function canAddSites(sess) {
+  if (canCreate(sess)) return true;
+  return !!(sess && sess.platform && hasPerm(sess, 'sites_add'));
+}
+// تخطي حد المواقع: السوبر أدمن، أو منشئ الحسابات، أو عضو معاه صلاحية الخطة. عضو sites_add لوحدها بيلتزم بحد الحساب.
+export function bypassSiteLimit(sess) { return canCreate(sess) || hasPerm(sess, 'orgs_plan'); }
 
 // ربط إيميل العميل بالحساب كمالك: مستخدم موجود ← عضوية على طول، غير كده ← دعوة بتتقبل عند أول دخول بجوجل
 async function attachOwner(db, sess, orgId, email) {
@@ -108,17 +116,22 @@ export async function createAccount(req, env, db, sess) {
 }
 
 export async function addAccountSite(req, env, db, sess) {
-  if (!canCreate(sess)) return notFound();
+  if (!canAddSites(sess)) return notFound();
   const b = await readBody(req);
   const orgId = String(b.org_id || '');
   if (!UUID_RE.test(orgId) || !orgInScope(sess, orgId)) return notFound();
-  const org = await db.one('organizations?id=' + eq(orgId) + '&select=id,name');
+  const org = await db.one('organizations?id=' + eq(orgId) + '&select=' + ORG_GATE_SELECT + ',name');
   if (!org) return notFound();
   const domain = normalizeDomain(b.domain);
   if (!domain) return bad('domain');
   if (await domainTaken(db, domain)) return json({ ok: false, error: 'domain_exists' }, 409);
+  if (!bypassSiteLimit(sess)) {
+    const count = ((await db.select('clients?org_id=' + eq(orgId) + '&select=id')) || []).length;
+    const gate = planGate(env, org, count);
+    if (gate) return json(gate.body, gate.status);
+  }
   const name = cleanText(b.name, 120) || domain;
-  const r = await insertSite(env, db, orgId, name, domain, null, null);   // الإدارة بتتخطى حد المواقع: القرار قرارها
+  const r = await insertSite(env, db, orgId, name, domain, null, null);   // السوبر أدمن ومنشئ الحسابات بيتخطوا حد المواقع
   await audit(db, sess.user.id, 'site_created', true, r.id);
   return json({ ok: true, site: { id: r.id, name, domain } }, 201);
 }

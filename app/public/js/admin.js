@@ -7,6 +7,8 @@
   var data = null, filter = 'all', query = '', current = null, draft = null, lastFocus = null, confirming = false, ME = null;
   // صلاحيات صاحب الجلسة (G-29): السوبر أدمن = كل حاجة
   function can(p) { return !!ME && (ME.owner || (ME.perms || []).indexOf(p) >= 0); }
+  // «أ|ب» = أي واحدة من الصلاحيتين (مثلًا إضافة المواقع: sites_add أو orgs_create)
+  function canAny(spec) { return String(spec).split('|').some(can); }
 
   var STATUS = {
     trial: { t: T('adm.st.trial'), c: 'info' }, active: { t: T('adm.st.active'), c: 'ok' },
@@ -63,7 +65,7 @@
       ME = data.me || { owner: true, perms: ['*'] };
       $('loading').hidden = true; $('app').hidden = false;
       $('updated').textContent = T('adm.updated') + ' ' + new Date().toLocaleTimeString(LT.locale, { hour: 'numeric', minute: '2-digit' });
-      $('new-acc').hidden = !can('orgs_create'); $('add-site').hidden = !can('orgs_create');
+      $('new-acc').hidden = !can('orgs_create'); $('add-site').hidden = !canAny('sites_add|orgs_create');
       renderKpis(); renderFilter(); renderRows(); renderCfg(data.config); $('tg').hidden = r[1].status === 404; if (r[1].status !== 404) renderTg(r[1].ok ? r[1].body : null);
       $('role-eyebrow').textContent = ME.owner ? T('adm.role') : T('adm.role.team') + ' · ' + (ME.role || '') + (ME.scoped ? ' ' + T('adm.role.scoped') : '');
       $('tab-btn-team').hidden = !ME.owner; $('tab-btn-audit').hidden = !(ME.owner || can('audit')); $('tab-btn-alerts').hidden = !(ME.owner || can('telegram')); $('tab-btn-lab').hidden = !ME.owner; $('tab-btn-connect').hidden = !ME.owner; $('tab-btn-billing').hidden = !(ME.owner || can('billing'));
@@ -217,7 +219,7 @@
     var o = current, seg = clear($('d-status'));
     // كل جزء بيظهر بس لو عندك صلاحيته، والحساب كله في نطاقك (السيرفر بيتأكد كمان)
     var editable = o.can_edit !== false, any = false;
-    Array.prototype.forEach.call(document.querySelectorAll('#drawer [data-perm]'), function (f) { var ok = editable && can(f.getAttribute('data-perm')); f.hidden = !ok; if (ok && !f.hasAttribute('data-act')) any = true; });
+    Array.prototype.forEach.call(document.querySelectorAll('#drawer [data-perm]'), function (f) { var ok = editable && canAny(f.getAttribute('data-perm')); f.hidden = !ok; if (ok && !f.hasAttribute('data-act')) any = true; });
     $('d-save').hidden = !any;
     ['trial', 'active', 'past_due', 'off'].filter(function (k) { return k === o.status || can('orgs_suspend') || (k !== 'off' && k !== 'past_due'); }).forEach(function (k) {
       var b = el('button', { type: 'button', role: 'radio', 'data-v': k, 'aria-checked': String(draft.status === k), text: STATUS[k].t });
@@ -300,7 +302,7 @@
   function wire() {
     // حساب عميل جديد · أضف موقعًا · تغيير بريد العميل (admin-accounts.js)
   $('new-acc').addEventListener('click', function () { window.LTAdminAccounts.newAccount({ reload: load, toast: toast }); });
-  $('add-site').addEventListener('click', function () { window.LTAdminAccounts.addSite(null, { reload: load, toast: toast, orgs: function () { return data ? data.orgs : []; } }); });
+  $('add-site').addEventListener('click', function () { window.LTAdminAccounts.addSite(null, { reload: load, toast: toast, orgs: function () { return data ? data.orgs.filter(function (x) { return x.can_edit !== false; }) : []; } }); });
   $('d-add-site').addEventListener('click', function () { if (current) window.LTAdminAccounts.addSite(current, { reload: load, toast: toast }); });
   $('d-owner-btn').addEventListener('click', function () { if (current) window.LTAdminAccounts.setOwner(current, { reload: load, toast: toast }); });
   $('refresh').addEventListener('click', load);

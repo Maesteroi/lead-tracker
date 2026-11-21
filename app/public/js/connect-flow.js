@@ -121,7 +121,7 @@
     var b = el('button', { class: 'btn', type: 'button', text: T('cf.adm.reg') });
     b.addEventListener('click', function () {
       b.disabled = true;
-      ctx.data.connectSite(info.org_id, host).then(function () { toast(T('cf.adm.reg.done', { h: host })); if (ctx.done) ctx.done(); }, function (e) { b.disabled = false; toast(T(gwErr(e))); });
+      ctx.data.connectSite(info.org_id, host).then(function () { if (ctx.done) ctx.done(); if (layer) unknown(); toast(T('cf.adm.reg.done', { h: host })); }, function (e) { b.disabled = false; toast(T(gwErr(e))); });
     });
     return b;
   }
@@ -161,7 +161,7 @@
   }
 
   // ── موقع على Cloudflare: نسجّله في الحساب ونعرض بيانات البوابة ──
-  function gwErr(e) { var c = e && e.message; return c === 'domain_exists' ? 'cf.gw.e.exists' : c === 'domain' ? 'cf.url.bad' : c === 'plan_inactive' ? 'cf.gw.e.plan' : 'cf.gw.e.generic'; }
+  function gwErr(e) { var c = e && e.message; return c === 'domain_exists' ? 'cf.gw.e.exists' : c === 'domain' ? 'cf.url.bad' : c === 'plan_inactive' ? 'cf.gw.e.plan' : c === 'site_limit' && info && info.admin ? 'cf.adm.e.limit' : 'cf.gw.e.generic'; }
   function valRow(label, kind, value) {
     var b = el('button', { class: 'btn ghost sm', type: 'button', text: T('cf.gw.copy') });
     b.addEventListener('click', function () { copyText(value, T('cf.gw.copied')); });
@@ -174,21 +174,26 @@
       var code = window.LT_GW_CODE || '';
       var codeBtn = el('button', { class: 'btn primary sm', type: 'button', text: T('cf.gw.copy.code') }); codeBtn.addEventListener('click', function () { copyText(code, T('cf.copied')); });
       var done = el('button', { class: 'btn ghost', type: 'button', 'data-first': '', text: T('cf.w.done') }); done.addEventListener('click', function () { close(true); });
+      var more = info && info.admin ? el('button', { class: 'btn', type: 'button', text: T('cf.adm.more') }) : null;
+      if (more) more.addEventListener('click', function () { if (ctx.done) ctx.done(); unknown(); });
       show(el('div', { class: 'cf-card cf-wp cf-gw', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'cf-h' }, [closeBtn(),
         el('div', { class: 'cf-mh' }, [el('h3', { id: 'cf-h', text: T(r.existing ? 'cf.gw.title.ex' : 'cf.gw.title', { h: r.site.domain }) }), el('p', { text: T('cf.gw.sub') })]),
         el('div', { class: 'cf-body' }, [
           el('div', { class: 'cf-vals' }, [valRow('LT_SITE_ID', T('cf.gw.k.text'), r.site_id), valRow('LT_GW_KEY', T('cf.gw.k.secret'), r.key)]),
           el('p', { class: 'cf-note', text: T('cf.gw.warn') }),
-          el('ol', { class: 'cf-steps' }, [
+          // نطاق اللوحة نفسها (app.maestrolt.com) بيشتغل على Worker «maestro-app» وفيه كود البوابة: قيمتين بس، من غير Worker جديد ولا Route
+          el('ol', { class: 'cf-steps' }, r.site.domain === location.hostname ? [
+            step(T('cf.gw.self'), T('cf.gw.self.d')),
+            step(T('cf.gw.s5'), T('cf.gw.s5.d'))] : [
             step(T('cf.gw.s1'), T('cf.gw.s1.d')),
             step(T('cf.gw.s2'), T('cf.gw.s2.d'), el('div', { class: 'cf-row' }, [codeBtn])),
             step(T('cf.gw.s3'), T('cf.gw.s3.d')),
             step(T('cf.gw.s4'), T('cf.gw.s4.d', { h: r.site.domain })),
             step(T('cf.gw.s5'), T('cf.gw.s5.d'))]),
-          waBox(), el('div', { class: 'cf-row end' }, [done])])]));
+          waBox(), el('div', { class: 'cf-row end' }, [more, done])])]));
     }, function (e) {
       if (!layer) return;
-      if (e && e.message === 'site_limit') { limit(); return; }
+      if (e && e.message === 'site_limit' && !(info && info.admin)) { limit(); return; }
       var back2 = el('button', { class: 'btn', type: 'button', text: T('cf.back') }); back2.addEventListener('click', unknown);
       show(el('div', { class: 'cf-card cf-ask', role: 'dialog', 'aria-modal': 'true' }, [closeBtn(), el('div', { class: 'cf-body' }, [el('div', { class: 'cf-result no', text: T(gwErr(e)) }), el('div', { class: 'cf-row' }, [back2, waButton()])])]));
     });
